@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -8,23 +8,30 @@ import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import Project from "@/pages/Project";
 import Settings from "@/pages/Settings";
+import DemoProject from "@/pages/DemoProject";
+import { useAuth } from "@/hooks/use-auth";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Redirect to="/" />;
+  }
+  
+  return <Component />;
+}
 
 function Router() {
   const [location] = useLocation();
-  const [isAuth, setIsAuth] = useState(false);
-
-  // Simple mock auth state logic
-  useEffect(() => {
-    const hasToken = localStorage.getItem('mock_token');
-    if (hasToken && location === '/') {
-      window.location.href = '/dashboard';
-    } else if (!hasToken && location !== '/') {
-      window.location.href = '/';
-    }
-    setIsAuth(!!hasToken);
-  }, [location]);
 
   return (
     <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto bg-background shadow-2xl overflow-hidden relative">
@@ -39,9 +46,10 @@ function Router() {
         >
           <Switch>
             <Route path="/" component={Auth}/>
-            <Route path="/dashboard" component={Dashboard}/>
-            <Route path="/project/:id" component={Project}/>
-            <Route path="/settings" component={Settings}/>
+            <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
+            <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
+            <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+            <Route path="/demo" component={DemoProject}/>
             <Route component={NotFound} />
           </Switch>
         </motion.div>
@@ -52,15 +60,12 @@ function Router() {
 }
 
 function App() {
-  // Center app layout to simulate mobile on desktop, but be full screen on actual mobile
   return (
     <div className="min-h-screen bg-black/20 sm:p-4 md:p-8 flex items-center justify-center">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <div className="w-full h-[100dvh] sm:h-[800px] max-w-md bg-background sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-900 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden relative ring-1 ring-white/10">
-            {/* Dynamic Island / Notch Mock for Desktop View */}
             <div className="hidden sm:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-gray-900 rounded-b-3xl z-50"></div>
-            
             <Router />
           </div>
         </TooltipProvider>

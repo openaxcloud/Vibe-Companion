@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ChevronLeft, Moon, Sun, Bell, Shield, Smartphone } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Settings() {
   const [, setLocation] = useLocation();
+  const { user, logout } = useAuth();
   const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
@@ -26,13 +28,21 @@ export default function Settings() {
   return (
     <div className="h-full flex flex-col bg-background">
       <div className="flex items-center gap-3 p-4 pt-12 border-b border-white/5">
-        <Button variant="ghost" size="icon" className="rounded-full w-8 h-8 hover:bg-white/5" onClick={() => setLocation("/dashboard")}>
+        <Button variant="ghost" size="icon" className="rounded-full w-8 h-8 hover:bg-white/5" onClick={() => setLocation("/dashboard")} data-testid="button-back-settings">
           <ChevronLeft className="w-5 h-5" />
         </Button>
         <h1 className="text-xl font-bold">Settings</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-8">
+        <div className="space-y-3">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-2">Account</h2>
+          <div className="glass-panel rounded-2xl overflow-hidden p-4">
+            <p className="text-sm font-medium">{user?.displayName || "User"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{user?.email}</p>
+          </div>
+        </div>
+
         <div className="space-y-3">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-2">Appearance</h2>
           <div className="glass-panel rounded-2xl overflow-hidden">
@@ -43,7 +53,7 @@ export default function Settings() {
                 </div>
                 <span className="font-medium text-sm">Dark Mode</span>
               </div>
-              <Switch checked={isDark} onCheckedChange={setIsDark} className="data-[state=checked]:bg-primary" />
+              <Switch checked={isDark} onCheckedChange={setIsDark} className="data-[state=checked]:bg-primary" data-testid="switch-dark-mode" />
             </div>
           </div>
         </div>
@@ -73,7 +83,6 @@ export default function Settings() {
         </div>
         
         <div className="space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-2">Account</h2>
           <div className="glass-panel rounded-2xl overflow-hidden divide-y divide-white/5">
             <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-3">
@@ -86,10 +95,8 @@ export default function Settings() {
             </div>
             <div 
               className="p-4 cursor-pointer hover:bg-red-500/10 transition-colors text-red-400 font-medium text-sm text-center"
-              onClick={() => {
-                localStorage.removeItem("mock_token");
-                setLocation("/");
-              }}
+              onClick={() => logout.mutate()}
+              data-testid="button-signout"
             >
               Sign Out
             </div>
