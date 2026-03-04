@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
-  ChevronLeft, Play, Terminal, Loader2, Eye,
+  ChevronLeft, Play, Terminal, Loader2,
   File as FileIcon, X, RefreshCw, Globe
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
 import type { Project, File } from "@shared/schema";
 
 export default function DemoProject() {
@@ -18,6 +19,7 @@ export default function DemoProject() {
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bottomTab, setBottomTab] = useState<"terminal" | "preview">("terminal");
+  const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const demoQuery = useQuery<{ project: Project; files: File[] }>({
@@ -28,6 +30,14 @@ export default function DemoProject() {
       return res.json();
     },
   });
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    if (window.innerWidth >= 768) setSidebarOpen(true);
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   useEffect(() => {
     if (demoQuery.data?.files?.length && !activeFileId) {
@@ -41,10 +51,6 @@ export default function DemoProject() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [logs]);
-
-  useEffect(() => {
-    if (window.innerWidth >= 768) setSidebarOpen(true);
-  }, []);
 
   const handleRun = async () => {
     if (isRunning) return;
@@ -74,7 +80,7 @@ export default function DemoProject() {
     if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
     setActiveFileId(file.id);
     setCode(file.content);
-    if (window.innerWidth < 768) setSidebarOpen(false);
+    if (isMobile) setSidebarOpen(false);
   };
 
   const closeTab = (fileId: string, e?: React.MouseEvent) => {
@@ -94,6 +100,8 @@ export default function DemoProject() {
     const c: Record<string, string> = { js: "text-yellow-400", ts: "text-blue-400", py: "text-green-400", json: "text-orange-400", css: "text-pink-400", html: "text-red-400" };
     return c[ext || ""] || "text-[#8b949e]";
   };
+
+  const activeFile = demoQuery.data?.files?.find((f) => f.id === activeFileId);
 
   if (demoQuery.isLoading) {
     return (
@@ -124,8 +132,8 @@ export default function DemoProject() {
       <div className="flex flex-1 overflow-hidden">
         {sidebarOpen && (
           <>
-            {window.innerWidth < 768 && <div className="absolute inset-0 top-10 bg-black/40 z-20" onClick={() => setSidebarOpen(false)} />}
-            <div className={`${window.innerWidth < 768 ? "absolute left-0 top-10 bottom-0 z-30" : "relative"} w-[220px] bg-[#0d1117] border-r border-[#30363d] flex flex-col shrink-0`}>
+            {isMobile && <div className="absolute inset-0 top-10 bg-black/40 z-20" onClick={() => setSidebarOpen(false)} />}
+            <div className={`${isMobile ? "absolute left-0 top-10 bottom-0 z-30" : "relative"} w-[220px] bg-[#0d1117] border-r border-[#30363d] flex flex-col shrink-0`}>
               <div className="flex items-center justify-between px-3 py-2 border-b border-[#30363d]">
                 <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">Files</span>
                 <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d] md:hidden" onClick={() => setSidebarOpen(false)}>
@@ -146,7 +154,7 @@ export default function DemoProject() {
 
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {openTabs.length > 0 && (
-            <div className="flex items-center bg-[#0d1117] border-b border-[#30363d] overflow-x-auto shrink-0">
+            <div className="flex items-center bg-[#0d1117] border-b border-[#30363d] overflow-x-auto shrink-0 scrollbar-hide">
               {openTabs.map((tabId) => {
                 const file = demoQuery.data?.files?.find((f) => f.id === tabId);
                 if (!file) return null;
@@ -164,8 +172,19 @@ export default function DemoProject() {
             </div>
           )}
 
-          <div className="flex-1 overflow-auto">
-            <textarea value={code} readOnly spellCheck={false} className="w-full h-full p-4 bg-transparent text-[#c9d1d9] resize-none outline-none leading-relaxed cursor-default" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "13px", tabSize: 2 }} data-testid="textarea-code-demo" />
+          <div className="flex-1 overflow-hidden">
+            {activeFile ? (
+              <CodeEditor
+                value={code}
+                onChange={() => {}}
+                language={detectLanguage(activeFile.filename)}
+                readOnly
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-[#484f58]">
+                <p className="text-sm">Select a file to view</p>
+              </div>
+            )}
           </div>
 
           {terminalVisible && (

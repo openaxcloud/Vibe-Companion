@@ -202,13 +202,13 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
       {runnerOffline && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-[#484f58] gap-2">
           <WifiOff className="w-8 h-8 text-orange-400/60" />
-          <p className="text-xs text-orange-400/80">Terminal indisponible (runner offline)</p>
+          <p className="text-xs text-orange-400/80">Terminal unavailable (runner offline)</p>
         </div>
       )}
       {!runnerOffline && !wsUrl && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-[#484f58] gap-2">
           <Terminal className="w-8 h-8" />
-          <p className="text-xs">Démarrez le workspace pour accéder au terminal</p>
+          <p className="text-xs">Start the workspace to access the terminal</p>
         </div>
       )}
     </div>

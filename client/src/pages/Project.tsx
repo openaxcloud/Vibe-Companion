@@ -580,7 +580,7 @@ export default function Project() {
       if (!data.online) {
         setRunnerOnline(false);
         setWsStatus("offline");
-        toast({ title: "Runner offline", description: "Le VPS runner n'est pas encore déployé", variant: "destructive" });
+        toast({ title: "Runner offline", description: "The runner VPS is not yet deployed", variant: "destructive" });
       } else if (data.error) {
         setRunnerOnline(true);
         setWsStatus("error");
@@ -869,7 +869,7 @@ export default function Project() {
       {runnerOnline === false ? (
         <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-2">
           <WifiOff className="w-8 h-8 text-orange-400/60" />
-          <p className="text-xs text-orange-400/80">Preview indisponible (runner offline)</p>
+          <p className="text-xs text-orange-400/80">Preview unavailable (runner offline)</p>
         </div>
       ) : wsStatus === "running" && livePreviewUrl ? (
         <>
@@ -896,11 +896,11 @@ export default function Project() {
           <p className="text-sm font-medium text-[#c9d1d9]">Live Preview</p>
           {wsStatus === "none" || wsStatus === "stopped" ? (
             <>
-              <p className="text-xs text-center max-w-[280px]">Lance ton serveur sur le port <span className="text-[#58a6ff] font-mono">:3000</span> dans le workspace pour voir la preview ici.</p>
-              <p className="text-[10px] text-[#30363d]">Démarre le workspace puis exécute ton app</p>
+              <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#58a6ff] font-mono">:3000</span> in the workspace to see the preview here.</p>
+              <p className="text-[10px] text-[#30363d]">Start the workspace then run your app</p>
             </>
           ) : (
-            <p className="text-xs">Workspace en cours de démarrage...</p>
+            <p className="text-xs">Workspace starting up...</p>
           )}
         </div>
       )}
@@ -1048,7 +1048,7 @@ export default function Project() {
       {runnerOnline === false && !isMobile && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-600/10 border-b border-orange-600/20 shrink-0">
           <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-          <span className="text-[11px] text-orange-400">Runner offline — Terminal et Preview live sont désactivés.</span>
+          <span className="text-[11px] text-orange-400">Runner offline — Live terminal and preview are disabled.</span>
         </div>
       )}
 

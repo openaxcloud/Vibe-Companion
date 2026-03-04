@@ -24,6 +24,7 @@ export default function SharedProject() {
   const [output, setOutput] = useState("");
   const [bottomTab, setBottomTab] = useState<"terminal" | "preview">("terminal");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery<SharedData>({
@@ -36,27 +37,31 @@ export default function SharedProject() {
   });
 
   useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    if (window.innerWidth < 768) setSidebarOpen(false);
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
     if (data?.files?.[0] && !activeFileId) {
       const f = data.files[0];
       setActiveFileId(f.id);
       setOpenTabs([f.id]);
     }
-  }, [data]);
+  }, [data, activeFileId]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [output]);
-
-  useEffect(() => {
-    if (window.innerWidth < 768) setSidebarOpen(false);
-  }, []);
 
   const activeFile = data?.files?.find((f) => f.id === activeFileId);
 
   const openFile = (file: File) => {
     if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
     setActiveFileId(file.id);
-    if (window.innerWidth < 768) setSidebarOpen(false);
+    if (isMobile) setSidebarOpen(false);
   };
 
   const closeTab = (fileId: string, e?: React.MouseEvent) => {
@@ -109,7 +114,7 @@ export default function SharedProject() {
       <div className="h-screen flex flex-col items-center justify-center bg-[#0d1117] gap-3">
         <Share2 className="w-10 h-10 text-[#30363d]" />
         <p className="text-sm text-[#8b949e]">This project is not available</p>
-        <Button variant="ghost" className="text-[#58a6ff] text-xs" onClick={() => setLocation("/")}>
+        <Button variant="ghost" className="text-[#58a6ff] text-xs" onClick={() => setLocation("/")} data-testid="button-back-shared-error">
           Go to Vibe Platform
         </Button>
       </div>
@@ -144,8 +149,8 @@ export default function SharedProject() {
       <div className="flex flex-1 overflow-hidden">
         {sidebarOpen && (
           <>
-            {window.innerWidth < 768 && <div className="absolute inset-0 top-10 bg-black/40 z-20" onClick={() => setSidebarOpen(false)} />}
-            <div className={`${window.innerWidth < 768 ? "absolute left-0 top-10 bottom-0 z-30" : "relative"} w-[220px] bg-[#0d1117] border-r border-[#30363d] flex flex-col shrink-0`}>
+            {isMobile && <div className="absolute inset-0 top-10 bg-black/40 z-20" onClick={() => setSidebarOpen(false)} />}
+            <div className={`${isMobile ? "absolute left-0 top-10 bottom-0 z-30" : "relative"} w-[220px] bg-[#0d1117] border-r border-[#30363d] flex flex-col shrink-0`}>
               <div className="flex items-center justify-between px-3 py-2 border-b border-[#30363d]">
                 <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">Files</span>
                 <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d] md:hidden" onClick={() => setSidebarOpen(false)}>
