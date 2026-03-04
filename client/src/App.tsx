@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import Project from "@/pages/Project";
 import Settings from "@/pages/Settings";
 import DemoProject from "@/pages/DemoProject";
+import SharedProject from "@/pages/SharedProject";
 import { useAuth } from "@/hooks/use-auth";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -35,6 +36,7 @@ function App() {
             <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
             <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
             <Route path="/demo" component={DemoProject} />
+            <Route path="/shared/:id" component={SharedProject} />
             <Route component={NotFound} />
           </Switch>
         </div>

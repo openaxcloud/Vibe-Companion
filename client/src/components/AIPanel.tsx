@@ -119,6 +119,7 @@ export default function AIPanel({ context, onClose }: AIPanelProps) {
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-semibold text-[#c9d1d9]">AI Assistant</span>
+          <span className="text-[10px] text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded" data-testid="text-ai-model">Claude Sonnet</span>
         </div>
         <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={onClose}>
           <X className="w-3.5 h-3.5" />

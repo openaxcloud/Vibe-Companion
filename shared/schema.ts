@@ -24,6 +24,7 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   language: text("language").notNull().default("javascript"),
   isDemo: boolean("is_demo").notNull().default(false),
+  isPublished: boolean("is_published").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

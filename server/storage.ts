@@ -33,6 +33,9 @@ export interface IStorage {
   getRun(id: string): Promise<Run | undefined>;
   getRunsByProject(projectId: string): Promise<Run[]>;
 
+  publishProject(id: string, userId: string): Promise<Project | undefined>;
+  getPublishedProject(id: string): Promise<{project: Project, files: File[]} | undefined>;
+
   getDemoProject(): Promise<Project | undefined>;
   seedDemoProject(): Promise<void>;
 }
@@ -197,6 +200,29 @@ export class DatabaseStorage implements IStorage {
       .where(eq(runs.projectId, projectId))
       .orderBy(desc(runs.startedAt))
       .limit(20);
+  }
+
+  async publishProject(id: string, userId: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.id, id), eq(projects.userId, userId)))
+      .limit(1);
+    if (!project) return undefined;
+
+    const [updated] = await db.update(projects)
+      .set({ isPublished: !project.isPublished, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getPublishedProject(id: string): Promise<{project: Project, files: File[]} | undefined> {
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.id, id), eq(projects.isPublished, true)))
+      .limit(1);
+    if (!project) return undefined;
+
+    const fileList = await db.select().from(files).where(eq(files.projectId, id));
+    return { project, files: fileList };
   }
 
   async getDemoProject(): Promise<Project | undefined> {

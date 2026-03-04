@@ -9,7 +9,7 @@ import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { log } from "./index";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 declare module "express-session" {
   interface SessionData {
@@ -241,29 +241,36 @@ export async function registerRoutes(
   });
 
   app.patch("/api/files/:id", requireAuth, async (req: Request, res: Response) => {
+    const existingFile = await storage.getFile(req.params.id);
+    if (!existingFile) {
+      return res.status(404).json({ message: "File not found" });
+    }
+    const project = await storage.getProject(existingFile.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const { content, filename } = req.body;
     if (typeof content === "string") {
       const file = await storage.updateFileContent(req.params.id, content);
-      if (!file) {
-        return res.status(404).json({ message: "File not found" });
-      }
       return res.json(file);
     }
     if (typeof filename === "string" && filename.trim()) {
       const file = await storage.renameFile(req.params.id, filename.trim());
-      if (!file) {
-        return res.status(404).json({ message: "File not found" });
-      }
       return res.json(file);
     }
     return res.status(400).json({ message: "content or filename required" });
   });
 
   app.delete("/api/files/:id", requireAuth, async (req: Request, res: Response) => {
-    const deleted = await storage.deleteFile(req.params.id);
-    if (!deleted) {
+    const existingFile = await storage.getFile(req.params.id);
+    if (!existingFile) {
       return res.status(404).json({ message: "File not found" });
     }
+    const project = await storage.getProject(existingFile.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    await storage.deleteFile(req.params.id);
     return res.json({ message: "File deleted" });
   });
 
@@ -384,10 +391,27 @@ export async function registerRoutes(
     }
   });
 
+  // --- PUBLISH / SHARE ---
+  app.post("/api/projects/:id/publish", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.publishProject(req.params.id, req.session.userId!);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found or not owned" });
+    }
+    return res.json(project);
+  });
+
+  app.get("/api/shared/:id", async (req: Request, res: Response) => {
+    const result = await storage.getPublishedProject(req.params.id);
+    if (!result) {
+      return res.status(404).json({ message: "Project not found or not published" });
+    }
+    return res.json(result);
+  });
+
   // --- AI ASSISTANT ---
-  const aiOpenai = new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  const anthropic = new Anthropic({
+    apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
   });
 
   app.post("/api/ai/chat", requireAuth, async (req: Request, res: Response) => {
@@ -403,22 +427,18 @@ export async function registerRoutes(
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const stream = await aiOpenai.chat.completions.create({
-        model: "gpt-5-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.map((m: any) => ({ role: m.role, content: m.content })),
-        ],
-        stream: true,
-        max_completion_tokens: 4096,
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        system: systemPrompt,
+        messages: messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        max_tokens: 4096,
       });
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
-        }
-      }
+      stream.on("text", (text) => {
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      });
+
+      await stream.finalMessage();
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
