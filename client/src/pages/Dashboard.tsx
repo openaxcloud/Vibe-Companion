@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Plus, Folder, MoreVertical, LogOut, Settings as SettingsIcon, Trash, Copy,
-  Loader2, Code2, Search, Eye, Zap, Sparkles, ArrowRight, Send
+  Loader2, Code2, Search, Eye, Zap, Sparkles, ArrowRight, Send,
+  Globe, Database, Gamepad2, LayoutDashboard
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -86,6 +87,13 @@ export default function Dashboard() {
   const projects = (projectsQuery.data || []).filter((p) => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
+  const TEMPLATES = [
+    { name: "Web App", desc: "React + Express starter", prompt: "A modern web app with React frontend, Express backend, and a responsive dashboard", icon: Globe, color: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
+    { name: "API Server", desc: "REST API with auth", prompt: "A REST API server with user authentication, CRUD endpoints, and JSON responses", icon: Database, color: "text-green-400 bg-green-400/10 border-green-400/20" },
+    { name: "Dashboard", desc: "Admin panel UI", prompt: "An admin dashboard with sidebar navigation, data tables, charts, and user management", icon: LayoutDashboard, color: "text-purple-400 bg-purple-400/10 border-purple-400/20" },
+    { name: "Game", desc: "Browser game", prompt: "A simple browser-based snake game using HTML5 Canvas with score tracking", icon: Gamepad2, color: "text-orange-400 bg-orange-400/10 border-orange-400/20" },
+  ];
+
   const handleGenerateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (aiPrompt.trim().length >= 3) generateProject.mutate(aiPrompt.trim());
@@ -157,6 +165,29 @@ export default function Dashboard() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6">
+          <div className="mb-6">
+            <h3 className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider mb-3">Start from a template</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {TEMPLATES.map((tmpl) => (
+                <button
+                  key={tmpl.name}
+                  className="flex flex-col items-start gap-2 p-3 rounded-xl bg-[#161b22] border border-[#30363d] hover:border-[#484f58] transition-all text-left group"
+                  onClick={() => { setAiPrompt(tmpl.prompt); generateProject.mutate(tmpl.prompt); }}
+                  disabled={generateProject.isPending}
+                  data-testid={`template-${tmpl.name.toLowerCase().replace(/\s/g, "-")}`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${tmpl.color}`}>
+                    <tmpl.icon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-white group-hover:text-[#58a6ff] transition-colors">{tmpl.name}</p>
+                    <p className="text-[10px] text-[#8b949e] mt-0.5">{tmpl.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mb-4">
             <div className="relative max-w-xs flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#484f58]" />

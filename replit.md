@@ -28,7 +28,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
 - CodeMirror 6 editor with syntax highlighting (JS/TS/Python/HTML/CSS/JSON/Markdown)
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
-- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI)
+- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI) — Agent mode uses Claude for tool capabilities
+- **Apply-to-file**: Code blocks in AI chat have "Apply" buttons that insert code directly into the active file
+- **Template starters**: Dashboard has 4 template cards (Web App, API Server, Dashboard, Game) that auto-generate projects
 - Remote code execution (JavaScript, TypeScript, Python) via local sandbox
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs

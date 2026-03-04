@@ -841,12 +841,25 @@ export default function Project() {
       {activeFileId ? (
         <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} />
       ) : (
-        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
-          <FileCode2 className="w-12 h-12" />
-          <p className="text-sm">Open a file to start editing</p>
-          <Button variant="ghost" size="sm" className="text-[#58a6ff] hover:bg-[#161b22] text-xs" onClick={() => { if (isMobile) setMobileTab("files"); else setSidebarOpen(true); }}>
-            <FolderOpen className="w-3.5 h-3.5 mr-1.5" /> Open Explorer
-          </Button>
+        <div className="flex flex-col items-center justify-center h-full bg-[#0d1117]">
+          <div className="max-w-md text-center px-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#58a6ff]/10 to-purple-600/10 border border-[#30363d] flex items-center justify-center mx-auto mb-6">
+              <Code2 className="w-10 h-10 text-[#58a6ff]/50" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">{project?.name || "Untitled"}</h3>
+            <p className="text-sm text-[#8b949e] mb-6">Select a file from the explorer to start editing, or create a new one.</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button variant="ghost" size="sm" className="text-[#58a6ff] hover:bg-[#161b22] text-xs gap-1.5 h-8" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
+                <FolderOpen className="w-3.5 h-3.5" /> Open Explorer
+              </Button>
+              <Button variant="ghost" size="sm" className="text-purple-400 hover:bg-purple-600/10 text-xs gap-1.5 h-8" onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }} data-testid="button-open-ai-empty">
+                <Sparkles className="w-3.5 h-3.5" /> Ask AI Agent
+              </Button>
+              <Button variant="ghost" size="sm" className="text-green-400 hover:bg-green-600/10 text-xs gap-1.5 h-8" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
+                <Plus className="w-3.5 h-3.5" /> New File
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1082,6 +1095,16 @@ export default function Project() {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
                   }}
+                  onApplyCode={(filename, code) => {
+                    const file = filesQuery.data?.find((f) => f.filename === filename);
+                    if (file) {
+                      setFileContents((prev) => ({ ...prev, [file.id]: code }));
+                      setDirtyFiles((prev) => new Set(prev).add(file.id));
+                      if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
+                      setActiveFileId(file.id);
+                      setMobileTab("editor");
+                    }
+                  }}
                 />
               </div>
             )}
@@ -1173,6 +1196,18 @@ export default function Project() {
                   onFileUpdated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                  }}
+                  onApplyCode={(filename, code) => {
+                    const file = filesQuery.data?.find((f) => f.filename === filename);
+                    if (file) {
+                      setFileContents((prev) => ({ ...prev, [file.id]: code }));
+                      setDirtyFiles((prev) => new Set(prev).add(file.id));
+                      if (!openTabs.includes(file.id)) {
+                        setOpenTabs((prev) => [...prev, file.id]);
+                      }
+                      setActiveFileId(file.id);
+                      toast({ title: "Code applied", description: `Updated ${filename}` });
+                    }
                   }}
                 />
               </div>

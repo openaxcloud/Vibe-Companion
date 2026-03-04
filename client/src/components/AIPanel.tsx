@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Send, Loader2, Bot, User, Copy, Check, X, Sparkles, Trash2,
-  FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare
+  FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
+  FileDown, FileUp
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -24,6 +25,7 @@ interface AIPanelProps {
   files?: FileInfo[];
   onFileCreated?: (file: FileInfo) => void;
   onFileUpdated?: (file: FileInfo) => void;
+  onApplyCode?: (filename: string, code: string) => void;
 }
 
 type AIModel = "claude" | "gpt";
@@ -34,7 +36,7 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   gpt: { name: "GPT-5.2", badge: "OpenAI", color: "text-green-400 bg-green-400/10" },
 };
 
-export default function AIPanel({ context, onClose, projectId, files, onFileCreated, onFileUpdated }: AIPanelProps) {
+export default function AIPanel({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -187,6 +189,24 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
     }
   };
 
+  const [appliedBlocks, setAppliedBlocks] = useState<Set<string>>(new Set());
+
+  const applyCodeToFile = async (code: string, targetFilename: string, blockKey: string) => {
+    if (onApplyCode) {
+      onApplyCode(targetFilename, code);
+      setAppliedBlocks((prev) => new Set(prev).add(blockKey));
+      setTimeout(() => setAppliedBlocks((prev) => { const next = new Set(prev); next.delete(blockKey); return next; }), 2000);
+    }
+  };
+
+  const guessTargetFile = (lang: string, code: string): string | null => {
+    const commentMatch = code.match(/^\/\/\s*(\S+\.\w+)/m) || code.match(/^#\s*(\S+\.\w+)/m);
+    if (commentMatch) return commentMatch[1];
+    if (context?.filename) return context.filename;
+    if (files && files.length === 1) return files[0].filename;
+    return null;
+  };
+
   const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[]) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
     const rendered = parts.map((part, i) => {
@@ -194,6 +214,9 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         const lines = part.slice(3, -3).split("\n");
         const lang = lines[0] || "";
         const code = lines.slice(1).join("\n");
+        const blockKey = `${content.slice(0, 20)}-block-${i}`;
+        const targetFile = guessTargetFile(lang, code);
+        const isApplied = appliedBlocks.has(blockKey);
         return (
           <div key={i} className="my-2 rounded-lg overflow-hidden border border-[#30363d]">
             <div className="flex items-center justify-between px-3 py-1.5 bg-[#161b22] text-[10px] text-[#8b949e]">
@@ -201,9 +224,20 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 <FileCode className="w-3 h-3" />
                 <span className="font-medium">{lang}</span>
               </div>
-              <button onClick={() => copyCode(code)} className="flex items-center gap-1 hover:text-white transition-colors" data-testid="button-copy-code">
-                {copied === code ? <><Check className="w-3 h-3 text-green-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
-              </button>
+              <div className="flex items-center gap-2">
+                {mode === "chat" && targetFile && onApplyCode && (
+                  <button
+                    onClick={() => applyCodeToFile(code, targetFile, blockKey)}
+                    className={`flex items-center gap-1 transition-colors ${isApplied ? "text-green-400" : "text-[#58a6ff] hover:text-white"}`}
+                    data-testid={`button-apply-code-${i}`}
+                  >
+                    {isApplied ? <><Check className="w-3 h-3" /> Applied</> : <><FileDown className="w-3 h-3" /> Apply</>}
+                  </button>
+                )}
+                <button onClick={() => copyCode(code)} className="flex items-center gap-1 hover:text-white transition-colors" data-testid="button-copy-code">
+                  {copied === code ? <><Check className="w-3 h-3 text-green-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
+                </button>
+              </div>
             </div>
             <pre className="p-3 bg-[#0d1117] text-[12px] overflow-x-auto text-[#c9d1d9] leading-relaxed" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               <code>{code}</code>
@@ -259,8 +293,8 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-semibold text-white">AI</span>
             {mode === "agent" ? (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} data-testid="button-model-select">
-                {modelInfo.name}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} title="Agent mode uses Claude for tool capabilities" data-testid="button-model-select">
+                Claude Sonnet
               </span>
             ) : (
               <DropdownMenu>

@@ -718,7 +718,7 @@ Rules:
         });
       }
 
-      const files = await storage.getProjectFiles(project.id);
+      const files = await storage.getFiles(project.id);
 
       return res.json({ project, files });
     } catch (error: any) {
@@ -799,7 +799,7 @@ Rules:
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      const existingFiles = await storage.getProjectFiles(projectId);
+      const existingFiles = await storage.getFiles(projectId);
       const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
 
       const agentSystemPrompt = `You are an AI coding agent inside the Vibe Platform IDE. You can create and edit files in the user's project.
