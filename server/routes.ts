@@ -649,6 +649,78 @@ export async function registerRoutes(
     baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
   });
 
+  app.post("/api/projects/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { prompt } = req.body;
+      if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
+        return res.status(400).json({ message: "Please provide a project description (at least 3 characters)" });
+      }
+
+      const systemPrompt = `You are a senior software engineer. Given a project description, generate a project specification as JSON.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "name": "project-name-slug",
+  "language": "javascript" | "typescript" | "python",
+  "files": [
+    { "filename": "index.js", "content": "// full working code here" }
+  ]
+}
+
+Rules:
+- name: short kebab-case slug (max 30 chars)
+- language: choose the best fit from javascript, typescript, python
+- files: generate 1-5 real, working files with complete code
+- Each file must have real, functional code — no placeholders or TODOs
+- For web apps: include an HTML file if relevant
+- Keep it focused and functional
+- Do NOT wrap the JSON in markdown code blocks`;
+
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        system: systemPrompt,
+        messages: [{ role: "user", content: prompt.trim() }],
+        max_tokens: 4096,
+      });
+
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      let spec: { name: string; language: string; files: { filename: string; content: string }[] };
+
+      try {
+        const cleaned = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+        spec = JSON.parse(cleaned);
+      } catch {
+        return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
+      }
+
+      if (!spec.name || !spec.language || !spec.files?.length) {
+        return res.status(500).json({ message: "AI generated incomplete project. Please try again." });
+      }
+
+      const validLangs = ["javascript", "typescript", "python"];
+      if (!validLangs.includes(spec.language)) spec.language = "javascript";
+
+      const project = await storage.createProject(req.session.userId!, {
+        name: spec.name.slice(0, 50),
+        language: spec.language,
+      });
+
+      for (const file of spec.files.slice(0, 10)) {
+        await storage.createFile(project.id, {
+          filename: file.filename,
+          content: file.content || "",
+        });
+      }
+
+      const files = await storage.getProjectFiles(project.id);
+
+      return res.json({ project, files });
+    } catch (error: any) {
+      log(`AI project generation error: ${error.message}`, "ai");
+      return res.status(500).json({ message: "Failed to generate project. Please try again." });
+    }
+  });
+
   app.post("/api/ai/chat", requireAuth, async (req: Request, res: Response) => {
     try {
       const { messages, context } = req.body;

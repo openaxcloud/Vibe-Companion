@@ -972,11 +972,6 @@ export default function Project() {
           <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setLocation("/dashboard")} data-testid="button-back">
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          {!isMobile && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setSidebarOpen(!sidebarOpen)} data-testid="button-toggle-sidebar">
-              <FolderOpen className="w-4 h-4" />
-            </Button>
-          )}
           <div className="flex items-center gap-1.5 ml-1 min-w-0">
             <span className="text-xs font-semibold text-[#c9d1d9] truncate max-w-[140px]">{project?.name}</span>
             {!isMobile && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#30363d] text-[#8b949e] shrink-0">{project?.language}</span>}
@@ -1000,11 +995,6 @@ export default function Project() {
           >
             {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /><span className="hidden sm:inline">Stop</span></> : <><Play className="w-3 h-3 fill-current" /><span className="hidden sm:inline">Run</span></>}
           </Button>
-          {!isMobile && (
-            <Button variant="ghost" size="icon" className={`w-7 h-7 hover:bg-[#30363d] ${aiPanelOpen ? "text-purple-400" : "text-[#8b949e] hover:text-white"}`} onClick={() => setAiPanelOpen(!aiPanelOpen)} data-testid="button-toggle-ai">
-              <Sparkles className="w-4 h-4" />
-            </Button>
-          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]">
@@ -1029,26 +1019,11 @@ export default function Project() {
         </div>
       </div>
 
-      {/* WORKSPACE BAR - hidden on mobile */}
-      {!isMobile && (
-        <div className="flex items-center justify-between px-3 h-8 bg-[#161b22]/70 border-b border-[#30363d] shrink-0">
-          <div className="flex items-center gap-2">
-            <Server className="w-3.5 h-3.5 text-[#8b949e]" />
-            <span className="text-[11px] font-medium text-[#8b949e]">Workspace</span>
-            {wsStatusBadge}
-          </div>
-          <div className="flex items-center gap-1">
-            {runnerOnline === false && <span className="flex items-center gap-1 text-[10px] text-orange-400 mr-1"><WifiOff className="w-3 h-3" /><span className="hidden sm:inline">VPS offline</span></span>}
-            {workspaceButton}
-          </div>
-        </div>
-      )}
-
       {/* RUNNER OFFLINE BANNER */}
       {runnerOnline === false && !isMobile && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-600/10 border-b border-orange-600/20 shrink-0">
-          <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-          <span className="text-[11px] text-orange-400">Runner offline — Live terminal and preview are disabled.</span>
+        <div className="flex items-center gap-2 px-3 py-1 bg-orange-600/10 border-b border-orange-600/20 shrink-0">
+          <AlertTriangle className="w-3 h-3 text-orange-400 shrink-0" />
+          <span className="text-[10px] text-orange-400">Runner offline — Live terminal and preview are disabled.</span>
         </div>
       )}
 
@@ -1122,48 +1097,99 @@ export default function Project() {
         </>
       ) : (
         <>
-          {/* === TABLET + DESKTOP LAYOUT === */}
+          {/* === TABLET + DESKTOP LAYOUT: VS Code style === */}
           <div className="flex flex-1 overflow-hidden">
-            {sidebarOpen && (
-              <div className={`${isTablet ? "w-[200px]" : "w-[220px] lg:w-[260px]"} shrink-0`}>
-                {sidebarContent}
-              </div>
-            )}
+            {/* ACTIVITY BAR — VS Code style icon strip */}
+            <div className="w-12 bg-[#161b22] border-r border-[#30363d] flex flex-col items-center py-2 gap-1 shrink-0" data-testid="activity-bar">
+              <button
+                className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${sidebarOpen && !aiPanelOpen ? "text-white bg-[#0d1117]" : "text-[#8b949e] hover:text-white hover:bg-[#30363d]"}`}
+                onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen); setAiPanelOpen(false); }}
+                title="Explorer"
+                data-testid="activity-explorer"
+              >
+                <FolderOpen className="w-5 h-5" />
+              </button>
+              <button
+                className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative ${aiPanelOpen ? "text-purple-400 bg-purple-600/10" : "text-[#8b949e] hover:text-white hover:bg-[#30363d]"}`}
+                onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) setSidebarOpen(false); }}
+                title="AI Agent"
+                data-testid="activity-ai"
+              >
+                <Sparkles className="w-5 h-5" />
+              </button>
 
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-              {editorTabBar}
-              {editorContent}
-              {terminalVisible && bottomPanel}
+              <div className="flex-1" />
+
+              <div className="flex flex-col items-center gap-1 mb-1">
+                <div className="w-8 border-t border-[#30363d] mb-1" />
+                <button
+                  className="w-10 h-10 flex items-center justify-center rounded-lg text-[#8b949e] hover:text-white hover:bg-[#30363d] transition-colors"
+                  onClick={handleStartWorkspace}
+                  disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending}
+                  title={`Workspace: ${wsStatus}`}
+                  data-testid="activity-workspace"
+                >
+                  <Server className="w-5 h-5" />
+                  <span className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border border-[#161b22] ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
+                </button>
+                <button
+                  className="w-10 h-10 flex items-center justify-center rounded-lg text-[#8b949e] hover:text-white hover:bg-[#30363d] transition-colors"
+                  onClick={() => setProjectSettingsOpen(true)}
+                  title="Settings"
+                  data-testid="activity-settings"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {aiPanelOpen && !isMobile && (
-              <div className={`${isTablet ? "absolute right-0 top-[72px] bottom-0 z-30 w-[300px]" : "relative w-[300px] lg:w-[340px]"} shrink-0`}>
+            {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
+            {aiPanelOpen && (
+              <div className={`${isTablet ? "w-[320px]" : "w-[45%] max-w-[600px] min-w-[340px]"} shrink-0 border-r border-[#30363d]`} data-testid="ai-agent-panel">
                 <AIPanel
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
                   onClose={() => setAiPanelOpen(false)}
                 />
               </div>
             )}
+
+            {/* FILE EXPLORER SIDEBAR */}
+            {sidebarOpen && !aiPanelOpen && (
+              <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} shrink-0`}>
+                {sidebarContent}
+              </div>
+            )}
+
+            {/* MAIN EDITOR AREA */}
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              {editorTabBar}
+              {editorContent}
+              {terminalVisible && bottomPanel}
+            </div>
           </div>
 
           {/* STATUS BAR */}
-          {!terminalVisible && (
-            <div className="flex items-center justify-between px-3 h-6 bg-[#161b22] border-t border-[#30363d] shrink-0">
-              <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-3 h-6 bg-[#161b22] border-t border-[#30363d] shrink-0">
+            <div className="flex items-center gap-3">
+              {!terminalVisible ? (
                 <button className="flex items-center gap-1 text-[10px] text-[#8b949e] hover:text-white" onClick={() => setTerminalVisible(true)}>
                   <Terminal className="w-3 h-3" /> Console
                 </button>
-                {logs.length > 0 && <span className="text-[10px] text-[#484f58]">{logs.length} lines</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                {connected && <span className="flex items-center gap-1 text-[10px] text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Live</span>}
-                {activeFileName && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
-              </div>
+              ) : (
+                <span className="text-[10px] text-[#484f58]">{logs.length} lines</span>
+              )}
+              {wsStatus !== "none" && (
+                <span className="flex items-center gap-1 text-[10px] text-[#484f58]">
+                  <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : "bg-[#484f58]"}`} />
+                  {wsStatus === "running" ? "Workspace running" : wsStatus === "starting" ? "Starting..." : wsStatus}
+                </span>
+              )}
             </div>
-          )}
-
-          {/* Tablet AI overlay backdrop */}
-          {aiPanelOpen && isTablet && <div className="fixed inset-0 bg-black/30 z-20" onClick={() => setAiPanelOpen(false)} />}
+            <div className="flex items-center gap-2">
+              {connected && <span className="flex items-center gap-1 text-[10px] text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Live</span>}
+              {activeFileName && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
+            </div>
+          </div>
         </>
       )}
 
