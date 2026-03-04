@@ -78,7 +78,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/workspaces/:projectId/fs/rename` - Rename file/dir on runner FS
 
 ## WebSocket
-- Path: `/ws?projectId=<id>`
+- Path: `/ws?projectId=<id>` (noServer mode with manual upgrade handling to avoid conflicts with Vite HMR at `/vite-hmr`)
 - Messages: `run_log` (real-time output), `run_status` (started/completed/failed)
 
 ## Important Files

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,7 +84,7 @@ export default function Project() {
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const dragStartY = useRef<number | null>(null);
   const dragStartH = useRef<number>(220);
 
