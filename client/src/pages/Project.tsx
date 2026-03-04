@@ -7,7 +7,8 @@ import {
   ChevronLeft, Play, Square, Terminal, FileCode2, Plus, Save, Loader2,
   X, Trash2, Pencil, FolderOpen, Settings, MoreHorizontal,
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
-  Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff
+  Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
+  Folder, FolderPlus, ChevronRight, ChevronDown
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -29,6 +30,13 @@ interface LogEntry {
   id: number;
   text: string;
   type: "info" | "error" | "success";
+}
+
+interface FsEntry {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  size?: number;
 }
 
 export default function Project() {
@@ -64,6 +72,13 @@ export default function Project() {
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
   const [terminalWsUrl, setTerminalWsUrl] = useState<string | null>(null);
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: "file" | "dir" } | null>(null);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const [currentFsPath, setCurrentFsPath] = useState("/");
+  const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -90,14 +105,36 @@ export default function Project() {
     },
   });
 
+  const useRunnerFS = wsStatus === "running";
+
+  const runnerFsQuery = useQuery<FsEntry[]>({
+    queryKey: ["/api/workspaces", projectId, "fs", currentFsPath],
+    queryFn: async () => {
+      const res = await fetch(`/api/workspaces/${projectId}/fs?path=${encodeURIComponent(currentFsPath)}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to list runner files");
+      const data = await res.json();
+      return (data as any[]).map((e: any) => ({
+        name: e.name,
+        path: (currentFsPath === "/" ? "/" : currentFsPath + "/") + e.name,
+        type: e.type === "dir" || e.type === "directory" ? "dir" as const : "file" as const,
+        size: e.size,
+      })).sort((a: FsEntry, b: FsEntry) => {
+        if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+    },
+    enabled: useRunnerFS,
+    refetchInterval: useRunnerFS ? 10000 : false,
+  });
+
   useEffect(() => {
-    if (filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0) {
+    if (!useRunnerFS && filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0) {
       const f = filesQuery.data[0];
       setOpenTabs([f.id]);
       setActiveFileId(f.id);
       setFileContents((prev) => ({ ...prev, [f.id]: f.content }));
     }
-  }, [filesQuery.data]);
+  }, [filesQuery.data, useRunnerFS]);
 
   useEffect(() => {
     if (projectQuery.data) {
@@ -128,7 +165,12 @@ export default function Project() {
 
   const saveMutation = useMutation({
     mutationFn: async ({ fileId, content }: { fileId: string; content: string }) => {
-      await apiRequest("PATCH", `/api/files/${fileId}`, { content });
+      if (fileId.startsWith("runner:")) {
+        const path = fileId.slice(7);
+        await apiRequest("POST", `/api/workspaces/${projectId}/fs/write`, { path, content });
+      } else {
+        await apiRequest("PATCH", `/api/files/${fileId}`, { content });
+      }
     },
     onSuccess: (_, vars) => {
       setDirtyFiles((prev) => { const n = new Set(prev); n.delete(vars.fileId); return n; });
@@ -166,6 +208,26 @@ export default function Project() {
     if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
     if (fileContents[file.id] === undefined) setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
     setActiveFileId(file.id);
+    setActiveRunnerPath(null);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const openRunnerFile = async (entry: FsEntry) => {
+    const tabId = `runner:${entry.path}`;
+    if (!openTabs.includes(tabId)) setOpenTabs((prev) => [...prev, tabId]);
+    if (fileContents[tabId] === undefined) {
+      try {
+        const res = await fetch(`/api/workspaces/${projectId}/fs/read?path=${encodeURIComponent(entry.path)}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to read file");
+        const data = await res.json();
+        setFileContents((prev) => ({ ...prev, [tabId]: data.content }));
+      } catch {
+        setFileContents((prev) => ({ ...prev, [tabId]: "" }));
+        toast({ title: "Failed to read file", variant: "destructive" });
+      }
+    }
+    setActiveFileId(tabId);
+    setActiveRunnerPath(entry.path);
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
@@ -176,13 +238,26 @@ export default function Project() {
     }
     const newTabs = openTabs.filter((id) => id !== fileId);
     setOpenTabs(newTabs);
-    if (activeFileId === fileId) setActiveFileId(newTabs[newTabs.length - 1] || null);
+    if (activeFileId === fileId) {
+      const nextTab = newTabs[newTabs.length - 1] || null;
+      setActiveFileId(nextTab);
+      if (nextTab?.startsWith("runner:")) {
+        setActiveRunnerPath(nextTab.slice(7));
+      } else {
+        setActiveRunnerPath(null);
+      }
+    }
   };
 
   const runMutation = useMutation({
     mutationFn: async () => {
       if (activeFileId && dirtyFiles.has(activeFileId)) {
-        await apiRequest("PATCH", `/api/files/${activeFileId}`, { content: fileContents[activeFileId] });
+        if (activeFileId.startsWith("runner:")) {
+          const path = activeFileId.slice(7);
+          await apiRequest("POST", `/api/workspaces/${projectId}/fs/write`, { path, content: fileContents[activeFileId] });
+        } else {
+          await apiRequest("PATCH", `/api/files/${activeFileId}`, { content: fileContents[activeFileId] });
+        }
         setDirtyFiles((prev) => { const n = new Set(prev); n.delete(activeFileId); return n; });
       }
       const code = activeFileId ? fileContents[activeFileId] || "" : "";
@@ -208,16 +283,48 @@ export default function Project() {
     runMutation.mutate();
   };
 
+  const invalidateFs = () => {
+    if (useRunnerFS) {
+      queryClient.invalidateQueries({ queryKey: ["/api/workspaces", projectId, "fs"] });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+  };
+
   const createFileMutation = useMutation({
     mutationFn: async (filename: string) => {
+      if (useRunnerFS) {
+        const path = (currentFsPath === "/" ? "/" : currentFsPath + "/") + filename;
+        await apiRequest("POST", `/api/workspaces/${projectId}/fs/write`, { path, content: "" });
+        return { path, name: filename } as any;
+      }
       const res = await apiRequest("POST", `/api/projects/${projectId}/files`, { filename, content: "" });
       return res.json();
     },
-    onSuccess: (file: File) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-      openFile(file);
+    onSuccess: (result: any) => {
+      invalidateFs();
+      if (useRunnerFS && result.path) {
+        const entry: FsEntry = { name: result.name, path: result.path, type: "file" };
+        openRunnerFile(entry);
+      } else {
+        openFile(result as File);
+      }
       setNewFileDialogOpen(false);
       setNewFileName("");
+    },
+  });
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (folderName: string) => {
+      const path = (currentFsPath === "/" ? "/" : currentFsPath + "/") + folderName;
+      await apiRequest("POST", `/api/workspaces/${projectId}/fs/mkdir`, { path });
+    },
+    onSuccess: () => {
+      invalidateFs();
+      setNewFolderDialogOpen(false);
+      setNewFolderName("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to create folder", description: err.message, variant: "destructive" });
     },
   });
 
@@ -225,7 +332,24 @@ export default function Project() {
     mutationFn: async (fileId: string) => { await apiRequest("DELETE", `/api/files/${fileId}`); },
     onSuccess: (_, fileId) => {
       closeTab(fileId);
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+      invalidateFs();
+    },
+  });
+
+  const deleteRunnerEntryMutation = useMutation({
+    mutationFn: async (path: string) => {
+      await apiRequest("DELETE", `/api/workspaces/${projectId}/fs/rm`, { path });
+    },
+    onSuccess: (_, path) => {
+      const prefix = `runner:${path}`;
+      const affectedTabs = openTabs.filter((t) => t === prefix || t.startsWith(prefix + "/"));
+      affectedTabs.forEach((t) => closeTab(t));
+      invalidateFs();
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
     },
   });
 
@@ -234,10 +358,87 @@ export default function Project() {
       await apiRequest("PATCH", `/api/files/${fileId}`, { filename });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+      invalidateFs();
       setRenamingFileId(null);
     },
   });
+
+  const renameRunnerEntryMutation = useMutation({
+    mutationFn: async ({ oldPath, newPath }: { oldPath: string; newPath: string }) => {
+      await apiRequest("POST", `/api/workspaces/${projectId}/fs/rename`, { oldPath, newPath });
+    },
+    onSuccess: (_, { oldPath, newPath }) => {
+      const oldPrefix = `runner:${oldPath}`;
+      const newPrefix = `runner:${newPath}`;
+      setOpenTabs((prev) => prev.map((t) => {
+        if (t === oldPrefix) return newPrefix;
+        if (t.startsWith(oldPrefix + "/")) return newPrefix + t.slice(oldPrefix.length);
+        return t;
+      }));
+      if (activeFileId === oldPrefix) {
+        setActiveFileId(newPrefix);
+        setActiveRunnerPath(newPath);
+      } else if (activeFileId?.startsWith(oldPrefix + "/")) {
+        const newId = newPrefix + activeFileId.slice(oldPrefix.length);
+        setActiveFileId(newId);
+        setActiveRunnerPath(newId.slice(7));
+      }
+      setFileContents((prev) => {
+        const n: Record<string, string> = {};
+        for (const [k, v] of Object.entries(prev)) {
+          if (k === oldPrefix) n[newPrefix] = v;
+          else if (k.startsWith(oldPrefix + "/")) n[newPrefix + k.slice(oldPrefix.length)] = v;
+          else n[k] = v;
+        }
+        return n;
+      });
+      invalidateFs();
+      setRenamingFileId(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to rename", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleDelete = (id: string, name: string, type: "file" | "dir") => {
+    setDeleteTarget({ id, name, type });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.id.startsWith("runner:") || useRunnerFS) {
+      const path = deleteTarget.id.startsWith("runner:") ? deleteTarget.id.slice(7) : deleteTarget.id;
+      deleteRunnerEntryMutation.mutate(path);
+    } else {
+      deleteFileMutation.mutate(deleteTarget.id);
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleRename = (id: string, oldName: string, newName: string) => {
+    if (!newName.trim() || newName === oldName) {
+      setRenamingFileId(null);
+      return;
+    }
+    if (id.startsWith("runner:")) {
+      const oldPath = id.slice(7);
+      const parentDir = oldPath.substring(0, oldPath.lastIndexOf("/") + 1);
+      renameRunnerEntryMutation.mutate({ oldPath, newPath: parentDir + newName.trim() });
+    } else {
+      renameFileMutation.mutate({ fileId: id, filename: newName.trim() });
+    }
+  };
+
+  const toggleDir = (path: string) => {
+    setExpandedDirs((prev) => {
+      const n = new Set(prev);
+      if (n.has(path)) n.delete(path);
+      else n.add(path);
+      return n;
+    });
+  };
 
   const updateProjectMutation = useMutation({
     mutationFn: async (data: { name?: string; language?: string }) => {
@@ -417,9 +618,11 @@ export default function Project() {
   };
 
   const project = projectQuery.data;
-  const activeFile = filesQuery.data?.find((f) => f.id === activeFileId);
+  const isRunnerTab = activeFileId?.startsWith("runner:");
+  const activeFile = isRunnerTab ? null : filesQuery.data?.find((f) => f.id === activeFileId);
+  const activeFileName = isRunnerTab ? (activeFileId!.slice(7).split("/").pop() || "") : (activeFile?.filename || "");
   const currentCode = activeFileId ? fileContents[activeFileId] ?? "" : "";
-  const editorLanguage = activeFile ? detectLanguage(activeFile.filename) : "javascript";
+  const editorLanguage = activeFileName ? detectLanguage(activeFileName) : "javascript";
 
   const getFileColor = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
@@ -572,9 +775,17 @@ export default function Project() {
         {sidebarOpen && (
           <div className={`${window.innerWidth < 768 ? "absolute left-0 top-10 bottom-0 z-30" : "relative"} w-[220px] lg:w-[260px] bg-[#0d1117] border-r border-[#30363d] flex flex-col shrink-0`}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#30363d]">
-              <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
+                {useRunnerFS && <span className="text-[9px] px-1 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-600/30">LIVE</span>}
+              </div>
               <div className="flex items-center gap-0.5">
-                <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file">
+                {useRunnerFS && (
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+                    <FolderPlus className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
                   <Plus className="w-3.5 h-3.5" />
                 </Button>
                 <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d] md:hidden" onClick={() => setSidebarOpen(false)}>
@@ -582,52 +793,120 @@ export default function Project() {
                 </Button>
               </div>
             </div>
+            {useRunnerFS && currentFsPath !== "/" && (
+              <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#58a6ff] hover:bg-[#161b22] border-b border-[#30363d]" onClick={() => {
+                const parent = currentFsPath.substring(0, currentFsPath.lastIndexOf("/")) || "/";
+                setCurrentFsPath(parent);
+              }}>
+                <ChevronLeft className="w-3 h-3" /> ..
+              </button>
+            )}
             <div className="flex-1 overflow-y-auto py-1">
-              {filesQuery.data?.map((file) => (
-                <div
-                  key={file.id}
-                  className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#1f2937] text-white" : "text-[#c9d1d9] hover:bg-[#161b22]"}`}
-                  onClick={() => openFile(file)}
-                  data-testid={`file-item-${file.id}`}
-                >
-                  <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(file.filename)}`} />
-                  {renamingFileId === file.id ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => {
-                        if (renameValue.trim() && renameValue !== file.filename) renameFileMutation.mutate({ fileId: file.id, filename: renameValue.trim() });
-                        else setRenamingFileId(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") { if (renameValue.trim() && renameValue !== file.filename) renameFileMutation.mutate({ fileId: file.id, filename: renameValue.trim() }); else setRenamingFileId(null); }
-                        if (e.key === "Escape") setRenamingFileId(null);
-                      }}
-                      className="flex-1 bg-[#0d1117] border border-[#58a6ff] rounded px-1 py-0.5 text-xs text-white outline-none"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span className="flex-1 text-xs truncate">{file.filename}</span>
+              {useRunnerFS ? (
+                <>
+                  {runnerFsQuery.data?.map((entry) => {
+                    const entryId = `runner:${entry.path}`;
+                    const isDir = entry.type === "dir";
+                    return (
+                      <div
+                        key={entry.path}
+                        className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${entryId === activeFileId ? "bg-[#1f2937] text-white" : "text-[#c9d1d9] hover:bg-[#161b22]"}`}
+                        onClick={() => isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry)}
+                        data-testid={`fs-entry-${entry.name}`}
+                      >
+                        {isDir ? (
+                          <Folder className="w-3.5 h-3.5 shrink-0 text-[#8b949e]" />
+                        ) : (
+                          <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(entry.name)}`} />
+                        )}
+                        {renamingFileId === entryId ? (
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={() => handleRename(entryId, entry.name, renameValue)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRename(entryId, entry.name, renameValue);
+                              if (e.key === "Escape") setRenamingFileId(null);
+                            }}
+                            className="flex-1 bg-[#0d1117] border border-[#58a6ff] rounded px-1 py-0.5 text-xs text-white outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="flex-1 text-xs truncate">{entry.name}{isDir ? "/" : ""}</span>
+                        )}
+                        {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
+                        <div className="hidden group-hover:flex items-center gap-0.5">
+                          <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); setRenamingFileId(entryId); setRenameValue(entry.name); }}>
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }}>
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {runnerFsQuery.data?.length === 0 && (
+                    <div className="px-3 py-6 text-center">
+                      <p className="text-xs text-[#484f58] mb-2">Empty directory</p>
+                      <div className="flex gap-2 justify-center">
+                        <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFileDialogOpen(true)}>
+                          <Plus className="w-3 h-3 mr-1" /> File
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFolderDialogOpen(true)}>
+                          <FolderPlus className="w-3 h-3 mr-1" /> Folder
+                        </Button>
+                      </div>
+                    </div>
                   )}
-                  {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
-                  <div className="hidden group-hover:flex items-center gap-0.5">
-                    <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); setRenamingFileId(file.id); setRenameValue(file.filename); }}>
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); deleteFileMutation.mutate(file.id); }}>
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {filesQuery.data?.length === 0 && (
-                <div className="px-3 py-6 text-center">
-                  <p className="text-xs text-[#484f58] mb-2">No files yet</p>
-                  <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFileDialogOpen(true)}>
-                    <Plus className="w-3 h-3 mr-1" /> Create File
-                  </Button>
-                </div>
+                </>
+              ) : (
+                <>
+                  {filesQuery.data?.map((file) => (
+                    <div
+                      key={file.id}
+                      className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#1f2937] text-white" : "text-[#c9d1d9] hover:bg-[#161b22]"}`}
+                      onClick={() => openFile(file)}
+                      data-testid={`file-item-${file.id}`}
+                    >
+                      <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(file.filename)}`} />
+                      {renamingFileId === file.id ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => handleRename(file.id, file.filename, renameValue)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRename(file.id, file.filename, renameValue);
+                            if (e.key === "Escape") setRenamingFileId(null);
+                          }}
+                          className="flex-1 bg-[#0d1117] border border-[#58a6ff] rounded px-1 py-0.5 text-xs text-white outline-none"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="flex-1 text-xs truncate">{file.filename}</span>
+                      )}
+                      {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
+                      <div className="hidden group-hover:flex items-center gap-0.5">
+                        <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); setRenamingFileId(file.id); setRenameValue(file.filename); }}>
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }}>
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {filesQuery.data?.length === 0 && (
+                    <div className="px-3 py-6 text-center">
+                      <p className="text-xs text-[#484f58] mb-2">No files yet</p>
+                      <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFileDialogOpen(true)}>
+                        <Plus className="w-3 h-3 mr-1" /> Create File
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -642,8 +921,10 @@ export default function Project() {
           {openTabs.length > 0 && (
             <div className="flex items-center bg-[#0d1117] border-b border-[#30363d] overflow-x-auto shrink-0 scrollbar-hide">
               {openTabs.map((tabId) => {
-                const file = filesQuery.data?.find((f) => f.id === tabId);
-                if (!file) return null;
+                const isRunner = tabId.startsWith("runner:");
+                const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
+                const tabName = isRunner ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
+                if (!isRunner && !file) return null;
                 const isActive = tabId === activeFileId;
                 return (
                   <div
@@ -651,12 +932,17 @@ export default function Project() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer border-r border-[#30363d] shrink-0 transition-colors ${isActive ? "bg-[#161b22] text-white border-t-2 border-t-[#58a6ff]" : "text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#161b22]/50 border-t-2 border-t-transparent"}`}
                     onClick={() => {
                       setActiveFileId(tabId);
-                      if (fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content }));
+                      if (isRunner) {
+                        setActiveRunnerPath(tabId.slice(7));
+                      } else {
+                        setActiveRunnerPath(null);
+                        if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content }));
+                      }
                     }}
                     data-testid={`tab-${tabId}`}
                   >
-                    <FileIcon className={`w-3 h-3 ${getFileColor(file.filename)}`} />
-                    <span className="text-[11px] max-w-[100px] truncate">{file.filename}</span>
+                    <FileIcon className={`w-3 h-3 ${getFileColor(tabName)}`} />
+                    <span className="text-[11px] max-w-[100px] truncate">{tabName}</span>
                     {dirtyFiles.has(tabId) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />}
                     <button className="ml-0.5 p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => closeTab(tabId, e)}>
                       <X className="w-3 h-3" />
@@ -818,7 +1104,7 @@ export default function Project() {
         {aiPanelOpen && (
           <div className={`${window.innerWidth < 768 ? "absolute right-0 top-10 bottom-0 z-30" : "relative"} w-[300px] lg:w-[340px] shrink-0`}>
             <AIPanel
-              context={activeFile ? { language: project?.language || "javascript", filename: activeFile.filename, code: currentCode } : undefined}
+              context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
               onClose={() => setAiPanelOpen(false)}
             />
           </div>
@@ -836,7 +1122,7 @@ export default function Project() {
           </div>
           <div className="flex items-center gap-2">
             {connected && <span className="flex items-center gap-1 text-[10px] text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Live</span>}
-            {activeFile && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
+            {activeFileName && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
           </div>
         </div>
       )}
@@ -932,6 +1218,42 @@ export default function Project() {
                 </div>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
+        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#c9d1d9] text-base">New Folder</DialogTitle>
+            <DialogDescription className="text-[#8b949e] text-xs">Create a new folder in {currentFsPath === "/" ? "root" : currentFsPath}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); if (newFolderName.trim()) createFolderMutation.mutate(newFolderName.trim()); }} className="space-y-3 mt-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[#8b949e]">Folder name</Label>
+              <Input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="src" className="bg-[#0d1117] border-[#30363d] h-9 text-sm text-[#c9d1d9] rounded-lg" autoFocus data-testid="input-new-foldername" />
+            </div>
+            <Button type="submit" className="w-full h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs" disabled={createFolderMutation.isPending}>
+              {createFolderMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create Folder"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { setDeleteConfirmOpen(open); if (!open) setDeleteTarget(null); }}>
+        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#c9d1d9] text-base">Delete {deleteTarget?.type === "dir" ? "Folder" : "File"}</DialogTitle>
+            <DialogDescription className="text-[#8b949e] text-xs">
+              Are you sure you want to delete <span className="text-[#c9d1d9] font-medium">{deleteTarget?.name}</span>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-3">
+            <Button variant="ghost" className="flex-1 h-9 text-xs text-[#8b949e] hover:text-white hover:bg-[#30363d] rounded-lg" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}>
+              Cancel
+            </Button>
+            <Button className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs" onClick={confirmDelete} disabled={deleteRunnerEntryMutation.isPending || deleteFileMutation.isPending} data-testid="button-confirm-delete">
+              {(deleteRunnerEntryMutation.isPending || deleteFileMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : "Delete"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

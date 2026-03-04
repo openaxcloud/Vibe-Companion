@@ -537,6 +537,97 @@ export async function registerRoutes(
     }
   });
 
+  const getWorkspaceForProject = async (req: Request, res: Response): Promise<{ project: any; workspace: any } | null> => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      res.status(404).json({ message: "Project not found" });
+      return null;
+    }
+    const workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      res.status(404).json({ message: "Workspace not initialized" });
+      return null;
+    }
+    return { project, workspace };
+  };
+
+  app.get("/api/workspaces/:projectId/fs", requireAuth, async (req: Request, res: Response) => {
+    const ctx = await getWorkspaceForProject(req, res);
+    if (!ctx) return;
+    try {
+      const path = (req.query.path as string) || "/";
+      const entries = await runnerClient.fsList(ctx.workspace.id, path);
+      return res.json(entries);
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/workspaces/:projectId/fs/read", requireAuth, async (req: Request, res: Response) => {
+    const ctx = await getWorkspaceForProject(req, res);
+    if (!ctx) return;
+    try {
+      const path = req.query.path as string;
+      if (!path) return res.status(400).json({ message: "path required" });
+      const content = await runnerClient.fsRead(ctx.workspace.id, path);
+      return res.json({ content });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/workspaces/:projectId/fs/write", requireAuth, async (req: Request, res: Response) => {
+    const ctx = await getWorkspaceForProject(req, res);
+    if (!ctx) return;
+    try {
+      const { path, content } = req.body;
+      if (!path) return res.status(400).json({ message: "path required" });
+      await runnerClient.fsWrite(ctx.workspace.id, path, content ?? "");
+      return res.json({ ok: true });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/workspaces/:projectId/fs/mkdir", requireAuth, async (req: Request, res: Response) => {
+    const ctx = await getWorkspaceForProject(req, res);
+    if (!ctx) return;
+    try {
+      const { path } = req.body;
+      if (!path) return res.status(400).json({ message: "path required" });
+      await runnerClient.fsMkdir(ctx.workspace.id, path);
+      return res.json({ ok: true });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/workspaces/:projectId/fs/rm", requireAuth, async (req: Request, res: Response) => {
+    const ctx = await getWorkspaceForProject(req, res);
+    if (!ctx) return;
+    try {
+      const { path } = req.body;
+      if (!path) return res.status(400).json({ message: "path required" });
+      await runnerClient.fsRm(ctx.workspace.id, path);
+      return res.json({ ok: true });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/workspaces/:projectId/fs/rename", requireAuth, async (req: Request, res: Response) => {
+    const ctx = await getWorkspaceForProject(req, res);
+    if (!ctx) return;
+    try {
+      const { oldPath, newPath } = req.body;
+      if (!oldPath || !newPath) return res.status(400).json({ message: "oldPath and newPath required" });
+      await runnerClient.fsRename(ctx.workspace.id, oldPath, newPath);
+      return res.json({ ok: true });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message });
+    }
+  });
+
   app.get("/api/workspaces/:projectId/preview-url", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project || project.userId !== req.session.userId) {
