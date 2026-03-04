@@ -16,6 +16,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `projects`: id, user_id, name, language, is_demo, is_published, updated_at
 - `files`: id, project_id, filename, content, updated_at
 - `runs`: id, project_id, user_id, status, language, code, stdout, stderr, exit_code, started_at, finished_at
+- `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
+- `workspace_sessions`: id (uuid), workspace_id, user_id, created_at, expires_at
 
 ## Key Features
 - Email/password authentication with session cookies

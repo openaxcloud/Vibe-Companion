@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -71,3 +71,37 @@ export const insertRunSchema = createInsertSchema(runs).pick({
 });
 export type InsertRun = z.infer<typeof insertRunSchema>;
 export type Run = typeof runs.$inferSelect;
+
+export const workspaces = pgTable("workspaces", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  ownerUserId: varchar("owner_user_id", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  statusCache: text("status_cache").notNull().default("idle"),
+}, (table) => [
+  uniqueIndex("workspaces_project_id_unique").on(table.projectId),
+]);
+
+export const insertWorkspaceSchema = createInsertSchema(workspaces).pick({
+  projectId: true,
+  ownerUserId: true,
+});
+export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
+export type Workspace = typeof workspaces.$inferSelect;
+
+export const workspaceSessions = pgTable("workspace_sessions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: varchar("workspace_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+export const insertWorkspaceSessionSchema = createInsertSchema(workspaceSessions).pick({
+  workspaceId: true,
+  userId: true,
+  expiresAt: true,
+});
+export type InsertWorkspaceSession = z.infer<typeof insertWorkspaceSessionSchema>;
+export type WorkspaceSession = typeof workspaceSessions.$inferSelect;

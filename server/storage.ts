@@ -1,11 +1,13 @@
 import { eq, desc, and } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, projects, files, runs,
+  users, projects, files, runs, workspaces, workspaceSessions,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
   type Run, type InsertRun,
+  type Workspace, type InsertWorkspace,
+  type WorkspaceSession, type InsertWorkspaceSession,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -35,6 +37,16 @@ export interface IStorage {
 
   publishProject(id: string, userId: string): Promise<Project | undefined>;
   getPublishedProject(id: string): Promise<{project: Project, files: File[]} | undefined>;
+
+  getWorkspaceByProject(projectId: string): Promise<Workspace | undefined>;
+  getWorkspace(id: string): Promise<Workspace | undefined>;
+  createWorkspace(data: InsertWorkspace): Promise<Workspace>;
+  updateWorkspaceStatus(id: string, statusCache: string): Promise<Workspace | undefined>;
+  touchWorkspace(id: string): Promise<void>;
+  deleteWorkspace(id: string): Promise<boolean>;
+
+  createWorkspaceSession(data: InsertWorkspaceSession): Promise<WorkspaceSession>;
+  getWorkspaceSession(id: string): Promise<WorkspaceSession | undefined>;
 
   getDemoProject(): Promise<Project | undefined>;
   seedDemoProject(): Promise<void>;
@@ -91,6 +103,11 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     if (!project) return false;
 
+    const ws = await this.getWorkspaceByProject(id);
+    if (ws) {
+      await db.delete(workspaceSessions).where(eq(workspaceSessions.workspaceId, ws.id));
+      await db.delete(workspaces).where(eq(workspaces.id, ws.id));
+    }
     await db.delete(files).where(eq(files.projectId, id));
     await db.delete(runs).where(eq(runs.projectId, id));
     await db.delete(projects).where(eq(projects.id, id));
@@ -223,6 +240,51 @@ export class DatabaseStorage implements IStorage {
 
     const fileList = await db.select().from(files).where(eq(files.projectId, id));
     return { project, files: fileList };
+  }
+
+  async getWorkspaceByProject(projectId: string): Promise<Workspace | undefined> {
+    const [ws] = await db.select().from(workspaces).where(eq(workspaces.projectId, projectId)).limit(1);
+    return ws;
+  }
+
+  async getWorkspace(id: string): Promise<Workspace | undefined> {
+    const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+    return ws;
+  }
+
+  async createWorkspace(data: InsertWorkspace): Promise<Workspace> {
+    const [ws] = await db.insert(workspaces).values(data).returning();
+    return ws;
+  }
+
+  async updateWorkspaceStatus(id: string, statusCache: string): Promise<Workspace | undefined> {
+    const [ws] = await db.update(workspaces)
+      .set({ statusCache, lastSeenAt: new Date() })
+      .where(eq(workspaces.id, id))
+      .returning();
+    return ws;
+  }
+
+  async touchWorkspace(id: string): Promise<void> {
+    await db.update(workspaces)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(workspaces.id, id));
+  }
+
+  async deleteWorkspace(id: string): Promise<boolean> {
+    await db.delete(workspaceSessions).where(eq(workspaceSessions.workspaceId, id));
+    const result = await db.delete(workspaces).where(eq(workspaces.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async createWorkspaceSession(data: InsertWorkspaceSession): Promise<WorkspaceSession> {
+    const [session] = await db.insert(workspaceSessions).values(data).returning();
+    return session;
+  }
+
+  async getWorkspaceSession(id: string): Promise<WorkspaceSession | undefined> {
+    const [session] = await db.select().from(workspaceSessions).where(eq(workspaceSessions.id, id)).limit(1);
+    return session;
   }
 
   async getDemoProject(): Promise<Project | undefined> {
