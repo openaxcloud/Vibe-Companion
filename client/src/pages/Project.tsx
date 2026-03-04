@@ -6,7 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft, Play, Square, Terminal, FileCode2, Plus, Save, Loader2,
   X, Trash2, Pencil, FolderOpen, Settings, MoreHorizontal,
-  File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink
+  File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
+  Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -57,6 +58,9 @@ export default function Project() {
   const [projectLang, setProjectLang] = useState("");
   const [terminalHeight, setTerminalHeight] = useState(220);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [wsStatus, setWsStatus] = useState<"offline" | "starting" | "running" | "stopped" | "error" | "none">("none");
+  const [wsLoading, setWsLoading] = useState(false);
+  const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -255,6 +259,110 @@ export default function Project() {
     },
   });
 
+  const workspaceStatusQuery = useQuery({
+    queryKey: ["/api/workspaces", projectId, "status"],
+    queryFn: async () => {
+      const res = await fetch(`/api/workspaces/${projectId}/status`, { credentials: "include" });
+      if (res.status === 404) return { status: "none" };
+      if (!res.ok) return { status: "error" };
+      return res.json();
+    },
+    refetchInterval: wsStatus === "starting" || wsStatus === "running" ? 5000 : false,
+  });
+
+  useEffect(() => {
+    if (workspaceStatusQuery.data?.status) {
+      setWsStatus(workspaceStatusQuery.data.status);
+    }
+  }, [workspaceStatusQuery.data]);
+
+  useEffect(() => {
+    fetch("/api/runner/status", { credentials: "include" })
+      .then((r) => {
+        if (!r.ok) throw new Error("Runner status check failed");
+        return r.json();
+      })
+      .then((d) => setRunnerOnline(d.online))
+      .catch(() => setRunnerOnline(false));
+  }, []);
+
+  const initWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/workspaces/${projectId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (!data.online) {
+        setRunnerOnline(false);
+        setWsStatus("offline");
+        toast({ title: "Runner offline", description: "Le VPS runner n'est pas encore déployé", variant: "destructive" });
+      } else if (data.error) {
+        setRunnerOnline(true);
+        setWsStatus("error");
+        toast({ title: "Workspace error", description: data.error, variant: "destructive" });
+      } else {
+        setRunnerOnline(true);
+        setWsStatus("stopped");
+        queryClient.invalidateQueries({ queryKey: ["/api/workspaces", projectId, "status"] });
+      }
+    },
+    onError: () => {
+      setWsStatus("error");
+    },
+  });
+
+  const startWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      setWsLoading(true);
+      const res = await apiRequest("POST", `/api/workspaces/${projectId}/start`);
+      return res.json();
+    },
+    onSuccess: () => {
+      setWsStatus("running");
+      setWsLoading(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/workspaces", projectId, "status"] });
+      toast({ title: "Workspace started" });
+    },
+    onError: () => {
+      setWsStatus("error");
+      setWsLoading(false);
+      toast({ title: "Failed to start workspace", variant: "destructive" });
+    },
+  });
+
+  const stopWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      setWsLoading(true);
+      const res = await apiRequest("POST", `/api/workspaces/${projectId}/stop`);
+      return res.json();
+    },
+    onSuccess: () => {
+      setWsStatus("stopped");
+      setWsLoading(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/workspaces", projectId, "status"] });
+      toast({ title: "Workspace stopped" });
+    },
+    onError: () => {
+      setWsStatus("error");
+      setWsLoading(false);
+    },
+  });
+
+  const handleStartWorkspace = () => {
+    if (wsStatus === "none" || wsStatus === "offline") {
+      initWorkspaceMutation.mutate();
+    } else if (wsStatus === "stopped" || wsStatus === "error") {
+      setWsStatus("starting");
+      startWorkspaceMutation.mutate();
+    }
+  };
+
+  const handleStopWorkspace = () => {
+    if (wsStatus === "running") {
+      stopWorkspaceMutation.mutate();
+    }
+  };
+
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     const y = "touches" in e ? e.touches[0].clientY : e.clientY;
     dragStartY.current = y;
@@ -360,6 +468,78 @@ export default function Project() {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* WORKSPACE BAR */}
+      <div className="flex items-center justify-between px-3 h-8 bg-[#161b22]/70 border-b border-[#30363d] shrink-0">
+        <div className="flex items-center gap-2">
+          <Server className="w-3.5 h-3.5 text-[#8b949e]" />
+          <span className="text-[11px] font-medium text-[#8b949e]">Workspace</span>
+          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+            wsStatus === "running" ? "bg-green-600/20 text-green-400 border border-green-600/30" :
+            wsStatus === "starting" ? "bg-yellow-600/20 text-yellow-400 border border-yellow-600/30" :
+            wsStatus === "stopped" ? "bg-[#30363d] text-[#8b949e] border border-[#484f58]/30" :
+            wsStatus === "error" ? "bg-red-600/20 text-red-400 border border-red-600/30" :
+            wsStatus === "offline" ? "bg-orange-600/20 text-orange-400 border border-orange-600/30" :
+            "bg-[#30363d] text-[#484f58] border border-[#30363d]"
+          }`} data-testid="text-workspace-status">
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              wsStatus === "running" ? "bg-green-400 animate-pulse" :
+              wsStatus === "starting" ? "bg-yellow-400 animate-pulse" :
+              wsStatus === "stopped" ? "bg-[#8b949e]" :
+              wsStatus === "error" ? "bg-red-400" :
+              wsStatus === "offline" ? "bg-orange-400" :
+              "bg-[#484f58]"
+            }`} />
+            {wsStatus === "running" ? "Running" :
+             wsStatus === "starting" ? "Starting..." :
+             wsStatus === "stopped" ? "Stopped" :
+             wsStatus === "error" ? "Error" :
+             wsStatus === "offline" ? "Offline" :
+             "Not initialized"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {runnerOnline === false && (
+            <span className="flex items-center gap-1 text-[10px] text-orange-400 mr-1">
+              <WifiOff className="w-3 h-3" />
+              <span className="hidden sm:inline">VPS offline</span>
+            </span>
+          )}
+          {wsStatus === "running" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-600/10 gap-1"
+              onClick={handleStopWorkspace}
+              disabled={wsLoading || stopWorkspaceMutation.isPending}
+              data-testid="button-stop-workspace"
+            >
+              {wsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CircleStop className="w-3 h-3" />}
+              Stop
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px] text-green-400 hover:text-green-300 hover:bg-green-600/10 gap-1"
+              onClick={handleStartWorkspace}
+              disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending}
+              data-testid="button-start-workspace"
+            >
+              {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
+              {wsStatus === "none" || wsStatus === "offline" ? "Init Workspace" : "Start"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* RUNNER OFFLINE BANNER */}
+      {runnerOnline === false && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-600/10 border-b border-orange-600/20 shrink-0">
+          <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+          <span className="text-[11px] text-orange-400">Runner offline — le VPS n'est pas encore déployé. Terminal et Preview live sont désactivés.</span>
+        </div>
+      )}
 
       {/* MAIN AREA */}
       <div className="flex flex-1 overflow-hidden">

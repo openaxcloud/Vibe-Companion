@@ -10,6 +10,7 @@ import { z } from "zod";
 import { executeCode } from "./executor";
 import { log } from "./index";
 import Anthropic from "@anthropic-ai/sdk";
+import * as runnerClient from "./runnerClient";
 
 declare module "express-session" {
   interface SessionData {
@@ -406,6 +407,116 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found or not published" });
     }
     return res.json(result);
+  });
+
+  // --- WORKSPACE / RUNNER ---
+  app.get("/api/runner/status", requireAuth, async (_req: Request, res: Response) => {
+    const online = await runnerClient.ping();
+    return res.json({ online, baseUrl: runnerClient.getBaseUrl() });
+  });
+
+  app.post("/api/workspaces/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const online = await runnerClient.ping();
+    if (!online) {
+      return res.json({ workspaceId: null, runnerUrl: runnerClient.getBaseUrl(), token: null, online: false });
+    }
+
+    let workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      workspace = await storage.createWorkspace({ projectId: project.id, ownerUserId: req.session.userId! });
+      try {
+        await runnerClient.createWorkspace(workspace.id, project.language);
+      } catch (err: any) {
+        log(`Runner createWorkspace error: ${err.message}`, "runner");
+        await storage.updateWorkspaceStatus(workspace.id, "error");
+        return res.json({ workspaceId: workspace.id, runnerUrl: runnerClient.getBaseUrl(), token: null, online: true, error: "Failed to provision workspace on runner" });
+      }
+    }
+
+    let token: string | null = null;
+    try {
+      token = runnerClient.generateToken(workspace.id, req.session.userId!);
+    } catch (err: any) {
+      log(`Token generation error: ${err.message}`, "runner");
+      return res.json({ workspaceId: workspace.id, runnerUrl: runnerClient.getBaseUrl(), token: null, online: true, error: "JWT secret not configured" });
+    }
+
+    const ttl = parseInt(process.env.WORKSPACE_TOKEN_TTL_MIN || "15", 10);
+    await storage.createWorkspaceSession({
+      workspaceId: workspace.id,
+      userId: req.session.userId!,
+      expiresAt: new Date(Date.now() + ttl * 60 * 1000),
+    });
+
+    await storage.touchWorkspace(workspace.id);
+
+    return res.json({
+      workspaceId: workspace.id,
+      runnerUrl: runnerClient.getBaseUrl(),
+      token,
+      online: true,
+    });
+  });
+
+  app.post("/api/workspaces/:projectId/start", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found" });
+    }
+    try {
+      await runnerClient.startWorkspace(workspace.id);
+      await storage.updateWorkspaceStatus(workspace.id, "running");
+      return res.json({ status: "running" });
+    } catch (err: any) {
+      log(`Runner start error: ${err.message}`, "runner");
+      return res.status(502).json({ message: "Runner unavailable" });
+    }
+  });
+
+  app.post("/api/workspaces/:projectId/stop", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found" });
+    }
+    try {
+      await runnerClient.stopWorkspace(workspace.id);
+      await storage.updateWorkspaceStatus(workspace.id, "stopped");
+      return res.json({ status: "stopped" });
+    } catch (err: any) {
+      log(`Runner stop error: ${err.message}`, "runner");
+      return res.status(502).json({ message: "Runner unavailable" });
+    }
+  });
+
+  app.get("/api/workspaces/:projectId/status", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      return res.json({ status: "none" });
+    }
+    try {
+      const status = await runnerClient.getWorkspaceStatus(workspace.id);
+      await storage.updateWorkspaceStatus(workspace.id, status);
+      return res.json({ status, workspaceId: workspace.id });
+    } catch {
+      return res.json({ status: workspace.statusCache || "offline", workspaceId: workspace.id });
+    }
   });
 
   // --- AI ASSISTANT ---

@@ -57,6 +57,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `GET /api/demo/project` - Get demo project
 - `POST /api/demo/run` - Execute demo code
 - `POST /api/ai/chat` - AI assistant (Anthropic Claude, streaming SSE)
+- `GET /api/runner/status` - Check runner VPS health
+- `POST /api/workspaces/:projectId` - Init/provision workspace (returns token, online status)
+- `POST /api/workspaces/:projectId/start` - Start workspace on runner
+- `POST /api/workspaces/:projectId/stop` - Stop workspace on runner
+- `GET /api/workspaces/:projectId/status` - Get workspace status from runner
 
 ## WebSocket
 - Path: `/ws?projectId=<id>`
@@ -64,7 +69,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 
 ## Important Files
 - `shared/schema.ts` - Drizzle schema + Zod insert schemas
-- `server/routes.ts` - All API routes (auth, projects, files, runs, publish, AI, demo)
+- `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo)
+- `server/runnerClient.ts` - Runner VPS HTTP client (ping, workspace CRUD, fs ops, terminal/preview URL builders, JWT tokens)
 - `server/storage.ts` - IStorage interface + DatabaseStorage implementation
 - `server/executor.ts` - Sandboxed code execution engine
 - `server/index.ts` - Express setup (trust proxy, middleware)
