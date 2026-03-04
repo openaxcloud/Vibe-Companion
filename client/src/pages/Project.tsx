@@ -63,6 +63,7 @@ export default function Project() {
   const [wsLoading, setWsLoading] = useState(false);
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
   const [terminalWsUrl, setTerminalWsUrl] = useState<string | null>(null);
+  const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -297,8 +298,16 @@ export default function Project() {
         })
         .then((d) => setTerminalWsUrl(d.wsUrl))
         .catch(() => setTerminalWsUrl(null));
+      fetch(`/api/workspaces/${projectId}/preview-url`, { credentials: "include" })
+        .then((r) => {
+          if (!r.ok) throw new Error("Failed to get preview URL");
+          return r.json();
+        })
+        .then((d) => setLivePreviewUrl(d.previewUrl))
+        .catch(() => setLivePreviewUrl(null));
     } else {
       setTerminalWsUrl(null);
+      setLivePreviewUrl(null);
     }
   }, [wsStatus, projectId]);
 
@@ -693,8 +702,9 @@ export default function Project() {
                     <Terminal className="w-3 h-3" /> Console
                     {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
                   </button>
-                  <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "preview" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("preview")}>
+                  <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "preview" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("preview")} data-testid="tab-preview">
                     <Globe className="w-3 h-3" /> Preview
+                    {wsStatus === "running" && livePreviewUrl && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
                   </button>
                   <button
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`}
@@ -735,19 +745,71 @@ export default function Project() {
                     visible={bottomTab === "shell" && terminalVisible}
                   />
                 </div>
-              ) : (
-                <div className="flex-1 overflow-hidden bg-white">
-                  {previewHtml ? (
-                    <iframe srcDoc={previewHtml} className="w-full h-full border-0" sandbox="allow-scripts" title="Preview" />
+              ) : bottomTab === "preview" ? (
+                <div className="flex-1 overflow-hidden flex flex-col bg-[#0d1117]">
+                  {runnerOnline === false ? (
+                    <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-2">
+                      <WifiOff className="w-8 h-8 text-orange-400/60" />
+                      <p className="text-xs text-orange-400/80">Preview indisponible (runner offline)</p>
+                    </div>
+                  ) : wsStatus === "running" && livePreviewUrl ? (
+                    <>
+                      <div className="flex items-center justify-between px-2 py-1 border-b border-[#30363d] bg-[#161b22] shrink-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Globe className="w-3 h-3 text-[#8b949e] shrink-0" />
+                          <span className="text-[11px] text-[#8b949e] truncate">{livePreviewUrl}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-5 h-5 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+                            onClick={() => {
+                              const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement;
+                              if (iframe) iframe.src = livePreviewUrl;
+                            }}
+                            title="Refresh"
+                            data-testid="button-preview-refresh"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-2 text-[10px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1"
+                            onClick={() => window.open(livePreviewUrl, "_blank")}
+                            data-testid="button-preview-new-tab"
+                          >
+                            <ExternalLink className="w-3 h-3" /> Open in new tab
+                          </Button>
+                        </div>
+                      </div>
+                      <iframe
+                        id="live-preview-iframe"
+                        src={livePreviewUrl}
+                        className="flex-1 w-full border-0 bg-white"
+                        title="Live Preview"
+                        data-testid="iframe-live-preview"
+                      />
+                    </>
+                  ) : previewHtml ? (
+                    <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full bg-[#0d1117] text-[#484f58] gap-2">
-                      <Globe className="w-8 h-8" />
-                      <p className="text-xs">No preview available</p>
-                      <p className="text-[10px] text-[#30363d]">Run HTML code to see preview here</p>
+                    <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
+                      <Globe className="w-10 h-10" />
+                      <p className="text-sm font-medium text-[#c9d1d9]">Live Preview</p>
+                      {wsStatus === "none" || wsStatus === "stopped" ? (
+                        <>
+                          <p className="text-xs text-center max-w-[280px]">Lance ton serveur sur le port <span className="text-[#58a6ff] font-mono">:3000</span> dans le workspace pour voir la preview ici.</p>
+                          <p className="text-[10px] text-[#30363d]">Démarre le workspace puis exécute ton app</p>
+                        </>
+                      ) : (
+                        <p className="text-xs">Workspace en cours de démarrage...</p>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>

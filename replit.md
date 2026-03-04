@@ -63,6 +63,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/workspaces/:projectId/stop` - Stop workspace on runner
 - `GET /api/workspaces/:projectId/status` - Get workspace status from runner
 - `GET /api/workspaces/:projectId/terminal-url` - Get fresh terminal WebSocket URL (JWT token)
+- `GET /api/workspaces/:projectId/preview-url` - Get live preview URL (port param, default 3000)
 
 ## WebSocket
 - Path: `/ws?projectId=<id>`

@@ -537,6 +537,21 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/workspaces/:projectId/preview-url", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not initialized" });
+    }
+    const rawPort = parseInt(req.query.port as string);
+    const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
+    const url = runnerClient.previewUrl(workspace.id, port);
+    return res.json({ previewUrl: url, workspaceId: workspace.id, port });
+  });
+
   // --- AI ASSISTANT ---
   const anthropic = new Anthropic({
     apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
