@@ -240,15 +240,22 @@ export async function registerRoutes(
   });
 
   app.patch("/api/files/:id", requireAuth, async (req: Request, res: Response) => {
-    const { content } = req.body;
-    if (typeof content !== "string") {
-      return res.status(400).json({ message: "Content must be a string" });
+    const { content, filename } = req.body;
+    if (typeof content === "string") {
+      const file = await storage.updateFileContent(req.params.id, content);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      return res.json(file);
     }
-    const file = await storage.updateFileContent(req.params.id, content);
-    if (!file) {
-      return res.status(404).json({ message: "File not found" });
+    if (typeof filename === "string" && filename.trim()) {
+      const file = await storage.renameFile(req.params.id, filename.trim());
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      return res.json(file);
     }
-    return res.json(file);
+    return res.status(400).json({ message: "content or filename required" });
   });
 
   app.delete("/api/files/:id", requireAuth, async (req: Request, res: Response) => {
@@ -257,6 +264,19 @@ export async function registerRoutes(
       return res.status(404).json({ message: "File not found" });
     }
     return res.json({ message: "File deleted" });
+  });
+
+  app.patch("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { name, language } = req.body;
+    const updated = await storage.updateProject(req.params.id, { name, language });
+    if (!updated) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    return res.json(updated);
   });
 
   // --- RUNS ---

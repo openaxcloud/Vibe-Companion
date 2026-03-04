@@ -25,6 +25,9 @@ export interface IStorage {
   updateFileContent(id: string, content: string): Promise<File | undefined>;
   deleteFile(id: string): Promise<boolean>;
 
+  renameFile(id: string, filename: string): Promise<File | undefined>;
+  updateProject(id: string, data: Partial<{ name: string; language: string }>): Promise<Project | undefined>;
+
   createRun(userId: string, data: InsertRun): Promise<Run>;
   updateRun(id: string, data: Partial<Run>): Promise<Run | undefined>;
   getRun(id: string): Promise<Run | undefined>;
@@ -141,6 +144,25 @@ export class DatabaseStorage implements IStorage {
         .where(eq(projects.id, file.projectId));
     }
     return file;
+  }
+
+  async renameFile(id: string, filename: string): Promise<File | undefined> {
+    const [file] = await db.update(files)
+      .set({ filename, updatedAt: new Date() })
+      .where(eq(files.id, id))
+      .returning();
+    return file;
+  }
+
+  async updateProject(id: string, data: Partial<{ name: string; language: string }>): Promise<Project | undefined> {
+    const updates: any = { updatedAt: new Date() };
+    if (data.name) updates.name = data.name;
+    if (data.language) updates.language = data.language;
+    const [project] = await db.update(projects)
+      .set(updates)
+      .where(eq(projects.id, id))
+      .returning();
+    return project;
   }
 
   async deleteFile(id: string): Promise<boolean> {
