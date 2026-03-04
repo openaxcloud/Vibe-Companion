@@ -701,7 +701,7 @@ export default function Project() {
   const isTablet = viewMode === "tablet";
 
   const sidebarContent = (
-    <div className={`${isMobile ? "flex-1" : ""} bg-[#0d1117] flex flex-col ${isMobile ? "" : "border-r border-[#30363d]"} overflow-hidden`}>
+    <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#0d1117] flex flex-col ${isMobile ? "" : "border-r border-[#30363d]"} overflow-hidden`}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#30363d] shrink-0">
         <div className="flex items-center gap-1">
           <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
@@ -1109,13 +1109,13 @@ export default function Project() {
             ]).map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileTab === id ? "text-[#58a6ff]" : "text-[#484f58]"}`}
+                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileTab === id ? "text-[#58a6ff]" : "text-[#484f58]"}`}
                 onClick={() => setMobileTab(id)}
                 data-testid={`mobile-tab-${id}`}
               >
                 <Icon className="w-4 h-4" />
                 <span className="text-[9px] font-medium">{label}</span>
-                {id === "terminal" && isRunning && <span className="absolute top-1 w-1.5 h-1.5 rounded-full bg-green-400" />}
+                {id === "terminal" && isRunning && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-green-400" />}
               </button>
             ))}
           </div>
