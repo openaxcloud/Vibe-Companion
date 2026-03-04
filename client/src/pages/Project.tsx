@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  ChevronLeft, Play, Square, Terminal, FileCode2, Plus, Save, Loader2,
+  ChevronLeft, Play, Square, Terminal, FileCode2, Plus, Loader2,
   X, Trash2, Pencil, FolderOpen, Settings, MoreHorizontal,
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
@@ -56,7 +56,9 @@ export default function Project() {
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"terminal" | "preview" | "shell">("terminal");
+  const [bottomTab, setBottomTab] = useState<"terminal" | "shell">("terminal");
+  const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
+  const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
@@ -87,6 +89,9 @@ export default function Project() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const dragStartY = useRef<number | null>(null);
   const dragStartH = useRef<number>(220);
+  const dragStartX = useRef<number | null>(null);
+  const dragStartW = useRef<number>(40);
+  const editorPreviewContainerRef = useRef<HTMLDivElement>(null);
 
   const { messages, connected } = useProjectWebSocket(projectId);
 
@@ -563,7 +568,10 @@ export default function Project() {
           if (!r.ok) throw new Error("Failed to get preview URL");
           return r.json();
         })
-        .then((d) => setLivePreviewUrl(d.previewUrl))
+        .then((d) => {
+          setLivePreviewUrl(d.previewUrl);
+          if (d.previewUrl) setPreviewPanelOpen(true);
+        })
         .catch(() => setLivePreviewUrl(null));
     } else {
       setTerminalWsUrl(null);
@@ -670,6 +678,30 @@ export default function Project() {
     document.addEventListener("touchend", onUp);
   };
 
+  const handlePreviewDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    const x = "touches" in e ? e.touches[0].clientX : e.clientX;
+    dragStartX.current = x;
+    dragStartW.current = previewPanelWidth;
+    const totalWidth = editorPreviewContainerRef.current?.clientWidth || window.innerWidth;
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      if (dragStartX.current === null) return;
+      const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
+      const deltaPercent = ((dragStartX.current - cx) / totalWidth) * 100;
+      setPreviewPanelWidth(Math.max(20, Math.min(60, dragStartW.current + deltaPercent)));
+    };
+    const onUp = () => {
+      dragStartX.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove);
+    document.addEventListener("touchend", onUp);
+  };
+
   const copyShareUrl = () => {
     navigator.clipboard.writeText(`${window.location.origin}/shared/${projectId}`);
     setCopiedUrl(true);
@@ -740,7 +772,7 @@ export default function Project() {
               return (
                 <div
                   key={entry.path}
-                  className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${entryId === activeFileId ? "bg-[#1f2937] text-white" : "text-[#c9d1d9] hover:bg-[#161b22]"}`}
+                  className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${entryId === activeFileId ? "bg-[#1c2128] border-l-2 border-l-[#58a6ff] text-white" : "text-[#c9d1d9] hover:bg-[#1c2128]"}`}
                   onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                   data-testid={`fs-entry-${entry.name}`}
                 >
@@ -788,7 +820,7 @@ export default function Project() {
             {filesQuery.data?.map((file) => (
               <div
                 key={file.id}
-                className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#1f2937] text-white" : "text-[#c9d1d9] hover:bg-[#161b22]"}`}
+                className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#1c2128] border-l-2 border-l-[#58a6ff] text-white" : "text-[#c9d1d9] hover:bg-[#1c2128]"}`}
                 onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                 data-testid={`file-item-${file.id}`}
               >
@@ -822,7 +854,7 @@ export default function Project() {
         if (!isRunner && !file) return null;
         const isActive = tabId === activeFileId;
         return (
-          <div key={tabId} className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer border-r border-[#30363d] shrink-0 transition-colors ${isActive ? "bg-[#161b22] text-white border-t-2 border-t-[#58a6ff]" : "text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#161b22]/50 border-t-2 border-t-transparent"}`}
+          <div key={tabId} className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer border-r border-[#30363d] shrink-0 transition-colors ${isActive ? "bg-[#1c2128] text-white" : "bg-transparent text-[#8b949e] hover:bg-[#161b22]"}`}
             onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
             data-testid={`tab-${tabId}`}
           >
@@ -928,16 +960,13 @@ export default function Project() {
 
   const bottomPanel = (
     <div className="shrink-0 flex flex-col border-t border-[#30363d] bg-[#0d1117]" style={{ height: terminalHeight }}>
-      <div className="h-1 cursor-ns-resize hover:bg-[#58a6ff]/30 transition-colors flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
+      <div className="h-1 cursor-ns-resize resize-handle flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
         <div className="w-8 h-0.5 rounded-full bg-[#30363d]" />
       </div>
       <div className="flex items-center justify-between px-2 border-b border-[#30363d] bg-[#161b22] shrink-0">
         <div className="flex items-center">
           <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "terminal" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("terminal")}>
             <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-          </button>
-          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "preview" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("preview")} data-testid="tab-preview">
-            <Globe className="w-3 h-3" /> Preview {wsStatus === "running" && livePreviewUrl && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
           </button>
           <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
             <Server className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
@@ -949,7 +978,7 @@ export default function Project() {
           <Button variant="ghost" size="icon" className="w-5 h-5 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setTerminalVisible(false)}><X className="w-3 h-3" /></Button>
         </div>
       </div>
-      {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : bottomTab === "preview" ? previewContent : null}
+      {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
     </div>
   );
 
@@ -980,37 +1009,35 @@ export default function Project() {
   return (
     <div className="h-screen flex flex-col bg-[#0d1117] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className="flex items-center justify-between px-2 h-10 bg-[#161b22] border-b border-[#30363d] shrink-0 z-40">
+      <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#161b22] border-b border-[#30363d] shrink-0 z-40">
         <div className="flex items-center gap-1 min-w-0">
           <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setLocation("/dashboard")} data-testid="button-back">
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <div className="flex items-center gap-1.5 ml-1 min-w-0">
-            <span className="text-xs font-semibold text-[#c9d1d9] truncate max-w-[140px]">{project?.name}</span>
-            {!isMobile && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#30363d] text-[#8b949e] shrink-0">{project?.language}</span>}
+            <span className="text-xs font-semibold text-[#c9d1d9] truncate max-w-[140px]" data-testid="text-project-name">{project?.name}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#30363d] text-[#8b949e] shrink-0" data-testid="badge-language">{project?.language}</span>
             {project?.isPublished && <span className="text-[9px] px-1 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-600/30 shrink-0">LIVE</span>}
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          {dirtyFiles.size > 0 && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-orange-400 hover:text-orange-300 hover:bg-[#30363d]" onClick={() => {
-              if (activeFileId && fileContents[activeFileId] !== undefined) saveMutation.mutate({ fileId: activeFileId, content: fileContents[activeFileId] });
-            }} data-testid="button-save">
-              <Save className="w-3.5 h-3.5" />
-            </Button>
-          )}
+        <div className="flex items-center justify-center">
           <Button
             size="sm"
-            className={`h-7 px-3 text-xs font-medium rounded-md gap-1.5 ${isRunning ? "bg-red-600 hover:bg-red-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}`}
+            className={`h-8 px-5 text-xs font-semibold rounded-full gap-1.5 shadow-md ${isRunning ? "bg-red-600 hover:bg-red-500 text-white" : "bg-green-600 hover:bg-green-500 text-white"}`}
             onClick={handleRun}
             disabled={runMutation.isPending}
             data-testid="button-run"
           >
-            {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /><span className="hidden sm:inline">Stop</span></> : <><Play className="w-3 h-3 fill-current" /><span className="hidden sm:inline">Run</span></>}
+            {runMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isRunning ? <><Square className="w-3.5 h-3.5 fill-current" /> Stop</> : <><Play className="w-3.5 h-3.5 fill-current" /> Run</>}
+          </Button>
+        </div>
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
+            <Rocket className="w-3.5 h-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" data-testid="button-kebab-menu">
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1023,10 +1050,6 @@ export default function Project() {
                   <Terminal className="w-3.5 h-3.5" /> Toggle Terminal
                 </DropdownMenuItem>
               )}
-              <DropdownMenuSeparator className="bg-[#30363d]" />
-              <DropdownMenuItem className="gap-2 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish-menu">
-                <Rocket className="w-3.5 h-3.5" /> Publish / Share
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1138,7 +1161,7 @@ export default function Project() {
             {/* ACTIVITY BAR — VS Code style icon strip */}
             <div className="w-12 bg-[#161b22] border-r border-[#30363d] flex flex-col items-center py-2 gap-1 shrink-0" data-testid="activity-bar">
               <button
-                className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${sidebarOpen && !aiPanelOpen ? "text-white bg-[#0d1117]" : "text-[#8b949e] hover:text-white hover:bg-[#30363d]"}`}
+                className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors ${sidebarOpen && !aiPanelOpen ? "text-white border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
                 onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen); setAiPanelOpen(false); }}
                 title="Explorer"
                 data-testid="activity-explorer"
@@ -1146,12 +1169,20 @@ export default function Project() {
                 <FolderOpen className="w-5 h-5" />
               </button>
               <button
-                className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative ${aiPanelOpen ? "text-purple-400 bg-purple-600/10" : "text-[#8b949e] hover:text-white hover:bg-[#30363d]"}`}
+                className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors relative ${aiPanelOpen ? "text-purple-400 border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
                 onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) setSidebarOpen(false); }}
                 title="AI Agent"
                 data-testid="activity-ai"
               >
                 <Sparkles className="w-5 h-5" />
+              </button>
+              <button
+                className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors ${previewPanelOpen ? "text-white border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
+                onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
+                title="Webview"
+                data-testid="activity-webview"
+              >
+                <Monitor className="w-5 h-5" />
               </button>
 
               <div className="flex-1" />
@@ -1159,22 +1190,13 @@ export default function Project() {
               <div className="flex flex-col items-center gap-1 mb-1">
                 <div className="w-8 border-t border-[#30363d] mb-1" />
                 <button
-                  className="w-10 h-10 flex items-center justify-center rounded-lg text-[#8b949e] hover:text-white hover:bg-[#30363d] transition-colors"
-                  onClick={handleStartWorkspace}
-                  disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending}
-                  title={`Workspace: ${wsStatus}`}
-                  data-testid="activity-workspace"
-                >
-                  <Server className="w-5 h-5" />
-                  <span className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border border-[#161b22] ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
-                </button>
-                <button
-                  className="w-10 h-10 flex items-center justify-center rounded-lg text-[#8b949e] hover:text-white hover:bg-[#30363d] transition-colors"
+                  className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors relative ${projectSettingsOpen ? "text-white border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
                   onClick={() => setProjectSettingsOpen(true)}
                   title="Settings"
                   data-testid="activity-settings"
                 >
                   <Settings className="w-5 h-5" />
+                  <span className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border border-[#161b22] ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
                 </button>
               </div>
             </div>
@@ -1220,34 +1242,81 @@ export default function Project() {
               </div>
             )}
 
-            {/* MAIN EDITOR AREA */}
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-              {editorTabBar}
-              {editorContent}
-              {terminalVisible && bottomPanel}
+            {/* MAIN EDITOR + PREVIEW AREA */}
+            <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0">
+              <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                {editorTabBar}
+                {editorContent}
+                {terminalVisible && bottomPanel}
+              </div>
+
+              {previewPanelOpen && !aiPanelOpen && (
+                <>
+                  <div className="w-[3px] cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#30363d] hover:bg-[#58a6ff]/50" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart}>
+                  </div>
+                  <div className="flex flex-col overflow-hidden bg-[#0d1117] border-l border-[#30363d]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
+                    <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#30363d] bg-[#161b22] shrink-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Globe className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                        <span className="text-[11px] text-[#8b949e] truncate font-mono">{livePreviewUrl || "Webview"}</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+                          onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
+                          title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
+                        {livePreviewUrl && (
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+                            onClick={() => window.open(livePreviewUrl, "_blank")}
+                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+                          onClick={() => setPreviewPanelOpen(false)}
+                          title="Close" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      {runnerOnline === false ? (
+                        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-2">
+                          <WifiOff className="w-8 h-8 text-orange-400/60" />
+                          <p className="text-xs text-orange-400/80">Preview unavailable</p>
+                          <p className="text-[10px] text-[#484f58]">Runner is offline</p>
+                        </div>
+                      ) : wsStatus === "running" && livePreviewUrl ? (
+                        <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" data-testid="iframe-preview-panel" />
+                      ) : previewHtml ? (
+                        <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
+                          <Monitor className="w-10 h-10" />
+                          <p className="text-sm font-medium text-[#c9d1d9]">Webview</p>
+                          <p className="text-xs text-center max-w-[240px]">
+                            {wsStatus === "running" ? "Waiting for your app to start serving on a port..." : "Start a workspace to see your app's live preview here."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* STATUS BAR */}
-          <div className="flex items-center justify-between px-3 h-6 bg-[#161b22] border-t border-[#30363d] shrink-0">
+          <div className="flex items-center justify-between px-3 h-[22px] bg-[#1e1e2e] border-t border-[#30363d] shrink-0">
             <div className="flex items-center gap-3">
-              {!terminalVisible ? (
-                <button className="flex items-center gap-1 text-[10px] text-[#8b949e] hover:text-white" onClick={() => setTerminalVisible(true)}>
-                  <Terminal className="w-3 h-3" /> Console
-                </button>
+              <span className="flex items-center gap-1 text-[10px] text-[#484f58]">
+                <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : "bg-[#484f58]"}`} />
+                {wsStatus === "running" ? "Workspace running" : wsStatus === "starting" ? "Starting..." : wsStatus === "none" ? "No workspace" : wsStatus}
+              </span>
+              {connected ? (
+                <span className="flex items-center gap-1 text-[10px] text-green-400"><Wifi className="w-3 h-3" /> Connected</span>
               ) : (
-                <span className="text-[10px] text-[#484f58]">{logs.length} lines</span>
-              )}
-              {wsStatus !== "none" && (
-                <span className="flex items-center gap-1 text-[10px] text-[#484f58]">
-                  <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : "bg-[#484f58]"}`} />
-                  {wsStatus === "running" ? "Workspace running" : wsStatus === "starting" ? "Starting..." : wsStatus}
-                </span>
+                <span className="flex items-center gap-1 text-[10px] text-[#484f58]"><WifiOff className="w-3 h-3" /> Disconnected</span>
               )}
             </div>
             <div className="flex items-center gap-2">
-              {connected && <span className="flex items-center gap-1 text-[10px] text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Live</span>}
               {activeFileName && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
+              <span className="text-[10px] text-[#484f58]">Vibe</span>
             </div>
           </div>
         </>

@@ -127,3 +127,7 @@
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+.panel-transition { transition: width 150ms ease, flex 150ms ease; }
+.resize-handle { transition: background-color 150ms; }
+.resize-handle:hover { background-color: rgba(88, 166, 255, 0.5); }

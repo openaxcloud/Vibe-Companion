@@ -100,12 +100,14 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/components/AIPanel.tsx` - AI agent panel with model selection, chat/agent modes, file operations
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
 
-## IDE Layout (Desktop)
-- **Activity Bar** (48px, far left): Explorer, AI Agent, Workspace status, Settings icons
-- **AI Agent Panel** (45% width, toggleable): Split view like Replit Agent — chat/agent mode toggle, model selection (Claude/GPT), file operation indicators
-- **File Explorer** (240px, toggleable): file list with create/rename/delete
-- **Editor** (center): CodeMirror 6 with tabs + bottom panel (console/preview/shell)
-- **Status Bar** (bottom): workspace status, log count, language indicator, connection status
+## IDE Layout (Desktop — Replit Clone)
+- **Activity Bar** (48px, far left): Explorer, AI Agent, Webview, Settings icons — active icon has left white border indicator
+- **AI Agent Panel** (45% width, toggleable): Split view like Replit Agent — chat/agent mode toggle, model selection (Claude/GPT), file operation indicators, apply-to-file code blocks
+- **File Explorer** (240px, toggleable): file list with left blue accent on active file, create/rename/delete
+- **Header Bar**: Left (back + project name), Center (green Run pill button), Right (publish + kebab menu)
+- **Editor** (center): CodeMirror 6 with tabs (active=bright bg, no top accent) + resizable bottom panel (Console + Shell)
+- **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab — Replit's signature side-by-side layout
+- **Status Bar** (22px, bottom): workspace status dot, connection indicator, language name, "Vibe" branding
 - **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
 
 ## Tech Stack
