@@ -519,6 +519,24 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/workspaces/:projectId/terminal-url", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const workspace = await storage.getWorkspaceByProject(project.id);
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not initialized" });
+    }
+    try {
+      const token = runnerClient.generateToken(workspace.id, req.session.userId!);
+      const wsUrl = runnerClient.terminalWsUrl(workspace.id, token);
+      return res.json({ wsUrl, workspaceId: workspace.id });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // --- AI ASSISTANT ---
   const anthropic = new Anthropic({
     apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,

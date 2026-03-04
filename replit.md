@@ -62,6 +62,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/workspaces/:projectId/start` - Start workspace on runner
 - `POST /api/workspaces/:projectId/stop` - Stop workspace on runner
 - `GET /api/workspaces/:projectId/status` - Get workspace status from runner
+- `GET /api/workspaces/:projectId/terminal-url` - Get fresh terminal WebSocket URL (JWT token)
 
 ## WebSocket
 - Path: `/ws?projectId=<id>`
@@ -82,6 +83,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/pages/SharedProject.tsx` - Public shared project view (read-only with run)
 - `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with language detection
 - `client/src/components/AIPanel.tsx` - AI chat panel with streaming + code blocks
+- `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel (WebSocket to runner VPS, resize support, auto-reconnect)
 - `client/src/hooks/use-websocket.ts` - WebSocket hook for real-time logs
 - `client/src/hooks/use-auth.ts` - Auth state management hook
 - `client/src/lib/queryClient.ts` - API request helper with JSON error parsing

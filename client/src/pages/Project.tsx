@@ -22,6 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import AIPanel from "@/components/AIPanel";
 import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
+import WorkspaceTerminal from "@/components/WorkspaceTerminal";
 import type { Project as ProjectType, File } from "@shared/schema";
 
 interface LogEntry {
@@ -47,7 +48,7 @@ export default function Project() {
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"terminal" | "preview">("terminal");
+  const [bottomTab, setBottomTab] = useState<"terminal" | "preview" | "shell">("terminal");
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function Project() {
   const [wsStatus, setWsStatus] = useState<"offline" | "starting" | "running" | "stopped" | "error" | "none">("none");
   const [wsLoading, setWsLoading] = useState(false);
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
+  const [terminalWsUrl, setTerminalWsUrl] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -285,6 +287,20 @@ export default function Project() {
       .then((d) => setRunnerOnline(d.online))
       .catch(() => setRunnerOnline(false));
   }, []);
+
+  useEffect(() => {
+    if (wsStatus === "running" && projectId) {
+      fetch(`/api/workspaces/${projectId}/terminal-url`, { credentials: "include" })
+        .then((r) => {
+          if (!r.ok) throw new Error("Failed to get terminal URL");
+          return r.json();
+        })
+        .then((d) => setTerminalWsUrl(d.wsUrl))
+        .catch(() => setTerminalWsUrl(null));
+    } else {
+      setTerminalWsUrl(null);
+    }
+  }, [wsStatus, projectId]);
 
   const initWorkspaceMutation = useMutation({
     mutationFn: async () => {
@@ -680,6 +696,14 @@ export default function Project() {
                   <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "preview" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("preview")}>
                     <Globe className="w-3 h-3" /> Preview
                   </button>
+                  <button
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`}
+                    onClick={() => setBottomTab("shell")}
+                    data-testid="tab-shell"
+                  >
+                    <Server className="w-3 h-3" /> Shell
+                    {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                  </button>
                 </div>
                 <div className="flex items-center gap-1">
                   {connected && <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="WebSocket connected" />}
@@ -702,6 +726,14 @@ export default function Project() {
                     </div>
                   ))}
                   {isRunning && <span className="animate-pulse text-[#58a6ff]">_</span>}
+                </div>
+              ) : bottomTab === "shell" ? (
+                <div className="flex-1 overflow-hidden">
+                  <WorkspaceTerminal
+                    wsUrl={terminalWsUrl}
+                    runnerOffline={runnerOnline === false}
+                    visible={bottomTab === "shell" && terminalVisible}
+                  />
                 </div>
               ) : (
                 <div className="flex-1 overflow-hidden bg-white">
