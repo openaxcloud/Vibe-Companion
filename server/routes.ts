@@ -9,6 +9,7 @@ import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { log } from "./index";
+import OpenAI from "openai";
 
 declare module "express-session" {
   interface SessionData {
@@ -56,7 +57,7 @@ export async function registerRoutes(
 
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 50,
     message: { message: "Too many attempts. Try again later." },
   });
 
@@ -380,6 +381,55 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       return res.status(500).json({ message: "Execution failed" });
+    }
+  });
+
+  // --- AI ASSISTANT ---
+  const aiOpenai = new OpenAI({
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
+
+  app.post("/api/ai/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { messages, context } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ message: "messages array required" });
+      }
+
+      const systemPrompt = `You are an expert coding assistant embedded in an IDE. You help users write, debug, and improve code. Be concise and provide working code snippets. ${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await aiOpenai.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m: any) => ({ role: m.role, content: m.content })),
+        ],
+        stream: true,
+        max_completion_tokens: 4096,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      log(`AI chat error: ${error.message}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "AI service error" });
+      }
     }
   });
 
