@@ -10,6 +10,7 @@ import { z } from "zod";
 import { executeCode } from "./executor";
 import { log } from "./index";
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import * as runnerClient from "./runnerClient";
 
 declare module "express-session" {
@@ -649,6 +650,11 @@ export async function registerRoutes(
     baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
   });
 
+  const openai = new OpenAI({
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
+
   app.post("/api/projects/generate", requireAuth, async (req: Request, res: Response) => {
     try {
       const { prompt } = req.body;
@@ -723,29 +729,50 @@ Rules:
 
   app.post("/api/ai/chat", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { messages, context } = req.body;
+      const { messages, context, model } = req.body;
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ message: "messages array required" });
       }
 
-      const systemPrompt = `You are an expert coding assistant embedded in an IDE. You help users write, debug, and improve code. Be concise and provide working code snippets. ${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
+      const systemPrompt = `You are an expert coding assistant embedded in an IDE called Vibe Platform. You help users write, debug, and improve code. Be concise and provide working code snippets. When suggesting code changes, use markdown code blocks with the filename as a comment on the first line.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const stream = anthropic.messages.stream({
-        model: "claude-sonnet-4-6",
-        system: systemPrompt,
-        messages: messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
-        max_tokens: 4096,
-      });
+      if (model === "gpt") {
+        const gptMessages = [
+          { role: "system" as const, content: systemPrompt },
+          ...messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
 
-      stream.on("text", (text) => {
-        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-      });
+        const stream = await openai.chat.completions.create({
+          model: "gpt-5.2",
+          messages: gptMessages,
+          stream: true,
+          max_completion_tokens: 4096,
+        });
 
-      await stream.finalMessage();
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } else {
+        const stream = anthropic.messages.stream({
+          model: "claude-sonnet-4-6",
+          system: systemPrompt,
+          messages: messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
+          max_tokens: 4096,
+        });
+
+        stream.on("text", (text) => {
+          res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+        });
+
+        await stream.finalMessage();
+      }
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
@@ -756,6 +783,150 @@ Rules:
         res.end();
       } else {
         res.status(500).json({ message: "AI service error" });
+      }
+    }
+  });
+
+  app.post("/api/ai/agent", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { messages, projectId, model } = req.body;
+      if (!messages || !Array.isArray(messages) || !projectId) {
+        return res.status(400).json({ message: "messages array and projectId required" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const existingFiles = await storage.getProjectFiles(projectId);
+      const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
+
+      const agentSystemPrompt = `You are an AI coding agent inside the Vibe Platform IDE. You can create and edit files in the user's project.
+
+Current project: "${project.name}" (${project.language})
+Existing files:
+${fileList || "(no files yet)"}
+
+When the user asks you to build something, create files, or make changes:
+1. Think about what files need to be created or modified
+2. Use the provided tools to create or update files
+3. Explain what you're doing as you work
+
+Always write complete, working code. Never use placeholders or TODOs.`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const tools: Anthropic.Messages.Tool[] = [
+        {
+          name: "create_file",
+          description: "Create a new file in the project with the given filename and content",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              filename: { type: "string", description: "The filename (e.g. 'index.js', 'styles.css')" },
+              content: { type: "string", description: "The full file content" },
+            },
+            required: ["filename", "content"],
+          },
+        },
+        {
+          name: "edit_file",
+          description: "Replace the entire content of an existing file",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              filename: { type: "string", description: "The filename of the existing file to edit" },
+              content: { type: "string", description: "The new full file content" },
+            },
+            required: ["filename", "content"],
+          },
+        },
+      ];
+
+      let currentMessages = messages.map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
+      let continueLoop = true;
+
+      while (continueLoop) {
+        const response = await anthropic.messages.create({
+          model: "claude-sonnet-4-6",
+          system: agentSystemPrompt,
+          messages: currentMessages,
+          max_tokens: 4096,
+          tools,
+        });
+
+        for (const block of response.content) {
+          if (block.type === "text") {
+            res.write(`data: ${JSON.stringify({ type: "text", content: block.text })}\n\n`);
+          } else if (block.type === "tool_use") {
+            const input = block.input as { filename: string; content: string };
+
+            res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
+
+            try {
+              if (block.name === "create_file") {
+                const existingFile = existingFiles.find(f => f.filename === input.filename);
+                let file;
+                if (existingFile) {
+                  file = await storage.updateFileContent(existingFile.id, input.content);
+                  res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
+                } else {
+                  file = await storage.createFile(projectId, { filename: input.filename, content: input.content });
+                  existingFiles.push(file);
+                  res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
+                }
+              } else if (block.name === "edit_file") {
+                const existingFile = existingFiles.find(f => f.filename === input.filename);
+                if (existingFile) {
+                  const file = await storage.updateFileContent(existingFile.id, input.content);
+                  res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
+                } else {
+                  const file = await storage.createFile(projectId, { filename: input.filename, content: input.content });
+                  existingFiles.push(file);
+                  res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
+                }
+              }
+            } catch (err: any) {
+              res.write(`data: ${JSON.stringify({ type: "error", message: `Failed to ${block.name}: ${err.message}` })}\n\n`);
+            }
+          }
+        }
+
+        if (response.stop_reason === "tool_use") {
+          const toolResults: any[] = response.content
+            .filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use")
+            .map((b) => ({
+              type: "tool_result" as const,
+              tool_use_id: b.id,
+              content: "Done",
+            }));
+
+          currentMessages = [
+            ...currentMessages,
+            { role: "assistant" as const, content: response.content as any },
+            { role: "user" as const, content: toolResults as any },
+          ];
+        } else {
+          continueLoop = false;
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      log(`AI agent error: ${error.message}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "AI agent error" });
       }
     }
   });

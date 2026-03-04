@@ -1,14 +1,15 @@
 # Vibe Platform - Full-Screen IDE SaaS
 
 ## Overview
-A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a GitHub-dark themed interface, AI coding assistant, and real-time log streaming.
+A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a GitHub-dark themed interface, AI coding agent, and real-time log streaming. Designed as a Replit clone with VS Code-style layout.
 
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
 - **Code Execution**: Local sandboxed `child_process.spawn` with security pattern blocking, 10s timeout, 64MB memory limit
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
-- **AI**: Anthropic Claude Sonnet (claude-sonnet-4-6) via Replit AI Integrations, streaming SSE responses
+- **AI**: Dual model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-5.2, both via Replit AI Integrations
+- **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with oneDark theme and syntax highlighting
 
 ## Database Schema (PostgreSQL)
@@ -22,9 +23,12 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 ## Key Features
 - Email/password authentication with session cookies
 - CRUD projects (create, list, duplicate, delete)
+- **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
+- **VS Code-style IDE layout**: Activity bar on far left (Explorer, AI, Workspace, Settings icons)
 - Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
 - CodeMirror 6 editor with syntax highlighting (JS/TS/Python/HTML/CSS/JSON/Markdown)
-- AI coding assistant panel (Anthropic Claude streaming, file context injection)
+- **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
+- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI)
 - Remote code execution (JavaScript, TypeScript, Python) via local sandbox
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
@@ -37,10 +41,6 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
 - **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
-  - Sidebar shows LIVE badge and "Start workspace" prompt when offline/stopped
-  - Runner tabs (prefixed `runner:`) auto-cleaned on workspace stop transition
-- **File operation dialogs**: New File (context-aware path), New Folder, Rename (modal), Delete (confirm)
-- **Runner FS proxy routes**: list, read, write, mkdir, rm, rename — all auth+ownership guarded
 
 ## API Routes
 - `POST /api/auth/register` - Register
@@ -49,6 +49,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `GET /api/auth/me` - Current user
 - `GET /api/projects` - List user projects
 - `POST /api/projects` - Create project
+- `POST /api/projects/generate` - AI-generate project from prompt (Claude)
 - `GET /api/projects/:id` - Get project
 - `PATCH /api/projects/:id` - Update project (name, language)
 - `DELETE /api/projects/:id` - Delete project
@@ -62,15 +63,16 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `GET /api/shared/:id` - Get published project (public, no auth)
 - `GET /api/demo/project` - Get demo project
 - `POST /api/demo/run` - Execute demo code
-- `POST /api/ai/chat` - AI assistant (Anthropic Claude, streaming SSE)
+- `POST /api/ai/chat` - AI chat (Claude or GPT, streaming SSE, model selection)
+- `POST /api/ai/agent` - AI agent with tool use (creates/edits files, Claude only)
 - `GET /api/runner/status` - Check runner VPS health
-- `POST /api/workspaces/:projectId` - Init/provision workspace (returns token, online status)
-- `POST /api/workspaces/:projectId/start` - Start workspace on runner
-- `POST /api/workspaces/:projectId/stop` - Stop workspace on runner
-- `GET /api/workspaces/:projectId/status` - Get workspace status from runner
-- `GET /api/workspaces/:projectId/terminal-url` - Get fresh terminal WebSocket URL (JWT token)
-- `GET /api/workspaces/:projectId/preview-url` - Get live preview URL (port param, default 3000)
-- `GET /api/workspaces/:projectId/fs` - List runner FS directory (path query param)
+- `POST /api/workspaces/:projectId` - Init/provision workspace
+- `POST /api/workspaces/:projectId/start` - Start workspace
+- `POST /api/workspaces/:projectId/stop` - Stop workspace
+- `GET /api/workspaces/:projectId/status` - Get workspace status
+- `GET /api/workspaces/:projectId/terminal-url` - Get terminal WebSocket URL
+- `GET /api/workspaces/:projectId/preview-url` - Get live preview URL
+- `GET /api/workspaces/:projectId/fs` - List runner FS directory
 - `GET /api/workspaces/:projectId/fs/read` - Read file from runner FS
 - `POST /api/workspaces/:projectId/fs/write` - Write file to runner FS
 - `POST /api/workspaces/:projectId/fs/mkdir` - Create directory on runner FS
@@ -84,39 +86,32 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 ## Important Files
 - `shared/schema.ts` - Drizzle schema + Zod insert schemas
 - `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo)
-- `server/runnerClient.ts` - Runner VPS HTTP client (ping, workspace CRUD, fs ops, terminal/preview URL builders, JWT tokens)
+- `server/runnerClient.ts` - Runner VPS HTTP client
 - `server/storage.ts` - IStorage interface + DatabaseStorage implementation
 - `server/executor.ts` - Sandboxed code execution engine
-- `server/index.ts` - Express setup (trust proxy, middleware)
-- `client/src/pages/Project.tsx` - Full IDE page (CodeMirror editor, tabs, sidebar, terminal, preview, AI toggle, publish dialog)
-- `client/src/pages/Dashboard.tsx` - Project list with search + quick actions
-- `client/src/pages/Auth.tsx` - Login/register page (full-screen centered)
-- `client/src/pages/Settings.tsx` - User settings
-- `client/src/pages/DemoProject.tsx` - Read-only demo IDE
-- `client/src/pages/SharedProject.tsx` - Public shared project view (read-only with run)
+- `server/index.ts` - Express setup
+- `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal)
+- `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation
+- `client/src/pages/Auth.tsx` - Login/register page
+- `client/src/pages/SharedProject.tsx` - Public shared project view
 - `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with language detection
-- `client/src/components/AIPanel.tsx` - AI chat panel with streaming + code blocks
-- `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel (WebSocket to runner VPS, resize support, auto-reconnect)
-- `client/src/hooks/use-websocket.ts` - WebSocket hook for real-time logs
-- `client/src/hooks/use-auth.ts` - Auth state management hook
-- `client/src/lib/queryClient.ts` - API request helper with JSON error parsing
-- `client/src/lib/auth.ts` - Auth API functions
+- `client/src/components/AIPanel.tsx` - AI agent panel with model selection, chat/agent modes, file operations
+- `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
+
+## IDE Layout (Desktop)
+- **Activity Bar** (48px, far left): Explorer, AI Agent, Workspace status, Settings icons
+- **AI Agent Panel** (45% width, toggleable): Split view like Replit Agent — chat/agent mode toggle, model selection (Claude/GPT), file operation indicators
+- **File Explorer** (240px, toggleable): file list with create/rename/delete
+- **Editor** (center): CodeMirror 6 with tabs + bottom panel (console/preview/shell)
+- **Status Bar** (bottom): workspace status, log count, language indicator, connection status
+- **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
 
 ## Tech Stack
 - React 19, Wouter, TanStack Query
 - Express 5, express-session, bcrypt, express-rate-limit
 - Drizzle ORM, PostgreSQL
-- Anthropic SDK (via Replit AI Integrations, claude-sonnet-4-6)
+- Anthropic SDK + OpenAI SDK (via Replit AI Integrations)
 - CodeMirror 6 (@uiw/react-codemirror + language packages + oneDark theme)
 - WebSocket (ws library)
-- JetBrains Mono font for code editor
+- JetBrains Mono font, Plus Jakarta Sans font
 - GitHub-dark theme (#0d1117 bg, #161b22 panels, #30363d borders, #58a6ff accent)
-- Python 3.11 installed as system module
-
-## IDE Layout (Desktop)
-- Top bar: back, sidebar toggle, project name, LIVE badge if published, run/stop, AI toggle, settings/publish menu
-- Left sidebar (220-260px, collapsible): file explorer with create/rename/delete
-- Center: CodeMirror 6 editor with tabs + bottom panel (console/preview, resizable)
-- Right panel (300-340px, toggleable): AI assistant chat (Claude Sonnet)
-- Mobile: sidebar and AI panel as overlays
-- Status bar: terminal toggle, log count, language indicator, WebSocket connection status

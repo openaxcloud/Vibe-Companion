@@ -1069,6 +1069,19 @@ export default function Project() {
                 <AIPanel
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
                   onClose={() => setMobileTab("editor")}
+                  projectId={projectId}
+                  files={filesQuery.data}
+                  onFileCreated={(file) => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                    setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
+                    setActiveFileId(file.id);
+                    setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                    setMobileTab("editor");
+                  }}
+                  onFileUpdated={(file) => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                    setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                  }}
                 />
               </div>
             )}
@@ -1149,6 +1162,18 @@ export default function Project() {
                 <AIPanel
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
                   onClose={() => setAiPanelOpen(false)}
+                  projectId={projectId}
+                  files={filesQuery.data}
+                  onFileCreated={(file) => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                    setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
+                    setActiveFileId(file.id);
+                    setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                  }}
+                  onFileUpdated={(file) => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                    setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                  }}
                 />
               </div>
             )}
