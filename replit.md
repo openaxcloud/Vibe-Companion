@@ -27,7 +27,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - AI coding assistant panel (Anthropic Claude streaming, file context injection)
 - Remote code execution (JavaScript, TypeScript, Python) via local sandbox
 - Real-time logs via WebSocket in resizable terminal panel
-- Console + Preview (iframe) bottom tabs
+- Console + Preview (iframe) + Shell (xterm.js) bottom tabs
 - Run/Stop buttons with execution state indication
 - Project settings dialog (rename, change language)
 - Publish/share projects with toggle and shareable URL
@@ -35,6 +35,12 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Dark mode with GitHub-dark theme
 - Public demo project (read-only)
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
+- **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
+- **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
+  - Sidebar shows LIVE badge and "Start workspace" prompt when offline/stopped
+  - Runner tabs (prefixed `runner:`) auto-cleaned on workspace stop transition
+- **File operation dialogs**: New File (context-aware path), New Folder, Rename (modal), Delete (confirm)
+- **Runner FS proxy routes**: list, read, write, mkdir, rm, rename — all auth+ownership guarded
 
 ## API Routes
 - `POST /api/auth/register` - Register
@@ -64,6 +70,12 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `GET /api/workspaces/:projectId/status` - Get workspace status from runner
 - `GET /api/workspaces/:projectId/terminal-url` - Get fresh terminal WebSocket URL (JWT token)
 - `GET /api/workspaces/:projectId/preview-url` - Get live preview URL (port param, default 3000)
+- `GET /api/workspaces/:projectId/fs` - List runner FS directory (path query param)
+- `GET /api/workspaces/:projectId/fs/read` - Read file from runner FS
+- `POST /api/workspaces/:projectId/fs/write` - Write file to runner FS
+- `POST /api/workspaces/:projectId/fs/mkdir` - Create directory on runner FS
+- `DELETE /api/workspaces/:projectId/fs/rm` - Delete file/dir on runner FS
+- `POST /api/workspaces/:projectId/fs/rename` - Rename file/dir on runner FS
 
 ## WebSocket
 - Path: `/ws?projectId=<id>`

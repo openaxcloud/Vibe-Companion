@@ -57,8 +57,6 @@ export default function Project() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [bottomTab, setBottomTab] = useState<"terminal" | "preview" | "shell">("terminal");
-  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
@@ -76,6 +74,9 @@ export default function Project() {
   const [newFolderName, setNewFolderName] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: "file" | "dir" } | null>(null);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameDialogTarget, setRenameDialogTarget] = useState<{ id: string; oldName: string } | null>(null);
+  const [renameDialogValue, setRenameDialogValue] = useState("");
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
@@ -359,7 +360,8 @@ export default function Project() {
     },
     onSuccess: () => {
       invalidateFs();
-      setRenamingFileId(null);
+      setRenameDialogOpen(false);
+      setRenameDialogTarget(null);
     },
   });
 
@@ -393,7 +395,8 @@ export default function Project() {
         return n;
       });
       invalidateFs();
-      setRenamingFileId(null);
+      setRenameDialogOpen(false);
+      setRenameDialogTarget(null);
     },
     onError: (err: any) => {
       toast({ title: "Failed to rename", description: err.message, variant: "destructive" });
@@ -419,7 +422,6 @@ export default function Project() {
 
   const handleRename = (id: string, oldName: string, newName: string) => {
     if (!newName.trim() || newName === oldName) {
-      setRenamingFileId(null);
       return;
     }
     if (id.startsWith("runner:")) {
@@ -429,6 +431,19 @@ export default function Project() {
     } else {
       renameFileMutation.mutate({ fileId: id, filename: newName.trim() });
     }
+  };
+
+  const openRenameDialog = (id: string, name: string) => {
+    setRenameDialogTarget({ id, oldName: name });
+    setRenameDialogValue(name);
+    setRenameDialogOpen(true);
+  };
+
+  const submitRenameDialog = () => {
+    if (!renameDialogTarget) return;
+    handleRename(renameDialogTarget.id, renameDialogTarget.oldName, renameDialogValue);
+    setRenameDialogOpen(false);
+    setRenameDialogTarget(null);
   };
 
   const toggleDir = (path: string) => {
@@ -474,9 +489,37 @@ export default function Project() {
     refetchInterval: wsStatus === "starting" || wsStatus === "running" ? 5000 : false,
   });
 
+  const prevWsStatus = useRef(wsStatus);
   useEffect(() => {
     if (workspaceStatusQuery.data?.status) {
-      setWsStatus(workspaceStatusQuery.data.status);
+      const newStatus = workspaceStatusQuery.data.status;
+      if (prevWsStatus.current === "running" && (newStatus === "stopped" || newStatus === "none" || newStatus === "offline")) {
+        const runnerTabs = openTabs.filter((t) => t.startsWith("runner:"));
+        if (runnerTabs.length > 0) {
+          runnerTabs.forEach((t) => {
+            if (dirtyFiles.has(t)) {
+              setDirtyFiles((prev) => { const n = new Set(prev); n.delete(t); return n; });
+            }
+          });
+          setOpenTabs((prev) => prev.filter((t) => !t.startsWith("runner:")));
+          setFileContents((prev) => {
+            const n: Record<string, string> = {};
+            for (const [k, v] of Object.entries(prev)) {
+              if (!k.startsWith("runner:")) n[k] = v;
+            }
+            return n;
+          });
+          if (activeFileId?.startsWith("runner:")) {
+            const remaining = openTabs.filter((t) => !t.startsWith("runner:"));
+            setActiveFileId(remaining[remaining.length - 1] || null);
+            setActiveRunnerPath(null);
+          }
+          setCurrentFsPath("/");
+          toast({ title: "Workspace stopped", description: "Runner file tabs have been closed" });
+        }
+      }
+      prevWsStatus.current = newStatus;
+      setWsStatus(newStatus);
     }
   }, [workspaceStatusQuery.data]);
 
@@ -819,35 +862,25 @@ export default function Project() {
                         ) : (
                           <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(entry.name)}`} />
                         )}
-                        {renamingFileId === entryId ? (
-                          <input
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => handleRename(entryId, entry.name, renameValue)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleRename(entryId, entry.name, renameValue);
-                              if (e.key === "Escape") setRenamingFileId(null);
-                            }}
-                            className="flex-1 bg-[#0d1117] border border-[#58a6ff] rounded px-1 py-0.5 text-xs text-white outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="flex-1 text-xs truncate">{entry.name}{isDir ? "/" : ""}</span>
-                        )}
+                        <span className="flex-1 text-xs truncate">{entry.name}{isDir ? "/" : ""}</span>
                         {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
                         <div className="hidden group-hover:flex items-center gap-0.5">
-                          <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); setRenamingFileId(entryId); setRenameValue(entry.name); }}>
+                          <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); }} data-testid={`button-rename-${entry.name}`}>
                             <Pencil className="w-3 h-3" />
                           </button>
-                          <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }}>
+                          <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }} data-testid={`button-delete-${entry.name}`}>
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
                     );
                   })}
-                  {runnerFsQuery.data?.length === 0 && (
+                  {runnerFsQuery.isLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#58a6ff]" />
+                    </div>
+                  )}
+                  {runnerFsQuery.data?.length === 0 && !runnerFsQuery.isLoading && (
                     <div className="px-3 py-6 text-center">
                       <p className="text-xs text-[#484f58] mb-2">Empty directory</p>
                       <div className="flex gap-2 justify-center">
@@ -863,6 +896,29 @@ export default function Project() {
                 </>
               ) : (
                 <>
+                  {(wsStatus === "stopped" || wsStatus === "none" || wsStatus === "offline") && (
+                    <div className="px-3 py-3 border-b border-[#30363d]">
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-[#161b22] border border-[#30363d]">
+                        <Server className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-[#8b949e]">
+                            {wsStatus === "offline" ? "Runner VPS offline" : wsStatus === "none" ? "Workspace not initialized" : "Workspace stopped"}
+                          </p>
+                          <p className="text-[9px] text-[#484f58] mt-0.5">Start workspace for live file system</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 px-2 text-[9px] text-green-400 hover:text-green-300 hover:bg-green-600/10 shrink-0"
+                          onClick={handleStartWorkspace}
+                          disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending}
+                          data-testid="button-sidebar-start-workspace"
+                        >
+                          {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {filesQuery.data?.map((file) => (
                     <div
                       key={file.id}
@@ -871,28 +927,13 @@ export default function Project() {
                       data-testid={`file-item-${file.id}`}
                     >
                       <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(file.filename)}`} />
-                      {renamingFileId === file.id ? (
-                        <input
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onBlur={() => handleRename(file.id, file.filename, renameValue)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleRename(file.id, file.filename, renameValue);
-                            if (e.key === "Escape") setRenamingFileId(null);
-                          }}
-                          className="flex-1 bg-[#0d1117] border border-[#58a6ff] rounded px-1 py-0.5 text-xs text-white outline-none"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span className="flex-1 text-xs truncate">{file.filename}</span>
-                      )}
+                      <span className="flex-1 text-xs truncate">{file.filename}</span>
                       {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
                       <div className="hidden group-hover:flex items-center gap-0.5">
-                        <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); setRenamingFileId(file.id); setRenameValue(file.filename); }}>
+                        <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}>
                           <Pencil className="w-3 h-3" />
                         </button>
-                        <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }}>
+                        <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}>
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
@@ -1132,7 +1173,11 @@ export default function Project() {
         <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-[#c9d1d9] text-base">New File</DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">Create a new file in your project</DialogDescription>
+            <DialogDescription className="text-[#8b949e] text-xs">
+              {useRunnerFS
+                ? <>Create a new file in <span className="text-[#c9d1d9] font-mono">{currentFsPath === "/" ? "/" : currentFsPath}</span> (Runner FS)</>
+                : "Create a new file in your project"}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newFileName.trim()) createFileMutation.mutate(newFileName.trim()); }} className="space-y-3 mt-1">
             <div className="space-y-1">
@@ -1255,6 +1300,37 @@ export default function Project() {
               {(deleteRunnerEntryMutation.isPending || deleteFileMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : "Delete"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameDialogOpen} onOpenChange={(open) => { setRenameDialogOpen(open); if (!open) setRenameDialogTarget(null); }}>
+        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#c9d1d9] text-base">Rename</DialogTitle>
+            <DialogDescription className="text-[#8b949e] text-xs">
+              Rename <span className="text-[#c9d1d9] font-medium">{renameDialogTarget?.oldName}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); submitRenameDialog(); }} className="space-y-3 mt-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[#8b949e]">New name</Label>
+              <Input
+                value={renameDialogValue}
+                onChange={(e) => setRenameDialogValue(e.target.value)}
+                className="bg-[#0d1117] border-[#30363d] h-9 text-sm text-[#c9d1d9] rounded-lg"
+                autoFocus
+                data-testid="input-rename"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[#8b949e] hover:text-white hover:bg-[#30363d] rounded-lg" onClick={() => { setRenameDialogOpen(false); setRenameDialogTarget(null); }}>
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1 h-9 bg-[#58a6ff] hover:bg-[#4c96eb] text-white rounded-lg text-xs" disabled={!renameDialogValue.trim() || renameDialogValue === renameDialogTarget?.oldName || renameFileMutation.isPending || renameRunnerEntryMutation.isPending} data-testid="button-confirm-rename">
+                {(renameFileMutation.isPending || renameRunnerEntryMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : "Rename"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
