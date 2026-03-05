@@ -8,7 +8,8 @@ import {
   X, Trash2, Pencil, FolderOpen, Settings, MoreHorizontal,
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
-  Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2
+  Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
+  Search, Hash, PanelLeft
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -733,26 +734,21 @@ export default function Project() {
   const isTablet = viewMode === "tablet";
 
   const sidebarContent = (
-    <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#0d1117] flex flex-col ${isMobile ? "" : "border-r border-[#30363d]"} overflow-hidden`}>
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#30363d] shrink-0">
-        <div className="flex items-center gap-1">
-          <span className="text-[11px] font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
-          {useRunnerFS && <span className="text-[9px] px-1 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-600/30">LIVE</span>}
+    <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#0d1117] flex flex-col ${isMobile ? "" : "border-r border-[#21262d]"} overflow-hidden`}>
+      <div className="flex items-center justify-between px-3 h-8 border-b border-[#21262d] shrink-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-widest">Files</span>
+          {useRunnerFS && <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">LIVE</span>}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0">
           {useRunnerFS && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
-              <FolderPlus className="w-3.5 h-3.5" />
+            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#484f58] hover:text-white hover:bg-[#21262d]" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+              <FolderPlus className="w-3 h-3" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
-            <Plus className="w-3.5 h-3.5" />
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#484f58] hover:text-white hover:bg-[#21262d]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
+            <Plus className="w-3 h-3" />
           </Button>
-          {!isMobile && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d] lg:hidden" onClick={() => setSidebarOpen(false)}>
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          )}
         </div>
       </div>
       {useRunnerFS && currentFsPath !== "/" && (
@@ -804,13 +800,10 @@ export default function Project() {
         ) : (
           <>
             {(wsStatus === "stopped" || wsStatus === "none" || wsStatus === "offline") && (
-              <div className="px-3 py-3 border-b border-[#30363d]">
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-[#161b22] border border-[#30363d]">
-                  <Server className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-[#8b949e]">{wsStatus === "offline" ? "Runner VPS offline" : wsStatus === "none" ? "Workspace not initialized" : "Workspace stopped"}</p>
-                    <p className="text-[9px] text-[#484f58] mt-0.5">Start workspace for live file system</p>
-                  </div>
+              <div className="px-2 py-2 border-b border-[#21262d]">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#161b22] border border-[#21262d]">
+                  <Server className="w-3 h-3 text-[#484f58] shrink-0" />
+                  <span className="text-[10px] text-[#8b949e] flex-1">{wsStatus === "offline" ? "Runner offline" : "Start workspace"}</span>
                   <Button size="sm" variant="ghost" className="h-5 px-2 text-[9px] text-green-400 hover:text-green-300 hover:bg-green-600/10 shrink-0" onClick={handleStartWorkspace} disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending} data-testid="button-sidebar-start-workspace">
                     {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
                   </Button>
@@ -846,7 +839,7 @@ export default function Project() {
   );
 
   const editorTabBar = openTabs.length > 0 ? (
-    <div className="flex items-center bg-[#0d1117] border-b border-[#30363d] overflow-x-auto shrink-0 scrollbar-hide">
+    <div className="flex items-center bg-[#010409] border-b border-[#21262d] overflow-x-auto shrink-0 scrollbar-hide h-[33px]">
       {openTabs.map((tabId) => {
         const isRunner = tabId.startsWith("runner:");
         const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
@@ -854,14 +847,17 @@ export default function Project() {
         if (!isRunner && !file) return null;
         const isActive = tabId === activeFileId;
         return (
-          <div key={tabId} className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer border-r border-[#30363d] shrink-0 transition-colors ${isActive ? "bg-[#1c2128] text-white" : "bg-transparent text-[#8b949e] hover:bg-[#161b22]"}`}
+          <div key={tabId} className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 transition-colors border-b-2 ${isActive ? "bg-[#0d1117] text-[#e6edf3] border-b-[#58a6ff]" : "text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#161b22]/50 border-b-transparent"}`}
             onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
             data-testid={`tab-${tabId}`}
           >
-            <FileIcon className={`w-3 h-3 ${getFileColor(tabName)}`} />
+            <FileIcon className={`w-3 h-3 shrink-0 ${getFileColor(tabName)}`} />
             <span className="text-[11px] max-w-[100px] truncate">{tabName}</span>
-            {dirtyFiles.has(tabId) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />}
-            <button className="ml-0.5 p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => closeTab(tabId, e)}><X className="w-3 h-3" /></button>
+            {dirtyFiles.has(tabId) ? (
+              <div className="w-2 h-2 rounded-full bg-[#e3b341] shrink-0" />
+            ) : (
+              <button className="p-0.5 rounded hover:bg-[#30363d] text-[#484f58] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
+            )}
           </div>
         );
       })}
@@ -874,22 +870,24 @@ export default function Project() {
         <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} />
       ) : (
         <div className="flex flex-col items-center justify-center h-full bg-[#0d1117]">
-          <div className="max-w-md text-center px-6">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#58a6ff]/10 to-purple-600/10 border border-[#30363d] flex items-center justify-center mx-auto mb-6">
-              <Code2 className="w-10 h-10 text-[#58a6ff]/50" />
+          <div className="max-w-sm text-center px-6">
+            <div className="w-14 h-14 rounded-xl bg-[#161b22] border border-[#21262d] flex items-center justify-center mx-auto mb-5">
+              <Code2 className="w-7 h-7 text-[#30363d]" />
             </div>
-            <h3 className="text-lg font-semibold text-white mb-2">{project?.name || "Untitled"}</h3>
-            <p className="text-sm text-[#8b949e] mb-6">Select a file from the explorer to start editing, or create a new one.</p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button variant="ghost" size="sm" className="text-[#58a6ff] hover:bg-[#161b22] text-xs gap-1.5 h-8" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
-                <FolderOpen className="w-3.5 h-3.5" /> Open Explorer
-              </Button>
-              <Button variant="ghost" size="sm" className="text-purple-400 hover:bg-purple-600/10 text-xs gap-1.5 h-8" onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }} data-testid="button-open-ai-empty">
-                <Sparkles className="w-3.5 h-3.5" /> Ask AI Agent
-              </Button>
-              <Button variant="ghost" size="sm" className="text-green-400 hover:bg-green-600/10 text-xs gap-1.5 h-8" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
-                <Plus className="w-3.5 h-3.5" /> New File
-              </Button>
+            <h3 className="text-base font-semibold text-[#e6edf3] mb-1.5">{project?.name || "Untitled"}</h3>
+            <p className="text-xs text-[#484f58] mb-6 leading-relaxed">Open a file to start editing</p>
+            <div className="flex flex-col gap-1.5 max-w-[200px] mx-auto">
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[#8b949e] hover:text-white hover:bg-[#161b22] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
+                <FolderOpen className="w-3.5 h-3.5 text-[#58a6ff]" /> Explorer
+                <span className="ml-auto text-[10px] text-[#30363d] font-mono">Ctrl+B</span>
+              </button>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[#8b949e] hover:text-white hover:bg-[#161b22] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }} data-testid="button-open-ai-empty">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" /> AI Agent
+              </button>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[#8b949e] hover:text-white hover:bg-[#161b22] transition-colors text-left" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
+                <Plus className="w-3.5 h-3.5 text-green-400" /> New File
+                <span className="ml-auto text-[10px] text-[#30363d] font-mono">Ctrl+N</span>
+              </button>
             </div>
           </div>
         </div>
@@ -959,23 +957,20 @@ export default function Project() {
   );
 
   const bottomPanel = (
-    <div className="shrink-0 flex flex-col border-t border-[#30363d] bg-[#0d1117]" style={{ height: terminalHeight }}>
-      <div className="h-1 cursor-ns-resize resize-handle flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
-        <div className="w-8 h-0.5 rounded-full bg-[#30363d]" />
-      </div>
-      <div className="flex items-center justify-between px-2 border-b border-[#30363d] bg-[#161b22] shrink-0">
-        <div className="flex items-center">
-          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "terminal" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("terminal")}>
+    <div className="shrink-0 flex flex-col border-t border-[#21262d] bg-[#0d1117]" style={{ height: terminalHeight }}>
+      <div className="h-[3px] cursor-ns-resize resize-handle flex items-center justify-center shrink-0 hover:bg-[#58a6ff]/30 transition-colors" onMouseDown={handleDragStart} onTouchStart={handleDragStart} />
+      <div className="flex items-center justify-between px-1 h-[30px] border-b border-[#21262d] bg-[#010409] shrink-0">
+        <div className="flex items-center h-full">
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "terminal" ? "text-[#e6edf3] border-[#58a6ff]" : "text-[#484f58] border-transparent hover:text-[#8b949e]"}`} onClick={() => setBottomTab("terminal")}>
             <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
           </button>
-          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#c9d1d9] border-[#58a6ff]" : "text-[#8b949e] border-transparent hover:text-[#c9d1d9]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
-            <Server className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#e6edf3] border-[#58a6ff]" : "text-[#484f58] border-transparent hover:text-[#8b949e]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
+            <Hash className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
           </button>
         </div>
-        <div className="flex items-center gap-1">
-          {connected && <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="WebSocket connected" />}
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setLogs([])}><RefreshCw className="w-3 h-3" /></Button>
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setTerminalVisible(false)}><X className="w-3 h-3" /></Button>
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-2.5 h-2.5" /></Button>
+          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-2.5 h-2.5" /></Button>
         </div>
       </div>
       {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
@@ -1009,35 +1004,34 @@ export default function Project() {
   return (
     <div className="h-screen flex flex-col bg-[#0d1117] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#161b22] border-b border-[#30363d] shrink-0 z-40">
-        <div className="flex items-center gap-1 min-w-0">
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setLocation("/dashboard")} data-testid="button-back">
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center gap-1.5 ml-1 min-w-0">
-            <span className="text-xs font-semibold text-[#c9d1d9] truncate max-w-[140px]" data-testid="text-project-name">{project?.name}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#30363d] text-[#8b949e] shrink-0" data-testid="badge-language">{project?.language}</span>
-            {project?.isPublished && <span className="text-[9px] px-1 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-600/30 shrink-0">LIVE</span>}
+      <div className="grid grid-cols-3 items-center px-2 h-9 bg-[#010409] border-b border-[#21262d] shrink-0 z-40">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button className="w-6 h-6 rounded-md bg-gradient-to-br from-[#58a6ff]/80 to-[#a371f7]/80 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+            <Code2 className="w-3.5 h-3.5 text-white" />
+          </button>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[13px] font-semibold text-[#e6edf3] truncate max-w-[160px]" data-testid="text-project-name">{project?.name}</span>
+            {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
           </div>
         </div>
         <div className="flex items-center justify-center">
           <Button
             size="sm"
-            className={`h-8 px-5 text-xs font-semibold rounded-full gap-1.5 shadow-md ${isRunning ? "bg-red-600 hover:bg-red-500 text-white" : "bg-green-600 hover:bg-green-500 text-white"}`}
+            className={`h-7 px-4 text-[11px] font-semibold rounded-full gap-1.5 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]" : "bg-[#238636] hover:bg-[#2ea043] text-white shadow-[0_0_12px_rgba(35,134,54,0.3)]"}`}
             onClick={handleRun}
             disabled={runMutation.isPending}
             data-testid="button-run"
           >
-            {runMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isRunning ? <><Square className="w-3.5 h-3.5 fill-current" /> Stop</> : <><Play className="w-3.5 h-3.5 fill-current" /> Run</>}
+            {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
           </Button>
         </div>
-        <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
+        <div className="flex items-center justify-end gap-0.5">
+          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#21262d] rounded-md" onClick={() => setPublishDialogOpen(true)} title="Publish" data-testid="button-publish">
             <Rocket className="w-3.5 h-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" data-testid="button-kebab-menu">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#21262d] rounded-md" data-testid="button-kebab-menu">
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1158,45 +1152,44 @@ export default function Project() {
         <>
           {/* === TABLET + DESKTOP LAYOUT: VS Code style === */}
           <div className="flex flex-1 overflow-hidden">
-            {/* ACTIVITY BAR — VS Code style icon strip */}
-            <div className="w-12 bg-[#161b22] border-r border-[#30363d] flex flex-col items-center py-2 gap-1 shrink-0" data-testid="activity-bar">
+            {/* ACTIVITY BAR */}
+            <div className="w-11 bg-[#010409] border-r border-[#21262d] flex flex-col items-center py-1.5 gap-0.5 shrink-0" data-testid="activity-bar">
               <button
-                className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors ${sidebarOpen && !aiPanelOpen ? "text-white border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
+                className={`w-9 h-9 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen ? "text-white border-l-2 border-l-[#58a6ff] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
                 onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen); setAiPanelOpen(false); }}
-                title="Explorer"
+                title="Explorer (Ctrl+B)"
                 data-testid="activity-explorer"
               >
-                <FolderOpen className="w-5 h-5" />
+                <PanelLeft className="w-[18px] h-[18px]" />
               </button>
               <button
-                className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors relative ${aiPanelOpen ? "text-purple-400 border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
+                className={`w-9 h-9 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-purple-400 border-l-2 border-l-[#a371f7] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
                 onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) setSidebarOpen(false); }}
                 title="AI Agent"
                 data-testid="activity-ai"
               >
-                <Sparkles className="w-5 h-5" />
+                <Sparkles className="w-[18px] h-[18px]" />
               </button>
               <button
-                className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors ${previewPanelOpen ? "text-white border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
+                className={`w-9 h-9 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-white border-l-2 border-l-[#58a6ff] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
                 onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
                 title="Webview"
                 data-testid="activity-webview"
               >
-                <Monitor className="w-5 h-5" />
+                <Monitor className="w-[18px] h-[18px]" />
               </button>
 
               <div className="flex-1" />
 
-              <div className="flex flex-col items-center gap-1 mb-1">
-                <div className="w-8 border-t border-[#30363d] mb-1" />
+              <div className="flex flex-col items-center gap-0.5 mb-0.5">
                 <button
-                  className={`w-10 h-10 flex items-center justify-center rounded-none transition-colors relative ${projectSettingsOpen ? "text-white border-l-2 border-l-white" : "text-[#8b949e] hover:text-white hover:bg-[#30363d] border-l-2 border-l-transparent"}`}
+                  className={`w-9 h-9 flex items-center justify-center transition-colors relative ${projectSettingsOpen ? "text-white border-l-2 border-l-[#58a6ff] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
                   onClick={() => setProjectSettingsOpen(true)}
                   title="Settings"
                   data-testid="activity-settings"
                 >
-                  <Settings className="w-5 h-5" />
-                  <span className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border border-[#161b22] ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
+                  <Settings className="w-[18px] h-[18px]" />
+                  <span className={`absolute bottom-1 right-1 w-[6px] h-[6px] rounded-full border border-[#010409] ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
                 </button>
               </div>
             </div>
@@ -1252,33 +1245,34 @@ export default function Project() {
 
               {previewPanelOpen && !aiPanelOpen && (
                 <>
-                  <div className="w-[3px] cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#30363d] hover:bg-[#58a6ff]/50" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart}>
-                  </div>
-                  <div className="flex flex-col overflow-hidden bg-[#0d1117] border-l border-[#30363d]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
-                    <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#30363d] bg-[#161b22] shrink-0">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Globe className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
-                        <span className="text-[11px] text-[#8b949e] truncate font-mono">{livePreviewUrl || "Webview"}</span>
+                  <div className="w-[3px] cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#21262d] hover:bg-[#58a6ff]/40 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
+                  <div className="flex flex-col overflow-hidden bg-[#0d1117] border-l border-[#21262d]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
+                    <div className="flex items-center gap-1.5 px-2 h-[33px] border-b border-[#21262d] bg-[#010409] shrink-0">
+                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded shrink-0"
+                        onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
+                        title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-2.5 h-2.5" /></Button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-[#161b22] border border-[#21262d]">
+                          <Globe className="w-2.5 h-2.5 text-[#484f58] shrink-0" />
+                          <span className="text-[10px] text-[#8b949e] truncate font-mono">{livePreviewUrl || "localhost"}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
-                          onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
-                          title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
+                      <div className="flex items-center gap-0 shrink-0">
                         {livePreviewUrl && (
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+                          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded"
                             onClick={() => window.open(livePreviewUrl, "_blank")}
-                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
+                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-2.5 h-2.5" /></Button>
                         )}
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+                        <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded"
                           onClick={() => setPreviewPanelOpen(false)}
-                          title="Close" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
+                          title="Close" data-testid="button-preview-panel-close"><X className="w-2.5 h-2.5" /></Button>
                       </div>
                     </div>
                     <div className="flex-1 overflow-hidden">
                       {runnerOnline === false ? (
-                        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-2">
-                          <WifiOff className="w-8 h-8 text-orange-400/60" />
-                          <p className="text-xs text-orange-400/80">Preview unavailable</p>
+                        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
+                          <WifiOff className="w-8 h-8 text-[#30363d]" />
+                          <p className="text-xs text-[#8b949e]">Preview unavailable</p>
                           <p className="text-[10px] text-[#484f58]">Runner is offline</p>
                         </div>
                       ) : wsStatus === "running" && livePreviewUrl ? (
@@ -1287,10 +1281,12 @@ export default function Project() {
                         <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
-                          <Monitor className="w-10 h-10" />
-                          <p className="text-sm font-medium text-[#c9d1d9]">Webview</p>
-                          <p className="text-xs text-center max-w-[240px]">
-                            {wsStatus === "running" ? "Waiting for your app to start serving on a port..." : "Start a workspace to see your app's live preview here."}
+                          <div className="w-12 h-12 rounded-xl bg-[#161b22] border border-[#21262d] flex items-center justify-center">
+                            <Monitor className="w-6 h-6 text-[#30363d]" />
+                          </div>
+                          <p className="text-sm font-medium text-[#8b949e]">Webview</p>
+                          <p className="text-[11px] text-center max-w-[220px] text-[#484f58] leading-relaxed">
+                            {wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Run your app to see the live preview here"}
                           </p>
                         </div>
                       )}
@@ -1302,21 +1298,18 @@ export default function Project() {
           </div>
 
           {/* STATUS BAR */}
-          <div className="flex items-center justify-between px-3 h-[22px] bg-[#1e1e2e] border-t border-[#30363d] shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-[10px] text-[#484f58]">
-                <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : "bg-[#484f58]"}`} />
-                {wsStatus === "running" ? "Workspace running" : wsStatus === "starting" ? "Starting..." : wsStatus === "none" ? "No workspace" : wsStatus}
-              </span>
-              {connected ? (
-                <span className="flex items-center gap-1 text-[10px] text-green-400"><Wifi className="w-3 h-3" /> Connected</span>
-              ) : (
-                <span className="flex items-center gap-1 text-[10px] text-[#484f58]"><WifiOff className="w-3 h-3" /> Disconnected</span>
-              )}
-            </div>
+          <div className="flex items-center justify-between px-2 h-[22px] bg-[#010409] border-t border-[#21262d] shrink-0">
             <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-[10px] text-[#484f58]">
+                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : "bg-[#30363d]"}`} />
+                {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting" : wsStatus === "none" ? "Ready" : wsStatus}
+              </span>
+              <span className={`text-[10px] ${connected ? "text-[#484f58]" : "text-[#30363d]"}`}>{connected ? "WS" : ""}</span>
+            </div>
+            <div className="flex items-center gap-3">
               {activeFileName && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
-              <span className="text-[10px] text-[#484f58]">Vibe</span>
+              {activeFileName && <span className="text-[10px] text-[#30363d]">UTF-8</span>}
+              <span className="text-[10px] text-[#30363d]">Vibe</span>
             </div>
           </div>
         </>

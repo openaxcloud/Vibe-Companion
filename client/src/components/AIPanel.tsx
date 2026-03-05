@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Send, Loader2, Bot, User, Copy, Check, X, Sparkles, Trash2,
+  Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
   FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
-  FileDown, FileUp
+  FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -31,10 +31,68 @@ interface AIPanelProps {
 type AIModel = "claude" | "gpt";
 type AIMode = "chat" | "agent";
 
-const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string }> = {
-  claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-purple-400 bg-purple-400/10" },
-  gpt: { name: "GPT-5.2", badge: "OpenAI", color: "text-green-400 bg-green-400/10" },
+const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
+  claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-purple-400 bg-purple-400/10", icon: Sparkles },
+  gpt: { name: "GPT-5.2", badge: "OpenAI", color: "text-green-400 bg-green-400/10", icon: Zap },
 };
+
+const LANG_COLORS: Record<string, { bg: string; text: string }> = {
+  typescript: { bg: "bg-blue-500/20", text: "text-blue-400" },
+  ts: { bg: "bg-blue-500/20", text: "text-blue-400" },
+  tsx: { bg: "bg-blue-500/20", text: "text-blue-400" },
+  javascript: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
+  js: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
+  jsx: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
+  python: { bg: "bg-green-500/20", text: "text-green-400" },
+  py: { bg: "bg-green-500/20", text: "text-green-400" },
+  css: { bg: "bg-pink-500/20", text: "text-pink-400" },
+  html: { bg: "bg-orange-500/20", text: "text-orange-400" },
+  json: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  sql: { bg: "bg-cyan-500/20", text: "text-cyan-400" },
+  bash: { bg: "bg-gray-500/20", text: "text-gray-400" },
+  sh: { bg: "bg-gray-500/20", text: "text-gray-400" },
+  rust: { bg: "bg-orange-600/20", text: "text-orange-500" },
+  go: { bg: "bg-cyan-600/20", text: "text-cyan-400" },
+  java: { bg: "bg-red-500/20", text: "text-red-400" },
+};
+
+function TypingIndicator() {
+  return (
+    <span className="flex items-center gap-1.5 text-[#8b949e] py-1">
+      <span className="flex items-center gap-[3px]">
+        <span className="w-[5px] h-[5px] rounded-full bg-purple-400 animate-[bounce-dot_1.4s_ease-in-out_infinite]" />
+        <span className="w-[5px] h-[5px] rounded-full bg-purple-400 animate-[bounce-dot_1.4s_ease-in-out_0.2s_infinite]" style={{ animationDelay: "0.2s" }} />
+        <span className="w-[5px] h-[5px] rounded-full bg-purple-400 animate-[bounce-dot_1.4s_ease-in-out_0.4s_infinite]" style={{ animationDelay: "0.4s" }} />
+      </span>
+      <span className="text-[11px] ml-1">{" "}Thinking...</span>
+    </span>
+  );
+}
+
+function FileOpProgress({ ops }: { ops: { type: "created" | "updated"; filename: string }[] }) {
+  return (
+    <div className="mt-3 rounded-lg overflow-hidden border border-green-600/20">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-green-600/5 border-b border-green-600/20">
+        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+        <span className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Files Modified</span>
+        <span className="text-[10px] text-green-400/60 ml-auto">{ops.length} file{ops.length > 1 ? "s" : ""}</span>
+      </div>
+      <div className="bg-green-600/5 p-2">
+        {ops.map((op, i) => (
+          <div key={i} className="flex items-center gap-2 text-[11px] text-[#c9d1d9] py-1 px-1">
+            <div className={`w-5 h-5 rounded flex items-center justify-center ${op.type === "created" ? "bg-green-500/15" : "bg-blue-500/15"}`}>
+              {op.type === "created" ? <FilePlus className="w-3 h-3 text-green-400" /> : <FileEdit className="w-3 h-3 text-blue-400" />}
+            </div>
+            <span className="font-mono text-[11px]">{op.filename}</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${op.type === "created" ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"}`}>
+              {op.type}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function AIPanel({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -54,6 +112,13 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 160) + "px";
+    }
+  }, [input]);
 
   const processSSEStream = useCallback(async (
     response: Response,
@@ -212,29 +277,38 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
     const rendered = parts.map((part, i) => {
       if (part.startsWith("```")) {
         const lines = part.slice(3, -3).split("\n");
-        const lang = lines[0] || "";
+        const lang = lines[0]?.trim() || "";
         const code = lines.slice(1).join("\n");
         const blockKey = `${content.slice(0, 20)}-block-${i}`;
         const targetFile = guessTargetFile(lang, code);
         const isApplied = appliedBlocks.has(blockKey);
+        const langColor = LANG_COLORS[lang.toLowerCase()] || { bg: "bg-[#30363d]", text: "text-[#8b949e]" };
         return (
-          <div key={i} className="my-2 rounded-lg overflow-hidden border border-[#30363d]">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#161b22] text-[10px] text-[#8b949e]">
+          <div key={i} className="my-2.5 rounded-lg overflow-hidden border border-[#30363d] shadow-lg">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[#161b22] border-b border-[#30363d]">
               <div className="flex items-center gap-2">
-                <FileCode className="w-3 h-3" />
-                <span className="font-medium">{lang}</span>
+                <Code2 className="w-3.5 h-3.5 text-[#484f58]" />
+                {lang && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${langColor.bg} ${langColor.text}`}>
+                    {lang}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {mode === "chat" && targetFile && onApplyCode && (
                   <button
                     onClick={() => applyCodeToFile(code, targetFile, blockKey)}
-                    className={`flex items-center gap-1 transition-colors ${isApplied ? "text-green-400" : "text-[#58a6ff] hover:text-white"}`}
+                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-all ${isApplied ? "text-green-400 bg-green-400/10" : "text-[#58a6ff] hover:text-white hover:bg-[#58a6ff]/10"}`}
                     data-testid={`button-apply-code-${i}`}
                   >
                     {isApplied ? <><Check className="w-3 h-3" /> Applied</> : <><FileDown className="w-3 h-3" /> Apply</>}
                   </button>
                 )}
-                <button onClick={() => copyCode(code)} className="flex items-center gap-1 hover:text-white transition-colors" data-testid="button-copy-code">
+                <button
+                  onClick={() => copyCode(code)}
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded text-[#8b949e] hover:text-white hover:bg-[#30363d] transition-all"
+                  data-testid="button-copy-code"
+                >
                   {copied === code ? <><Check className="w-3 h-3 text-green-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                 </button>
               </div>
@@ -251,9 +325,12 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             const text = line.slice(2);
             const isCreating = text.includes("Creating");
             return (
-              <div key={`${i}-${j}`} className="flex items-center gap-2 my-1 px-2 py-1.5 rounded bg-[#161b22] border border-[#30363d] text-[11px]">
-                {isCreating ? <FilePlus className="w-3.5 h-3.5 text-green-400 shrink-0" /> : <FileEdit className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+              <div key={`${i}-${j}`} className="flex items-center gap-2 my-1.5 px-3 py-2 rounded-lg bg-[#161b22] border border-[#30363d] text-[11px] animate-[slide-in_0.3s_ease-out]">
+                <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${isCreating ? "bg-green-500/15" : "bg-blue-500/15"}`}>
+                  {isCreating ? <FilePlus className="w-3 h-3 text-green-400" /> : <FileEdit className="w-3 h-3 text-blue-400" />}
+                </div>
                 <span className="text-[#c9d1d9]">{text}</span>
+                <div className="ml-auto w-3 h-3 border-2 border-purple-400/40 border-t-purple-400 rounded-full animate-spin" />
               </div>
             );
           }
@@ -264,24 +341,28 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
     });
 
     if (fileOps && fileOps.length > 0) {
-      rendered.push(
-        <div key="file-ops-summary" className="mt-3 p-2.5 rounded-lg bg-green-600/10 border border-green-600/20">
-          <div className="text-[10px] font-semibold text-green-400 uppercase mb-1.5">Files Modified</div>
-          {fileOps.map((op, i) => (
-            <div key={i} className="flex items-center gap-2 text-[11px] text-[#c9d1d9] py-0.5">
-              {op.type === "created" ? <FilePlus className="w-3 h-3 text-green-400" /> : <FileEdit className="w-3 h-3 text-blue-400" />}
-              <span className="font-mono">{op.filename}</span>
-              <span className="text-[9px] text-[#8b949e]">{op.type}</span>
-            </div>
-          ))}
-        </div>
-      );
+      rendered.push(<FileOpProgress key="file-ops-summary" ops={fileOps} />);
     }
 
     return rendered;
   };
 
   const modelInfo = MODEL_LABELS[model];
+  const ModelIcon = modelInfo.icon;
+
+  const chatSuggestions = [
+    { icon: Code2, label: "Explain this code", category: "Understand" },
+    { icon: Bug, label: "Find bugs and fix them", category: "Debug" },
+    { icon: Shield, label: "Add error handling", category: "Improve" },
+    { icon: Gauge, label: "Optimize performance", category: "Optimize" },
+  ];
+
+  const agentSuggestions = [
+    { icon: Layout, label: "Build a login form with validation", category: "UI" },
+    { icon: Database, label: "Add a REST API endpoint", category: "Backend" },
+    { icon: Wrench, label: "Create a utility functions file", category: "Utils" },
+    { icon: Lightbulb, label: "Refactor this code for performance", category: "Refactor" },
+  ];
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117]">
@@ -293,24 +374,39 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-semibold text-white">AI</span>
             {mode === "agent" ? (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} title="Agent mode uses Claude for tool capabilities" data-testid="button-model-select">
+              <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} title="Agent mode uses Claude for tool capabilities" data-testid="button-model-select">
+                <Sparkles className="w-2.5 h-2.5" />
                 Claude Sonnet
               </span>
             ) : (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
-                    {modelInfo.name} <ChevronDown className="w-2.5 h-2.5" />
+                    <ModelIcon className="w-2.5 h-2.5" />
+                    {modelInfo.name}
+                    <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-44 bg-[#1c2128] border-[#30363d]">
-                  <DropdownMenuItem className="gap-2 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer" onClick={() => setModel("claude")} data-testid="model-claude">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Claude Sonnet
-                    {model === "claude" && <Check className="w-3 h-3 ml-auto text-green-400" />}
+                <DropdownMenuContent align="start" className="w-52 bg-[#1c2128] border-[#30363d] p-1">
+                  <DropdownMenuItem className="gap-2.5 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("claude")} data-testid="model-claude">
+                    <div className="w-5 h-5 rounded bg-purple-500/15 flex items-center justify-center">
+                      <Sparkles className="w-3 h-3 text-purple-400" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">Claude Sonnet</span>
+                      <span className="text-[10px] text-[#8b949e]">Anthropic</span>
+                    </div>
+                    {model === "claude" && <Check className="w-3.5 h-3.5 ml-auto text-green-400" />}
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer" onClick={() => setModel("gpt")} data-testid="model-gpt">
-                    <Zap className="w-3.5 h-3.5 text-green-400" /> GPT-5.2
-                    {model === "gpt" && <Check className="w-3 h-3 ml-auto text-green-400" />}
+                  <DropdownMenuItem className="gap-2.5 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gpt")} data-testid="model-gpt">
+                    <div className="w-5 h-5 rounded bg-green-500/15 flex items-center justify-center">
+                      <Zap className="w-3 h-3 text-green-400" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">GPT-5.2</span>
+                      <span className="text-[10px] text-[#8b949e]">OpenAI</span>
+                    </div>
+                    {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-green-400" />}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -364,11 +460,11 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-[fade-in_0.4s_ease-out]">
             <div className="w-16 h-16 rounded-2xl bg-purple-600/10 flex items-center justify-center mb-4 border border-purple-600/20">
               {mode === "agent" ? <Bot className="w-8 h-8 text-purple-400/60" /> : <Sparkles className="w-8 h-8 text-purple-400/60" />}
             </div>
-            <p className="text-base font-semibold text-white mb-2">
+            <p className="text-base font-semibold text-white mb-2" data-testid="text-ai-title">
               {mode === "agent" ? "AI Coding Agent" : "AI Assistant"}
             </p>
             <p className="text-xs text-[#8b949e] max-w-[280px] leading-relaxed mb-6">
@@ -376,32 +472,31 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 ? "I can build features, create files, and edit your code directly. Describe what you want to build."
                 : "I can help you write code, debug issues, explain concepts, and suggest improvements."}
             </p>
-            <div className="grid grid-cols-1 gap-2 w-full max-w-[280px]">
-              {(mode === "agent" ? [
-                "Build a login form with validation",
-                "Add a REST API endpoint",
-                "Create a utility functions file",
-                "Refactor this code for performance",
-              ] : [
-                "Explain this code",
-                "Find bugs and fix them",
-                "Add error handling",
-                "Optimize performance",
-              ]).map((suggestion) => (
-                <button
-                  key={suggestion}
-                  className="text-left px-3 py-2 rounded-lg bg-[#161b22] border border-[#30363d] text-xs text-[#8b949e] hover:text-white hover:border-[#484f58] transition-colors"
-                  onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
-                  data-testid={`suggestion-${suggestion.toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  {suggestion}
-                </button>
-              ))}
+            <div className="w-full max-w-[300px] space-y-1.5">
+              {(mode === "agent" ? agentSuggestions : chatSuggestions).map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.label}
+                    className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg bg-[#161b22] border border-[#30363d] text-xs text-[#8b949e] hover:text-white hover:border-[#484f58] hover:bg-[#1c2128] transition-all group"
+                    onClick={() => { setInput(item.label); inputRef.current?.focus(); }}
+                    data-testid={`suggestion-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <div className="w-6 h-6 rounded-md bg-[#30363d]/50 flex items-center justify-center group-hover:bg-purple-600/15 transition-colors">
+                      <Icon className="w-3.5 h-3.5 group-hover:text-purple-400 transition-colors" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-medium">{item.label}</span>
+                      <span className="text-[9px] text-[#484f58]">{item.category}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+          <div key={msg.id} className={`flex gap-3 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
               msg.role === "assistant" ? "bg-purple-600/20" : "bg-[#58a6ff]/20"
             }`}>
@@ -412,49 +507,57 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 ? "bg-[#58a6ff]/15 text-[#c9d1d9] border border-[#58a6ff]/20"
                 : "bg-[#161b22] text-[#c9d1d9] border border-[#30363d]"
             }`}>
-              {msg.content ? renderContent(msg.content, msg.fileOps) : (
-                <span className="flex items-center gap-2 text-[#8b949e]">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {mode === "agent" ? "Working..." : "Thinking..."}
-                </span>
-              )}
+              {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
             </div>
           </div>
         ))}
       </div>
 
       <div className="p-3 border-t border-[#30363d] bg-[#161b22] shrink-0">
-        <div className="flex gap-2 items-end">
+        <div className="relative">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={mode === "agent" ? "Tell the agent what to build..." : "Ask anything about your code..."}
-            rows={1}
-            className="flex-1 bg-[#0d1117] border border-[#30363d] text-sm text-[#c9d1d9] rounded-lg px-3 py-2 resize-none placeholder:text-[#484f58] focus:outline-none focus:border-purple-600/50 focus:ring-1 focus:ring-purple-600/20 min-h-[36px] max-h-[120px]"
+            rows={2}
+            className="w-full bg-[#0d1117] border border-[#30363d] text-sm text-[#c9d1d9] rounded-lg px-3 py-2.5 pr-12 resize-none placeholder:text-[#484f58] focus:outline-none focus:border-purple-600/50 focus:ring-1 focus:ring-purple-600/20 min-h-[52px] max-h-[160px]"
             disabled={isStreaming}
             data-testid="input-ai-chat"
           />
-          {isStreaming ? (
-            <Button
-              onClick={stopStreaming}
-              size="icon"
-              className="w-9 h-9 bg-red-600 hover:bg-red-700 rounded-lg shrink-0"
-              data-testid="button-ai-stop"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={sendMessage}
-              size="icon"
-              className="w-9 h-9 bg-purple-600 hover:bg-purple-700 rounded-lg shrink-0"
-              disabled={!input.trim()}
-              data-testid="button-ai-send"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+          <div className="absolute right-2 bottom-2">
+            {isStreaming ? (
+              <Button
+                onClick={stopStreaming}
+                size="icon"
+                className="w-8 h-8 bg-red-600 hover:bg-red-700 rounded-lg"
+                data-testid="button-ai-stop"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={sendMessage}
+                size="icon"
+                className="w-8 h-8 bg-purple-600 hover:bg-purple-700 rounded-lg"
+                disabled={!input.trim()}
+                data-testid="button-ai-send"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-1.5 px-1">
+          <span className="text-[10px] text-[#484f58]">
+            <kbd className="px-1 py-0.5 rounded bg-[#30363d]/50 text-[9px] font-mono">Shift+Enter</kbd> for newline
+          </span>
+          {isStreaming && (
+            <span className="flex items-center gap-1.5 text-[10px] text-purple-400">
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+              Generating...
+            </span>
           )}
         </div>
       </div>

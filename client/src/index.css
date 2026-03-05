@@ -86,20 +86,24 @@
   }
 }
 
-/* Mobile-like scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground));
-  border-radius: 4px;
+  background: rgba(139, 148, 158, 0.3);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary));
+  background: rgba(139, 148, 158, 0.5);
+}
+
+::selection {
+  background: rgba(88, 166, 255, 0.3);
+  color: #e6edf3;
 }
 
 .glass-panel {
@@ -114,16 +118,20 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* CodeMirror custom overrides — GitHub dark theme */
 .cm-editor { height: 100% !important; background: #0d1117 !important; }
-.cm-gutters { background: #0d1117 !important; border-right: 1px solid #30363d !important; color: #484f58 !important; }
-.cm-activeLineGutter { background: #161b22 !important; }
-.cm-activeLine { background: #161b2280 !important; }
-.cm-cursor { border-left-color: #58a6ff !important; }
-.cm-selectionBackground { background: #58a6ff33 !important; }
-.cm-focused .cm-selectionBackground { background: #58a6ff33 !important; }
-.cm-content { font-family: 'JetBrains Mono', monospace !important; }
+.cm-gutters { background: #0d1117 !important; border-right: 1px solid #21262d !important; color: #484f58 !important; min-width: 48px !important; }
+.cm-lineNumbers .cm-gutterElement { font-size: 12px !important; padding: 0 8px 0 12px !important; min-width: 32px !important; text-align: right !important; }
+.cm-activeLineGutter { background: #161b22 !important; color: #8b949e !important; }
+.cm-activeLine { background: rgba(22, 27, 34, 0.5) !important; }
+.cm-cursor { border-left-color: #58a6ff !important; border-left-width: 2px !important; }
+.cm-selectionBackground { background: rgba(88, 166, 255, 0.2) !important; }
+.cm-focused .cm-selectionBackground { background: rgba(88, 166, 255, 0.25) !important; }
+.cm-content { font-family: 'JetBrains Mono', monospace !important; font-size: 13px !important; line-height: 1.6 !important; }
 .cm-scroller { overflow: auto !important; }
+.cm-foldGutter { width: 12px !important; }
+.cm-tooltip { background: #1c2128 !important; border: 1px solid #30363d !important; border-radius: 6px !important; }
+.cm-tooltip-autocomplete > ul > li { padding: 2px 8px !important; }
+.cm-tooltip-autocomplete > ul > li[aria-selected] { background: #388bfd26 !important; }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -131,3 +139,72 @@
 .panel-transition { transition: width 150ms ease, flex 150ms ease; }
 .resize-handle { transition: background-color 150ms; }
 .resize-handle:hover { background-color: rgba(88, 166, 255, 0.5); }
+
+@keyframes bouncing-dots {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+}
+.bouncing-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8b949e;
+  animation: bouncing-dots 1.4s ease-in-out infinite;
+}
+.bouncing-dot:nth-child(2) { animation-delay: 0.16s; }
+.bouncing-dot:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes bounce-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 200ms ease-out; }
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in { animation: slide-in-right 200ms ease-out; }
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(88, 166, 255, 0.1); }
+  50% { box-shadow: 0 0 30px rgba(88, 166, 255, 0.2); }
+}
+.glow-border { animation: glow-pulse 3s ease-in-out infinite; }
+
+@keyframes grid-fade {
+  0% { opacity: 0.03; }
+  50% { opacity: 0.06; }
+  100% { opacity: 0.03; }
+}
+
+.bg-grid {
+  background-image: 
+    linear-gradient(rgba(88, 166, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(88, 166, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.tree-indent {
+  position: relative;
+}
+.tree-indent::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #21262d;
+}
