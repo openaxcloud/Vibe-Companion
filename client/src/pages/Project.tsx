@@ -915,7 +915,11 @@ export default function Project() {
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333]">
           <div className="max-w-sm text-center px-6">
             <div className="w-16 h-16 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-6">
-              <Code2 className="w-8 h-8 text-[#676D7E]" />
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+                <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#676D7E"/>
+                <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#676D7E"/>
+                <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#676D7E"/>
+              </svg>
             </div>
             <h3 className="text-lg font-semibold text-[#F5F9FC] mb-2">{project?.name || "Untitled"}</h3>
             <p className="text-sm text-[#676D7E] mb-8 leading-relaxed">Open a file to start editing</p>
@@ -1049,8 +1053,12 @@ export default function Project() {
       {/* TOP BAR */}
       <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
         <div className="flex items-center gap-2 min-w-0">
-          <button className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
-            <Code2 className="w-3.5 h-3.5 text-white" />
+          <button className="w-7 h-7 rounded-lg bg-[#1C2333] border border-[#2B3245] flex items-center justify-center shrink-0 hover:border-[#F26522]/40 transition-all" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+            <svg width="14" height="14" viewBox="0 0 32 32" fill="none">
+              <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
+              <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
+              <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
+            </svg>
           </button>
           <ChevronRight className="w-3 h-3 text-[#676D7E] shrink-0" />
           <span className="text-[13px] font-semibold text-[#F5F9FC] truncate max-w-[180px]" data-testid="text-project-name">{project?.name}</span>
@@ -1432,7 +1440,14 @@ export default function Project() {
             <div className="flex items-center gap-4">
               {activeFileName && <span className="text-[10px] text-[#9DA2B0]">{editorLanguage}</span>}
               {activeFileName && <span className="text-[10px] text-[#676D7E]">UTF-8</span>}
-              <span className="text-[10px] text-[#676D7E]">Vibe Platform</span>
+              <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 32 32" fill="none" className="opacity-50">
+                  <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="currentColor"/>
+                  <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="currentColor"/>
+                  <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="currentColor"/>
+                </svg>
+                Replit
+              </span>
             </div>
           </div>
         </>

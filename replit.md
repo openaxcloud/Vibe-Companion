@@ -1,7 +1,7 @@
-# Vibe Platform - Full-Screen IDE SaaS
+# Replit IDE Clone - Full-Screen IDE SaaS
 
 ## Overview
-A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a GitHub-dark themed interface, AI coding agent, and real-time log streaming. Designed as a Replit clone with VS Code-style layout.
+A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a dark-themed interface matching Replit's visual identity, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect Replit design language.
 
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
@@ -43,6 +43,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
 - **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
+
+## Design System
+- **Replit orange logo**: SVG three-block mark (#F26522) used throughout (header, auth, empty state, footer, status bar)
+- **Color tokens**: #0E1525 (bars/nav), #1C2333 (panels/editor), #2B3245 (borders/surface), #323B4F (hover), #0079F2 (accent blue), #0CCE6B (green run), #7C65CB (AI purple), #F26522 (Replit orange), #F5F9FC (text primary), #9DA2B0 (text secondary), #676D7E (text muted)
+- **Fonts**: Plus Jakarta Sans (UI), JetBrains Mono (code/terminal)
 
 ## API Routes
 - `POST /api/auth/register` - Register
@@ -104,11 +109,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Activity Bar** (48px, far left): Explorer, AI Agent, Search, Git, Webview, Settings icons — active icon has left-2 border indicator (blue #0079F2, purple for AI)
 - **AI Agent Panel** (45% width, toggleable): Split view like Replit Agent — chat/agent mode toggle, model selection (Claude/GPT), file operation indicators, apply-to-file code blocks
 - **File Explorer** (240px, toggleable): file list with left blue accent on active file, create/rename/delete
-- **Header Bar** (h-10): Left (Replit logo → breadcrumb → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
+- **Header Bar** (h-10): Left (Replit orange logo → breadcrumb → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
 - **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files with results showing filename, line number, and matching text
-- **Editor** (center): CodeMirror 6 with tabs (active=bright bg, no top accent) + resizable bottom panel (Console + Shell)
+- **Editor** (center): CodeMirror 6 with tabs (active=bright bg, blue bottom accent) + resizable bottom panel (Console + Shell)
 - **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab — Replit's signature side-by-side layout
-- **Status Bar** (22px, bottom): workspace status dot, connection indicator, language name, "Vibe" branding
+- **Status Bar** (22px, bottom): workspace status dot, connection indicator, language name, Replit logo branding
 - **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
 
 ## Tech Stack
@@ -119,4 +124,3 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - CodeMirror 6 (@uiw/react-codemirror + language packages + custom Replit theme)
 - WebSocket (ws library)
 - JetBrains Mono font, Plus Jakarta Sans font
-- Replit dark theme (#0E1525 bars/nav, #1C2333 panels/editor, #2B3245 borders/surface, #323B4F hover, #0079F2 accent blue, #0CCE6B green, #7C65CB AI purple, #F5F9FC text primary, #9DA2B0 text secondary, #676D7E text muted)

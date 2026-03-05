@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Eye, Code2, Github } from "lucide-react";
+import { Loader2, Eye, Github } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -78,14 +78,18 @@ export default function Auth() {
 
       <div className="w-full max-w-[400px] px-6 z-10">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-[#0079F2]/20 to-[#0079F2]/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#2B3245] shadow-[0_0_40px_rgba(0,121,242,0.12)] backdrop-blur-sm">
-            <Code2 className="w-8 h-8 text-[#0079F2]" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-[#1C2333] border border-[#2B3245] shadow-[0_0_40px_rgba(242,101,34,0.12)]">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
+              <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
+              <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
+            </svg>
           </div>
           <h1 className="text-[28px] font-bold text-[#F5F9FC] tracking-tight mb-2">
             {isLogin ? "Welcome back" : "Create your account"}
           </h1>
-          <p className="text-[#9DA2B0] text-[15px]">
-            {isLogin ? "Sign in to continue to Vibe Platform" : "Start building with Vibe Platform"}
+          <p className="text-[#9DA2B0] text-[14px]">
+            {isLogin ? "Sign in to continue to Replit" : "Start building with Replit"}
           </p>
         </div>
 

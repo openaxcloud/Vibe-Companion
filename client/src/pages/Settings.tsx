@@ -97,7 +97,7 @@ export default function Settings() {
           </div>
 
           <div className="text-center pt-4 pb-8">
-            <p className="text-[11px] text-[#676D7E]">Vibe Platform v1.0.0</p>
+            <p className="text-[11px] text-[#676D7E]">Replit v1.0.0</p>
           </div>
         </div>
       </div>

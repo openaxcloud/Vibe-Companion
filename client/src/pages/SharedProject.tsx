@@ -115,7 +115,7 @@ export default function SharedProject() {
         <Share2 className="w-10 h-10 text-[#2B3245]" />
         <p className="text-sm text-[#9DA2B0]">This project is not available</p>
         <Button variant="ghost" className="text-[#0079F2] text-xs" onClick={() => setLocation("/")} data-testid="button-back-shared-error">
-          Go to Vibe Platform
+          Go to Replit
         </Button>
       </div>
     );

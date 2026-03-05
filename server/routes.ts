@@ -747,7 +747,7 @@ Rules:
         return res.status(400).json({ message: "messages array required" });
       }
 
-      const systemPrompt = `You are an expert coding assistant embedded in an IDE called Vibe Platform. You help users write, debug, and improve code. Be concise and provide working code snippets. When suggesting code changes, use markdown code blocks with the filename as a comment on the first line.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
+      const systemPrompt = `You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code. Be concise and provide working code snippets. When suggesting code changes, use markdown code blocks with the filename as a comment on the first line.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -815,7 +815,7 @@ Rules:
       const existingFiles = await storage.getFiles(projectId);
       const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
 
-      const agentSystemPrompt = `You are an AI coding agent inside the Vibe Platform IDE. You can create and edit files in the user's project.
+      const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
 Current project: "${project.name}" (${project.language})
 Existing files:

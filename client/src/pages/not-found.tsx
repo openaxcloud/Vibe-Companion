@@ -16,7 +16,7 @@ export default function NotFound() {
         <Link href="/">
           <Button variant="ghost" className="text-[#0079F2] text-xs gap-1.5 hover:bg-[#1C2333]" data-testid="link-go-home">
             <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Vibe Platform
+            Back to Replit
           </Button>
         </Link>
       </div>

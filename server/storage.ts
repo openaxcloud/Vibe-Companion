@@ -85,8 +85,8 @@ export class DatabaseStorage implements IStorage {
 
     const defaultFilename = data.language === "python" ? "main.py" : "index.ts";
     const defaultContent = data.language === "python"
-      ? `print("Hello from Vibe Platform!")\n`
-      : `console.log("Hello from Vibe Platform!");\n`;
+      ? `print("Hello from Replit!")\n`
+      : `console.log("Hello from Replit!");\n`;
 
     await db.insert(files).values({
       projectId: project.id,
@@ -307,7 +307,7 @@ export class DatabaseStorage implements IStorage {
       {
         projectId: demoProject.id,
         filename: "index.js",
-        content: `// Welcome to Vibe Platform!\n// This is a read-only demo project.\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nfor (let i = 0; i < 10; i++) {\n  console.log(\`fib(\${i}) = \${fibonacci(i)}\`);\n}\n\nconsole.log("\\nHello from Vibe Platform! 🚀");\n`,
+        content: `// Welcome to Replit!\n// This is a read-only demo project.\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nfor (let i = 0; i < 10; i++) {\n  console.log(\`fib(\${i}) = \${fibonacci(i)}\`);\n}\n\nconsole.log("\\nHello from Replit!");\n`,
       },
       {
         projectId: demoProject.id,
