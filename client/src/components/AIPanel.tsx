@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
@@ -272,6 +272,127 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
     return null;
   };
 
+  const renderInlineMarkdown = (text: string): React.ReactNode[] => {
+    const tokens: React.ReactNode[] = [];
+    const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+    let lastIndex = 0;
+    let match;
+    let tokenKey = 0;
+
+    while ((match = inlineRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        tokens.push(<span key={tokenKey++}>{text.slice(lastIndex, match.index)}</span>);
+      }
+      if (match[2]) {
+        tokens.push(<strong key={tokenKey++} className="font-semibold text-[#F5F9FC]">{match[2]}</strong>);
+      } else if (match[3]) {
+        tokens.push(<em key={tokenKey++} className="italic text-[#CFD7E6]">{match[3]}</em>);
+      } else if (match[4]) {
+        tokens.push(
+          <code key={tokenKey++} className="bg-[#0E1525] px-1.5 py-0.5 rounded text-[#FF9940] font-mono text-[12px]">
+            {match[4]}
+          </code>
+        );
+      } else if (match[5] && match[6]) {
+        tokens.push(
+          <a key={tokenKey++} href={match[6]} target="_blank" rel="noopener noreferrer" className="text-[#0079F2] underline hover:text-[#3399FF] transition-colors">
+            {match[5]}
+          </a>
+        );
+      }
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      tokens.push(<span key={tokenKey++}>{text.slice(lastIndex)}</span>);
+    }
+
+    return tokens.length > 0 ? tokens : [<span key={0}>{text}</span>];
+  };
+
+  const renderMarkdownText = (text: string): React.ReactNode[] => {
+    const lines = text.split("\n");
+    const elements: React.ReactNode[] = [];
+    let listItems: { type: "ul" | "ol"; items: React.ReactNode[] } | null = null;
+    let lineKey = 0;
+
+    const flushList = () => {
+      if (listItems) {
+        if (listItems.type === "ul") {
+          elements.push(
+            <ul key={`list-${lineKey++}`} className="my-1.5 ml-4 space-y-0.5">
+              {listItems.items.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-[#CFD7E6]">
+                  <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-[#676D7E] shrink-0" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        } else {
+          elements.push(
+            <ol key={`list-${lineKey++}`} className="my-1.5 ml-4 space-y-0.5">
+              {listItems.items.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-[#CFD7E6]">
+                  <span className="text-[#676D7E] font-mono text-[11px] mt-[1px] shrink-0 min-w-[16px]">{idx + 1}.</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        listItems = null;
+      }
+    };
+
+    for (const line of lines) {
+      const headerMatch = line.match(/^(#{1,3})\s+(.+)$/);
+      if (headerMatch) {
+        flushList();
+        const level = headerMatch[1].length;
+        const headerText = headerMatch[2];
+        const sizes = { 1: "text-[16px] font-bold", 2: "text-[14px] font-semibold", 3: "text-[13px] font-semibold" };
+        elements.push(
+          <div key={`h-${lineKey++}`} className={`${sizes[level as 1 | 2 | 3] || sizes[3]} text-[#F5F9FC] mt-3 mb-1.5`}>
+            {renderInlineMarkdown(headerText)}
+          </div>
+        );
+        continue;
+      }
+
+      const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+      if (bulletMatch) {
+        if (!listItems || listItems.type !== "ul") {
+          flushList();
+          listItems = { type: "ul", items: [] };
+        }
+        listItems.items.push(renderInlineMarkdown(bulletMatch[1]));
+        continue;
+      }
+
+      const numberedMatch = line.match(/^\d+\.\s+(.+)$/);
+      if (numberedMatch) {
+        if (!listItems || listItems.type !== "ol") {
+          flushList();
+          listItems = { type: "ol", items: [] };
+        }
+        listItems.items.push(renderInlineMarkdown(numberedMatch[1]));
+        continue;
+      }
+
+      flushList();
+
+      if (line.trim() === "") {
+        elements.push(<span key={`br-${lineKey++}`}>{"\n"}</span>);
+      } else {
+        elements.push(<span key={`ln-${lineKey++}`} className="whitespace-pre-wrap">{renderInlineMarkdown(line)}{"\n"}</span>);
+      }
+    }
+
+    flushList();
+    return elements;
+  };
+
   const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[]) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
     const rendered = parts.map((part, i) => {
@@ -337,7 +458,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
           return <span key={`${i}-${j}`} className="whitespace-pre-wrap">{line}{"\n"}</span>;
         });
       }
-      return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+      return <span key={i}>{renderMarkdownText(part)}</span>;
     });
 
     if (fileOps && fileOps.length > 0) {

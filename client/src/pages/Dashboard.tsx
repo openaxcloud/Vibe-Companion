@@ -4,14 +4,14 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Folder, MoreVertical, LogOut, Settings as SettingsIcon, Trash, Copy,
   Loader2, Code2, Search, Eye, Zap, Sparkles, Send,
-  Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, Star, ExternalLink,
-  Home, BookOpen, Users, Compass, HelpCircle, MessageSquare
+  Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
+  Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,6 +49,7 @@ export default function Dashboard() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiModel, setAiModel] = useState<"claude" | "gpt">("claude");
   const [sidebarNav, setSidebarNav] = useState<"home" | "repls">("home");
+  const [sortBy, setSortBy] = useState<"modified" | "name">("modified");
   const templatesRef = useRef<HTMLDivElement>(null);
 
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
@@ -98,7 +99,12 @@ export default function Dashboard() {
     return `${Math.floor(s / 86400)}d ago`;
   };
 
-  const projects = (projectsQuery.data || []).filter((p) => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const projects = (projectsQuery.data || [])
+    .filter((p) => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
   const TEMPLATES = [
@@ -107,6 +113,13 @@ export default function Dashboard() {
     { name: "Dashboard", desc: "Admin panel with charts", prompt: "An admin dashboard with sidebar navigation, data tables, charts, and user management", icon: LayoutDashboard, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60" },
     { name: "Game", desc: "Browser game with Canvas", prompt: "A simple browser-based snake game using HTML5 Canvas with score tracking", icon: Gamepad2, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60" },
   ];
+
+  const scrollTemplates = (direction: "left" | "right") => {
+    if (templatesRef.current) {
+      const scrollAmount = 240;
+      templatesRef.current.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
+    }
+  };
 
   const handleGenerateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,21 +141,22 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative hidden sm:block">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
-            <Input
-              placeholder="Search..."
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 bg-[#1C2333] border-[#2B3245] h-8 w-52 text-[11px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
-              data-testid="input-search"
-            />
-          </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button size="sm" className="h-9 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg gap-1.5 font-medium px-4 shadow-sm shadow-[#0079F2]/30" data-testid="button-new-project">
                 <Plus className="w-3.5 h-3.5" /> Create Repl
               </Button>
-            </DialogTrigger>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
+              <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" onClick={() => setDialogOpen(true)} data-testid="button-create-repl">
+                <Plus className="w-3.5 h-3.5" /> New Repl
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" data-testid="button-import-github">
+                <GitBranch className="w-3.5 h-3.5" /> Import from GitHub
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
               <DialogHeader>
                 <DialogTitle className="text-[#F5F9FC] text-base">Create Repl</DialogTitle>
@@ -227,9 +241,26 @@ export default function Dashboard() {
                 <HelpCircle className="w-3.5 h-3.5" /> Help
               </button>
             </div>
+            <div className="!mt-4 pt-3 border-t border-[#2B3245]/40">
+              <p className="px-3 text-[10px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2">Teams</p>
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" data-testid="nav-teams">
+                <Users className="w-3.5 h-3.5" /> Create a Team
+              </button>
+            </div>
           </nav>
 
-          <div className="p-3 border-t border-[#2B3245]/40">
+          <div className="p-3 border-t border-[#2B3245]/40 space-y-3">
+            <div className="px-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
+                  <HardDrive className="w-3 h-3" /> Storage
+                </span>
+                <span className="text-[10px] text-[#676D7E]">0.1 / 10 GB</span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                <div className="h-full rounded-full bg-[#0079F2]" style={{ width: "1%" }} />
+              </div>
+            </div>
             <div className="flex items-center gap-2.5 px-2 py-1.5">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center shrink-0">
                 <span className="text-[9px] font-bold text-white">{initials}</span>
@@ -245,9 +276,10 @@ export default function Dashboard() {
         <main className="flex-1 overflow-y-auto bg-[#0E1525]">
           {sidebarNav === "home" ? (
             <div className="max-w-[680px] mx-auto px-4 sm:px-6">
-              <div className="pt-12 sm:pt-20 pb-6 text-center">
-                <h1 className="text-[32px] sm:text-[40px] font-bold text-[#F5F9FC] mb-3 tracking-tight leading-tight" data-testid="text-hero-title">What do you want to create?</h1>
-                <p className="text-[13px] text-[#676D7E] max-w-md mx-auto leading-relaxed">Describe your idea and AI will build it, or start from a template below</p>
+              <div className="pt-12 sm:pt-20 pb-6 text-center relative">
+                <div className="absolute inset-0 -top-12 -left-20 -right-20 bg-[radial-gradient(ellipse_at_center,_rgba(0,121,242,0.08)_0%,_rgba(124,101,203,0.04)_40%,_transparent_70%)] animate-gradient-shift pointer-events-none" />
+                <h1 className="relative text-[32px] sm:text-[40px] font-bold text-[#F5F9FC] mb-3 tracking-tight leading-tight" data-testid="text-hero-title">What do you want to create?</h1>
+                <p className="relative text-[13px] text-[#676D7E] max-w-md mx-auto leading-relaxed">Describe your idea and AI will build it, or start from a template below</p>
               </div>
 
               <form onSubmit={handleGenerateSubmit} className="mb-10">
@@ -301,7 +333,7 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 </div>
-                {generateProject.isPending && (
+                {generateProject.isPending ? (
                   <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-[#7C65CB]">
                     <div className="flex gap-1">
                       <span className="bouncing-dot"></span>
@@ -310,18 +342,31 @@ export default function Dashboard() {
                     </div>
                     AI is generating your project...
                   </div>
+                ) : (
+                  <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[10px] text-[#676D7E]">
+                    <Sparkles className="w-3 h-3 text-[#7C65CB]" />
+                    Powered by AI
+                  </div>
                 )}
               </form>
 
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider">Templates</h3>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => scrollTemplates("left")} className="w-6 h-6 rounded-md flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 transition-colors" data-testid="button-templates-left">
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => scrollTemplates("right")} className="w-6 h-6 rounded-md flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 transition-colors" data-testid="button-templates-right">
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5" ref={templatesRef}>
+                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1" ref={templatesRef}>
                   {TEMPLATES.map((tmpl) => (
                     <button
                       key={tmpl.name}
-                      className={`relative flex flex-col items-start gap-3 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[#1C2333] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5`}
+                      className={`relative flex flex-col items-start gap-3 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[#1C2333] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[160px] shrink-0`}
                       onClick={() => { setAiPrompt(tmpl.prompt); generateProject.mutate({ prompt: tmpl.prompt, model: aiModel }); }}
                       disabled={generateProject.isPending}
                       data-testid={`template-${tmpl.name.toLowerCase().replace(/\s/g, "-")}`}
@@ -343,9 +388,27 @@ export default function Dashboard() {
                 <div className="pb-8">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider" data-testid="text-my-repls">Recent Repls</h3>
-                    <button className="text-[11px] text-[#0079F2] hover:text-[#0079F2]/80 transition-colors" onClick={() => setSidebarNav("repls")}>
-                      View all <ChevronRight className="w-3 h-3 inline" />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex items-center gap-1 text-[10px] text-[#676D7E] hover:text-[#9DA2B0] transition-colors" data-testid="button-sort-by">
+                            <ArrowUpDown className="w-3 h-3" />
+                            {sortBy === "modified" ? "Last modified" : "Name"}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
+                          <DropdownMenuItem className={`text-[11px] cursor-pointer mx-1 rounded-md ${sortBy === "modified" ? "text-[#0079F2]" : "text-[#9DA2B0]"} focus:bg-[#2B3245] focus:text-[#F5F9FC]`} onClick={() => setSortBy("modified")} data-testid="sort-modified">
+                            Last modified
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className={`text-[11px] cursor-pointer mx-1 rounded-md ${sortBy === "name" ? "text-[#0079F2]" : "text-[#9DA2B0]"} focus:bg-[#2B3245] focus:text-[#F5F9FC]`} onClick={() => setSortBy("name")} data-testid="sort-name">
+                            Name
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <button className="text-[11px] text-[#0079F2] hover:text-[#0079F2]/80 transition-colors" onClick={() => setSidebarNav("repls")}>
+                        View all <ChevronRight className="w-3 h-3 inline" />
+                      </button>
+                    </div>
                   </div>
                   <div className="border border-[#2B3245]/50 rounded-xl overflow-hidden bg-[#1C2333]/20">
                     {projects.slice(0, 5).map((project, idx) => {

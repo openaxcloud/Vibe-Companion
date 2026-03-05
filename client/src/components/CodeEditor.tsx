@@ -19,29 +19,34 @@ interface CodeEditorProps {
 }
 
 const replitHighlight = HighlightStyle.define([
-  { tag: t.keyword, color: "#C678DD" },
-  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: "#E06C75" },
-  { tag: [t.function(t.variableName), t.labelName], color: "#61AFEF" },
-  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: "#D19A66" },
-  { tag: [t.definition(t.name), t.separator], color: "#ABB2BF" },
-  { tag: [t.typeName, t.className, t.number, t.changed, t.annotation, t.modifier, t.self, t.namespace], color: "#E5C07B" },
-  { tag: [t.operator, t.operatorKeyword, t.url, t.escape, t.regexp, t.link, t.special(t.string)], color: "#56B6C2" },
-  { tag: [t.meta, t.comment], color: "#5C6370", fontStyle: "italic" },
+  { tag: t.keyword, color: "#FF6166" },
+  { tag: [t.name, t.deleted, t.character, t.macroName], color: "#F5F9FC" },
+  { tag: [t.propertyName], color: "#56B6C2" },
+  { tag: [t.function(t.variableName), t.labelName], color: "#56B6C2" },
+  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: "#FF9940" },
+  { tag: [t.definition(t.name), t.separator], color: "#CFD7E6" },
+  { tag: [t.typeName, t.className, t.changed, t.annotation, t.modifier, t.self, t.namespace], color: "#FFCB6B" },
+  { tag: [t.number], color: "#FF9940" },
+  { tag: [t.operator, t.operatorKeyword], color: "#FF6166" },
+  { tag: [t.url, t.escape, t.regexp, t.link, t.special(t.string)], color: "#56B6C2" },
+  { tag: [t.meta, t.comment], color: "#676D7E", fontStyle: "italic" },
   { tag: t.strong, fontWeight: "bold" },
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strikethrough, textDecoration: "line-through" },
   { tag: t.link, color: "#56B6C2", textDecoration: "underline" },
-  { tag: t.heading, fontWeight: "bold", color: "#E06C75" },
-  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#D19A66" },
-  { tag: [t.processingInstruction, t.string, t.inserted], color: "#98C379" },
+  { tag: t.heading, fontWeight: "bold", color: "#FF6166" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#FF9940" },
+  { tag: [t.processingInstruction, t.string, t.inserted], color: "#0CCE6B" },
   { tag: t.invalid, color: "#F44747" },
+  { tag: [t.tagName], color: "#FF6166" },
+  { tag: [t.attributeName], color: "#FFCB6B" },
 ]);
 
 const replitTheme = EditorView.theme({
   "&": {
     height: "100%",
     background: "#1C2333",
-    color: "#ABB2BF",
+    color: "#CFD7E6",
   },
   ".cm-scroller": {
     overflow: "auto",
@@ -56,6 +61,7 @@ const replitTheme = EditorView.theme({
     minWidth: "52px",
   },
   ".cm-lineNumbers .cm-gutterElement": {
+    fontFamily: "'IBM Plex Mono', 'JetBrains Mono', monospace",
     fontSize: "12px",
     padding: "0 12px 0 8px",
     minWidth: "32px",
@@ -73,7 +79,7 @@ const replitTheme = EditorView.theme({
     borderLeftWidth: "2px",
   },
   ".cm-selectionBackground": {
-    background: "rgba(0, 121, 242, 0.2) !important",
+    background: "rgba(0, 121, 242, 0.25) !important",
   },
   "&.cm-focused .cm-selectionBackground": {
     background: "rgba(0, 121, 242, 0.28) !important",

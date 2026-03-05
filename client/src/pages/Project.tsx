@@ -27,6 +27,35 @@ import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
 import WorkspaceTerminal from "@/components/WorkspaceTerminal";
 import type { Project as ProjectType, File } from "@shared/schema";
 
+function FileTypeIcon({ filename, className = "" }: { filename: string; className?: string }) {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  const iconMap: Record<string, { bg: string; text: string; label: string }> = {
+    js: { bg: "bg-yellow-500", text: "text-black", label: "JS" },
+    jsx: { bg: "bg-yellow-500", text: "text-black", label: "JS" },
+    ts: { bg: "bg-blue-500", text: "text-white", label: "TS" },
+    tsx: { bg: "bg-blue-500", text: "text-white", label: "TS" },
+    py: { bg: "bg-green-500", text: "text-white", label: "PY" },
+    css: { bg: "bg-pink-500", text: "text-white", label: "CS" },
+    html: { bg: "bg-orange-500", text: "text-white", label: "HT" },
+    json: { bg: "bg-amber-500", text: "text-black", label: "JS" },
+    md: { bg: "bg-gray-500", text: "text-white", label: "MD" },
+    svg: { bg: "bg-emerald-600", text: "text-white", label: "SV" },
+    png: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
+    jpg: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
+    jpeg: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
+    gif: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
+  };
+  const icon = iconMap[ext];
+  if (icon) {
+    return (
+      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-[3px] shrink-0 ${icon.bg} ${className}`}>
+        <span className={`text-[7px] font-bold leading-none ${icon.text}`}>{icon.label}</span>
+      </span>
+    );
+  }
+  return <FileIcon className={`w-3.5 h-3.5 shrink-0 text-[#9DA2B0] ${className}`} />;
+}
+
 interface LogEntry {
   id: number;
   text: string;
@@ -818,7 +847,7 @@ export default function Project() {
                   onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                   data-testid={`fs-entry-${entry.name}`}
                 >
-                  {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(entry.name)}`} />}
+                  {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileTypeIcon filename={entry.name} />}
                   <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
                   {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                   <div className="hidden group-hover:flex items-center gap-0.5">
@@ -863,7 +892,7 @@ export default function Project() {
                 onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                 data-testid={`file-item-${file.id}`}
               >
-                <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(file.filename)}`} />
+                <FileTypeIcon filename={file.filename} />
                 <span className="flex-1 text-[12px] truncate">{file.filename}</span>
                 {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                 <div className="hidden group-hover:flex items-center gap-0.5">
@@ -897,7 +926,7 @@ export default function Project() {
             onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
             data-testid={`tab-${tabId}`}
           >
-            <FileIcon className={`w-3 h-3 shrink-0 ${getFileColor(tabName)}`} />
+            <FileTypeIcon filename={tabName} />
             <span className="text-[11px] max-w-[120px] truncate font-medium">{tabName}</span>
             {dirtyFiles.has(tabId) ? (
               <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
@@ -1348,7 +1377,7 @@ export default function Project() {
                       data-testid={`search-result-${i}`}
                     >
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <FileIcon className={`w-3 h-3 shrink-0 ${getFileColor(result.filename)}`} />
+                        <FileTypeIcon filename={result.filename} />
                         <span className="text-[10px] font-medium text-[#F5F9FC] truncate">{result.filename}</span>
                         <span className="text-[9px] text-[#676D7E] ml-auto shrink-0">:{result.line}</span>
                       </div>
