@@ -47,7 +47,10 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Dashboard search**: Real-time project search in dashboard header
 - **Notifications**: Bell icon with badge count in dashboard header
 - **Credits indicator**: "Free" plan badge near profile in dashboard
-- Remote code execution (JavaScript, TypeScript, Python) via local sandbox
+- **Welcome/Onboarding states**: New project shows welcome with quick-start actions; no-files-open shows recent file list
+- **Mobile dashboard navigation**: Hamburger menu slides in sidebar; mobile search expands from icon
+- **Social login placeholders**: GitHub/Google buttons show "coming soon" toasts
+- Remote code execution (JavaScript, TypeScript, Python) via local sandbox with esbuild TypeScript transpilation
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
 - Run/Stop buttons with execution state indication
@@ -59,6 +62,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Dark mode with Replit-accurate design tokens
 - Public demo project (read-only)
 - **Skeleton loading states**: Full IDE skeleton, file tree skeletons, dashboard card skeletons
+- **Security**: Path traversal prevention on all file endpoints, agent loop limit (10 iterations max)
+- **WebSocket heartbeat**: Server-side ping/pong every 30s, client-side auto-reconnect with exponential backoff
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
 - **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
@@ -140,7 +145,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Activity Bar** (48px, far left): Explorer, Search, AI Agent, Git (with dirty badge), Deployments, Preview, Settings — active icon has left-2 border indicator (blue #0079F2, purple for AI)
 - **AI Agent Panel** (45% width, toggleable): Chat/agent mode toggle, model selection (Claude/GPT), rich markdown rendering, file operation indicators, apply-to-file code blocks
 - **File Explorer** (240px, toggleable): Nested folder tree with expand/collapse, colored file type icons, create/rename/delete
-- **Header Bar** (h-10): Left (Replit orange logo → chevron → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
+- **Header Bar** (h-11/44px): Left (Replit orange logo → chevron → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
 - **Breadcrumbs**: Path segments between tab bar and editor (src > components > App.tsx)
 - **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files
 - **Editor** (center): CodeMirror 6 with tabs + Replit syntax theme + cursor position tracking

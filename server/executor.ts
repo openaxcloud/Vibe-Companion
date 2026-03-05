@@ -3,6 +3,7 @@ import { writeFile, mkdir, rm } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
 import { log } from "./index";
+import { transformSync } from "esbuild";
 
 interface ExecutionResult {
   stdout: string;
@@ -87,14 +88,20 @@ export async function executeCode(
       args = [join(sandboxDir, filename)];
     } else {
       filename = "index.js";
-      const jsCode = language === "typescript"
-        ? code.replace(/:\s*(string|number|boolean|any|void|object|undefined|null|never)(\[\])?/g, "")
-            .replace(/\bas\b\s+\w+/g, "")
-            .replace(/<[^>]+>/g, "")
-            .replace(/interface\s+\w+\s*\{[^}]*\}/g, "")
-            .replace(/type\s+\w+\s*=\s*[^;]+;/g, "")
-        : code;
-      code = jsCode;
+      if (language === "typescript") {
+        try {
+          const result = transformSync(code, {
+            loader: "ts",
+            target: "es2022",
+            format: "cjs",
+          });
+          code = result.code;
+        } catch (tsErr: any) {
+          const msg = `TypeScript error: ${tsErr.message.split("\n")[0]}`;
+          onLog?.(msg, "error");
+          return { stdout: "", stderr: msg, exitCode: 1 };
+        }
+      }
       command = "node";
       args = ["--max-old-space-size=64", join(sandboxDir, filename)];
     }

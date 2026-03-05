@@ -9,8 +9,9 @@ import {
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
-  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2
+  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
@@ -198,6 +199,7 @@ export default function Project() {
   const dragStartW = useRef<number>(40);
   const editorPreviewContainerRef = useRef<HTMLDivElement>(null);
 
+  const { user, logout: logoutMutation } = useAuth();
   const { messages, connected } = useProjectWebSocket(projectId);
 
   const projectQuery = useQuery<ProjectType>({
@@ -1021,7 +1023,7 @@ export default function Project() {
   if (projectQuery.isLoading) {
     return (
       <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
-        <div className="flex items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 gap-2">
+        <div className="flex items-center px-3 h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 gap-2">
           <Skeleton className="w-7 h-7 rounded-lg bg-[#2B3245]" />
           <Skeleton className="w-3 h-3 rounded bg-[#2B3245]" />
           <Skeleton className="w-32 h-4 rounded bg-[#2B3245]" />
@@ -1471,7 +1473,7 @@ export default function Project() {
             <ContextMenu key={tabId}>
               <ContextMenuTrigger asChild>
                 <div
-                  className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 hover-transition transition-all duration-150 ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-b-transparent"} ${dragTabId === tabId ? "opacity-50" : ""}`}
+                  className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-t-2 hover-transition transition-all duration-150 ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-t-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-t-transparent"} ${dragTabId === tabId ? "opacity-50" : ""}`}
                   onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
                   draggable
                   onDragStart={(e) => handleTabDragStart(e, tabId)}
@@ -1554,29 +1556,114 @@ export default function Project() {
         <div className="flex-1 overflow-hidden">
           <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} />
         </div>
+      ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
+        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in overflow-y-auto">
+          <div className="max-w-md text-center px-6 py-8">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F26522]/10 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
+              <svg width="40" height="40" viewBox="0 0 32 32" fill="none" data-testid="img-replit-logo">
+                <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
+                <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
+                <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-[#F5F9FC] mb-2" data-testid="text-welcome-heading">Welcome to your project</h3>
+            <p className="text-sm text-[#676D7E] mb-8 leading-relaxed">Get started by creating your first file or asking AI for help</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+              <button
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#0CCE6B]/40 hover:bg-[#0CCE6B]/5 transition-all text-center group"
+                onClick={() => setNewFileDialogOpen(true)}
+                data-testid="button-quickstart-create-file"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[#0CCE6B]/10 flex items-center justify-center group-hover:bg-[#0CCE6B]/20 transition-colors">
+                  <Plus className="w-5 h-5 text-[#0CCE6B]" />
+                </div>
+                <span className="text-xs font-medium text-[#F5F9FC]">Create a file</span>
+                <span className="text-[10px] text-[#676D7E]">Start from scratch</span>
+              </button>
+              <button
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#7C65CB]/40 hover:bg-[#7C65CB]/5 transition-all text-center group"
+                onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }}
+                data-testid="button-quickstart-ask-ai"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[#7C65CB]/10 flex items-center justify-center group-hover:bg-[#7C65CB]/20 transition-colors">
+                  <Sparkles className="w-5 h-5 text-[#7C65CB]" />
+                </div>
+                <span className="text-xs font-medium text-[#F5F9FC]">Ask AI</span>
+                <span className="text-[10px] text-[#676D7E]">Generate code with AI</span>
+              </button>
+              <button
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#0079F2]/40 hover:bg-[#0079F2]/5 transition-all text-center group cursor-default opacity-60"
+                onClick={() => toast({ title: "Import files", description: "File import coming soon" })}
+                data-testid="button-quickstart-import"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[#0079F2]/10 flex items-center justify-center">
+                  <FolderOpen className="w-5 h-5 text-[#0079F2]" />
+                </div>
+                <span className="text-xs font-medium text-[#F5F9FC]">Import files</span>
+                <span className="text-[10px] text-[#676D7E]">Coming soon</span>
+              </button>
+            </div>
+            <div className="flex items-center justify-center gap-4 mb-8 text-[10px] text-[#676D7E] font-mono" data-testid="text-keyboard-hints">
+              <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-[#0E1525] border border-[#2B3245] text-[#9DA2B0]">⌘K</kbd> Commands</span>
+              <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-[#0E1525] border border-[#2B3245] text-[#9DA2B0]">⌘B</kbd> Sidebar</span>
+            </div>
+            <div className="text-left bg-[#0E1525] border border-[#2B3245] rounded-xl p-4" data-testid="section-getting-started">
+              <h4 className="text-[11px] font-bold text-[#9DA2B0] uppercase tracking-widest mb-3">Getting Started</h4>
+              <ul className="space-y-2.5">
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5">1</span>
+                  <div>
+                    <p className="text-[11px] text-[#F5F9FC] font-medium">Create your first file</p>
+                    <p className="text-[10px] text-[#676D7E] mt-0.5">Click "Create a file" above or use the + button in the sidebar</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-[#0079F2]/10 text-[#0079F2] flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5">2</span>
+                  <div>
+                    <p className="text-[11px] text-[#F5F9FC] font-medium">Write your code</p>
+                    <p className="text-[10px] text-[#676D7E] mt-0.5">Use the editor with syntax highlighting and auto-save</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-[#F26522]/10 text-[#F26522] flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5">3</span>
+                  <div>
+                    <p className="text-[11px] text-[#F5F9FC] font-medium">Run and preview</p>
+                    <p className="text-[10px] text-[#676D7E] mt-0.5">Hit the Run button or press F5 to execute your code</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in">
           <div className="max-w-sm text-center px-6">
             <div className="w-16 h-16 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-6">
-              <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-                <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#676D7E"/>
-                <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#676D7E"/>
-                <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#676D7E"/>
-              </svg>
+              <FileCode2 className="w-7 h-7 text-[#676D7E]" />
             </div>
-            <h3 className="text-lg font-semibold text-[#F5F9FC] mb-2">{project?.name || "Untitled"}</h3>
-            <p className="text-sm text-[#676D7E] mb-8 leading-relaxed">Open a file to start editing</p>
+            <h3 className="text-lg font-semibold text-[#F5F9FC] mb-2" data-testid="text-open-file-heading">Open a file to start editing</h3>
+            <p className="text-sm text-[#676D7E] mb-6 leading-relaxed">Select a file from the sidebar or from the list below</p>
+            <div className="flex flex-col gap-0.5 max-w-[280px] mx-auto mb-6" data-testid="list-recent-files">
+              {filesQuery.data?.slice(0, 8).map((file) => (
+                <button
+                  key={file.id}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left hover:bg-[#2B3245] transition-colors group"
+                  onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+                  data-testid={`button-recent-file-${file.id}`}
+                >
+                  <FileTypeIcon filename={file.filename} />
+                  <span className="text-[12px] text-[#9DA2B0] group-hover:text-[#F5F9FC] truncate flex-1">{file.filename}</span>
+                  <ChevronRight className="w-3 h-3 text-[#4A5068] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </button>
+              ))}
+            </div>
             <div className="flex flex-col gap-1 max-w-[220px] mx-auto">
               <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
                 <FolderOpen className="w-4 h-4 text-[#0079F2]" /> Explorer
-                <span className="ml-auto text-[10px] text-[#676D7E] font-mono">Ctrl+B</span>
-              </button>
-              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }} data-testid="button-open-ai-empty">
-                <Sparkles className="w-4 h-4 text-[#7C65CB]" /> AI Agent
+                <span className="ml-auto text-[10px] text-[#676D7E] font-mono">⌘B</span>
               </button>
               <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
                 <Plus className="w-4 h-4 text-[#0CCE6B]" /> New File
-                <span className="ml-auto text-[10px] text-[#676D7E] font-mono">Ctrl+N</span>
               </button>
             </div>
           </div>
@@ -1698,7 +1785,7 @@ export default function Project() {
   return (
     <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
+      <div className="grid grid-cols-3 items-center px-3 h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
         <div className="flex items-center gap-1.5 min-w-0">
           <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-colors duration-150 group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
@@ -1881,7 +1968,7 @@ export default function Project() {
                     onClick={() => { const shouldOpen = !sidebarOpen || aiPanelOpen || searchPanelOpen || deploymentsPanelOpen || settingsPanelOpen; setSidebarOpen(shouldOpen); setAiPanelOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }}
                     data-testid="activity-explorer"
                   >
-                    {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
                     <PanelLeft className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
@@ -1894,7 +1981,7 @@ export default function Project() {
                     onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-search"
                   >
-                    {searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    {searchPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
                     <Search className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
@@ -1907,7 +1994,7 @@ export default function Project() {
                     onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-ai"
                   >
-                    {aiPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#7C65CB]" />}
+                    {aiPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#7C65CB]" />}
                     <Sparkles className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
@@ -1932,7 +2019,7 @@ export default function Project() {
                     onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-deployments"
                   >
-                    {deploymentsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    {deploymentsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
                     <Rocket className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
@@ -1945,30 +2032,59 @@ export default function Project() {
                     onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
                     data-testid="activity-webview"
                   >
-                    {previewPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    {previewPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
                     <Monitor className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Webview</TooltipContent>
               </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
+                    data-testid="activity-settings"
+                  >
+                    {settingsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
+                    <Settings className="w-5 h-5" />
+                    <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Settings</TooltipContent>
+              </Tooltip>
+
               <div className="flex-1" />
 
               <div className="flex flex-col items-center mb-1">
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <button
-                      className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                      onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
-                      data-testid="activity-settings"
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 cursor-pointer hover:ring-2 hover:ring-[#0079F2]/50 transition-all"
+                      style={{ background: "linear-gradient(135deg, #F26522, #E84D8A)" }}
+                      data-testid="activity-user-avatar"
                     >
-                      {settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                      <Settings className="w-5 h-5" />
-                      <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+                      {(() => {
+                        const name = user?.displayName || user?.email || "";
+                        const parts = name.split(/[\s@]+/).filter(Boolean);
+                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                        return name.slice(0, 2).toUpperCase() || "U";
+                      })()}
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Settings</TooltipContent>
-                </Tooltip>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
+                    <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setLocation("/settings")} data-testid="menu-account-settings">
+                      <Settings className="w-3.5 h-3.5" /> Account Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setCommandPaletteOpen(true)} data-testid="menu-keyboard-shortcuts">
+                      <Keyboard className="w-3.5 h-3.5" /> Keyboard Shortcuts
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-[#2B3245]" />
+                    <DropdownMenuItem className="gap-2 text-xs text-red-400 focus:bg-[#2B3245] focus:text-red-300 cursor-pointer" onClick={() => logoutMutation.mutate()} data-testid="menu-sign-out">
+                      <LogOut className="w-3.5 h-3.5" /> Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
             </TooltipProvider>

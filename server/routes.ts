@@ -13,6 +13,28 @@ import { log } from "./index";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import * as runnerClient from "./runnerClient";
+import { posix as pathPosix } from "path";
+
+function sanitizePath(p: string): string | null {
+  if (!p || typeof p !== "string") return null;
+  const decoded = decodeURIComponent(p);
+  if (decoded.includes("..") || decoded.includes("\\")) return null;
+  if (p.includes("..") || p.includes("\\")) return null;
+  const normalized = pathPosix.normalize(decoded).replace(/^\/+/, "");
+  if (normalized.includes("..") || !normalized || normalized.startsWith("/")) return null;
+  return normalized;
+}
+
+function validateRunnerPath(p: string): boolean {
+  if (!p || typeof p !== "string") return false;
+  const decoded = decodeURIComponent(p);
+  if (decoded.includes("..") || decoded.includes("\\")) return false;
+  const normalized = pathPosix.normalize(decoded);
+  if (normalized.includes("..")) return false;
+  return true;
+}
+
+const MAX_AGENT_ITERATIONS = 10;
 
 declare module "express-session" {
   interface SessionData {
@@ -239,7 +261,11 @@ export async function registerRoutes(
     }
     try {
       const data = insertFileSchema.parse(req.body);
-      const file = await storage.createFile(req.params.projectId, data);
+      const safeName = sanitizePath(data.filename);
+      if (!safeName) {
+        return res.status(400).json({ message: "Invalid filename" });
+      }
+      const file = await storage.createFile(req.params.projectId, { ...data, filename: safeName });
       return res.status(201).json(file);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -264,7 +290,11 @@ export async function registerRoutes(
       return res.json(file);
     }
     if (typeof filename === "string" && filename.trim()) {
-      const file = await storage.renameFile(req.params.id, filename.trim());
+      const safeName = sanitizePath(filename.trim());
+      if (!safeName) {
+        return res.status(400).json({ message: "Invalid filename" });
+      }
+      const file = await storage.renameFile(req.params.id, safeName);
       return res.json(file);
     }
     return res.status(400).json({ message: "content or filename required" });
@@ -576,7 +606,7 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const path = req.query.path as string;
-      if (!path) return res.status(400).json({ message: "path required" });
+      if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
       const content = await runnerClient.fsRead(ctx.workspace.id, path);
       return res.json({ content });
     } catch (err: any) {
@@ -589,7 +619,7 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const { path, content } = req.body;
-      if (!path) return res.status(400).json({ message: "path required" });
+      if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
       await runnerClient.fsWrite(ctx.workspace.id, path, content ?? "");
       return res.json({ ok: true });
     } catch (err: any) {
@@ -602,7 +632,7 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const { path } = req.body;
-      if (!path) return res.status(400).json({ message: "path required" });
+      if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
       await runnerClient.fsMkdir(ctx.workspace.id, path);
       return res.json({ ok: true });
     } catch (err: any) {
@@ -615,7 +645,7 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const { path } = req.body;
-      if (!path) return res.status(400).json({ message: "path required" });
+      if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
       await runnerClient.fsRm(ctx.workspace.id, path);
       return res.json({ ok: true });
     } catch (err: any) {
@@ -628,7 +658,9 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const { oldPath, newPath } = req.body;
-      if (!oldPath || !newPath) return res.status(400).json({ message: "oldPath and newPath required" });
+      if (!oldPath || !newPath || !validateRunnerPath(oldPath) || !validateRunnerPath(newPath)) {
+        return res.status(400).json({ message: "Invalid path" });
+      }
       await runnerClient.fsRename(ctx.workspace.id, oldPath, newPath);
       return res.json({ ok: true });
     } catch (err: any) {
@@ -816,12 +848,17 @@ Rules:
   ) => {
     try {
       if (toolName === "create_file" || toolName === "edit_file") {
-        const existingFile = existingFiles.find(f => f.filename === toolInput.filename);
+        const safeName = sanitizePath(toolInput.filename);
+        if (!safeName) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid filename" })}\n\n`);
+          return;
+        }
+        const existingFile = existingFiles.find(f => f.filename === safeName);
         if (existingFile) {
           const file = await storage.updateFileContent(existingFile.id, toolInput.content);
           res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
         } else {
-          const file = await storage.createFile(projectId, { filename: toolInput.filename, content: toolInput.content });
+          const file = await storage.createFile(projectId, { filename: safeName, content: toolInput.content });
           existingFiles.push(file);
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
         }
@@ -905,8 +942,10 @@ Always write complete, working code. Never use placeholders or TODOs.`;
         ];
 
         let continueLoop = true;
+        let iterations = 0;
 
-        while (continueLoop) {
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
           const response = await openai.chat.completions.create({
             model: "gpt-5.2",
             messages: gptMessages,
@@ -951,6 +990,10 @@ Always write complete, working code. Never use placeholders or TODOs.`;
             continueLoop = false;
           }
         }
+
+        if (iterations >= MAX_AGENT_ITERATIONS) {
+          res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
+        }
       } else {
         const tools: Anthropic.Messages.Tool[] = [
           {
@@ -985,8 +1028,10 @@ Always write complete, working code. Never use placeholders or TODOs.`;
         }));
 
         let continueLoop = true;
+        let iterations = 0;
 
-        while (continueLoop) {
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
           const response = await anthropic.messages.create({
             model: "claude-sonnet-4-6",
             system: agentSystemPrompt,
@@ -1025,6 +1070,10 @@ Always write complete, working code. Never use placeholders or TODOs.`;
             continueLoop = false;
           }
         }
+
+        if (iterations >= MAX_AGENT_ITERATIONS) {
+          res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
+        }
       }
 
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
@@ -1052,7 +1101,7 @@ Always write complete, working code. Never use placeholders or TODOs.`;
     }
   });
 
-  wss.on("connection", (ws, req) => {
+  wss.on("connection", (ws: WebSocket & { isAlive?: boolean }, req) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
     const projectId = url.searchParams.get("projectId");
 
@@ -1065,8 +1114,13 @@ Always write complete, working code. Never use placeholders or TODOs.`;
       wsClients.set(projectId, new Set());
     }
     wsClients.get(projectId)!.add(ws);
+    ws.isAlive = true;
 
     log(`WebSocket connected for project ${projectId}`, "ws");
+
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
 
     ws.on("close", () => {
       wsClients.get(projectId)?.delete(ws);
@@ -1078,6 +1132,20 @@ Always write complete, working code. Never use placeholders or TODOs.`;
     ws.on("error", () => {
       wsClients.get(projectId)?.delete(ws);
     });
+  });
+
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws: WebSocket & { isAlive?: boolean }) => {
+      if (ws.isAlive === false) {
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on("close", () => {
+    clearInterval(heartbeatInterval);
   });
 
   await storage.seedDemoProject();

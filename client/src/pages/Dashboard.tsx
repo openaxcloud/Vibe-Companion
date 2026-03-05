@@ -6,7 +6,7 @@ import {
   Loader2, Code2, Search, Eye, Zap, Sparkles, Send,
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
-  Bell, CreditCard
+  Bell, CreditCard, Menu, X
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -53,6 +54,8 @@ export default function Dashboard() {
   const [aiModel, setAiModel] = useState<"claude" | "gpt">("claude");
   const [sidebarNav, setSidebarNav] = useState<"home" | "repls">("home");
   const [sortBy, setSortBy] = useState<"modified" | "name">("modified");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const templatesRef = useRef<HTMLDivElement>(null);
 
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
@@ -138,6 +141,13 @@ export default function Dashboard() {
     <div className="h-screen flex flex-col bg-[#0E1525] text-[#F5F9FC]">
       <header className="flex items-center justify-between px-4 h-12 bg-[#0E1525] border-b border-[#2B3245]/60 shrink-0 z-10">
         <div className="flex items-center gap-3">
+          <button
+            className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors"
+            onClick={() => setMobileSidebarOpen(true)}
+            data-testid="button-mobile-menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSidebarNav("home")}>
             <ReplitLogo />
             <span className="text-[15px] font-bold text-[#F5F9FC] tracking-tight hidden sm:block">Replit</span>
@@ -155,6 +165,36 @@ export default function Dashboard() {
             />
           </div>
         </div>
+        {mobileSearchOpen ? (
+          <div className="flex sm:hidden items-center flex-1 mx-2">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
+              <Input
+                placeholder="Search your Repls..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-8 bg-[#1C2333] border border-[#2B3245] h-9 w-full text-[12px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
+                data-testid="input-mobile-search"
+                autoFocus
+              />
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#676D7E] hover:text-[#F5F9FC]"
+                onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); }}
+                data-testid="button-close-mobile-search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors"
+            onClick={() => setMobileSearchOpen(true)}
+            data-testid="button-mobile-search"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        )}
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -276,13 +316,13 @@ export default function Dashboard() {
             </Link>
             <div className="!mt-4 pt-3 border-t border-[#2B3245]/40">
               <p className="px-3 text-[10px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2">Resources</p>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => window.open("https://docs.replit.com", "_blank")} data-testid="nav-docs">
                 <BookOpen className="w-3.5 h-3.5" /> Docs
               </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => window.open("https://ask.replit.com", "_blank")} data-testid="nav-community">
                 <MessageSquare className="w-3.5 h-3.5" /> Community
               </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => toast({ title: "Help", description: "Help center coming soon." })} data-testid="nav-help">
                 <HelpCircle className="w-3.5 h-3.5" /> Help
               </button>
             </div>
@@ -317,6 +357,59 @@ export default function Dashboard() {
             </div>
           </div>
         </aside>
+
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetContent side="left" className="w-[260px] p-0 bg-[#0E1525] border-r border-[#2B3245]/40 sm:hidden">
+            <nav className="flex-1 py-2 px-2 space-y-0.5 mt-10">
+              {sidebarLinks.map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${sidebarNav === id ? "bg-[#1C2333] text-[#F5F9FC] font-medium" : "text-[#9DA2B0] hover:bg-[#1C2333]/50 hover:text-[#F5F9FC]"}`}
+                  onClick={() => { setSidebarNav(id); setMobileSidebarOpen(false); }}
+                  data-testid={`mobile-nav-${id}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+              <Link href="/demo">
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-[#9DA2B0] hover:bg-[#1C2333]/50 hover:text-[#F5F9FC] transition-colors" onClick={() => setMobileSidebarOpen(false)} data-testid="mobile-nav-demo">
+                  <Eye className="w-4 h-4" />
+                  Demo
+                </button>
+              </Link>
+              <div className="!mt-4 pt-3 border-t border-[#2B3245]/40">
+                <p className="px-3 text-[10px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2">Resources</p>
+                <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => { window.open("https://docs.replit.com", "_blank"); setMobileSidebarOpen(false); }} data-testid="mobile-nav-docs">
+                  <BookOpen className="w-3.5 h-3.5" /> Docs
+                </button>
+                <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => { window.open("https://ask.replit.com", "_blank"); setMobileSidebarOpen(false); }} data-testid="mobile-nav-community">
+                  <MessageSquare className="w-3.5 h-3.5" /> Community
+                </button>
+                <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => { toast({ title: "Help", description: "Help center coming soon." }); setMobileSidebarOpen(false); }} data-testid="mobile-nav-help">
+                  <HelpCircle className="w-3.5 h-3.5" /> Help
+                </button>
+              </div>
+              <div className="!mt-4 pt-3 border-t border-[#2B3245]/40">
+                <p className="px-3 text-[10px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2">Teams</p>
+                <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" data-testid="mobile-nav-teams">
+                  <Users className="w-3.5 h-3.5" /> Create a Team
+                </button>
+              </div>
+            </nav>
+            <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-[#2B3245]/40">
+              <div className="flex items-center gap-2.5 px-2 py-1.5">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center shrink-0">
+                  <span className="text-[9px] font-bold text-white">{initials}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-[#F5F9FC] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
+                  <p className="text-[9px] text-[#676D7E] truncate">{user?.email}</p>
+                </div>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         <main className="flex-1 overflow-y-auto bg-[#0E1525]">
           {sidebarNav === "home" ? (

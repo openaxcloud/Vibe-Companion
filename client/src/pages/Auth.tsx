@@ -100,6 +100,7 @@ export default function Auth() {
               variant="outline"
               className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
               data-testid="button-github-login"
+              onClick={() => toast({ title: "GitHub login coming soon", description: "This feature is not yet available." })}
             >
               <Github className="w-5 h-5" />
               Continue with GitHub
@@ -109,6 +110,7 @@ export default function Auth() {
               variant="outline"
               className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
               data-testid="button-google-login"
+              onClick={() => toast({ title: "Google login coming soon", description: "This feature is not yet available." })}
             >
               <GoogleIcon />
               Continue with Google
