@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -26,7 +26,9 @@ export const projects = pgTable("projects", {
   isDemo: boolean("is_demo").notNull().default(false),
   isPublished: boolean("is_published").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("projects_user_id_idx").on(table.userId),
+]);
 
 export const insertProjectSchema = createInsertSchema(projects).pick({
   name: true,
@@ -41,7 +43,9 @@ export const files = pgTable("files", {
   filename: text("filename").notNull(),
   content: text("content").notNull().default(""),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("files_project_id_idx").on(table.projectId),
+]);
 
 export const insertFileSchema = createInsertSchema(files).pick({
   filename: true,
@@ -62,7 +66,10 @@ export const runs = pgTable("runs", {
   exitCode: integer("exit_code"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   finishedAt: timestamp("finished_at"),
-});
+}, (table) => [
+  index("runs_project_id_idx").on(table.projectId),
+  index("runs_user_id_idx").on(table.userId),
+]);
 
 export const insertRunSchema = createInsertSchema(runs).pick({
   projectId: true,

@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useRef } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Project } from "@shared/schema";
 
 const LANG_ICONS: Record<string, { color: string; bg: string; label: string }> = {
@@ -384,8 +385,41 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {projects.length > 0 && (
-                <div className="pb-8">
+              {projectsQuery.isLoading && (
+                <div className="pb-8" data-testid="skeleton-recent-repls">
+                  <div className="flex items-center justify-between mb-3">
+                    <Skeleton className="h-3 w-20 rounded bg-[#2B3245]" />
+                    <Skeleton className="h-3 w-16 rounded bg-[#2B3245]" />
+                  </div>
+                  <div className="border border-[#2B3245]/50 rounded-xl overflow-hidden bg-[#1C2333]/20">
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx !== 0 ? "border-t border-[#2B3245]/30" : ""}`}>
+                        <Skeleton className="w-8 h-8 rounded-lg bg-[#2B3245] shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <Skeleton className="h-3.5 w-32 rounded bg-[#2B3245]" />
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-2.5 w-16 rounded bg-[#2B3245]" />
+                            <Skeleton className="h-2.5 w-12 rounded bg-[#2B3245]" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!projectsQuery.isLoading && projects.length === 0 && (
+                <div className="pb-8 animate-fade-in">
+                  <div className="text-center py-12 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/20">
+                    <div className="w-12 h-12 rounded-2xl bg-[#1C2333] border border-[#2B3245] flex items-center justify-center mx-auto mb-3">
+                      <Folder className="w-6 h-6 text-[#323B4F]" />
+                    </div>
+                    <p className="text-[13px] text-[#9DA2B0] mb-1 font-medium" data-testid="text-empty-home">No repls yet</p>
+                    <p className="text-[11px] text-[#676D7E]">Create your first Repl to get started</p>
+                  </div>
+                </div>
+              )}
+              {!projectsQuery.isLoading && projects.length > 0 && (
+                <div className="pb-8 animate-fade-in">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider" data-testid="text-my-repls">Recent Repls</h3>
                     <div className="flex items-center gap-3">
@@ -482,17 +516,31 @@ export default function Dashboard() {
               </div>
 
               {projectsQuery.isLoading ? (
-                <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-[#0079F2]" /></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="skeleton-projects-grid">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex flex-col p-4 rounded-xl border border-[#2B3245]/50 bg-[#1C2333]/40">
+                      <div className="flex items-start justify-between mb-3">
+                        <Skeleton className="w-9 h-9 rounded-lg bg-[#2B3245]" />
+                        <Skeleton className="w-6 h-6 rounded-md bg-[#2B3245]" />
+                      </div>
+                      <Skeleton className="h-4 w-28 rounded bg-[#2B3245] mb-2" />
+                      <div className="flex items-center gap-2 mt-auto">
+                        <Skeleton className="h-3 w-16 rounded bg-[#2B3245]" />
+                        <Skeleton className="h-3 w-12 rounded bg-[#2B3245]" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : projects.length === 0 ? (
-                <div className="text-center py-16 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/30">
+                <div className="text-center py-16 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/30 animate-fade-in">
                   <div className="w-14 h-14 rounded-2xl bg-[#1C2333] border border-[#2B3245] flex items-center justify-center mx-auto mb-4">
                     <Folder className="w-7 h-7 text-[#323B4F]" />
                   </div>
                   <p className="text-[13px] text-[#9DA2B0] mb-1 font-medium" data-testid="text-empty-state">{searchQuery ? "No repls match your search" : "No repls yet"}</p>
-                  <p className="text-[11px] text-[#676D7E]">Create your first repl or use AI to generate one</p>
+                  <p className="text-[11px] text-[#676D7E]">{searchQuery ? "Try a different search term" : "Create your first Repl to get started"}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
                   {projects.map((project) => {
                     const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
                     return (

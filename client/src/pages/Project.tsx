@@ -22,9 +22,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import AIPanel from "@/components/AIPanel";
 import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
 import WorkspaceTerminal from "@/components/WorkspaceTerminal";
+import CommandPalette from "@/components/CommandPalette";
 import type { Project as ProjectType, File } from "@shared/schema";
 
 function FileTypeIcon({ filename, className = "" }: { filename: string; className?: string }) {
@@ -69,6 +71,49 @@ interface FsEntry {
   size?: number;
 }
 
+interface TreeNode {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  fileId?: string;
+  children: TreeNode[];
+}
+
+function buildFileTree(files: File[]): TreeNode[] {
+  const root: TreeNode[] = [];
+
+  for (const file of files) {
+    const parts = file.filename.split("/");
+    let current = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+      const pathSoFar = parts.slice(0, i + 1).join("/");
+
+      if (isLast) {
+        current.push({ name: part, path: pathSoFar, type: "file", fileId: file.id, children: [] });
+      } else {
+        let dir = current.find((n) => n.type === "dir" && n.name === part);
+        if (!dir) {
+          dir = { name: part, path: pathSoFar, type: "dir", children: [] };
+          current.push(dir);
+        }
+        current = dir.children;
+      }
+    }
+  }
+
+  const sortNodes = (nodes: TreeNode[]): TreeNode[] => {
+    return nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    }).map((n) => ({ ...n, children: sortNodes(n.children) }));
+  };
+
+  return sortNodes(root);
+}
+
 export default function Project() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
@@ -110,6 +155,15 @@ export default function Project() {
   const [renameDialogTarget, setRenameDialogTarget] = useState<{ id: string; oldName: string } | null>(null);
   const [renameDialogValue, setRenameDialogValue] = useState("");
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const toggleFolder = (path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
@@ -117,6 +171,14 @@ export default function Project() {
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<{ fileId: string; filename: string; line: number; text: string }[]>([]);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [cursorLine, setCursorLine] = useState(1);
+  const [cursorCol, setCursorCol] = useState(1);
+  const [deploymentsPanelOpen, setDeploymentsPanelOpen] = useState(false);
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [editorFontSize, setEditorFontSize] = useState(14);
+  const [editorTabSize, setEditorTabSize] = useState(2);
+  const [editorWordWrap, setEditorWordWrap] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -246,6 +308,11 @@ export default function Project() {
     autoSave(activeFileId, value);
   }, [activeFileId, autoSave]);
 
+  const handleCursorChange = useCallback((line: number, col: number) => {
+    setCursorLine(line);
+    setCursorCol(col);
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
@@ -264,6 +331,26 @@ export default function Project() {
         setSidebarOpen((prev) => !prev);
         setAiPanelOpen(false);
         setSearchPanelOpen(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "P") {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        e.preventDefault();
+        setTerminalVisible((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        setPreviewPanelOpen((prev) => !prev);
+      }
+      if (e.key === "F5") {
+        e.preventDefault();
+        if (isRunning) { /* stop handled by run button */ } else if (!runMutation.isPending) handleRun();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
@@ -796,8 +883,58 @@ export default function Project() {
 
   if (projectQuery.isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#1C2333]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#0079F2]" />
+      <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
+        <div className="flex items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 gap-2">
+          <Skeleton className="w-7 h-7 rounded-lg bg-[#2B3245]" />
+          <Skeleton className="w-3 h-3 rounded bg-[#2B3245]" />
+          <Skeleton className="w-32 h-4 rounded bg-[#2B3245]" />
+          <div className="flex-1" />
+          <Skeleton className="w-16 h-7 rounded-full bg-[#2B3245]" />
+        </div>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-2 gap-2 shrink-0">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="w-6 h-6 rounded bg-[#2B3245]" />
+            ))}
+          </div>
+          <div className="w-[240px] bg-[#1C2333] border-r border-[#2B3245] flex flex-col shrink-0">
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245]">
+              <Skeleton className="w-12 h-3 rounded bg-[#2B3245]" />
+              <div className="flex gap-1">
+                <Skeleton className="w-5 h-5 rounded bg-[#2B3245]" />
+                <Skeleton className="w-5 h-5 rounded bg-[#2B3245]" />
+              </div>
+            </div>
+            <div className="flex-1 py-2 px-2 space-y-1">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
+                  <Skeleton className="w-4 h-4 rounded-[3px] bg-[#2B3245]" />
+                  <Skeleton className={`h-3 rounded bg-[#2B3245] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] h-9 px-1 gap-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="w-24 h-6 rounded bg-[#2B3245]" />
+              ))}
+            </div>
+            <div className="flex-1 bg-[#1C2333] p-4 space-y-2">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <Skeleton key={i} className={`h-3 rounded bg-[#2B3245] ${i % 4 === 0 ? "w-3/4" : i % 4 === 1 ? "w-1/2" : i % 4 === 2 ? "w-5/6" : "w-2/3"}`} />
+              ))}
+            </div>
+            <div className="h-[220px] border-t border-[#2B3245] bg-[#1C2333] p-3 space-y-2">
+              <Skeleton className="w-16 h-3 rounded bg-[#2B3245]" />
+              <Skeleton className="w-full h-3 rounded bg-[#2B3245]" />
+              <Skeleton className="w-3/4 h-3 rounded bg-[#2B3245]" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center px-3 h-6 bg-[#0E1525] border-t border-[#2B3245]/60 shrink-0">
+          <Skeleton className="w-16 h-2.5 rounded bg-[#2B3245]" />
+        </div>
       </div>
     );
   }
@@ -861,7 +998,16 @@ export default function Project() {
                 </div>
               );
             })}
-            {runnerFsQuery.isLoading && <div className="flex items-center justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-[#0079F2]" /></div>}
+            {runnerFsQuery.isLoading && (
+              <div className="py-2 px-2 space-y-1" data-testid="skeleton-runner-files">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
+                    <Skeleton className="w-3.5 h-3.5 rounded-[3px] bg-[#2B3245]" />
+                    <Skeleton className={`h-3 rounded bg-[#2B3245] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                  </div>
+                ))}
+              </div>
+            )}
             {runnerFsQuery.data?.length === 0 && !runnerFsQuery.isLoading && (
               <div className="px-3 py-6 text-center">
                 <p className="text-xs text-[#676D7E] mb-2">Empty directory</p>
@@ -885,25 +1031,66 @@ export default function Project() {
                 </div>
               </div>
             )}
-            {filesQuery.data?.map((file) => (
-              <div
-                key={file.id}
-                className={`group flex items-center gap-2 px-3 py-[5px] cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
-                onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
-                data-testid={`file-item-${file.id}`}
-              >
-                <FileTypeIcon filename={file.filename} />
-                <span className="flex-1 text-[12px] truncate">{file.filename}</span>
-                {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                <div className="hidden group-hover:flex items-center gap-0.5">
-                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-2.5 h-2.5" /></button>
-                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-2.5 h-2.5" /></button>
-                </div>
+            {(() => {
+              const tree = buildFileTree(filesQuery.data || []);
+              const renderNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
+                if (node.type === "dir") {
+                  const isExpanded = expandedFolders.has(node.path);
+                  return (
+                    <div key={node.path}>
+                      <div
+                        className="group flex items-center gap-1 py-[5px] cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40"
+                        style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
+                        onClick={() => toggleFolder(node.path)}
+                        data-testid={`folder-item-${node.path}`}
+                      >
+                        {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0 text-[#676D7E]" /> : <ChevronRight className="w-3 h-3 shrink-0 text-[#676D7E]" />}
+                        {isExpanded ? <FolderOpen className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" />}
+                        <span className="flex-1 text-[12px] truncate ml-0.5">{node.name}</span>
+                      </div>
+                      {isExpanded && node.children.map((child) => renderNode(child, depth + 1))}
+                    </div>
+                  );
+                }
+                const file = filesQuery.data?.find((f) => f.id === node.fileId);
+                if (!file) return null;
+                return (
+                  <div
+                    key={node.fileId}
+                    className={`group flex items-center gap-2 py-[5px] cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
+                    style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
+                    onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+                    data-testid={`file-item-${file.id}`}
+                  >
+                    <FileTypeIcon filename={node.name} />
+                    <span className="flex-1 text-[12px] truncate">{node.name}</span>
+                    {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                    <div className="hidden group-hover:flex items-center gap-0.5">
+                      <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-2.5 h-2.5" /></button>
+                      <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-2.5 h-2.5" /></button>
+                    </div>
+                  </div>
+                );
+              };
+              return tree.map((node) => renderNode(node, 0));
+            })()}
+            {filesQuery.isLoading && (
+              <div className="py-2 px-2 space-y-1" data-testid="skeleton-file-tree">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
+                    <Skeleton className="w-4 h-4 rounded-[3px] bg-[#2B3245]" />
+                    <Skeleton className={`h-3 rounded bg-[#2B3245] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                  </div>
+                ))}
               </div>
-            ))}
-            {filesQuery.data?.length === 0 && (
-              <div className="px-3 py-6 text-center">
-                <p className="text-xs text-[#676D7E] mb-2">No files yet</p>
+            )}
+            {!filesQuery.isLoading && filesQuery.data?.length === 0 && (
+              <div className="px-3 py-6 text-center animate-fade-in" data-testid="empty-file-tree">
+                <div className="w-10 h-10 rounded-xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-3">
+                  <FileIcon className="w-5 h-5 text-[#323B4F]" />
+                </div>
+                <p className="text-xs text-[#9DA2B0] mb-1 font-medium">No files yet</p>
+                <p className="text-[10px] text-[#676D7E] mb-3">Create your first file to get started</p>
                 <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> Create File</Button>
               </div>
             )}
@@ -939,10 +1126,37 @@ export default function Project() {
     </div>
   ) : null;
 
+  const activeFilePath = isRunnerTab
+    ? activeFileId!.slice(7)
+    : (activeFile?.filename || "");
+  const breadcrumbSegments = activeFilePath ? activeFilePath.split("/").filter(Boolean) : [];
+
+  const breadcrumbBar = activeFileId && breadcrumbSegments.length > 0 ? (
+    <div className="flex items-center gap-0.5 px-3 h-7 bg-[#1C2333] border-b border-[#2B3245] shrink-0 overflow-x-auto scrollbar-hide" data-testid="breadcrumb-bar">
+      {breadcrumbSegments.map((segment, i) => {
+        const isLast = i === breadcrumbSegments.length - 1;
+        return (
+          <span key={i} className="flex items-center gap-0.5 shrink-0">
+            {i > 0 && <ChevronRight className="w-3 h-3 text-[#676D7E] shrink-0" />}
+            <span
+              className={`text-[11px] px-1 py-0.5 rounded ${isLast ? "text-[#F5F9FC] font-medium" : "text-[#676D7E] hover:text-[#9DA2B0] cursor-default"}`}
+              data-testid={`breadcrumb-segment-${i}`}
+            >
+              {segment}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  ) : null;
+
   const editorContent = (
-    <div className="flex-1 overflow-hidden relative">
+    <div className="flex-1 overflow-hidden relative flex flex-col">
+      {breadcrumbBar}
       {activeFileId ? (
-        <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} />
+        <div className="flex-1 overflow-hidden">
+          <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} />
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333]">
           <div className="max-w-sm text-center px-6">
@@ -1244,17 +1458,17 @@ export default function Project() {
             {/* ACTIVITY BAR */}
             <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-1 shrink-0" data-testid="activity-bar">
               <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen || searchPanelOpen); setAiPanelOpen(false); setSearchPanelOpen(false); }}
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                onClick={() => { const shouldOpen = !sidebarOpen || aiPanelOpen || searchPanelOpen || deploymentsPanelOpen || settingsPanelOpen; setSidebarOpen(shouldOpen); setAiPanelOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }}
                 title="Explorer (Ctrl+B)"
                 data-testid="activity-explorer"
               >
-                {sidebarOpen && !aiPanelOpen && !searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
                 <PanelLeft className="w-5 h-5" />
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); } }}
+                onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                 title="Search (Ctrl+Shift+F)"
                 data-testid="activity-search"
               >
@@ -1263,7 +1477,7 @@ export default function Project() {
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); } }}
+                onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                 title="AI Agent"
                 data-testid="activity-ai"
               >
@@ -1271,11 +1485,21 @@ export default function Project() {
                 <Sparkles className="w-5 h-5" />
               </button>
               <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${false ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                className={`relative w-full h-10 flex items-center justify-center transition-colors text-[#676D7E] hover:text-[#F5F9FC]`}
                 title="Version Control"
                 data-testid="activity-git"
               >
                 <GitBranch className="w-5 h-5" />
+                {dirtyFiles.size > 0 && <span className="absolute top-1.5 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border border-[#0E1525]" />}
+              </button>
+              <button
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); } }}
+                title="Deployments"
+                data-testid="activity-deployments"
+              >
+                {deploymentsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                <Rocket className="w-5 h-5" />
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
@@ -1291,12 +1515,12 @@ export default function Project() {
 
               <div className="flex flex-col items-center mb-1">
                 <button
-                  className={`relative w-full h-10 flex items-center justify-center transition-colors ${projectSettingsOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                  onClick={() => setProjectSettingsOpen(true)}
+                  className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                  onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
                   title="Settings"
                   data-testid="activity-settings"
                 >
-                  {projectSettingsOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                  {settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
                   <Settings className="w-5 h-5" />
                   <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
                 </button>
@@ -1395,8 +1619,180 @@ export default function Project() {
               </div>
             )}
 
+            {/* DEPLOYMENTS PANEL */}
+            {deploymentsPanelOpen && !aiPanelOpen && !searchPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="deployments-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
+                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Deployments</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setDeploymentsPanelOpen(false)} data-testid="button-close-deployments">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="px-3 py-3 border-b border-[#2B3245]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[#676D7E]"}`} />
+                      <span className="text-xs font-medium text-[#F5F9FC]">{project?.isPublished ? "Published" : "Not published"}</span>
+                    </div>
+                    {project?.isPublished && (
+                      <div className="mb-3">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#0E1525] border border-[#2B3245]">
+                          <Globe className="w-3 h-3 text-[#0079F2] shrink-0" />
+                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono flex-1">{`${window.location.origin}/shared/${projectId}`}</span>
+                          <button className="p-0.5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={copyShareUrl} data-testid="button-copy-deploy-url">
+                            {copiedUrl ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                          <button className="p-0.5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => window.open(`/shared/${projectId}`, "_blank")} data-testid="button-open-deploy-url">
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0E1525] border border-[#2B3245]">
+                      <div className="flex items-center gap-2">
+                        <Rocket className="w-3.5 h-3.5 text-[#0CCE6B]" />
+                        <span className="text-[11px] text-[#F5F9FC]">Publish</span>
+                      </div>
+                      <Switch
+                        checked={project?.isPublished || false}
+                        onCheckedChange={() => publishMutation.mutate()}
+                        disabled={publishMutation.isPending}
+                        data-testid="switch-deploy-publish"
+                      />
+                    </div>
+                  </div>
+                  <div className="px-3 py-3 border-b border-[#2B3245]">
+                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Deployment History</span>
+                    <div className="mt-2 space-y-1.5">
+                      {project?.isPublished ? (
+                        <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#0E1525] border border-[#2B3245]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-[#F5F9FC] font-medium">Production</p>
+                            <p className="text-[9px] text-[#676D7E]">{new Date().toLocaleDateString()} · Live</p>
+                          </div>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Active</span>
+                        </div>
+                      ) : (
+                        <div className="py-4 text-center">
+                          <p className="text-[10px] text-[#676D7E]">No deployments yet</p>
+                          <p className="text-[9px] text-[#4A5068] mt-1">Publish your project to create a deployment</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="px-3 py-3">
+                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Custom Domain</span>
+                    <div className="mt-2 p-3 rounded-lg bg-[#0E1525] border border-[#2B3245] border-dashed">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Globe className="w-3.5 h-3.5 text-[#676D7E]" />
+                        <span className="text-[11px] text-[#9DA2B0]">Custom Domain</span>
+                      </div>
+                      <p className="text-[10px] text-[#4A5068] leading-relaxed">Connect a custom domain to your deployment. This feature is coming soon.</p>
+                      <Button variant="ghost" size="sm" className="mt-2 h-7 px-3 text-[10px] text-[#676D7E] border border-[#2B3245] hover:text-[#9DA2B0] hover:bg-[#2B3245] rounded-md w-full" disabled data-testid="button-add-domain">
+                        Add Domain
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SETTINGS PANEL */}
+            {settingsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="settings-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
+                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Settings</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setSettingsPanelOpen(false)} data-testid="button-close-settings">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="px-3 py-3 border-b border-[#2B3245]">
+                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Theme</span>
+                    <div className="mt-2 flex gap-2">
+                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0079F2]/10 border border-[#0079F2]/30 text-[11px] text-[#F5F9FC]" data-testid="button-theme-dark">
+                        <span className="w-4 h-4 rounded-full bg-[#0E1525] border border-[#2B3245]" />
+                        Dark
+                      </button>
+                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0E1525] border border-[#2B3245] text-[11px] text-[#676D7E] opacity-50 cursor-not-allowed" disabled data-testid="button-theme-light">
+                        <span className="w-4 h-4 rounded-full bg-white border border-gray-300" />
+                        Light
+                      </button>
+                    </div>
+                  </div>
+                  <div className="px-3 py-3 border-b border-[#2B3245]">
+                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Editor</span>
+                    <div className="mt-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#9DA2B0]">Font Size</span>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setEditorFontSize(Math.max(10, editorFontSize - 1))} data-testid="button-font-size-decrease">
+                            <span className="text-xs font-bold">−</span>
+                          </Button>
+                          <span className="text-[11px] text-[#F5F9FC] w-6 text-center font-mono" data-testid="text-font-size">{editorFontSize}</span>
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setEditorFontSize(Math.min(24, editorFontSize + 1))} data-testid="button-font-size-increase">
+                            <span className="text-xs font-bold">+</span>
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#9DA2B0]">Tab Size</span>
+                        <div className="flex items-center gap-1">
+                          {[2, 4].map((size) => (
+                            <button key={size} onClick={() => setEditorTabSize(size)} className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${editorTabSize === size ? "bg-[#0079F2] text-white" : "bg-[#0E1525] text-[#676D7E] hover:text-[#9DA2B0] border border-[#2B3245]"}`} data-testid={`button-tab-size-${size}`}>
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#9DA2B0]">Word Wrap</span>
+                        <Switch checked={editorWordWrap} onCheckedChange={setEditorWordWrap} data-testid="switch-word-wrap" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-3 py-3 border-b border-[#2B3245]">
+                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Project</span>
+                    <div className="mt-2">
+                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[#2B3245] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setProjectSettingsOpen(true); }} data-testid="button-open-project-settings">
+                        <Settings className="w-3.5 h-3.5 text-[#676D7E]" />
+                        <span className="text-[11px] text-[#9DA2B0]">Project Settings</span>
+                        <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="px-3 py-3">
+                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">About</span>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[#676D7E]">Version</span>
+                        <span className="text-[10px] text-[#9DA2B0] font-mono">1.0.0</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[#676D7E]">Runtime</span>
+                        <span className="text-[10px] text-[#9DA2B0] font-mono">Node.js</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[#676D7E]">Editor</span>
+                        <span className="text-[10px] text-[#9DA2B0] font-mono">CodeMirror 6</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#2B3245]">
+                        <svg width="10" height="10" viewBox="0 0 32 32" fill="none">
+                          <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
+                          <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
+                          <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
+                        </svg>
+                        <span className="text-[10px] text-[#676D7E]">Powered by Replit</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* FILE EXPLORER SIDEBAR */}
-            {sidebarOpen && !aiPanelOpen && !searchPanelOpen && (
+            {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
               <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} shrink-0`}>
                 {sidebarContent}
               </div>
@@ -1474,6 +1870,8 @@ export default function Project() {
               {connected && <span className="text-[10px] text-[#4A5068] flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> WS</span>}
             </div>
             <div className="flex items-center gap-3">
+              {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
+              {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-tab-size">Spaces: {editorTabSize}</span>}
               {activeFileName && <span className="text-[10px] text-[#9DA2B0] capitalize">{editorLanguage}</span>}
               {activeFileName && <span className="text-[10px] text-[#4A5068]">UTF-8</span>}
               {activeFileName && <span className="text-[10px] text-[#4A5068]">LF</span>}
@@ -1624,6 +2022,24 @@ export default function Project() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        files={filesQuery.data}
+        isRunning={isRunning}
+        onRun={handleRun}
+        onNewFile={() => setNewFileDialogOpen(true)}
+        onNewFolder={() => setNewFolderDialogOpen(true)}
+        onToggleTerminal={() => setTerminalVisible((prev) => !prev)}
+        onToggleAI={() => { setAiPanelOpen((prev) => !prev); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); } }}
+        onTogglePreview={() => setPreviewPanelOpen((prev) => !prev)}
+        onToggleSidebar={() => { setSidebarOpen((prev) => !prev); setAiPanelOpen(false); setSearchPanelOpen(false); }}
+        onProjectSettings={() => setProjectSettingsOpen(true)}
+        onPublish={() => setPublishDialogOpen(true)}
+        onGoToDashboard={() => setLocation("/dashboard")}
+        onOpenFile={(file) => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+      />
 
       <Dialog open={renameDialogOpen} onOpenChange={(open) => { setRenameDialogOpen(open); if (!open) setRenameDialogTarget(null); }}>
         <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">

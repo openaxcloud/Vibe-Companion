@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import bcrypt from "bcrypt";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
 import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared/schema";
@@ -43,8 +44,14 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const PgStore = connectPgSimple(session);
   app.use(
     session({
+      store: new PgStore({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: true,
+        tableName: "user_sessions",
+      }),
       secret: process.env.SESSION_SECRET || "vibe-platform-secret-key-change-in-prod",
       resave: false,
       saveUninitialized: false,

@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import CodeMirror from "@uiw/react-codemirror";
+import { useMemo, useCallback } from "react";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { html } from "@codemirror/lang-html";
@@ -10,12 +10,17 @@ import { EditorView } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { useRef, useEffect } from "react";
 
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   language: string;
   readOnly?: boolean;
+  onCursorChange?: (line: number, col: number) => void;
+  fontSize?: number;
+  tabSize?: number;
+  wordWrap?: boolean;
 }
 
 const replitHighlight = HighlightStyle.define([
@@ -180,23 +185,37 @@ function detectLanguage(filename: string): string {
 
 export { detectLanguage };
 
-export default function CodeEditor({ value, onChange, language, readOnly = false }: CodeEditorProps) {
+export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false }: CodeEditorProps) {
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const onCursorChangeRef = useRef(onCursorChange);
+  onCursorChangeRef.current = onCursorChange;
+
+  const cursorTracker = useMemo(() => {
+    return EditorView.updateListener.of((update) => {
+      if (update.selectionSet || update.docChanged) {
+        const pos = update.state.selection.main.head;
+        const line = update.state.doc.lineAt(pos);
+        onCursorChangeRef.current?.(line.number, pos - line.from + 1);
+      }
+    });
+  }, []);
+
   const extensions = useMemo(() => {
     const ext = [
       getLanguageExtension(language),
       replitTheme,
       syntaxHighlighting(replitHighlight),
-      indentUnit.of("  "),
-      EditorView.lineWrapping,
+      indentUnit.of(" ".repeat(tabSize)),
+      cursorTracker,
     ];
-    if (readOnly) {
-      ext.push(EditorView.editable.of(false));
-    }
+    if (wordWrap) ext.push(EditorView.lineWrapping);
+    if (readOnly) ext.push(EditorView.editable.of(false));
     return ext;
-  }, [language, readOnly]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap]);
 
   return (
     <CodeMirror
+      ref={editorRef}
       value={value}
       onChange={onChange}
       extensions={extensions}
@@ -207,9 +226,9 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
         highlightActiveLine: true,
         searchKeymap: true,
         foldGutter: true,
-        tabSize: 2,
+        tabSize,
       }}
-      style={{ height: "100%", width: "100%" }}
+      style={{ height: "100%", width: "100%", fontSize: `${fontSize}px` }}
       data-testid="code-editor"
     />
   );

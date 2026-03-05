@@ -6,6 +6,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
+- **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
 - **Code Execution**: Local sandboxed `child_process.spawn` with security pattern blocking, 10s timeout, 64MB memory limit
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
 - **AI**: Dual model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-5.2, both via Replit AI Integrations
@@ -14,38 +15,57 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name
-- `projects`: id, user_id, name, language, is_demo, is_published, updated_at
-- `files`: id, project_id, filename, content, updated_at
-- `runs`: id, project_id, user_id, status, language, code, stdout, stderr, exit_code, started_at, finished_at
+- `projects`: id, user_id (indexed), name, language, is_demo, is_published, updated_at
+- `files`: id, project_id (indexed), filename, content, updated_at
+- `runs`: id, project_id (indexed), user_id (indexed), status, language, code, stdout, stderr, exit_code, started_at, finished_at
 - `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
 - `workspace_sessions`: id (uuid), workspace_id, user_id, created_at, expires_at
+- `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
-- Email/password authentication with session cookies
+- Email/password authentication with persistent PostgreSQL-backed sessions
 - CRUD projects (create, list, duplicate, delete)
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
-- **VS Code-style IDE layout**: Activity bar on far left (Explorer, AI, Workspace, Settings icons)
+- **VS Code-style IDE layout**: Activity bar on far left (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
+- **Nested file tree**: Files with paths like `src/components/App.tsx` display in proper folder hierarchy with expand/collapse
 - Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
-- CodeMirror 6 editor with syntax highlighting (JS/TS/Python/HTML/CSS/JSON/Markdown)
+- **Breadcrumbs**: Path segments above editor (src > components > App.tsx) with clickable segments
+- **Command Palette** (Cmd+K): Searchable command overlay with file switching and action shortcuts
+- CodeMirror 6 editor with Replit-accurate syntax theme (red keywords, green strings, teal functions, orange numbers)
+- **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
-- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI) — Agent mode uses Claude for tool capabilities
+- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI)
+- **Markdown rendering in AI chat**: Bold, italic, inline code, links, headers, bullet/numbered lists
 - **Apply-to-file**: Code blocks in AI chat have "Apply" buttons that insert code directly into the active file
-- **Template starters**: Dashboard has 4 template cards (Web App, API Server, Dashboard, Game) that auto-generate projects
+- **Template starters**: Dashboard has horizontal scrolling template cards with arrow buttons
 - Remote code execution (JavaScript, TypeScript, Python) via local sandbox
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
 - Run/Stop buttons with execution state indication
+- **Deployments panel**: Sidebar panel showing publish status, URL, deployment history
+- **Settings panel**: In-sidebar settings with theme toggle, font size, tab size, word wrap controls
 - Project settings dialog (rename, change language)
 - Publish/share projects with toggle and shareable URL
 - Public shared project view (read-only with code execution)
 - Dark mode with Replit-accurate design tokens
 - Public demo project (read-only)
+- **Skeleton loading states**: Full IDE skeleton, file tree skeletons, dashboard card skeletons
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
 - **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
 
+## Keyboard Shortcuts
+- Cmd+S: Save current file
+- Cmd+K / Cmd+Shift+P: Command palette
+- Cmd+B: Toggle sidebar
+- Cmd+J: Toggle terminal
+- Cmd+\: Toggle preview panel
+- Cmd+Shift+F: Search across files
+- Cmd+Enter / F5: Run project
+
 ## Design System
 - **Replit orange logo**: SVG three-block mark (#F26522) used throughout (header, auth, empty state, footer, status bar)
+- **Syntax theme**: Keywords #FF6166 (red), Strings #0CCE6B (green), Functions #56B6C2 (teal), Numbers #FF9940 (orange), Types #FFCB6B (yellow), Comments #676D7E (muted italic), Default text #CFD7E6
 - **Color tokens**: #0E1525 (bars/nav), #1C2333 (panels/editor), #2B3245 (borders/surface), #323B4F (hover), #0079F2 (accent blue), #0CCE6B (green run), #7C65CB (AI purple), #F26522 (Replit orange), #F5F9FC (text primary), #9DA2B0 (text secondary), #676D7E (text muted)
 - **Fonts**: IBM Plex Sans (UI), IBM Plex Mono / JetBrains Mono (code/terminal)
 
@@ -91,36 +111,42 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Messages: `run_log` (real-time output), `run_status` (started/completed/failed)
 
 ## Important Files
-- `shared/schema.ts` - Drizzle schema + Zod insert schemas
+- `shared/schema.ts` - Drizzle schema + Zod insert schemas (indexed columns)
 - `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo)
 - `server/runnerClient.ts` - Runner VPS HTTP client
 - `server/storage.ts` - IStorage interface + DatabaseStorage implementation
 - `server/executor.ts` - Sandboxed code execution engine
 - `server/index.ts` - Express setup
-- `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal)
-- `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation
+- `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel)
+- `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation, skeleton loading
 - `client/src/pages/Auth.tsx` - Login/register page
+- `client/src/pages/Settings.tsx` - Account settings (profile, password, danger zone)
 - `client/src/pages/SharedProject.tsx` - Public shared project view
-- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with language detection
-- `client/src/components/AIPanel.tsx` - AI agent panel with model selection, chat/agent modes, file operations
+- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with Replit syntax theme + cursor tracking
+- `client/src/components/AIPanel.tsx` - AI agent panel with markdown rendering, model selection, chat/agent modes
+- `client/src/components/CommandPalette.tsx` - Cmd+K command palette with file switching and actions
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
 
 ## IDE Layout (Desktop — Replit Clone)
-- **Activity Bar** (48px, far left): Explorer, AI Agent, Search, Git, Webview, Settings icons — active icon has left-2 border indicator (blue #0079F2, purple for AI)
-- **AI Agent Panel** (45% width, toggleable): Split view like Replit Agent — chat/agent mode toggle, model selection (Claude/GPT), file operation indicators, apply-to-file code blocks
-- **File Explorer** (240px, toggleable): file list with left blue accent on active file, create/rename/delete
-- **Header Bar** (h-10): Left (Replit orange logo → breadcrumb → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
-- **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files with results showing filename, line number, and matching text
-- **Editor** (center): CodeMirror 6 with tabs (active=bright bg, blue bottom accent) + resizable bottom panel (Console + Shell)
-- **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab — Replit's signature side-by-side layout
-- **Status Bar** (h-6, bottom, bg #0E1525): workspace status dot, connection indicator, language name, Replit logo branding
+- **Activity Bar** (48px, far left): Explorer, Search, AI Agent, Git (with dirty badge), Deployments, Preview, Settings — active icon has left-2 border indicator (blue #0079F2, purple for AI)
+- **AI Agent Panel** (45% width, toggleable): Chat/agent mode toggle, model selection (Claude/GPT), rich markdown rendering, file operation indicators, apply-to-file code blocks
+- **File Explorer** (240px, toggleable): Nested folder tree with expand/collapse, colored file type icons, create/rename/delete
+- **Header Bar** (h-10): Left (Replit orange logo → chevron → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
+- **Breadcrumbs**: Path segments between tab bar and editor (src > components > App.tsx)
+- **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files
+- **Editor** (center): CodeMirror 6 with tabs + Replit syntax theme + cursor position tracking
+- **Deployments Panel**: Publish status, URL, history, custom domain placeholder
+- **Settings Panel**: Theme toggle, editor font size/tab size/word wrap controls, about section
+- **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab
+- **Bottom Panel** (resizable): Console + Shell tabs with xterm.js terminal
+- **Status Bar** (h-6, bottom): workspace status dot, WS indicator, language, cursor position (Ln/Col), tab size, encoding, Replit logo
 - **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
 
 ## Tech Stack
 - React 19, Wouter, TanStack Query
-- Express 5, express-session, bcrypt, express-rate-limit
+- Express 5, express-session, connect-pg-simple, bcrypt, express-rate-limit
 - Drizzle ORM, PostgreSQL
 - Anthropic SDK + OpenAI SDK (via Replit AI Integrations)
 - CodeMirror 6 (@uiw/react-codemirror + language packages + custom Replit theme)
 - WebSocket (ws library)
-- JetBrains Mono font, Plus Jakarta Sans font
+- IBM Plex Sans / IBM Plex Mono / JetBrains Mono fonts
