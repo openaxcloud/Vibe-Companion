@@ -10,7 +10,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
 - **AI**: Dual model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-5.2, both via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
-- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with oneDark theme and syntax highlighting
+- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme (replitTheme + replitHighlight)
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name
@@ -101,10 +101,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
 
 ## IDE Layout (Desktop — Replit Clone)
-- **Activity Bar** (48px, far left): Explorer, AI Agent, Webview, Settings icons — active icon has left white border indicator
+- **Activity Bar** (48px, far left): Explorer, AI Agent, Search, Git, Webview, Settings icons — active icon has left-2 border indicator (blue #0079F2, purple for AI)
 - **AI Agent Panel** (45% width, toggleable): Split view like Replit Agent — chat/agent mode toggle, model selection (Claude/GPT), file operation indicators, apply-to-file code blocks
 - **File Explorer** (240px, toggleable): file list with left blue accent on active file, create/rename/delete
-- **Header Bar**: Left (back + project name), Center (green Run pill button), Right (publish + kebab menu)
+- **Header Bar** (h-10): Left (Replit logo → breadcrumb → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
+- **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files with results showing filename, line number, and matching text
 - **Editor** (center): CodeMirror 6 with tabs (active=bright bg, no top accent) + resizable bottom panel (Console + Shell)
 - **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab — Replit's signature side-by-side layout
 - **Status Bar** (22px, bottom): workspace status dot, connection indicator, language name, "Vibe" branding
@@ -115,7 +116,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Express 5, express-session, bcrypt, express-rate-limit
 - Drizzle ORM, PostgreSQL
 - Anthropic SDK + OpenAI SDK (via Replit AI Integrations)
-- CodeMirror 6 (@uiw/react-codemirror + language packages + oneDark theme)
+- CodeMirror 6 (@uiw/react-codemirror + language packages + custom Replit theme)
 - WebSocket (ws library)
 - JetBrains Mono font, Plus Jakarta Sans font
 - Replit dark theme (#0E1525 bars/nav, #1C2333 panels/editor, #2B3245 borders/surface, #323B4F hover, #0079F2 accent blue, #0CCE6B green, #7C65CB AI purple, #F5F9FC text primary, #9DA2B0 text secondary, #676D7E text muted)

@@ -9,7 +9,7 @@ import {
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
-  Search, Hash, PanelLeft
+  Search, Hash, PanelLeft, Users, GitBranch
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -85,6 +85,9 @@ export default function Project() {
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<{ fileId: string; filename: string; line: number; text: string }[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -222,10 +225,25 @@ export default function Project() {
           saveMutation.mutate({ fileId: activeFileId, content: fileContents[activeFileId] });
         }
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "F") {
+        e.preventDefault();
+        setSearchPanelOpen((prev) => !prev);
+        if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        setSidebarOpen((prev) => !prev);
+        setAiPanelOpen(false);
+        setSearchPanelOpen(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!isRunning && !runMutation.isPending) handleRun();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeFileId, fileContents]);
+  }, [activeFileId, fileContents, searchPanelOpen, isRunning]);
 
   const openFile = (file: File) => {
     if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
@@ -703,6 +721,31 @@ export default function Project() {
     document.addEventListener("touchend", onUp);
   };
 
+  const performSearch = useCallback((term: string) => {
+    if (!term.trim() || !filesQuery.data) {
+      setSearchResults([]);
+      return;
+    }
+    const results: { fileId: string; filename: string; line: number; text: string }[] = [];
+    const lowerTerm = term.toLowerCase();
+    for (const file of filesQuery.data) {
+      const lines = file.content.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().includes(lowerTerm)) {
+          results.push({ fileId: file.id, filename: file.filename, line: i + 1, text: lines[i].trim() });
+          if (results.length >= 100) break;
+        }
+      }
+      if (results.length >= 100) break;
+    }
+    setSearchResults(results);
+  }, [filesQuery.data]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => performSearch(searchTerm), 200);
+    return () => clearTimeout(timer);
+  }, [searchTerm, performSearch]);
+
   const copyShareUrl = () => {
     navigator.clipboard.writeText(`${window.location.origin}/shared/${projectId}`);
     setCopiedUrl(true);
@@ -1004,15 +1047,14 @@ export default function Project() {
   return (
     <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className="grid grid-cols-3 items-center px-2 h-9 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <button className="w-6 h-6 rounded-md bg-gradient-to-br from-[#0079F2]/80 to-[#7C65CB]/80 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+      <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
+        <div className="flex items-center gap-2 min-w-0">
+          <button className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center shrink-0 hover:opacity-90 transition-opacity" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <Code2 className="w-3.5 h-3.5 text-white" />
           </button>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[13px] font-semibold text-[#F5F9FC] truncate max-w-[160px]" data-testid="text-project-name">{project?.name}</span>
-            {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
-          </div>
+          <ChevronRight className="w-3 h-3 text-[#676D7E] shrink-0" />
+          <span className="text-[13px] font-semibold text-[#F5F9FC] truncate max-w-[180px]" data-testid="text-project-name">{project?.name}</span>
+          {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
         </div>
         <div className="flex items-center justify-center">
           <Button
@@ -1025,9 +1067,12 @@ export default function Project() {
             {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
           </Button>
         </div>
-        <div className="flex items-center justify-end gap-0.5">
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md" onClick={() => setPublishDialogOpen(true)} title="Publish" data-testid="button-publish">
-            <Rocket className="w-3.5 h-3.5" />
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5" onClick={copyShareUrl} title="Invite" data-testid="button-invite">
+            <Users className="w-3.5 h-3.5" /> Invite
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5" onClick={() => setPublishDialogOpen(true)} title="Publish" data-testid="button-publish">
+            <Rocket className="w-3.5 h-3.5" /> Publish
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1153,51 +1198,63 @@ export default function Project() {
           {/* === TABLET + DESKTOP LAYOUT: VS Code style === */}
           <div className="flex flex-1 overflow-hidden">
             {/* ACTIVITY BAR */}
-            <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-2 gap-1 shrink-0" data-testid="activity-bar">
+            <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-1 shrink-0" data-testid="activity-bar">
               <button
-                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${sidebarOpen && !aiPanelOpen ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
-                onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen); setAiPanelOpen(false); }}
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen || searchPanelOpen); setAiPanelOpen(false); setSearchPanelOpen(false); }}
                 title="Explorer (Ctrl+B)"
                 data-testid="activity-explorer"
               >
+                {sidebarOpen && !aiPanelOpen && !searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
                 <PanelLeft className="w-[18px] h-[18px]" />
               </button>
               <button
-                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${aiPanelOpen ? "text-[#7C65CB] bg-[#7C65CB]/15" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
-                onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) setSidebarOpen(false); }}
-                title="AI Agent"
-                data-testid="activity-ai"
-              >
-                <Sparkles className="w-[18px] h-[18px]" />
-              </button>
-              <button
-                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${false ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
-                onClick={() => {}}
-                title="Search"
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); } }}
+                title="Search (Ctrl+Shift+F)"
                 data-testid="activity-search"
               >
+                {searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
                 <Search className="w-[18px] h-[18px]" />
               </button>
               <button
-                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${previewPanelOpen ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); } }}
+                title="AI Agent"
+                data-testid="activity-ai"
+              >
+                {aiPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#7C65CB]" />}
+                <Sparkles className="w-[18px] h-[18px]" />
+              </button>
+              <button
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${false ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                title="Version Control"
+                data-testid="activity-git"
+              >
+                <GitBranch className="w-[18px] h-[18px]" />
+              </button>
+              <button
+                className={`relative w-full h-10 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
                 onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
                 title="Webview"
                 data-testid="activity-webview"
               >
+                {previewPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
                 <Monitor className="w-[18px] h-[18px]" />
               </button>
 
               <div className="flex-1" />
 
-              <div className="flex flex-col items-center gap-1 mb-1">
+              <div className="flex flex-col items-center mb-1">
                 <button
-                  className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors relative ${projectSettingsOpen ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
+                  className={`relative w-full h-10 flex items-center justify-center transition-colors ${projectSettingsOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
                   onClick={() => setProjectSettingsOpen(true)}
                   title="Settings"
                   data-testid="activity-settings"
                 >
+                  {projectSettingsOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
                   <Settings className="w-[18px] h-[18px]" />
-                  <span className={`absolute bottom-1 right-1 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+                  <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
                 </button>
               </div>
             </div>
@@ -1236,8 +1293,66 @@ export default function Project() {
               </div>
             )}
 
+            {/* SEARCH PANEL */}
+            {searchPanelOpen && !aiPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="search-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
+                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Search</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setSearchPanelOpen(false)} data-testid="button-close-search">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <div className="px-3 py-2 border-b border-[#2B3245]">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
+                    <Input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search in files..."
+                      className="pl-8 bg-[#0E1525] border-[#2B3245] h-8 text-xs text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md"
+                      autoFocus
+                      data-testid="input-search-files"
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {searchTerm.trim() && searchResults.length === 0 && (
+                    <div className="px-3 py-6 text-center">
+                      <p className="text-xs text-[#676D7E]">No results found</p>
+                    </div>
+                  )}
+                  {searchResults.map((result, i) => (
+                    <button
+                      key={`${result.fileId}-${result.line}-${i}`}
+                      className="w-full text-left px-3 py-1.5 hover:bg-[#2B3245] transition-colors border-b border-[#2B3245]/50"
+                      onClick={() => {
+                        const file = filesQuery.data?.find((f) => f.id === result.fileId);
+                        if (file) { openFile(file); }
+                        setSearchPanelOpen(false);
+                      }}
+                      data-testid={`search-result-${i}`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <FileIcon className={`w-3 h-3 shrink-0 ${getFileColor(result.filename)}`} />
+                        <span className="text-[10px] font-medium text-[#F5F9FC] truncate">{result.filename}</span>
+                        <span className="text-[9px] text-[#676D7E] ml-auto shrink-0">:{result.line}</span>
+                      </div>
+                      <p className="text-[10px] text-[#9DA2B0] truncate font-mono pl-4">{result.text}</p>
+                    </button>
+                  ))}
+                  {!searchTerm.trim() && (
+                    <div className="px-3 py-8 text-center">
+                      <Search className="w-8 h-8 text-[#2B3245] mx-auto mb-3" />
+                      <p className="text-xs text-[#676D7E]">Type to search across all files</p>
+                      <p className="text-[10px] text-[#2B3245] mt-1">Ctrl+Shift+F</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* FILE EXPLORER SIDEBAR */}
-            {sidebarOpen && !aiPanelOpen && (
+            {sidebarOpen && !aiPanelOpen && !searchPanelOpen && (
               <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} shrink-0`}>
                 {sidebarContent}
               </div>

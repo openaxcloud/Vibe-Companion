@@ -6,9 +6,10 @@ import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
 
 interface CodeEditorProps {
   value: string;
@@ -17,18 +18,48 @@ interface CodeEditorProps {
   readOnly?: boolean;
 }
 
-const customTheme = EditorView.theme({
+const replitHighlight = HighlightStyle.define([
+  { tag: t.keyword, color: "#C678DD" },
+  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: "#E06C75" },
+  { tag: [t.function(t.variableName), t.labelName], color: "#61AFEF" },
+  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: "#D19A66" },
+  { tag: [t.definition(t.name), t.separator], color: "#ABB2BF" },
+  { tag: [t.typeName, t.className, t.number, t.changed, t.annotation, t.modifier, t.self, t.namespace], color: "#E5C07B" },
+  { tag: [t.operator, t.operatorKeyword, t.url, t.escape, t.regexp, t.link, t.special(t.string)], color: "#56B6C2" },
+  { tag: [t.meta, t.comment], color: "#5C6370", fontStyle: "italic" },
+  { tag: t.strong, fontWeight: "bold" },
+  { tag: t.emphasis, fontStyle: "italic" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.link, color: "#56B6C2", textDecoration: "underline" },
+  { tag: t.heading, fontWeight: "bold", color: "#E06C75" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#D19A66" },
+  { tag: [t.processingInstruction, t.string, t.inserted], color: "#98C379" },
+  { tag: t.invalid, color: "#F44747" },
+]);
+
+const replitTheme = EditorView.theme({
   "&": {
     height: "100%",
     background: "#1C2333",
+    color: "#ABB2BF",
   },
   ".cm-scroller": {
     overflow: "auto",
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: "13px",
+    lineHeight: "1.65",
   },
   ".cm-gutters": {
     background: "#0E1525",
     borderRight: "1px solid #2B3245",
     color: "#676D7E",
+    minWidth: "52px",
+  },
+  ".cm-lineNumbers .cm-gutterElement": {
+    fontSize: "12px",
+    padding: "0 12px 0 8px",
+    minWidth: "32px",
+    textAlign: "right",
   },
   ".cm-activeLineGutter": {
     background: "#1C2333",
@@ -37,7 +68,7 @@ const customTheme = EditorView.theme({
   ".cm-activeLine": {
     background: "rgba(43, 50, 69, 0.4)",
   },
-  ".cm-cursor": {
+  ".cm-cursor, .cm-dropCursor": {
     borderLeftColor: "#0079F2",
     borderLeftWidth: "2px",
   },
@@ -48,15 +79,53 @@ const customTheme = EditorView.theme({
     background: "rgba(0, 121, 242, 0.28) !important",
   },
   ".cm-content": {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: "13px",
-    lineHeight: "1.65",
+    caretColor: "#0079F2",
+    padding: "4px 0",
   },
-  ".cm-matchingBracket": {
+  ".cm-matchingBracket, .cm-nonmatchingBracket": {
     background: "rgba(0, 121, 242, 0.15)",
     outline: "1px solid rgba(0, 121, 242, 0.3)",
   },
-});
+  ".cm-foldGutter": {
+    width: "14px",
+  },
+  ".cm-tooltip": {
+    background: "#1C2333",
+    border: "1px solid #2B3245",
+    borderRadius: "8px",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+  },
+  ".cm-tooltip-autocomplete > ul > li": {
+    padding: "4px 8px",
+  },
+  ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    background: "rgba(0, 121, 242, 0.15)",
+  },
+  ".cm-panels": {
+    background: "#0E1525",
+    color: "#F5F9FC",
+  },
+  ".cm-panels.cm-panels-top": {
+    borderBottom: "1px solid #2B3245",
+  },
+  ".cm-panels.cm-panels-bottom": {
+    borderTop: "1px solid #2B3245",
+  },
+  ".cm-searchMatch": {
+    background: "rgba(229, 192, 123, 0.3)",
+    outline: "1px solid rgba(229, 192, 123, 0.5)",
+  },
+  ".cm-searchMatch.cm-searchMatch-selected": {
+    background: "rgba(0, 121, 242, 0.3)",
+  },
+  ".cm-foldPlaceholder": {
+    background: "#2B3245",
+    border: "none",
+    color: "#9DA2B0",
+    padding: "0 6px",
+    borderRadius: "3px",
+  },
+}, { dark: true });
 
 function getLanguageExtension(lang: string) {
   switch (lang) {
@@ -109,7 +178,8 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
   const extensions = useMemo(() => {
     const ext = [
       getLanguageExtension(language),
-      customTheme,
+      replitTheme,
+      syntaxHighlighting(replitHighlight),
       indentUnit.of("  "),
       EditorView.lineWrapping,
     ];
@@ -124,7 +194,7 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       value={value}
       onChange={onChange}
       extensions={extensions}
-      theme={oneDark}
+      theme="none"
       basicSetup={{
         lineNumbers: true,
         bracketMatching: true,

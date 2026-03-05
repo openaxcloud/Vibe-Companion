@@ -366,13 +366,13 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
 
   return (
     <div className="flex flex-col h-full bg-[#1C2333]">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+      <div className="flex items-center justify-between px-3 h-10 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#7C65CB]/20 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-[#7C65CB]" />
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[#7C65CB]/30 to-[#7C65CB]/10 flex items-center justify-center ring-1 ring-[#7C65CB]/20">
+            <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold text-[#F5F9FC]">AI</span>
+            <span className="text-[13px] font-semibold text-[#F5F9FC] tracking-tight">AI</span>
             {mode === "agent" ? (
               <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} title="Agent mode uses Claude for tool capabilities" data-testid="button-model-select">
                 <Sparkles className="w-2.5 h-2.5" />
@@ -415,16 +415,16 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         </div>
         <div className="flex items-center gap-1">
           {projectId && (
-            <div className="flex items-center mr-1 bg-[#2B3245]/50 rounded-md p-0.5">
+            <div className="flex items-center mr-1 bg-[#2B3245]/30 rounded-lg p-0.5 ring-1 ring-[#2B3245]/50">
               <button
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${mode === "chat" ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "chat" ? "bg-[#2B3245] text-[#F5F9FC] shadow-sm" : "text-[#676D7E] hover:text-[#9DA2B0]"}`}
                 onClick={() => setMode("chat")}
                 data-testid="mode-chat"
               >
                 <MessageSquare className="w-3 h-3" /> Chat
               </button>
               <button
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${mode === "agent" ? "bg-[#7C65CB]/30 text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "agent" ? "bg-[#7C65CB]/25 text-[#7C65CB] shadow-sm" : "text-[#676D7E] hover:text-[#9DA2B0]"}`}
                 onClick={() => { setMode("agent"); setModel("claude"); }}
                 data-testid="mode-agent"
               >
@@ -452,22 +452,26 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
       )}
 
       {mode === "agent" && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#2B3245] bg-[#7C65CB]/10 text-[10px] text-[#7C65CB] shrink-0">
-          <Bot className="w-3 h-3" />
-          <span>Agent mode — AI can create and edit files in your project</span>
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#7C65CB]/15 bg-gradient-to-r from-[#7C65CB]/10 to-[#7C65CB]/5 text-[10px] text-[#7C65CB] shrink-0">
+          <div className="w-4 h-4 rounded bg-[#7C65CB]/20 flex items-center justify-center">
+            <Bot className="w-2.5 h-2.5" />
+          </div>
+          <span className="font-medium">Agent mode</span>
+          <span className="text-[#7C65CB]/60">—</span>
+          <span className="text-[#7C65CB]/70">AI can create and edit files in your project</span>
         </div>
       )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-[fade-in_0.4s_ease-out]">
-            <div className="w-16 h-16 rounded-2xl bg-[#7C65CB]/10 flex items-center justify-center mb-4 border border-[#7C65CB]/20">
-              {mode === "agent" ? <Bot className="w-8 h-8 text-[#7C65CB]/60" /> : <Sparkles className="w-8 h-8 text-[#7C65CB]/60" />}
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7C65CB]/20 to-[#7C65CB]/5 flex items-center justify-center mb-4 ring-1 ring-[#7C65CB]/15">
+              {mode === "agent" ? <Bot className="w-7 h-7 text-[#7C65CB]/70" /> : <Sparkles className="w-7 h-7 text-[#7C65CB]/70" />}
             </div>
-            <p className="text-base font-semibold text-[#F5F9FC] mb-2" data-testid="text-ai-title">
+            <p className="text-[15px] font-semibold text-[#F5F9FC] mb-1.5 tracking-tight" data-testid="text-ai-title">
               {mode === "agent" ? "AI Coding Agent" : "AI Assistant"}
             </p>
-            <p className="text-xs text-[#9DA2B0] max-w-[280px] leading-relaxed mb-6">
+            <p className="text-[11px] text-[#676D7E] max-w-[260px] leading-relaxed mb-5">
               {mode === "agent"
                 ? "I can build features, create files, and edit your code directly. Describe what you want to build."
                 : "I can help you write code, debug issues, explain concepts, and suggest improvements."}
@@ -478,15 +482,15 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 return (
                   <button
                     key={item.label}
-                    className="flex flex-col items-center gap-2 w-full text-center px-3 py-3 rounded-lg bg-[#0E1525] border border-[#2B3245] text-xs text-[#9DA2B0] hover:text-[#F5F9FC] hover:border-[#323B4F] hover:bg-[#1C2333] transition-all group"
+                    className="flex items-start gap-2.5 w-full text-left px-3 py-2.5 rounded-lg bg-[#0E1525]/80 border border-[#2B3245]/60 text-xs text-[#9DA2B0] hover:text-[#F5F9FC] hover:border-[#7C65CB]/30 hover:bg-[#0E1525] transition-all group"
                     onClick={() => { setInput(item.label); inputRef.current?.focus(); }}
                     data-testid={`suggestion-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-[#2B3245]/50 flex items-center justify-center group-hover:bg-[#7C65CB]/15 transition-colors">
-                      <Icon className="w-4 h-4 group-hover:text-[#7C65CB] transition-colors" />
+                    <div className="w-7 h-7 rounded-md bg-[#2B3245]/40 flex items-center justify-center shrink-0 group-hover:bg-[#7C65CB]/15 transition-colors">
+                      <Icon className="w-3.5 h-3.5 group-hover:text-[#7C65CB] transition-colors" />
                     </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[11px] font-medium leading-tight">{item.label}</span>
+                    <div className="flex flex-col min-w-0 pt-0.5">
+                      <span className="text-[11px] font-medium leading-tight truncate">{item.label}</span>
                       <span className="text-[9px] text-[#676D7E] mt-0.5">{item.category}</span>
                     </div>
                   </button>
@@ -496,16 +500,16 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
           </div>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex gap-3 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-              msg.role === "assistant" ? "bg-[#7C65CB]/20" : "bg-[#0079F2]/20"
+          <div key={msg.id} className={`flex gap-2.5 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-1 ${
+              msg.role === "assistant" ? "bg-[#7C65CB]/15 ring-1 ring-[#7C65CB]/20" : "bg-[#0079F2] ring-1 ring-[#0079F2]/30"
             }`}>
-              {msg.role === "assistant" ? <Bot className="w-4 h-4 text-[#7C65CB]" /> : <User className="w-4 h-4 text-[#0079F2]" />}
+              {msg.role === "assistant" ? <Bot className="w-3.5 h-3.5 text-[#7C65CB]" /> : <User className="w-3.5 h-3.5 text-white" />}
             </div>
-            <div className={`max-w-[85%] rounded-lg px-3 py-2.5 text-[13px] leading-relaxed ${
+            <div className={`max-w-[82%] rounded-xl text-[13px] leading-relaxed ${
               msg.role === "user"
-                ? "bg-[#0079F2]/15 text-[#F5F9FC] border border-[#0079F2]/20"
-                : "bg-[#2B3245] text-[#F5F9FC] border border-[#2B3245]"
+                ? "bg-[#0079F2] text-white px-3.5 py-2.5 shadow-md shadow-[#0079F2]/10"
+                : "bg-[#2B3245]/60 text-[#F5F9FC] px-3.5 py-2.5 border border-[#2B3245]/80"
             }`}>
               {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
             </div>
@@ -513,8 +517,8 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         ))}
       </div>
 
-      <div className="p-3 border-t border-[#2B3245] bg-[#0E1525] shrink-0">
-        <div className="relative">
+      <div className="p-2.5 border-t border-[#2B3245] bg-[#0E1525] shrink-0">
+        <div className="relative rounded-xl border border-[#2B3245] bg-[#1C2333]/50 focus-within:border-[#7C65CB]/40 focus-within:ring-1 focus-within:ring-[#7C65CB]/15 transition-all">
           <textarea
             ref={inputRef}
             value={input}
@@ -522,7 +526,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             onKeyDown={handleKeyDown}
             placeholder={mode === "agent" ? "Tell the agent what to build..." : "Ask anything about your code..."}
             rows={2}
-            className="w-full bg-[#0E1525] border border-[#2B3245] text-sm text-[#F5F9FC] rounded-lg px-3 py-2.5 pr-12 resize-none placeholder:text-[#676D7E] focus:outline-none focus:border-[#7C65CB]/50 focus:ring-1 focus:ring-[#7C65CB]/20 min-h-[52px] max-h-[160px]"
+            className="w-full bg-transparent text-[13px] text-[#F5F9FC] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[#676D7E]/80 focus:outline-none min-h-[52px] max-h-[160px]"
             disabled={isStreaming}
             data-testid="input-ai-chat"
           />
@@ -531,27 +535,27 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
               <Button
                 onClick={stopStreaming}
                 size="icon"
-                className="w-8 h-8 bg-red-600 hover:bg-red-700 rounded-lg"
+                className="w-7 h-7 bg-red-500/90 hover:bg-red-600 rounded-lg shadow-sm"
                 data-testid="button-ai-stop"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </Button>
             ) : (
               <Button
                 onClick={sendMessage}
                 size="icon"
-                className="w-8 h-8 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-lg"
+                className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-lg shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
                 disabled={!input.trim()}
                 data-testid="button-ai-send"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3.5 h-3.5" />
               </Button>
             )}
           </div>
         </div>
-        <div className="flex items-center justify-between mt-1.5 px-1">
-          <span className="text-[10px] text-[#676D7E]">
-            <kbd className="px-1 py-0.5 rounded bg-[#2B3245]/50 text-[9px] font-mono">Shift+Enter</kbd> for newline
+        <div className="flex items-center justify-between mt-1.5 px-1.5">
+          <span className="text-[10px] text-[#676D7E]/70">
+            <kbd className="px-1 py-0.5 rounded bg-[#2B3245]/40 text-[9px] font-mono text-[#676D7E]">⇧ Enter</kbd> for newline
           </span>
           {isStreaming && (
             <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">

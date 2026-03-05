@@ -657,7 +657,7 @@ export async function registerRoutes(
 
   app.post("/api/projects/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { prompt } = req.body;
+      const { prompt, model: requestedModel } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
         return res.status(400).json({ message: "Please provide a project description (at least 3 characters)" });
       }
@@ -682,14 +682,27 @@ Rules:
 - Keep it focused and functional
 - Do NOT wrap the JSON in markdown code blocks`;
 
-      const message = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        system: systemPrompt,
-        messages: [{ role: "user", content: prompt.trim() }],
-        max_tokens: 4096,
-      });
+      let text = "";
 
-      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      if (requestedModel === "gpt") {
+        const gptResponse = await openai.chat.completions.create({
+          model: "gpt-5.2",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt.trim() },
+          ],
+          max_completion_tokens: 4096,
+        });
+        text = gptResponse.choices[0]?.message?.content || "";
+      } else {
+        const message = await anthropic.messages.create({
+          model: "claude-sonnet-4-6",
+          system: systemPrompt,
+          messages: [{ role: "user", content: prompt.trim() }],
+          max_tokens: 4096,
+        });
+        text = message.content[0].type === "text" ? message.content[0].text : "";
+      }
       let spec: { name: string; language: string; files: { filename: string; content: string }[] };
 
       try {
