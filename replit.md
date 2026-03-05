@@ -47,7 +47,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 ## Design System
 - **Replit orange logo**: SVG three-block mark (#F26522) used throughout (header, auth, empty state, footer, status bar)
 - **Color tokens**: #0E1525 (bars/nav), #1C2333 (panels/editor), #2B3245 (borders/surface), #323B4F (hover), #0079F2 (accent blue), #0CCE6B (green run), #7C65CB (AI purple), #F26522 (Replit orange), #F5F9FC (text primary), #9DA2B0 (text secondary), #676D7E (text muted)
-- **Fonts**: Plus Jakarta Sans (UI), JetBrains Mono (code/terminal)
+- **Fonts**: IBM Plex Sans (UI), IBM Plex Mono / JetBrains Mono (code/terminal)
 
 ## API Routes
 - `POST /api/auth/register` - Register
@@ -113,7 +113,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files with results showing filename, line number, and matching text
 - **Editor** (center): CodeMirror 6 with tabs (active=bright bg, blue bottom accent) + resizable bottom panel (Console + Shell)
 - **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab — Replit's signature side-by-side layout
-- **Status Bar** (22px, bottom): workspace status dot, connection indicator, language name, Replit logo branding
+- **Status Bar** (h-6, bottom, bg #0E1525): workspace status dot, connection indicator, language name, Replit logo branding
 - **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
 
 ## Tech Stack

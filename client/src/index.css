@@ -61,8 +61,8 @@
   --input: 240 6% 90%;
   --ring: 213 100% 47%;
   --radius: 0.5rem;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: 'IBM Plex Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 .dark {
@@ -93,23 +93,29 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground overflow-x-hidden;
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(155, 163, 182, 0.12);
-  border-radius: 3px;
-  transition: background 150ms ease;
+  background: rgba(103, 109, 126, 0.25);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(155, 163, 182, 0.25);
+  background: rgba(103, 109, 126, 0.45);
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
@@ -117,7 +123,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(155, 163, 182, 0.12) transparent;
+  scrollbar-color: rgba(103, 109, 126, 0.25) transparent;
 }
 
 ::selection {
@@ -128,71 +134,116 @@
 .cm-editor {
   height: 100% !important;
   background: #1C2333 !important;
+  font-variant-ligatures: none !important;
+}
+.cm-editor.cm-focused {
+  outline: none !important;
 }
 .cm-gutters {
   background: #0E1525 !important;
   border-right: 1px solid #2B3245 !important;
   color: #676D7E !important;
-  min-width: 52px !important;
+  min-width: 56px !important;
+  padding-right: 2px !important;
 }
 .cm-lineNumbers .cm-gutterElement {
   font-size: 12px !important;
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace !important;
   padding: 0 12px 0 8px !important;
-  min-width: 32px !important;
+  min-width: 36px !important;
   text-align: right !important;
+  line-height: inherit !important;
 }
 .cm-activeLineGutter {
-  background: rgba(28, 35, 51, 0.6) !important;
+  background: #1C2333 !important;
   color: #9DA2B0 !important;
 }
 .cm-activeLine {
-  background: rgba(43, 50, 69, 0.35) !important;
+  background: rgba(43, 50, 69, 0.4) !important;
 }
-.cm-cursor {
+.cm-cursor, .cm-cursor-primary {
   border-left-color: #0079F2 !important;
   border-left-width: 2px !important;
 }
 .cm-selectionBackground {
-  background: rgba(0, 121, 242, 0.18) !important;
+  background: rgba(0, 121, 242, 0.15) !important;
 }
 .cm-focused .cm-selectionBackground {
   background: rgba(0, 121, 242, 0.25) !important;
 }
 .cm-content {
-  font-family: 'JetBrains Mono', monospace !important;
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace !important;
   font-size: 13px !important;
-  line-height: 1.65 !important;
+  line-height: 1.6 !important;
   padding: 4px 0 !important;
   caret-color: #0079F2 !important;
+  letter-spacing: 0 !important;
+}
+.cm-line {
+  padding: 0 4px 0 8px !important;
 }
 .cm-scroller {
   overflow: auto !important;
+  font-family: inherit !important;
 }
 .cm-foldGutter {
   width: 14px !important;
 }
+.cm-foldGutter .cm-gutterElement {
+  color: #4A5068 !important;
+  cursor: pointer !important;
+}
+.cm-foldGutter .cm-gutterElement:hover {
+  color: #9DA2B0 !important;
+}
 .cm-tooltip {
   background: #1C2333 !important;
   border: 1px solid #2B3245 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden !important;
+}
+.cm-tooltip-autocomplete > ul {
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
 }
 .cm-tooltip-autocomplete > ul > li {
-  padding: 4px 8px !important;
+  padding: 4px 10px !important;
+  line-height: 1.5 !important;
 }
 .cm-tooltip-autocomplete > ul > li[aria-selected] {
   background: rgba(0, 121, 242, 0.15) !important;
+  color: #F5F9FC !important;
 }
 .cm-matchingBracket {
   background: rgba(0, 121, 242, 0.12) !important;
-  outline: 1px solid rgba(0, 121, 242, 0.25) !important;
+  outline: 1px solid rgba(0, 121, 242, 0.3) !important;
+  border-radius: 2px !important;
 }
 .cm-searchMatch {
-  background: rgba(12, 206, 107, 0.15) !important;
+  background: rgba(12, 206, 107, 0.12) !important;
   outline: 1px solid rgba(12, 206, 107, 0.3) !important;
+  border-radius: 2px !important;
 }
 .cm-searchMatch-selected {
   background: rgba(12, 206, 107, 0.3) !important;
+}
+.cm-panels {
+  background: #0E1525 !important;
+  border-color: #2B3245 !important;
+}
+.cm-panels input {
+  background: #1C2333 !important;
+  border: 1px solid #2B3245 !important;
+  color: #F5F9FC !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+}
+.cm-panels button {
+  background: #2B3245 !important;
+  border: none !important;
+  color: #9DA2B0 !important;
+  border-radius: 4px !important;
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -212,7 +263,7 @@
 }
 
 .hover-transition {
-  transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+  transition: background-color 100ms ease, color 100ms ease, opacity 100ms ease, border-color 100ms ease;
 }
 
 @keyframes bouncing-dots {
@@ -236,21 +287,21 @@
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in { animation: fade-in 250ms ease-out; }
+.animate-fade-in { animation: fade-in 200ms ease-out; }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateX(-10px); }
+  from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(10px); }
+  from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: translateX(0); }
 }
-.animate-slide-in { animation: slide-in-right 250ms ease-out; }
+.animate-slide-in { animation: slide-in-right 200ms ease-out; }
 
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 20px rgba(0, 121, 242, 0.1); }
@@ -280,7 +331,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: #2B3245;
+  background: rgba(43, 50, 69, 0.5);
 }
 
 .glass-panel {
@@ -293,11 +344,16 @@
 input:focus-visible,
 textarea:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 121, 242, 0.3);
+  box-shadow: 0 0 0 2px rgba(0, 121, 242, 0.25);
 }
 
-.xterm .xterm-viewport::-webkit-scrollbar { width: 6px; }
-.xterm .xterm-viewport::-webkit-scrollbar-thumb { background: rgba(155, 163, 182, 0.12); border-radius: 3px; }
+.xterm .xterm-viewport::-webkit-scrollbar { width: 8px; }
+.xterm .xterm-viewport::-webkit-scrollbar-thumb { 
+  background: rgba(103, 109, 126, 0.25); 
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
 
 .tab-active {
   color: #F5F9FC;
@@ -327,7 +383,10 @@ textarea:focus-visible {
   transition: background-color 80ms ease, color 80ms ease;
 }
 .file-tree-item:hover {
-  background-color: rgba(43, 50, 69, 0.5);
+  background-color: rgba(43, 50, 69, 0.4);
+}
+.file-tree-item.active {
+  background-color: rgba(43, 50, 69, 0.7);
 }
 
 .replit-input {
@@ -338,7 +397,7 @@ textarea:focus-visible {
 }
 .replit-input:focus {
   border-color: rgba(0, 121, 242, 0.5);
-  box-shadow: 0 0 0 2px rgba(0, 121, 242, 0.12);
+  box-shadow: 0 0 0 2px rgba(0, 121, 242, 0.1);
   outline: none;
 }
 .replit-input::placeholder {
@@ -367,4 +426,22 @@ textarea:focus-visible {
 }
 .status-dot-idle {
   background: #676D7E;
+}
+
+.replit-btn {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: all 120ms ease;
+}
+.replit-btn:active {
+  transform: scale(0.98);
+}
+
+.sidebar-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9DA2B0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 12px 4px;
 }

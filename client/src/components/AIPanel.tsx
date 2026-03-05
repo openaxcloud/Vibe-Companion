@@ -482,7 +482,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 return (
                   <button
                     key={item.label}
-                    className="flex items-start gap-2.5 w-full text-left px-3 py-2.5 rounded-lg bg-[#0E1525]/80 border border-[#2B3245]/60 text-xs text-[#9DA2B0] hover:text-[#F5F9FC] hover:border-[#7C65CB]/30 hover:bg-[#0E1525] transition-all group"
+                    className="flex items-start gap-2.5 w-full text-left px-3 py-2.5 rounded-lg bg-[#0E1525]/80 border border-[#2B3245]/60 text-xs text-[#9DA2B0] hover:text-[#F5F9FC] hover:border-[#7C65CB]/30 hover:bg-[#0E1525] hover:-translate-y-0.5 hover:shadow-md transition-all group"
                     onClick={() => { setInput(item.label); inputRef.current?.focus(); }}
                     data-testid={`suggestion-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
@@ -506,10 +506,10 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             }`}>
               {msg.role === "assistant" ? <Bot className="w-3.5 h-3.5 text-[#7C65CB]" /> : <User className="w-3.5 h-3.5 text-white" />}
             </div>
-            <div className={`max-w-[82%] rounded-xl text-[13px] leading-relaxed ${
+            <div className={`max-w-[82%] rounded-lg text-[13px] leading-relaxed ${
               msg.role === "user"
-                ? "bg-[#0079F2] text-white px-3.5 py-2.5 shadow-md shadow-[#0079F2]/10"
-                : "bg-[#2B3245]/60 text-[#F5F9FC] px-3.5 py-2.5 border border-[#2B3245]/80"
+                ? "bg-[#0079F2]/8 text-[#F5F9FC] px-3.5 py-2.5"
+                : "bg-[#0E1525]/50 text-[#F5F9FC] px-3.5 py-2.5"
             }`}>
               {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
             </div>
@@ -524,9 +524,9 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === "agent" ? "Tell the agent what to build..." : "Ask anything about your code..."}
-            rows={2}
-            className="w-full bg-transparent text-[13px] text-[#F5F9FC] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[#676D7E]/80 focus:outline-none min-h-[52px] max-h-[160px]"
+            placeholder="Ask AI anything..."
+            rows={3}
+            className="w-full bg-transparent text-[13px] text-[#F5F9FC] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[#676D7E]/80 focus:outline-none min-h-[68px] max-h-[160px]"
             disabled={isStreaming}
             data-testid="input-ai-chat"
           />
@@ -535,28 +535,26 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
               <Button
                 onClick={stopStreaming}
                 size="icon"
-                className="w-7 h-7 bg-red-500/90 hover:bg-red-600 rounded-lg shadow-sm"
+                className="w-7 h-7 bg-red-500/90 hover:bg-red-600 rounded-full shadow-sm"
                 data-testid="button-ai-stop"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5 text-white" />
               </Button>
             ) : (
               <Button
                 onClick={sendMessage}
                 size="icon"
-                className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-lg shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
+                className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-full shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
                 disabled={!input.trim()}
                 data-testid="button-ai-send"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-3.5 h-3.5 text-white" />
               </Button>
             )}
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1.5">
-          <span className="text-[10px] text-[#676D7E]/70">
-            <kbd className="px-1 py-0.5 rounded bg-[#2B3245]/40 text-[9px] font-mono text-[#676D7E]">⇧ Enter</kbd> for newline
-          </span>
+          <span className="text-[9px] text-[#4A5068]">Shift+Enter for new line</span>
           {isStreaming && (
             <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
               <div className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />

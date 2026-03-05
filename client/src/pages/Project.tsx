@@ -780,17 +780,20 @@ export default function Project() {
     <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#1C2333] flex flex-col ${isMobile ? "" : "border-r border-[#2B3245]"} overflow-hidden`}>
       <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Files</span>
-          {useRunnerFS && <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20">LIVE</span>}
+          <span className="text-[11px] font-semibold text-[#9DA2B0] uppercase tracking-wider">Files</span>
+          {useRunnerFS && <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 font-medium">LIVE</span>}
         </div>
-        <div className="flex items-center gap-0">
+        <div className="flex items-center gap-0.5">
           {useRunnerFS && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
               <FolderPlus className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
             <Plus className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => invalidateFs()} title="Refresh">
+            <RefreshCw className="w-3 h-3" />
           </Button>
         </div>
       </div>
@@ -811,19 +814,19 @@ export default function Project() {
               return (
                 <div
                   key={entry.path}
-                  className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${entryId === activeFileId ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#9DA2B0] hover:bg-[#323B4F] hover:text-[#F5F9FC]"}`}
+                  className={`group flex items-center gap-2 px-3 py-[5px] cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
                   onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                   data-testid={`fs-entry-${entry.name}`}
                 >
                   {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(entry.name)}`} />}
-                  <span className="flex-1 text-xs truncate">{entry.name}{isDir ? "/" : ""}</span>
-                  {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
+                  <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
+                  {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                   <div className="hidden group-hover:flex items-center gap-0.5">
-                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); }} data-testid={`button-rename-${entry.name}`}>
-                      <Pencil className="w-3 h-3" />
+                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); }} data-testid={`button-rename-${entry.name}`}>
+                      <Pencil className="w-2.5 h-2.5" />
                     </button>
-                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }} data-testid={`button-delete-${entry.name}`}>
-                      <Trash2 className="w-3 h-3" />
+                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }} data-testid={`button-delete-${entry.name}`}>
+                      <Trash2 className="w-2.5 h-2.5" />
                     </button>
                   </div>
                 </div>
@@ -856,16 +859,16 @@ export default function Project() {
             {filesQuery.data?.map((file) => (
               <div
                 key={file.id}
-                className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#9DA2B0] hover:bg-[#323B4F] hover:text-[#F5F9FC]"}`}
+                className={`group flex items-center gap-2 px-3 py-[5px] cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
                 onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                 data-testid={`file-item-${file.id}`}
               >
                 <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(file.filename)}`} />
-                <span className="flex-1 text-xs truncate">{file.filename}</span>
-                {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
+                <span className="flex-1 text-[12px] truncate">{file.filename}</span>
+                {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                 <div className="hidden group-hover:flex items-center gap-0.5">
-                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-3 h-3" /></button>
-                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-3 h-3" /></button>
+                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-2.5 h-2.5" /></button>
+                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-2.5 h-2.5" /></button>
                 </div>
               </div>
             ))}
@@ -890,16 +893,16 @@ export default function Project() {
         if (!isRunner && !file) return null;
         const isActive = tabId === activeFileId;
         return (
-          <div key={tabId} className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 transition-colors border-b-2 ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-b-transparent"}`}
+          <div key={tabId} className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 hover-transition ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-b-transparent"}`}
             onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
             data-testid={`tab-${tabId}`}
           >
             <FileIcon className={`w-3 h-3 shrink-0 ${getFileColor(tabName)}`} />
-            <span className="text-[11px] max-w-[120px] truncate">{tabName}</span>
+            <span className="text-[11px] max-w-[120px] truncate font-medium">{tabName}</span>
             {dirtyFiles.has(tabId) ? (
-              <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
             ) : (
-              <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
+              <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-0.5" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
             )}
           </div>
         );
@@ -1003,27 +1006,6 @@ export default function Project() {
     </div>
   );
 
-  const bottomPanel = (
-    <div className="shrink-0 flex flex-col border-t border-[#2B3245] bg-[#1C2333]" style={{ height: terminalHeight }}>
-      <div className="h-[3px] cursor-ns-resize resize-handle flex items-center justify-center shrink-0 hover:bg-[#0079F2]/40 transition-colors" onMouseDown={handleDragStart} onTouchStart={handleDragStart} />
-      <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-        <div className="flex items-center h-full">
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
-            <Terminal className="w-3.5 h-3.5" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
-          </button>
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
-            <Hash className="w-3.5 h-3.5" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
-          </button>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-3 h-3" /></Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-3 h-3" /></Button>
-        </div>
-      </div>
-      {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
-    </div>
-  );
-
   const wsStatusBadge = (
     <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
       wsStatus === "running" ? "bg-green-600/20 text-green-400 border border-green-600/30" :
@@ -1048,20 +1030,45 @@ export default function Project() {
     </Button>
   );
 
+  const bottomPanel = (
+    <div className="shrink-0 flex flex-col border-t border-[#2B3245] bg-[#1C2333]" style={{ height: terminalHeight }}>
+      <div className="h-1 cursor-ns-resize resize-handle flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
+        <div className="w-8 h-[2px] rounded-full bg-[#2B3245]" />
+      </div>
+      <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+        <div className="flex items-center h-full">
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
+            <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+          </button>
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition ${bottomTab === "shell" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
+            <Hash className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+          </button>
+        </div>
+        <div className="flex items-center gap-0.5 pr-1">
+          {wsStatusBadge}
+          {workspaceButton}
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-3 h-3" /></Button>
+        </div>
+      </div>
+      {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
+    </div>
+  );
+
   return (
     <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
       <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
-        <div className="flex items-center gap-2 min-w-0">
-          <button className="w-7 h-7 rounded-lg bg-[#1C2333] border border-[#2B3245] flex items-center justify-center shrink-0 hover:border-[#F26522]/40 transition-all" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
-            <svg width="14" height="14" viewBox="0 0 32 32" fill="none">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-all group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+            <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
               <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
               <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
               <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
             </svg>
           </button>
-          <ChevronRight className="w-3 h-3 text-[#676D7E] shrink-0" />
-          <span className="text-[13px] font-semibold text-[#F5F9FC] truncate max-w-[180px]" data-testid="text-project-name">{project?.name}</span>
+          <ChevronRight className="w-3 h-3 text-[#323B4F] shrink-0" />
+          <span className="text-[13px] font-medium text-[#F5F9FC] truncate max-w-[180px]" data-testid="text-project-name">{project?.name}</span>
           {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
         </div>
         <div className="flex items-center justify-center">
@@ -1214,7 +1221,7 @@ export default function Project() {
                 data-testid="activity-explorer"
               >
                 {sidebarOpen && !aiPanelOpen && !searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <PanelLeft className="w-[18px] h-[18px]" />
+                <PanelLeft className="w-5 h-5" />
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
@@ -1223,7 +1230,7 @@ export default function Project() {
                 data-testid="activity-search"
               >
                 {searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <Search className="w-[18px] h-[18px]" />
+                <Search className="w-5 h-5" />
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
@@ -1232,14 +1239,14 @@ export default function Project() {
                 data-testid="activity-ai"
               >
                 {aiPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#7C65CB]" />}
-                <Sparkles className="w-[18px] h-[18px]" />
+                <Sparkles className="w-5 h-5" />
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${false ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
                 title="Version Control"
                 data-testid="activity-git"
               >
-                <GitBranch className="w-[18px] h-[18px]" />
+                <GitBranch className="w-5 h-5" />
               </button>
               <button
                 className={`relative w-full h-10 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
@@ -1248,7 +1255,7 @@ export default function Project() {
                 data-testid="activity-webview"
               >
                 {previewPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <Monitor className="w-[18px] h-[18px]" />
+                <Monitor className="w-5 h-5" />
               </button>
 
               <div className="flex-1" />
@@ -1261,7 +1268,7 @@ export default function Project() {
                   data-testid="activity-settings"
                 >
                   {projectSettingsOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                  <Settings className="w-[18px] h-[18px]" />
+                  <Settings className="w-5 h-5" />
                   <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
                 </button>
               </div>
@@ -1376,16 +1383,16 @@ export default function Project() {
 
               {previewPanelOpen && !aiPanelOpen && (
                 <>
-                  <div className="w-[3px] cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#2B3245] hover:bg-[#0079F2]/50 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
+                  <div className="w-1 cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#2B3245] hover:bg-[#0079F2]/50 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
                   <div className="flex flex-col overflow-hidden bg-[#1C2333] border-l border-[#2B3245]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
-                    <div className="flex items-center gap-1.5 px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                    <div className="flex items-center gap-1 px-1.5 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
                       <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
                         onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
-                        title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-2.5 h-2.5" /></Button>
+                        title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-[#1C2333] border border-[#2B3245]">
-                          <Globe className="w-2.5 h-2.5 text-[#676D7E] shrink-0" />
-                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || "localhost"}</span>
+                        <div className="flex items-center gap-2 h-[26px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
+                          <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
+                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || "localhost:3000"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
@@ -1429,19 +1436,20 @@ export default function Project() {
           </div>
 
           {/* STATUS BAR */}
-          <div className="flex items-center justify-between px-3 h-6 bg-[#0E1525] border-t border-[#2B3245] shrink-0">
+          <div className="flex items-center justify-between px-3 h-6 bg-[#0E1525] border-t border-[#2B3245]/60 shrink-0">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 text-[10px] text-[#676D7E]">
-                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : "bg-[#676D7E]"}`} />
+                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : "bg-[#4A5068]"}`} />
                 {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting" : wsStatus === "none" ? "Ready" : wsStatus}
               </span>
-              {connected && <span className="text-[10px] text-[#676D7E]">Connected</span>}
+              {connected && <span className="text-[10px] text-[#4A5068] flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> WS</span>}
             </div>
-            <div className="flex items-center gap-4">
-              {activeFileName && <span className="text-[10px] text-[#9DA2B0]">{editorLanguage}</span>}
-              {activeFileName && <span className="text-[10px] text-[#676D7E]">UTF-8</span>}
-              <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
-                <svg width="10" height="10" viewBox="0 0 32 32" fill="none" className="opacity-50">
+            <div className="flex items-center gap-3">
+              {activeFileName && <span className="text-[10px] text-[#9DA2B0] capitalize">{editorLanguage}</span>}
+              {activeFileName && <span className="text-[10px] text-[#4A5068]">UTF-8</span>}
+              {activeFileName && <span className="text-[10px] text-[#4A5068]">LF</span>}
+              <span className="text-[10px] text-[#4A5068] flex items-center gap-1">
+                <svg width="9" height="9" viewBox="0 0 32 32" fill="none">
                   <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="currentColor"/>
                   <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="currentColor"/>
                   <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="currentColor"/>
