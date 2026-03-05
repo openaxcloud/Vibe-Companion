@@ -15,6 +15,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  model?: AIModel;
   fileOps?: { type: "created" | "updated"; filename: string }[];
 }
 
@@ -195,7 +196,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
     setIsStreaming(true);
 
     const assistantId = (Date.now() + 1).toString();
-    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
 
     abortRef.current = new AbortController();
 
@@ -494,44 +495,37 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-semibold text-[#F5F9FC] tracking-tight">AI</span>
-            {mode === "agent" ? (
-              <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} title="Agent mode uses Claude for tool capabilities" data-testid="button-model-select">
-                <Sparkles className="w-2.5 h-2.5" />
-                Claude Sonnet
-              </span>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
-                    <ModelIcon className="w-2.5 h-2.5" />
-                    {modelInfo.name}
-                    <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52 bg-[#1C2333] border-[#2B3245] p-1">
-                  <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("claude")} data-testid="model-claude">
-                    <div className="w-5 h-5 rounded bg-[#7C65CB]/15 flex items-center justify-center">
-                      <Sparkles className="w-3 h-3 text-[#7C65CB]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-medium">Claude Sonnet</span>
-                      <span className="text-[10px] text-[#676D7E]">Anthropic</span>
-                    </div>
-                    {model === "claude" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gpt")} data-testid="model-gpt">
-                    <div className="w-5 h-5 rounded bg-[#0CCE6B]/15 flex items-center justify-center">
-                      <Zap className="w-3 h-3 text-[#0CCE6B]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-medium">GPT-5.2</span>
-                      <span className="text-[10px] text-[#676D7E]">OpenAI</span>
-                    </div>
-                    {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
+                  <ModelIcon className="w-2.5 h-2.5" />
+                  {modelInfo.name}
+                  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52 bg-[#1C2333] border-[#2B3245] p-1">
+                <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("claude")} data-testid="model-claude">
+                  <div className="w-5 h-5 rounded bg-[#7C65CB]/15 flex items-center justify-center">
+                    <Sparkles className="w-3 h-3 text-[#7C65CB]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">Claude Sonnet</span>
+                    <span className="text-[10px] text-[#676D7E]">Anthropic</span>
+                  </div>
+                  {model === "claude" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gpt")} data-testid="model-gpt">
+                  <div className="w-5 h-5 rounded bg-[#0CCE6B]/15 flex items-center justify-center">
+                    <Zap className="w-3 h-3 text-[#0CCE6B]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">GPT-5.2</span>
+                    <span className="text-[10px] text-[#676D7E]">OpenAI</span>
+                  </div>
+                  {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -546,7 +540,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
               </button>
               <button
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "agent" ? "bg-[#7C65CB]/25 text-[#7C65CB] shadow-sm" : "text-[#676D7E] hover:text-[#9DA2B0]"}`}
-                onClick={() => { setMode("agent"); setModel("claude"); }}
+                onClick={() => setMode("agent")}
                 data-testid="mode-agent"
               >
                 <Bot className="w-3 h-3" /> Agent
@@ -620,22 +614,34 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             </div>
           </div>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex gap-2.5 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-            <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-1 ${
-              msg.role === "assistant" ? "bg-[#7C65CB]/15 ring-1 ring-[#7C65CB]/20" : "bg-[#0079F2] ring-1 ring-[#0079F2]/30"
-            }`}>
-              {msg.role === "assistant" ? <Bot className="w-3.5 h-3.5 text-[#7C65CB]" /> : <User className="w-3.5 h-3.5 text-white" />}
+        {messages.map((msg) => {
+          const msgModel = msg.model ? MODEL_LABELS[msg.model] : null;
+          const MsgModelIcon = msgModel?.icon || Sparkles;
+          return (
+            <div key={msg.id} className={`flex gap-2.5 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-1 ${
+                msg.role === "assistant" ? "bg-[#7C65CB]/15 ring-1 ring-[#7C65CB]/20" : "bg-[#0079F2] ring-1 ring-[#0079F2]/30"
+              }`}>
+                {msg.role === "assistant" ? <Bot className="w-3.5 h-3.5 text-[#7C65CB]" /> : <User className="w-3.5 h-3.5 text-white" />}
+              </div>
+              <div className={`max-w-[82%] rounded-lg text-[13px] leading-relaxed ${
+                msg.role === "user"
+                  ? "bg-[#0079F2]/8 text-[#F5F9FC] px-3.5 py-2.5"
+                  : "bg-[#0E1525]/50 text-[#F5F9FC] px-3.5 py-2.5"
+              }`}>
+                {msg.role === "assistant" && msgModel && (
+                  <div className="flex items-center gap-1.5 mb-1.5" data-testid={`badge-model-${msg.model}`}>
+                    <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${msgModel.color}`}>
+                      <MsgModelIcon className="w-2.5 h-2.5" />
+                      {msgModel.name}
+                    </span>
+                  </div>
+                )}
+                {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
+              </div>
             </div>
-            <div className={`max-w-[82%] rounded-lg text-[13px] leading-relaxed ${
-              msg.role === "user"
-                ? "bg-[#0079F2]/8 text-[#F5F9FC] px-3.5 py-2.5"
-                : "bg-[#0E1525]/50 text-[#F5F9FC] px-3.5 py-2.5"
-            }`}>
-              {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="p-2.5 border-t border-[#2B3245] bg-[#0E1525] shrink-0">
@@ -676,12 +682,18 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1.5">
           <span className="text-[9px] text-[#4A5068]">Shift+Enter for new line</span>
-          {isStreaming && (
-            <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />
-              Generating...
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {isStreaming ? (
+              <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />
+                Generating...
+              </span>
+            ) : (
+              <span className={`text-[9px] ${input.length > 3800 ? "text-red-400" : "text-[#4A5068]"}`} data-testid="text-char-count">
+                {input.length > 0 ? `${input.length.toLocaleString()} chars` : ""}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -26,18 +26,27 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Email/password authentication with persistent PostgreSQL-backed sessions
 - CRUD projects (create, list, duplicate, delete)
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
-- **VS Code-style IDE layout**: Activity bar on far left (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
+- **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
+- **Smooth panel transitions**: Sidebar, terminal, and preview panels animate open/close with CSS transitions
 - **Nested file tree**: Files with paths like `src/components/App.tsx` display in proper folder hierarchy with expand/collapse
+- **File tree context menu**: Right-click for Open, Rename, Duplicate, Delete, Copy Path; folders get New File/New Folder
+- **Tab context menu**: Right-click tabs for Close, Close Others, Close All, Close to Right, Copy Path
+- **Tab drag reorder**: Drag and drop tabs to reorder; scroll arrows when tabs overflow
 - Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
 - **Breadcrumbs**: Path segments above editor (src > components > App.tsx) with clickable segments
 - **Command Palette** (Cmd+K): Searchable command overlay with file switching and action shortcuts
 - CodeMirror 6 editor with Replit-accurate syntax theme (red keywords, green strings, teal functions, orange numbers)
 - **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
-- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI)
+- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI) — both work in chat AND agent mode
 - **Markdown rendering in AI chat**: Bold, italic, inline code, links, headers, bullet/numbered lists
+- **AI model badges**: Each AI response shows which model generated it (Claude/GPT)
+- **Character count**: Shows character count while typing in AI input
 - **Apply-to-file**: Code blocks in AI chat have "Apply" buttons that insert code directly into the active file
 - **Template starters**: Dashboard has horizontal scrolling template cards with arrow buttons
+- **Dashboard search**: Real-time project search in dashboard header
+- **Notifications**: Bell icon with badge count in dashboard header
+- **Credits indicator**: "Free" plan badge near profile in dashboard
 - Remote code execution (JavaScript, TypeScript, Python) via local sandbox
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
@@ -139,7 +148,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Settings Panel**: Theme toggle, editor font size/tab size/word wrap controls, about section
 - **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab
 - **Bottom Panel** (resizable): Console + Shell tabs with xterm.js terminal
-- **Status Bar** (h-6, bottom): workspace status dot, WS indicator, language, cursor position (Ln/Col), tab size, encoding, Replit logo
+- **Status Bar** (h-6, bottom): git branch "main", workspace status, WS indicator, problems count, language picker, cursor Ln/Col, tab size, encoding, Prettier, Replit logo
 - **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
 
 ## Tech Stack

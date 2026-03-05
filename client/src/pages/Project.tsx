@@ -9,20 +9,29 @@ import {
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
-  Search, Hash, PanelLeft, Users, GitBranch
+  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import AIPanel from "@/components/AIPanel";
 import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
 import WorkspaceTerminal from "@/components/WorkspaceTerminal";
@@ -136,6 +145,7 @@ export default function Project() {
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
+  const [newFileParentFolder, setNewFileParentFolder] = useState<string | null>(null);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -406,6 +416,107 @@ export default function Project() {
     }
   };
 
+  const closeOtherTabs = (keepTabId: string) => {
+    openTabs.forEach((id) => {
+      if (id !== keepTabId && dirtyFiles.has(id) && fileContents[id] !== undefined) {
+        saveMutation.mutate({ fileId: id, content: fileContents[id] });
+      }
+    });
+    setOpenTabs([keepTabId]);
+    setActiveFileId(keepTabId);
+    if (keepTabId.startsWith("runner:")) {
+      setActiveRunnerPath(keepTabId.slice(7));
+    } else {
+      setActiveRunnerPath(null);
+    }
+  };
+
+  const closeAllTabs = () => {
+    openTabs.forEach((id) => {
+      if (dirtyFiles.has(id) && fileContents[id] !== undefined) {
+        saveMutation.mutate({ fileId: id, content: fileContents[id] });
+      }
+    });
+    setOpenTabs([]);
+    setActiveFileId(null);
+    setActiveRunnerPath(null);
+  };
+
+  const closeTabsToRight = (tabId: string) => {
+    const idx = openTabs.indexOf(tabId);
+    if (idx < 0) return;
+    const tabsToClose = openTabs.slice(idx + 1);
+    tabsToClose.forEach((id) => {
+      if (dirtyFiles.has(id) && fileContents[id] !== undefined) {
+        saveMutation.mutate({ fileId: id, content: fileContents[id] });
+      }
+    });
+    const newTabs = openTabs.slice(0, idx + 1);
+    setOpenTabs(newTabs);
+    if (activeFileId && !newTabs.includes(activeFileId)) {
+      setActiveFileId(tabId);
+      if (tabId.startsWith("runner:")) {
+        setActiveRunnerPath(tabId.slice(7));
+      } else {
+        setActiveRunnerPath(null);
+      }
+    }
+  };
+
+  const copyTabPath = (tabId: string) => {
+    const isRunner = tabId.startsWith("runner:");
+    const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
+    const path = isRunner ? tabId.slice(7) : file?.filename || tabId;
+    navigator.clipboard.writeText(path);
+    toast({ title: "Path copied", description: path });
+  };
+
+  const [dragTabId, setDragTabId] = useState<string | null>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [tabBarOverflow, setTabBarOverflow] = useState(false);
+
+  useEffect(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const checkOverflow = () => {
+      setTabBarOverflow(el.scrollWidth > el.clientWidth);
+    };
+    checkOverflow();
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [openTabs]);
+
+  const scrollTabBar = (direction: "left" | "right") => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction === "left" ? -120 : 120, behavior: "smooth" });
+  };
+
+  const handleTabDragStart = (e: React.DragEvent, tabId: string) => {
+    setDragTabId(tabId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", tabId);
+  };
+
+  const handleTabDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleTabDrop = (e: React.DragEvent, targetTabId: string) => {
+    e.preventDefault();
+    if (!dragTabId || dragTabId === targetTabId) return;
+    const fromIdx = openTabs.indexOf(dragTabId);
+    const toIdx = openTabs.indexOf(targetTabId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const newTabs = [...openTabs];
+    newTabs.splice(fromIdx, 1);
+    newTabs.splice(toIdx, 0, dragTabId);
+    setOpenTabs(newTabs);
+    setDragTabId(null);
+  };
+
   const runMutation = useMutation({
     mutationFn: async () => {
       if (activeFileId && dirtyFiles.has(activeFileId)) {
@@ -449,12 +560,14 @@ export default function Project() {
 
   const createFileMutation = useMutation({
     mutationFn: async (filename: string) => {
+      const fullFilename = newFileParentFolder ? `${newFileParentFolder}/${filename}` : filename;
       if (useRunnerFS) {
-        const path = (currentFsPath === "/" ? "/" : currentFsPath + "/") + filename;
+        const basePath = newFileParentFolder || currentFsPath;
+        const path = (basePath === "/" ? "/" : basePath + "/") + filename;
         await apiRequest("POST", `/api/workspaces/${projectId}/fs/write`, { path, content: "" });
         return { path, name: filename } as any;
       }
-      const res = await apiRequest("POST", `/api/projects/${projectId}/files`, { filename, content: "" });
+      const res = await apiRequest("POST", `/api/projects/${projectId}/files`, { filename: fullFilename, content: "" });
       return res.json();
     },
     onSuccess: (result: any) => {
@@ -467,12 +580,14 @@ export default function Project() {
       }
       setNewFileDialogOpen(false);
       setNewFileName("");
+      setNewFileParentFolder(null);
     },
   });
 
   const createFolderMutation = useMutation({
     mutationFn: async (folderName: string) => {
-      const path = (currentFsPath === "/" ? "/" : currentFsPath + "/") + folderName;
+      const basePath = newFileParentFolder || currentFsPath;
+      const path = (basePath === "/" ? "/" : basePath + "/") + folderName;
       await apiRequest("POST", `/api/workspaces/${projectId}/fs/mkdir`, { path });
     },
     onSuccess: () => {
@@ -558,6 +673,28 @@ export default function Project() {
       toast({ title: "Failed to rename", description: err.message, variant: "destructive" });
     },
   });
+
+  const duplicateFileMutation = useMutation({
+    mutationFn: async ({ fileId, filename, content }: { fileId: string; filename: string; content: string }) => {
+      const ext = filename.includes(".") ? "." + filename.split(".").pop() : "";
+      const base = filename.includes(".") ? filename.slice(0, filename.lastIndexOf(".")) : filename;
+      const newFilename = `${base}-copy${ext}`;
+      const res = await apiRequest("POST", `/api/projects/${projectId}/files`, { filename: newFilename, content });
+      return res.json();
+    },
+    onSuccess: (result: any) => {
+      invalidateFs();
+      openFile(result as File);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to duplicate file", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const copyPathToClipboard = (path: string) => {
+    navigator.clipboard.writeText(path);
+    toast({ title: "Path copied to clipboard" });
+  };
 
   const handleDelete = (id: string, name: string, type: "file" | "dir") => {
     setDeleteTarget({ id, name, type });
@@ -951,20 +1088,20 @@ export default function Project() {
         </div>
         <div className="flex items-center gap-0.5">
           {useRunnerFS && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
               <FolderPlus className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
             <Plus className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => invalidateFs()} title="Refresh">
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => invalidateFs()} title="Refresh">
             <RefreshCw className="w-3 h-3" />
           </Button>
         </div>
       </div>
       {useRunnerFS && currentFsPath !== "/" && (
-        <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] hover:bg-[#2B3245] border-b border-[#2B3245] shrink-0" onClick={() => {
+        <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] hover:bg-[#2B3245] border-b border-[#2B3245] shrink-0 transition-colors duration-150" onClick={() => {
           const parent = currentFsPath.substring(0, currentFsPath.lastIndexOf("/")) || "/";
           setCurrentFsPath(parent);
         }}>
@@ -977,25 +1114,102 @@ export default function Project() {
             {runnerFsQuery.data?.map((entry) => {
               const entryId = `runner:${entry.path}`;
               const isDir = entry.type === "dir";
+              const runnerCtxItems = isDir ? (
+                <>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setNewFileDialogOpen(true)}>
+                    <Plus className="w-3 h-3" /> New File
+                  </ContextMenuItem>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setNewFolderDialogOpen(true)}>
+                    <FolderPlus className="w-3 h-3" /> New Folder
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
+                    <Pencil className="w-3 h-3" /> Rename
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </ContextMenuItem>
+                </>
+              ) : (
+                <>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRunnerFile(entry)}>
+                    <FileCode2 className="w-3 h-3" /> Open
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
+                    <Pencil className="w-3 h-3" /> Rename
+                  </ContextMenuItem>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => copyPathToClipboard(entry.path)}>
+                    <Copy className="w-3 h-3" /> Copy Path
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </ContextMenuItem>
+                </>
+              );
               return (
-                <div
-                  key={entry.path}
-                  className={`group flex items-center gap-2 px-3 py-[5px] cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
-                  onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
-                  data-testid={`fs-entry-${entry.name}`}
-                >
-                  {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileTypeIcon filename={entry.name} />}
-                  <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
-                  {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                  <div className="hidden group-hover:flex items-center gap-0.5">
-                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); }} data-testid={`button-rename-${entry.name}`}>
-                      <Pencil className="w-2.5 h-2.5" />
-                    </button>
-                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }} data-testid={`button-delete-${entry.name}`}>
-                      <Trash2 className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                </div>
+                <ContextMenu key={entry.path}>
+                  <ContextMenuTrigger asChild>
+                    <div
+                      className={`group flex items-center gap-2 px-3 py-[5px] cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
+                      onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
+                      data-testid={`fs-entry-${entry.name}`}
+                    >
+                      {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileTypeIcon filename={entry.name} />}
+                      <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
+                      {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${entry.name}`}>
+                            <MoreHorizontal className="w-3 h-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]" align="start">
+                          {isDir ? (
+                            <>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => setNewFileDialogOpen(true)}>
+                                <Plus className="w-3 h-3" /> New File
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => setNewFolderDialogOpen(true)}>
+                                <FolderPlus className="w-3 h-3" /> New Folder
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[#2B3245]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRenameDialog(entryId, entry.name)}>
+                                <Pencil className="w-3 h-3" /> Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[#2B3245]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRunnerFile(entry)}>
+                                <FileCode2 className="w-3 h-3" /> Open
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[#2B3245]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRenameDialog(entryId, entry.name)}>
+                                <Pencil className="w-3 h-3" /> Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(entry.path)}>
+                                <Copy className="w-3 h-3" /> Copy Path
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[#2B3245]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
+                    {runnerCtxItems}
+                  </ContextMenuContent>
+                </ContextMenu>
               );
             })}
             {runnerFsQuery.isLoading && (
@@ -1009,11 +1223,11 @@ export default function Project() {
               </div>
             )}
             {runnerFsQuery.data?.length === 0 && !runnerFsQuery.isLoading && (
-              <div className="px-3 py-6 text-center">
+              <div className="px-3 py-6 text-center animate-fade-in">
                 <p className="text-xs text-[#676D7E] mb-2">Empty directory</p>
                 <div className="flex gap-2 justify-center">
-                  <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> File</Button>
-                  <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFolderDialogOpen(true)}><FolderPlus className="w-3 h-3 mr-1" /> Folder</Button>
+                  <Button size="sm" variant="ghost" className="text-xs text-[#0079F2] transition-colors duration-150" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> File</Button>
+                  <Button size="sm" variant="ghost" className="text-xs text-[#0079F2] transition-colors duration-150" onClick={() => setNewFolderDialogOpen(true)}><FolderPlus className="w-3 h-3 mr-1" /> Folder</Button>
                 </div>
               </div>
             )}
@@ -1033,21 +1247,128 @@ export default function Project() {
             )}
             {(() => {
               const tree = buildFileTree(filesQuery.data || []);
+              const folderContextMenuItems = (folderPath: string) => (
+                <>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => { setNewFileParentFolder(folderPath); setNewFileDialogOpen(true); }}
+                    data-testid={`ctx-new-file-${folderPath}`}
+                  >
+                    <Plus className="w-3 h-3" /> New File
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => { setNewFileParentFolder(folderPath); setNewFolderDialogOpen(true); }}
+                    data-testid={`ctx-new-folder-${folderPath}`}
+                  >
+                    <FolderPlus className="w-3 h-3" /> New Folder
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => copyPathToClipboard(folderPath)}
+                    data-testid={`ctx-copy-path-${folderPath}`}
+                  >
+                    <Copy className="w-3 h-3" /> Copy Path
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => handleDelete(folderPath, folderPath.split("/").pop() || folderPath, "dir")}
+                    data-testid={`ctx-delete-${folderPath}`}
+                  >
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </ContextMenuItem>
+                </>
+              );
+
+              const fileContextMenuItems = (file: File, nodeName: string) => (
+                <>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+                    data-testid={`ctx-open-${file.id}`}
+                  >
+                    <FileCode2 className="w-3 h-3" /> Open
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => openRenameDialog(file.id, file.filename)}
+                    data-testid={`ctx-rename-${file.id}`}
+                  >
+                    <Pencil className="w-3 h-3" /> Rename
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => duplicateFileMutation.mutate({ fileId: file.id, filename: file.filename, content: file.content })}
+                    data-testid={`ctx-duplicate-${file.id}`}
+                  >
+                    <Copy className="w-3 h-3" /> Duplicate
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => copyPathToClipboard(file.filename)}
+                    data-testid={`ctx-copy-path-${file.id}`}
+                  >
+                    <Copy className="w-3 h-3" /> Copy Path
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => handleDelete(file.id, file.filename, "file")}
+                    data-testid={`ctx-delete-${file.id}`}
+                  >
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </ContextMenuItem>
+                </>
+              );
+
               const renderNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
                 if (node.type === "dir") {
                   const isExpanded = expandedFolders.has(node.path);
                   return (
                     <div key={node.path}>
-                      <div
-                        className="group flex items-center gap-1 py-[5px] cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40"
-                        style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
-                        onClick={() => toggleFolder(node.path)}
-                        data-testid={`folder-item-${node.path}`}
-                      >
-                        {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0 text-[#676D7E]" /> : <ChevronRight className="w-3 h-3 shrink-0 text-[#676D7E]" />}
-                        {isExpanded ? <FolderOpen className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" />}
-                        <span className="flex-1 text-[12px] truncate ml-0.5">{node.name}</span>
-                      </div>
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            className="group flex items-center gap-1 py-[5px] cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40"
+                            style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
+                            onClick={() => toggleFolder(node.path)}
+                            data-testid={`folder-item-${node.path}`}
+                          >
+                            {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0 text-[#676D7E]" /> : <ChevronRight className="w-3 h-3 shrink-0 text-[#676D7E]" />}
+                            {isExpanded ? <FolderOpen className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" />}
+                            <span className="flex-1 text-[12px] truncate ml-0.5">{node.name}</span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${node.path}`}>
+                                  <MoreHorizontal className="w-3 h-3" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl min-w-[160px]" align="start">
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => { setNewFileParentFolder(node.path); setNewFileDialogOpen(true); }}>
+                                  <Plus className="w-3 h-3" /> New File
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => { setNewFileParentFolder(node.path); setNewFolderDialogOpen(true); }}>
+                                  <FolderPlus className="w-3 h-3" /> New Folder
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-[#2B3245]" />
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(node.path)}>
+                                  <Copy className="w-3 h-3" /> Copy Path
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-[#2B3245]" />
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(node.path, node.name, "dir")}>
+                                  <Trash2 className="w-3 h-3" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
+                          {folderContextMenuItems(node.path)}
+                        </ContextMenuContent>
+                      </ContextMenu>
                       {isExpanded && node.children.map((child) => renderNode(child, depth + 1))}
                     </div>
                   );
@@ -1055,21 +1376,49 @@ export default function Project() {
                 const file = filesQuery.data?.find((f) => f.id === node.fileId);
                 if (!file) return null;
                 return (
-                  <div
-                    key={node.fileId}
-                    className={`group flex items-center gap-2 py-[5px] cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
-                    style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
-                    onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
-                    data-testid={`file-item-${file.id}`}
-                  >
-                    <FileTypeIcon filename={node.name} />
-                    <span className="flex-1 text-[12px] truncate">{node.name}</span>
-                    {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                    <div className="hidden group-hover:flex items-center gap-0.5">
-                      <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-2.5 h-2.5" /></button>
-                      <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-2.5 h-2.5" /></button>
-                    </div>
-                  </div>
+                  <ContextMenu key={node.fileId}>
+                    <ContextMenuTrigger asChild>
+                      <div
+                        className={`group flex items-center gap-2 py-[5px] cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
+                        style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
+                        onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+                        data-testid={`file-item-${file.id}`}
+                      >
+                        <FileTypeIcon filename={node.name} />
+                        <span className="flex-1 text-[12px] truncate">{node.name}</span>
+                        {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${file.id}`}>
+                              <MoreHorizontal className="w-3 h-3" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl min-w-[160px]" align="start">
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}>
+                              <FileCode2 className="w-3 h-3" /> Open
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-[#2B3245]" />
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRenameDialog(file.id, file.filename)}>
+                              <Pencil className="w-3 h-3" /> Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => duplicateFileMutation.mutate({ fileId: file.id, filename: file.filename, content: file.content })}>
+                              <Copy className="w-3 h-3" /> Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(file.filename)}>
+                              <Copy className="w-3 h-3" /> Copy Path
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-[#2B3245]" />
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(file.id, file.filename, "file")}>
+                              <Trash2 className="w-3 h-3" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
+                      {fileContextMenuItems(file, node.name)}
+                    </ContextMenuContent>
+                  </ContextMenu>
                 );
               };
               return tree.map((node) => renderNode(node, 0));
@@ -1101,28 +1450,76 @@ export default function Project() {
   );
 
   const editorTabBar = openTabs.length > 0 ? (
-    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] overflow-x-auto shrink-0 scrollbar-hide h-9">
-      {openTabs.map((tabId) => {
-        const isRunner = tabId.startsWith("runner:");
-        const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
-        const tabName = isRunner ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
-        if (!isRunner && !file) return null;
-        const isActive = tabId === activeFileId;
-        return (
-          <div key={tabId} className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 hover-transition ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-b-transparent"}`}
-            onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
-            data-testid={`tab-${tabId}`}
-          >
-            <FileTypeIcon filename={tabName} />
-            <span className="text-[11px] max-w-[120px] truncate font-medium">{tabName}</span>
-            {dirtyFiles.has(tabId) ? (
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
-            ) : (
-              <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-0.5" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
-            )}
-          </div>
-        );
-      })}
+    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 relative">
+      {tabBarOverflow && (
+        <button
+          className="absolute left-0 z-10 h-full px-1 bg-[#0E1525] border-r border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
+          onClick={() => scrollTabBar("left")}
+          data-testid="button-tab-scroll-left"
+        >
+          <ChevronLeft className="w-3 h-3" />
+        </button>
+      )}
+      <div ref={tabBarRef} className={`flex items-center h-full overflow-x-auto scrollbar-hide ${tabBarOverflow ? "mx-5" : ""}`}>
+        {openTabs.map((tabId) => {
+          const isRunner = tabId.startsWith("runner:");
+          const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
+          const tabName = isRunner ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
+          if (!isRunner && !file) return null;
+          const isActive = tabId === activeFileId;
+          return (
+            <ContextMenu key={tabId}>
+              <ContextMenuTrigger asChild>
+                <div
+                  className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 hover-transition transition-all duration-150 ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-b-transparent"} ${dragTabId === tabId ? "opacity-50" : ""}`}
+                  onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
+                  draggable
+                  onDragStart={(e) => handleTabDragStart(e, tabId)}
+                  onDragOver={handleTabDragOver}
+                  onDrop={(e) => handleTabDrop(e, tabId)}
+                  onDragEnd={() => setDragTabId(null)}
+                  data-testid={`tab-${tabId}`}
+                >
+                  <FileTypeIcon filename={tabName} />
+                  <span className="text-[11px] max-w-[120px] truncate font-medium">{tabName}</span>
+                  {dirtyFiles.has(tabId) ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
+                  ) : (
+                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0 ml-0.5" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
+                  )}
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-52 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
+                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeTab(tabId)} data-testid={`context-close-${tabId}`}>
+                  <X className="w-3.5 h-3.5" /> Close
+                </ContextMenuItem>
+                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeOtherTabs(tabId)} data-testid={`context-close-others-${tabId}`}>
+                  Close Others
+                </ContextMenuItem>
+                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeAllTabs()} data-testid={`context-close-all-${tabId}`}>
+                  Close All
+                </ContextMenuItem>
+                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeTabsToRight(tabId)} data-testid={`context-close-right-${tabId}`}>
+                  Close to the Right
+                </ContextMenuItem>
+                <ContextMenuSeparator className="bg-[#2B3245]" />
+                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
+                  <Copy className="w-3.5 h-3.5" /> Copy Path
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          );
+        })}
+      </div>
+      {tabBarOverflow && (
+        <button
+          className="absolute right-0 z-10 h-full px-1 bg-[#0E1525] border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
+          onClick={() => scrollTabBar("right")}
+          data-testid="button-tab-scroll-right"
+        >
+          <ChevronRight className="w-3 h-3" />
+        </button>
+      )}
     </div>
   ) : null;
 
@@ -1151,14 +1548,14 @@ export default function Project() {
   ) : null;
 
   const editorContent = (
-    <div className="flex-1 overflow-hidden relative flex flex-col">
+    <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
       {breadcrumbBar}
       {activeFileId ? (
         <div className="flex-1 overflow-hidden">
           <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} />
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333]">
+        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in">
           <div className="max-w-sm text-center px-6">
             <div className="w-16 h-16 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-6">
               <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
@@ -1189,7 +1586,7 @@ export default function Project() {
   );
 
   const terminalContent = (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }}>
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }}>
       {logs.length === 0 && !isRunning && <p className="text-[#676D7E] text-center py-4 text-xs">Press Run to execute your code</p>}
       {logs.map((log) => (
         <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#9DA2B0]"}`}>
@@ -1201,7 +1598,7 @@ export default function Project() {
   );
 
   const previewContent = (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333]">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
       {runnerOnline === false ? (
         <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-2">
           <WifiOff className="w-8 h-8 text-orange-400/60" />
@@ -1244,7 +1641,7 @@ export default function Project() {
   );
 
   const shellContent = (
-    <div className="flex-1 overflow-hidden">
+    <div className="flex-1 overflow-hidden animate-fade-in">
       <WorkspaceTerminal wsUrl={terminalWsUrl} runnerOffline={runnerOnline === false} visible={true} />
     </div>
   );
@@ -1274,24 +1671,24 @@ export default function Project() {
   );
 
   const bottomPanel = (
-    <div className="shrink-0 flex flex-col border-t border-[#2B3245] bg-[#1C2333]" style={{ height: terminalHeight }}>
+    <div className="flex flex-col bg-[#1C2333] h-full">
       <div className="h-1 cursor-ns-resize resize-handle flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
         <div className="w-8 h-[2px] rounded-full bg-[#2B3245]" />
       </div>
       <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
         <div className="flex items-center h-full">
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
             <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
           </button>
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition ${bottomTab === "shell" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 ${bottomTab === "shell" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
             <Hash className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
           </button>
         </div>
         <div className="flex items-center gap-0.5 pr-1">
           {wsStatusBadge}
           {workspaceButton}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-3 h-3" /></Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-3 h-3" /></Button>
         </div>
       </div>
       {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
@@ -1303,7 +1700,7 @@ export default function Project() {
       {/* TOP BAR */}
       <div className="grid grid-cols-3 items-center px-2 h-10 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
         <div className="flex items-center gap-1.5 min-w-0">
-          <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-all group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+          <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-colors duration-150 group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
               <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
               <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
@@ -1315,30 +1712,49 @@ export default function Project() {
           {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
         </div>
         <div className="flex items-center justify-center">
-          <Button
-            size="sm"
-            className={`h-7 px-5 text-[11px] font-semibold rounded-full gap-1.5 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)]"}`}
-            onClick={handleRun}
-            disabled={runMutation.isPending}
-            data-testid="button-run"
-          >
-            {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  className={`h-7 px-5 text-[11px] font-semibold rounded-full gap-1.5 transition-all duration-150 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] btn-run-red" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)] btn-run-green"}`}
+                  onClick={handleRun}
+                  disabled={runMutation.isPending}
+                  data-testid="button-run"
+                >
+                  {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">{isRunning ? "Stop (F5)" : "Run (F5)"}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5" onClick={copyShareUrl} title="Invite" data-testid="button-invite">
-            <Users className="w-3.5 h-3.5" /> Invite
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5" onClick={() => setPublishDialogOpen(true)} title="Publish" data-testid="button-publish">
-            <Rocket className="w-3.5 h-3.5" /> Publish
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={copyShareUrl} data-testid="button-invite">
+                  <Users className="w-3.5 h-3.5" /> Invite
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Invite collaborators</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
+                  <Rocket className="w-3.5 h-3.5" /> Publish
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Publish your project</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md" data-testid="button-kebab-menu">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg">
+            <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
               <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
                 <Settings className="w-3.5 h-3.5" /> Project Settings
               </DropdownMenuItem>
@@ -1456,76 +1872,106 @@ export default function Project() {
           {/* === TABLET + DESKTOP LAYOUT: VS Code style === */}
           <div className="flex flex-1 overflow-hidden">
             {/* ACTIVITY BAR */}
+            <TooltipProvider delayDuration={200}>
             <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-1 shrink-0" data-testid="activity-bar">
-              <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { const shouldOpen = !sidebarOpen || aiPanelOpen || searchPanelOpen || deploymentsPanelOpen || settingsPanelOpen; setSidebarOpen(shouldOpen); setAiPanelOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }}
-                title="Explorer (Ctrl+B)"
-                data-testid="activity-explorer"
-              >
-                {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <PanelLeft className="w-5 h-5" />
-              </button>
-              <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
-                title="Search (Ctrl+Shift+F)"
-                data-testid="activity-search"
-              >
-                {searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <Search className="w-5 h-5" />
-              </button>
-              <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
-                title="AI Agent"
-                data-testid="activity-ai"
-              >
-                {aiPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#7C65CB]" />}
-                <Sparkles className="w-5 h-5" />
-              </button>
-              <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors text-[#676D7E] hover:text-[#F5F9FC]`}
-                title="Version Control"
-                data-testid="activity-git"
-              >
-                <GitBranch className="w-5 h-5" />
-                {dirtyFiles.size > 0 && <span className="absolute top-1.5 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border border-[#0E1525]" />}
-              </button>
-              <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); } }}
-                title="Deployments"
-                data-testid="activity-deployments"
-              >
-                {deploymentsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <Rocket className="w-5 h-5" />
-              </button>
-              <button
-                className={`relative w-full h-10 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
-                title="Webview"
-                data-testid="activity-webview"
-              >
-                {previewPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                <Monitor className="w-5 h-5" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => { const shouldOpen = !sidebarOpen || aiPanelOpen || searchPanelOpen || deploymentsPanelOpen || settingsPanelOpen; setSidebarOpen(shouldOpen); setAiPanelOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }}
+                    data-testid="activity-explorer"
+                  >
+                    {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    <PanelLeft className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Files</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    data-testid="activity-search"
+                  >
+                    {searchPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    <Search className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Search</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    data-testid="activity-ai"
+                  >
+                    {aiPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#7C65CB]" />}
+                    <Sparkles className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">AI Agent</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors text-[#676D7E] hover:text-[#F5F9FC]`}
+                    data-testid="activity-git"
+                  >
+                    <GitBranch className="w-5 h-5" />
+                    {dirtyFiles.size > 0 && <span className="absolute top-1.5 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border border-[#0E1525]" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Git</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    data-testid="activity-deployments"
+                  >
+                    {deploymentsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    <Rocket className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Deployments</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
+                    data-testid="activity-webview"
+                  >
+                    {previewPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                    <Monitor className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Webview</TooltipContent>
+              </Tooltip>
 
               <div className="flex-1" />
 
               <div className="flex flex-col items-center mb-1">
-                <button
-                  className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                  onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
-                  title="Settings"
-                  data-testid="activity-settings"
-                >
-                  {settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
-                  <Settings className="w-5 h-5" />
-                  <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                      onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
+                      data-testid="activity-settings"
+                    >
+                      {settingsPanelOpen && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[#0079F2]" />}
+                      <Settings className="w-5 h-5" />
+                      <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Settings</TooltipContent>
+                </Tooltip>
               </div>
             </div>
+            </TooltipProvider>
 
             {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
             {aiPanelOpen && (
@@ -1792,24 +2238,27 @@ export default function Project() {
             )}
 
             {/* FILE EXPLORER SIDEBAR */}
-            {sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
-              <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} shrink-0`}>
+            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? (isTablet ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
+              <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} h-full`}>
                 {sidebarContent}
               </div>
-            )}
+            </div>
 
             {/* MAIN EDITOR + PREVIEW AREA */}
             <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0">
               <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                 {editorTabBar}
                 {editorContent}
-                {terminalVisible && bottomPanel}
+                <div className={`shrink-0 transition-all duration-200 overflow-hidden border-t border-[#2B3245] bg-[#1C2333]`} style={{ height: terminalVisible ? terminalHeight : 0 }}>
+                  {bottomPanel}
+                </div>
               </div>
 
-              {previewPanelOpen && !aiPanelOpen && (
-                <>
+              <div className={`flex transition-all duration-200 overflow-hidden ${previewPanelOpen && !aiPanelOpen ? "" : "w-0"}`} style={previewPanelOpen && !aiPanelOpen ? { width: `${previewPanelWidth}%` } : undefined}>
+                {previewPanelOpen && !aiPanelOpen && (
                   <div className="w-1 cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#2B3245] hover:bg-[#0079F2]/50 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
-                  <div className="flex flex-col overflow-hidden bg-[#1C2333] border-l border-[#2B3245]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
+                )}
+                  <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333] border-l border-[#2B3245]" data-testid="preview-panel">
                     <div className="flex items-center gap-1 px-1.5 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
                       <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
                         onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
@@ -1855,26 +2304,92 @@ export default function Project() {
                       )}
                     </div>
                   </div>
-                </>
-              )}
+              </div>
             </div>
           </div>
 
           {/* STATUS BAR */}
-          <div className="flex items-center justify-between px-3 h-6 bg-[#0E1525] border-t border-[#2B3245]/60 shrink-0">
-            <div className="flex items-center gap-3">
+          <TooltipProvider delayDuration={200}>
+          <div className="flex items-center justify-between px-2 h-6 bg-[#0E1525] border-t border-[#2B3245]/60 shrink-0">
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#9DA2B0] hover:bg-[#2B3245]/60 hover:text-[#F5F9FC] transition-colors" data-testid="button-git-branch">
+                    <GitBranch className="w-3 h-3" />
+                    <span className="font-medium">main</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] border-[#2B3245]">
+                  Current branch: main
+                </TooltipContent>
+              </Tooltip>
+
+              <span className="w-px h-3 bg-[#2B3245]" />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#676D7E] hover:bg-[#2B3245]/60 hover:text-[#F5F9FC] transition-colors"
+                    onClick={() => toast({ title: "Problems", description: "No problems detected in workspace." })}
+                    data-testid="button-problems"
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    <span>0</span>
+                    <X className="w-2.5 h-2.5 ml-0.5" />
+                    <span>0</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] border-[#2B3245]">
+                  No Problems
+                </TooltipContent>
+              </Tooltip>
+
+              <span className="w-px h-3 bg-[#2B3245]" />
+
               <span className="flex items-center gap-1.5 text-[10px] text-[#676D7E]">
-                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : "bg-[#4A5068]"}`} />
-                {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting" : wsStatus === "none" ? "Ready" : wsStatus}
+                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B] shadow-[0_0_6px_rgba(12,206,107,0.6)] animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.5)] animate-pulse" : wsStatus === "error" ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)] animate-pulse" : "bg-[#4A5068]"}`} />
+                {wsStatus === "running" ? "Workspace Running" : wsStatus === "starting" ? "Starting Workspace..." : wsStatus === "none" ? "Ready" : wsStatus === "stopped" ? "Workspace Stopped" : wsStatus === "error" ? "Workspace Error" : wsStatus === "offline" ? "Offline" : wsStatus}
               </span>
               {connected && <span className="text-[10px] text-[#4A5068] flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> WS</span>}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
               {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-tab-size">Spaces: {editorTabSize}</span>}
-              {activeFileName && <span className="text-[10px] text-[#9DA2B0] capitalize">{editorLanguage}</span>}
+              {activeFileName && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="text-[10px] text-[#9DA2B0] capitalize hover:text-[#F5F9FC] hover:bg-[#2B3245]/60 px-1.5 h-5 rounded transition-colors cursor-pointer" data-testid="button-language-selector">
+                      {editorLanguage}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent side="top" align="end" className="w-40 p-1 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
+                    {["javascript", "typescript", "python", "html", "css", "json", "markdown"].map((lang) => (
+                      <button
+                        key={lang}
+                        className={`w-full text-left px-2.5 py-1.5 text-[11px] rounded capitalize transition-colors ${lang === editorLanguage ? "bg-[#0079F2]/20 text-[#0079F2]" : "text-[#9DA2B0] hover:bg-[#2B3245] hover:text-[#F5F9FC]"}`}
+                        data-testid={`lang-option-${lang}`}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              )}
               {activeFileName && <span className="text-[10px] text-[#4A5068]">UTF-8</span>}
               {activeFileName && <span className="text-[10px] text-[#4A5068]">LF</span>}
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#4A5068] hover:bg-[#2B3245]/60 hover:text-[#9DA2B0] transition-colors" data-testid="button-prettier">
+                    <Wand2 className="w-3 h-3" />
+                    <span>Prettier</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] border-[#2B3245]">
+                  Format Document
+                </TooltipContent>
+              </Tooltip>
+
               <span className="text-[10px] text-[#4A5068] flex items-center gap-1">
                 <svg width="9" height="9" viewBox="0 0 32 32" fill="none">
                   <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="currentColor"/>
@@ -1885,6 +2400,7 @@ export default function Project() {
               </span>
             </div>
           </div>
+          </TooltipProvider>
         </>
       )}
 

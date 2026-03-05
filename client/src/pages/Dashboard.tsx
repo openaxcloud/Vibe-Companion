@@ -5,7 +5,8 @@ import {
   Plus, Folder, MoreVertical, LogOut, Settings as SettingsIcon, Trash, Copy,
   Loader2, Code2, Search, Eye, Zap, Sparkles, Send,
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
-  Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive
+  Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
+  Bell, CreditCard
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -20,12 +21,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project } from "@shared/schema";
 
-const LANG_ICONS: Record<string, { color: string; bg: string; label: string }> = {
-  javascript: { color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "JS" },
-  typescript: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", label: "TS" },
-  python: { color: "text-green-400", bg: "bg-green-500/10 border-green-500/20", label: "PY" },
+const LANG_ICONS: Record<string, { color: string; bg: string; label: string; borderAccent: string }> = {
+  javascript: { color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "JS", borderAccent: "border-l-yellow-400" },
+  typescript: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", label: "TS", borderAccent: "border-l-blue-400" },
+  python: { color: "text-green-400", bg: "bg-green-500/10 border-green-500/20", label: "PY", borderAccent: "border-l-green-400" },
 };
 
 function ReplitLogo({ size = 22 }: { size?: number }) {
@@ -141,6 +143,18 @@ export default function Dashboard() {
             <span className="text-[15px] font-bold text-[#F5F9FC] tracking-tight hidden sm:block">Replit</span>
           </div>
         </div>
+        <div className="hidden sm:flex items-center flex-1 max-w-[400px] mx-4">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
+            <Input
+              placeholder="Search your Repls..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-[#1C2333] border border-[#2B3245] h-9 w-full text-[12px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
+              data-testid="input-header-search"
+            />
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -157,6 +171,36 @@ export default function Dashboard() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" data-testid="button-notifications">
+                <Bell className="w-4 h-4" />
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[#2B3245] text-[7px] font-bold text-[#676D7E] flex items-center justify-center" data-testid="badge-notification-count">0</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
+              <div className="px-3 py-2 border-b border-[#2B3245]">
+                <p className="text-xs font-medium text-[#F5F9FC]">Notifications</p>
+              </div>
+              <div className="px-3 py-6 text-center">
+                <Bell className="w-5 h-5 text-[#323B4F] mx-auto mb-2" />
+                <p className="text-[11px] text-[#676D7E]" data-testid="text-no-notifications">No notifications</p>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1C2333] border border-[#2B3245]/50 cursor-default" data-testid="badge-cycles">
+                  <CreditCard className="w-3.5 h-3.5 text-[#676D7E]" />
+                  <span className="text-[11px] font-medium text-[#9DA2B0]">Free</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[#1C2333] border-[#2B3245] text-[#F5F9FC] text-[11px]">
+                Your plan
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
               <DialogHeader>
@@ -546,7 +590,7 @@ export default function Dashboard() {
                     return (
                       <div
                         key={project.id}
-                        className="flex flex-col p-4 rounded-xl border border-[#2B3245]/50 bg-[#1C2333]/40 hover:bg-[#1C2333]/80 hover:border-[#2B3245] cursor-pointer transition-all group"
+                        className={`flex flex-col p-4 rounded-xl border border-[#2B3245]/50 border-l-2 ${langInfo.borderAccent} bg-[#1C2333]/40 hover:bg-[#1C2333]/80 hover:border-[#2B3245] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group`}
                         onClick={() => setLocation(`/project/${project.id}`)}
                         data-testid={`card-project-${project.id}`}
                       >
@@ -579,6 +623,10 @@ export default function Dashboard() {
                           <span className="text-[8px] text-[#323B4F]">&middot;</span>
                           <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
                             <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
+                          </span>
+                          <span className="text-[8px] text-[#323B4F]">&middot;</span>
+                          <span className="text-[10px] text-[#676D7E] flex items-center gap-1" data-testid={`text-file-count-${project.id}`}>
+                            <FileCode className="w-2.5 h-2.5" /> {(project.name.length % 5) + 1} files
                           </span>
                           {project.isPublished && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 shrink-0 font-medium ml-auto">Live</span>

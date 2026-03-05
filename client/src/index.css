@@ -63,6 +63,8 @@
   --radius: 0.5rem;
   --font-sans: 'IBM Plex Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  --ring-focus: rgba(0, 121, 242, 0.5);
+  --ring-focus-offset: 0;
 }
 
 .dark {
@@ -91,6 +93,11 @@
   * {
     @apply border-border;
   }
+  
+  button, a, input, [role="button"] {
+    @apply focus-visible:ring-2 focus-visible:ring-[#0079F2]/50 focus-visible:ring-offset-0 focus-visible:outline-none;
+  }
+  
   body {
     @apply font-sans antialiased bg-background text-foreground overflow-x-hidden;
     font-family: 'IBM Plex Sans', -apple-system, sans-serif;
@@ -407,10 +414,11 @@ textarea:focus-visible {
 }
 
 .file-tree-item {
-  transition: background-color 80ms ease, color 80ms ease;
+  transition: all 100ms ease;
 }
 .file-tree-item:hover {
   background-color: rgba(43, 50, 69, 0.4);
+  color: #F5F9FC;
 }
 .file-tree-item.active {
   background-color: rgba(43, 50, 69, 0.7);
@@ -462,6 +470,22 @@ textarea:focus-visible {
 }
 .replit-btn:active {
   transform: scale(0.98);
+}
+
+button {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+button:disabled {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
+.btn-run-green:hover {
+  box-shadow: 0 0 16px rgba(12, 206, 107, 0.4);
+}
+
+.btn-run-red:hover {
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
 }
 
 .sidebar-section-header {

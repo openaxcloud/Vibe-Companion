@@ -807,9 +807,33 @@ Rules:
     }
   });
 
+  const executeToolCall = async (
+    toolName: string,
+    toolInput: { filename: string; content: string },
+    projectId: string,
+    existingFiles: any[],
+    res: Response
+  ) => {
+    try {
+      if (toolName === "create_file" || toolName === "edit_file") {
+        const existingFile = existingFiles.find(f => f.filename === toolInput.filename);
+        if (existingFile) {
+          const file = await storage.updateFileContent(existingFile.id, toolInput.content);
+          res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
+        } else {
+          const file = await storage.createFile(projectId, { filename: toolInput.filename, content: toolInput.content });
+          existingFiles.push(file);
+          res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
+        }
+      }
+    } catch (err: any) {
+      res.write(`data: ${JSON.stringify({ type: "error", message: `Failed to ${toolName}: ${err.message}` })}\n\n`);
+    }
+  };
+
   app.post("/api/ai/agent", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { messages, projectId, model } = req.body;
+      const { messages, projectId, model: requestedModel } = req.body;
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -839,102 +863,167 @@ Always write complete, working code. Never use placeholders or TODOs.`;
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const tools: Anthropic.Messages.Tool[] = [
-        {
-          name: "create_file",
-          description: "Create a new file in the project with the given filename and content",
-          input_schema: {
-            type: "object" as const,
-            properties: {
-              filename: { type: "string", description: "The filename (e.g. 'index.js', 'styles.css')" },
-              content: { type: "string", description: "The full file content" },
+      const useGpt = requestedModel === "gpt";
+
+      if (useGpt) {
+        const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+          {
+            type: "function",
+            function: {
+              name: "create_file",
+              description: "Create a new file in the project with the given filename and content",
+              parameters: {
+                type: "object",
+                properties: {
+                  filename: { type: "string", description: "The filename (e.g. 'index.js', 'styles.css')" },
+                  content: { type: "string", description: "The full file content" },
+                },
+                required: ["filename", "content"],
+              },
             },
-            required: ["filename", "content"],
           },
-        },
-        {
-          name: "edit_file",
-          description: "Replace the entire content of an existing file",
-          input_schema: {
-            type: "object" as const,
-            properties: {
-              filename: { type: "string", description: "The filename of the existing file to edit" },
-              content: { type: "string", description: "The new full file content" },
+          {
+            type: "function",
+            function: {
+              name: "edit_file",
+              description: "Replace the entire content of an existing file",
+              parameters: {
+                type: "object",
+                properties: {
+                  filename: { type: "string", description: "The filename of the existing file to edit" },
+                  content: { type: "string", description: "The new full file content" },
+                },
+                required: ["filename", "content"],
+              },
             },
-            required: ["filename", "content"],
           },
-        },
-      ];
+        ];
 
-      let currentMessages = messages.map((m: any) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
+        let gptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: agentSystemPrompt },
+          ...messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
 
-      let continueLoop = true;
+        let continueLoop = true;
 
-      while (continueLoop) {
-        const response = await anthropic.messages.create({
-          model: "claude-sonnet-4-6",
-          system: agentSystemPrompt,
-          messages: currentMessages,
-          max_tokens: 4096,
-          tools,
-        });
+        while (continueLoop) {
+          const response = await openai.chat.completions.create({
+            model: "gpt-5.2",
+            messages: gptMessages,
+            tools: openaiTools,
+            max_completion_tokens: 4096,
+          });
 
-        for (const block of response.content) {
-          if (block.type === "text") {
-            res.write(`data: ${JSON.stringify({ type: "text", content: block.text })}\n\n`);
-          } else if (block.type === "tool_use") {
-            const input = block.input as { filename: string; content: string };
+          const choice = response.choices[0];
+          const message = choice.message;
 
-            res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
+          if (message.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          }
 
-            try {
-              if (block.name === "create_file") {
-                const existingFile = existingFiles.find(f => f.filename === input.filename);
-                let file;
-                if (existingFile) {
-                  file = await storage.updateFileContent(existingFile.id, input.content);
-                  res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
-                } else {
-                  file = await storage.createFile(projectId, { filename: input.filename, content: input.content });
-                  existingFiles.push(file);
-                  res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
-                }
-              } else if (block.name === "edit_file") {
-                const existingFile = existingFiles.find(f => f.filename === input.filename);
-                if (existingFile) {
-                  const file = await storage.updateFileContent(existingFile.id, input.content);
-                  res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
-                } else {
-                  const file = await storage.createFile(projectId, { filename: input.filename, content: input.content });
-                  existingFiles.push(file);
-                  res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
-                }
-              }
-            } catch (err: any) {
-              res.write(`data: ${JSON.stringify({ type: "error", message: `Failed to ${block.name}: ${err.message}` })}\n\n`);
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+
+            for (const toolCall of message.tool_calls) {
+              if (toolCall.type !== "function") continue;
+              const fn = toolCall.function;
+              const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
+
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res);
+
+              toolResultMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: "Done",
+              });
             }
+
+            gptMessages = [
+              ...gptMessages,
+              { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any,
+              ...toolResultMessages,
+            ];
+          }
+
+          if (choice.finish_reason !== "tool_calls") {
+            continueLoop = false;
           }
         }
+      } else {
+        const tools: Anthropic.Messages.Tool[] = [
+          {
+            name: "create_file",
+            description: "Create a new file in the project with the given filename and content",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                filename: { type: "string", description: "The filename (e.g. 'index.js', 'styles.css')" },
+                content: { type: "string", description: "The full file content" },
+              },
+              required: ["filename", "content"],
+            },
+          },
+          {
+            name: "edit_file",
+            description: "Replace the entire content of an existing file",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                filename: { type: "string", description: "The filename of the existing file to edit" },
+                content: { type: "string", description: "The new full file content" },
+              },
+              required: ["filename", "content"],
+            },
+          },
+        ];
 
-        if (response.stop_reason === "tool_use") {
-          const toolResults: any[] = response.content
-            .filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use")
-            .map((b) => ({
-              type: "tool_result" as const,
-              tool_use_id: b.id,
-              content: "Done",
-            }));
+        let currentMessages = messages.map((m: any) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        }));
 
-          currentMessages = [
-            ...currentMessages,
-            { role: "assistant" as const, content: response.content as any },
-            { role: "user" as const, content: toolResults as any },
-          ];
-        } else {
-          continueLoop = false;
+        let continueLoop = true;
+
+        while (continueLoop) {
+          const response = await anthropic.messages.create({
+            model: "claude-sonnet-4-6",
+            system: agentSystemPrompt,
+            messages: currentMessages,
+            max_tokens: 4096,
+            tools,
+          });
+
+          for (const block of response.content) {
+            if (block.type === "text") {
+              res.write(`data: ${JSON.stringify({ type: "text", content: block.text })}\n\n`);
+            } else if (block.type === "tool_use") {
+              const input = block.input as { filename: string; content: string };
+
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
+
+              await executeToolCall(block.name, input, projectId, existingFiles, res);
+            }
+          }
+
+          if (response.stop_reason === "tool_use") {
+            const toolResults: any[] = response.content
+              .filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use")
+              .map((b) => ({
+                type: "tool_result" as const,
+                tool_use_id: b.id,
+                content: "Done",
+              }));
+
+            currentMessages = [
+              ...currentMessages,
+              { role: "assistant" as const, content: response.content as any },
+              { role: "user" as const, content: toolResults as any },
+            ];
+          } else {
+            continueLoop = false;
+          }
         }
       }
 
