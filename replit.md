@@ -38,7 +38,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Project settings dialog (rename, change language)
 - Publish/share projects with toggle and shareable URL
 - Public shared project view (read-only with code execution)
-- Dark mode with GitHub-dark theme
+- Dark mode with Replit-accurate design tokens
 - Public demo project (read-only)
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
@@ -118,4 +118,4 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - CodeMirror 6 (@uiw/react-codemirror + language packages + oneDark theme)
 - WebSocket (ws library)
 - JetBrains Mono font, Plus Jakarta Sans font
-- GitHub-dark theme (#0d1117 bg, #161b22 panels, #30363d borders, #58a6ff accent)
+- Replit dark theme (#0E1525 bars/nav, #1C2333 panels/editor, #2B3245 borders/surface, #323B4F hover, #0079F2 accent blue, #0CCE6B green, #7C65CB AI purple, #F5F9FC text primary, #9DA2B0 text secondary, #676D7E text muted)

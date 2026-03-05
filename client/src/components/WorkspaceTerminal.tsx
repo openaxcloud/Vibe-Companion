@@ -12,19 +12,19 @@ interface WorkspaceTerminalProps {
 }
 
 const THEME = {
-  background: "#0d1117",
-  foreground: "#c9d1d9",
-  cursor: "#58a6ff",
-  selectionBackground: "#58a6ff33",
-  black: "#484f58",
+  background: "#1C2333",
+  foreground: "#F5F9FC",
+  cursor: "#0079F2",
+  selectionBackground: "#0079F233",
+  black: "#676D7E",
   red: "#ff7b72",
-  green: "#3fb950",
+  green: "#0CCE6B",
   yellow: "#d29922",
-  blue: "#58a6ff",
-  magenta: "#bc8cff",
+  blue: "#0079F2",
+  magenta: "#7C65CB",
   cyan: "#39d2c0",
-  white: "#c9d1d9",
-  brightBlack: "#6e7681",
+  white: "#F5F9FC",
+  brightBlack: "#9DA2B0",
   brightRed: "#ffa198",
   brightGreen: "#56d364",
   brightYellow: "#e3b341",
@@ -192,7 +192,7 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
   const showPlaceholder = runnerOffline || !wsUrl;
 
   return (
-    <div className="w-full h-full relative bg-[#0d1117]">
+    <div className="w-full h-full relative bg-[#1C2333]">
       <div
         ref={containerRef}
         className="w-full h-full"
@@ -200,13 +200,13 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
         data-testid="workspace-terminal"
       />
       {runnerOffline && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#484f58] gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#676D7E] gap-2">
           <WifiOff className="w-8 h-8 text-orange-400/60" />
           <p className="text-xs text-orange-400/80">Terminal unavailable (runner offline)</p>
         </div>
       )}
       {!runnerOffline && !wsUrl && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#484f58] gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#676D7E] gap-2">
           <Terminal className="w-8 h-8" />
           <p className="text-xs">Start the workspace to access the terminal</p>
         </div>

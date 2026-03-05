@@ -20,33 +20,41 @@ interface CodeEditorProps {
 const customTheme = EditorView.theme({
   "&": {
     height: "100%",
-    background: "#0d1117",
+    background: "#1C2333",
   },
   ".cm-scroller": {
     overflow: "auto",
   },
   ".cm-gutters": {
-    background: "#0d1117",
-    borderRight: "1px solid #30363d",
-    color: "#484f58",
+    background: "#0E1525",
+    borderRight: "1px solid #2B3245",
+    color: "#676D7E",
   },
   ".cm-activeLineGutter": {
-    background: "#161b22",
+    background: "#1C2333",
+    color: "#9DA2B0",
   },
   ".cm-activeLine": {
-    background: "#161b2280",
+    background: "rgba(43, 50, 69, 0.4)",
   },
   ".cm-cursor": {
-    borderLeftColor: "#58a6ff",
+    borderLeftColor: "#0079F2",
+    borderLeftWidth: "2px",
   },
   ".cm-selectionBackground": {
-    background: "#58a6ff33 !important",
+    background: "rgba(0, 121, 242, 0.2) !important",
   },
   "&.cm-focused .cm-selectionBackground": {
-    background: "#58a6ff33 !important",
+    background: "rgba(0, 121, 242, 0.28) !important",
   },
   ".cm-content": {
     fontFamily: "'JetBrains Mono', monospace",
+    fontSize: "13px",
+    lineHeight: "1.65",
+  },
+  ".cm-matchingBracket": {
+    background: "rgba(0, 121, 242, 0.15)",
+    outline: "1px solid rgba(0, 121, 242, 0.3)",
   },
 });
 

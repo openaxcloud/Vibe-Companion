@@ -11,14 +11,14 @@ function AnimatedGrid() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       <div
-        className="absolute inset-0 opacity-[0.03]"
+        className="absolute inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, #58a6ff 1px, transparent 0)`,
+          backgroundImage: `radial-gradient(circle at 1px 1px, #0079F2 1px, transparent 0)`,
           backgroundSize: "40px 40px",
         }}
       />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-radial from-[#58a6ff]/8 via-[#58a6ff]/2 to-transparent rounded-full blur-3xl" />
-      <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-gradient-radial from-purple-500/5 via-transparent to-transparent rounded-full blur-3xl" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-radial from-[#0079F2]/8 via-[#0079F2]/2 to-transparent rounded-full blur-3xl" />
+      <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-gradient-radial from-[#7C65CB]/5 via-transparent to-transparent rounded-full blur-3xl" />
     </div>
   );
 }
@@ -49,8 +49,8 @@ export default function Auth() {
 
   if (authLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0d1117]">
-        <div className="w-8 h-8 border-2 border-[#30363d] border-t-[#58a6ff] rounded-full animate-spin" />
+      <div className="h-screen flex items-center justify-center bg-[#0E1525]">
+        <div className="w-8 h-8 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full animate-spin" />
       </div>
     );
   }
@@ -73,28 +73,28 @@ export default function Auth() {
   const isSubmitting = login.isPending || register.isPending;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0d1117] relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[#0E1525] relative overflow-hidden">
       <AnimatedGrid />
 
       <div className="w-full max-w-[400px] px-6 z-10">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-[#58a6ff]/20 to-[#1f6feb]/20 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#30363d]/60 shadow-[0_0_40px_rgba(88,166,255,0.12)] backdrop-blur-sm">
-            <Code2 className="w-8 h-8 text-[#58a6ff]" />
+          <div className="w-16 h-16 bg-gradient-to-br from-[#0079F2]/20 to-[#0079F2]/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-[#2B3245] shadow-[0_0_40px_rgba(0,121,242,0.12)] backdrop-blur-sm">
+            <Code2 className="w-8 h-8 text-[#0079F2]" />
           </div>
-          <h1 className="text-[28px] font-bold text-white tracking-tight mb-2">
+          <h1 className="text-[28px] font-bold text-[#F5F9FC] tracking-tight mb-2">
             {isLogin ? "Welcome back" : "Create your account"}
           </h1>
-          <p className="text-[#8b949e] text-[15px]">
+          <p className="text-[#9DA2B0] text-[15px]">
             {isLogin ? "Sign in to continue to Vibe Platform" : "Start building with Vibe Platform"}
           </p>
         </div>
 
-        <div className="bg-[#161b22]/80 backdrop-blur-md border border-[#30363d]/60 rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="bg-[#1C2333]/80 backdrop-blur-md border border-[#2B3245] rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           <div className="space-y-3 mb-6">
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 rounded-xl font-medium bg-[#0d1117] border-[#30363d] text-[#c9d1d9] hover:bg-[#1c2128] hover:border-[#484f58] transition-all duration-200 gap-3"
+              className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
               data-testid="button-github-login"
             >
               <Github className="w-5 h-5" />
@@ -103,7 +103,7 @@ export default function Auth() {
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 rounded-xl font-medium bg-[#0d1117] border-[#30363d] text-[#c9d1d9] hover:bg-[#1c2128] hover:border-[#484f58] transition-all duration-200 gap-3"
+              className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
               data-testid="button-google-login"
             >
               <GoogleIcon />
@@ -113,30 +113,30 @@ export default function Auth() {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#30363d]" />
+              <div className="w-full border-t border-[#2B3245]" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#161b22] px-3 text-[#484f58] uppercase tracking-wider font-medium">or continue with email</span>
+              <span className="bg-[#1C2333] px-3 text-[#676D7E] uppercase tracking-wider font-medium">or continue with email</span>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="displayName" className="text-xs font-medium text-[#8b949e]">Display Name</Label>
+                <Label htmlFor="displayName" className="text-xs font-medium text-[#9DA2B0]">Display Name</Label>
                 <Input
                   id="displayName"
                   type="text"
                   placeholder="How should we call you?"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-[#0d1117] border-[#30363d] h-11 rounded-xl text-[#c9d1d9] placeholder:text-[#484f58] focus-visible:ring-2 focus-visible:ring-[#58a6ff]/40 focus-visible:border-[#58a6ff] transition-all duration-200"
+                  className="bg-[#0E1525] border-[#2B3245] h-11 rounded-xl text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                   data-testid="input-display-name"
                 />
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-medium text-[#8b949e]">Email address</Label>
+              <Label htmlFor="email" className="text-xs font-medium text-[#9DA2B0]">Email address</Label>
               <Input
                 id="email"
                 type="email"
@@ -144,15 +144,15 @@ export default function Auth() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-[#0d1117] border-[#30363d] h-11 rounded-xl text-[#c9d1d9] placeholder:text-[#484f58] focus-visible:ring-2 focus-visible:ring-[#58a6ff]/40 focus-visible:border-[#58a6ff] transition-all duration-200"
+                className="bg-[#0E1525] border-[#2B3245] h-11 rounded-xl text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                 data-testid="input-email"
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-xs font-medium text-[#8b949e]">Password</Label>
+                <Label htmlFor="password" className="text-xs font-medium text-[#9DA2B0]">Password</Label>
                 {isLogin && (
-                  <span className="text-xs text-[#58a6ff] hover:text-[#79c0ff] cursor-pointer transition-colors" data-testid="link-forgot-password">
+                  <span className="text-xs text-[#0079F2] hover:text-[#0079F2]/80 cursor-pointer transition-colors" data-testid="link-forgot-password">
                     Forgot password?
                   </span>
                 )}
@@ -165,14 +165,14 @@ export default function Auth() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={isLogin ? "Enter your password" : "Min. 6 characters"}
-                className="bg-[#0d1117] border-[#30363d] h-11 rounded-xl text-[#c9d1d9] placeholder:text-[#484f58] focus-visible:ring-2 focus-visible:ring-[#58a6ff]/40 focus-visible:border-[#58a6ff] transition-all duration-200"
+                className="bg-[#0E1525] border-[#2B3245] h-11 rounded-xl text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                 data-testid="input-password"
               />
             </div>
 
             <Button
               type="submit"
-              className="w-full h-11 rounded-xl font-semibold bg-[#238636] hover:bg-[#2ea043] text-white shadow-[0_0_0_1px_rgba(35,134,54,0.4)] hover:shadow-[0_0_12px_rgba(46,160,67,0.3)] transition-all duration-200 mt-2"
+              className="w-full h-11 rounded-xl font-semibold bg-[#0CCE6B] hover:bg-[#0CCE6B]/90 text-[#0E1525] shadow-[0_0_0_1px_rgba(12,206,107,0.4)] hover:shadow-[0_0_12px_rgba(12,206,107,0.3)] transition-all duration-200 mt-2"
               disabled={isSubmitting}
               data-testid="button-submit-auth"
             >
@@ -186,10 +186,10 @@ export default function Auth() {
             </Button>
           </form>
 
-          <p className="text-center text-sm text-[#8b949e] mt-6 pt-5 border-t border-[#30363d]/60">
+          <p className="text-center text-sm text-[#9DA2B0] mt-6 pt-5 border-t border-[#2B3245]">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <span
-              className="text-[#58a6ff] font-medium cursor-pointer hover:text-[#79c0ff] transition-colors"
+              className="text-[#0079F2] font-medium cursor-pointer hover:text-[#0079F2]/80 transition-colors"
               onClick={() => setIsLogin(!isLogin)}
               data-testid="link-toggle-auth"
             >
@@ -201,16 +201,16 @@ export default function Auth() {
         <div className="mt-8 flex items-center justify-center gap-6">
           <Link
             href="/demo"
-            className="flex items-center gap-2 text-xs text-[#484f58] hover:text-[#58a6ff] transition-colors duration-200"
+            className="flex items-center gap-2 text-xs text-[#676D7E] hover:text-[#0079F2] transition-colors duration-200"
             data-testid="link-demo"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Try the demo</span>
           </Link>
-          <span className="text-[#30363d]">·</span>
-          <span className="text-xs text-[#484f58]">Terms</span>
-          <span className="text-[#30363d]">·</span>
-          <span className="text-xs text-[#484f58]">Privacy</span>
+          <span className="text-[#2B3245]">·</span>
+          <span className="text-xs text-[#676D7E]">Terms</span>
+          <span className="text-[#2B3245]">·</span>
+          <span className="text-xs text-[#676D7E]">Privacy</span>
         </div>
       </div>
     </div>

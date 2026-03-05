@@ -32,8 +32,8 @@ type AIModel = "claude" | "gpt";
 type AIMode = "chat" | "agent";
 
 const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
-  claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-purple-400 bg-purple-400/10", icon: Sparkles },
-  gpt: { name: "GPT-5.2", badge: "OpenAI", color: "text-green-400 bg-green-400/10", icon: Zap },
+  claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
+  gpt: { name: "GPT-5.2", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
 };
 
 const LANG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -58,33 +58,33 @@ const LANG_COLORS: Record<string, { bg: string; text: string }> = {
 
 function TypingIndicator() {
   return (
-    <span className="flex items-center gap-1.5 text-[#8b949e] py-1">
+    <span className="flex items-center gap-1.5 text-[#9DA2B0] py-1">
       <span className="flex items-center gap-[3px]">
-        <span className="w-[5px] h-[5px] rounded-full bg-purple-400 animate-[bounce-dot_1.4s_ease-in-out_infinite]" />
-        <span className="w-[5px] h-[5px] rounded-full bg-purple-400 animate-[bounce-dot_1.4s_ease-in-out_0.2s_infinite]" style={{ animationDelay: "0.2s" }} />
-        <span className="w-[5px] h-[5px] rounded-full bg-purple-400 animate-[bounce-dot_1.4s_ease-in-out_0.4s_infinite]" style={{ animationDelay: "0.4s" }} />
+        <span className="w-[5px] h-[5px] rounded-full bg-[#7C65CB] animate-[bounce-dot_1.4s_ease-in-out_infinite]" />
+        <span className="w-[5px] h-[5px] rounded-full bg-[#7C65CB] animate-[bounce-dot_1.4s_ease-in-out_0.2s_infinite]" style={{ animationDelay: "0.2s" }} />
+        <span className="w-[5px] h-[5px] rounded-full bg-[#7C65CB] animate-[bounce-dot_1.4s_ease-in-out_0.4s_infinite]" style={{ animationDelay: "0.4s" }} />
       </span>
-      <span className="text-[11px] ml-1">{" "}Thinking...</span>
+      <span className="text-[11px] ml-1"> Thinking...</span>
     </span>
   );
 }
 
 function FileOpProgress({ ops }: { ops: { type: "created" | "updated"; filename: string }[] }) {
   return (
-    <div className="mt-3 rounded-lg overflow-hidden border border-green-600/20">
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-green-600/5 border-b border-green-600/20">
-        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Files Modified</span>
-        <span className="text-[10px] text-green-400/60 ml-auto">{ops.length} file{ops.length > 1 ? "s" : ""}</span>
+    <div className="mt-3 rounded-lg overflow-hidden border border-[#0CCE6B]/20">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0CCE6B]/5 border-b border-[#0CCE6B]/20">
+        <div className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />
+        <span className="text-[10px] font-semibold text-[#0CCE6B] uppercase tracking-wider">Files Modified</span>
+        <span className="text-[10px] text-[#0CCE6B]/60 ml-auto">{ops.length} file{ops.length > 1 ? "s" : ""}</span>
       </div>
-      <div className="bg-green-600/5 p-2">
+      <div className="bg-[#0CCE6B]/5 p-2">
         {ops.map((op, i) => (
-          <div key={i} className="flex items-center gap-2 text-[11px] text-[#c9d1d9] py-1 px-1">
-            <div className={`w-5 h-5 rounded flex items-center justify-center ${op.type === "created" ? "bg-green-500/15" : "bg-blue-500/15"}`}>
-              {op.type === "created" ? <FilePlus className="w-3 h-3 text-green-400" /> : <FileEdit className="w-3 h-3 text-blue-400" />}
+          <div key={i} className="flex items-center gap-2 text-[11px] text-[#F5F9FC] py-1 px-1">
+            <div className={`w-5 h-5 rounded flex items-center justify-center ${op.type === "created" ? "bg-[#0CCE6B]/15" : "bg-[#0079F2]/15"}`}>
+              {op.type === "created" ? <FilePlus className="w-3 h-3 text-[#0CCE6B]" /> : <FileEdit className="w-3 h-3 text-[#0079F2]" />}
             </div>
             <span className="font-mono text-[11px]">{op.filename}</span>
-            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${op.type === "created" ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400"}`}>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${op.type === "created" ? "bg-[#0CCE6B]/10 text-[#0CCE6B]" : "bg-[#0079F2]/10 text-[#0079F2]"}`}>
               {op.type}
             </span>
           </div>
@@ -282,12 +282,12 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         const blockKey = `${content.slice(0, 20)}-block-${i}`;
         const targetFile = guessTargetFile(lang, code);
         const isApplied = appliedBlocks.has(blockKey);
-        const langColor = LANG_COLORS[lang.toLowerCase()] || { bg: "bg-[#30363d]", text: "text-[#8b949e]" };
+        const langColor = LANG_COLORS[lang.toLowerCase()] || { bg: "bg-[#2B3245]", text: "text-[#9DA2B0]" };
         return (
-          <div key={i} className="my-2.5 rounded-lg overflow-hidden border border-[#30363d] shadow-lg">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#161b22] border-b border-[#30363d]">
+          <div key={i} className="my-2.5 rounded-lg overflow-hidden border border-[#2B3245] shadow-lg">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[#0E1525] border-b border-[#2B3245]">
               <div className="flex items-center gap-2">
-                <Code2 className="w-3.5 h-3.5 text-[#484f58]" />
+                <Code2 className="w-3.5 h-3.5 text-[#676D7E]" />
                 {lang && (
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${langColor.bg} ${langColor.text}`}>
                     {lang}
@@ -298,7 +298,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 {mode === "chat" && targetFile && onApplyCode && (
                   <button
                     onClick={() => applyCodeToFile(code, targetFile, blockKey)}
-                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-all ${isApplied ? "text-green-400 bg-green-400/10" : "text-[#58a6ff] hover:text-white hover:bg-[#58a6ff]/10"}`}
+                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-all ${isApplied ? "text-[#0CCE6B] bg-[#0CCE6B]/10" : "text-[#0079F2] hover:text-[#F5F9FC] hover:bg-[#0079F2]/10"}`}
                     data-testid={`button-apply-code-${i}`}
                   >
                     {isApplied ? <><Check className="w-3 h-3" /> Applied</> : <><FileDown className="w-3 h-3" /> Apply</>}
@@ -306,14 +306,14 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                 )}
                 <button
                   onClick={() => copyCode(code)}
-                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded text-[#8b949e] hover:text-white hover:bg-[#30363d] transition-all"
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-all"
                   data-testid="button-copy-code"
                 >
-                  {copied === code ? <><Check className="w-3 h-3 text-green-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
+                  {copied === code ? <><Check className="w-3 h-3 text-[#0CCE6B]" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                 </button>
               </div>
             </div>
-            <pre className="p-3 bg-[#0d1117] text-[12px] overflow-x-auto text-[#c9d1d9] leading-relaxed" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            <pre className="p-3 bg-[#0E1525] text-[12px] overflow-x-auto text-[#F5F9FC] leading-relaxed" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               <code>{code}</code>
             </pre>
           </div>
@@ -325,12 +325,12 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             const text = line.slice(2);
             const isCreating = text.includes("Creating");
             return (
-              <div key={`${i}-${j}`} className="flex items-center gap-2 my-1.5 px-3 py-2 rounded-lg bg-[#161b22] border border-[#30363d] text-[11px] animate-[slide-in_0.3s_ease-out]">
-                <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${isCreating ? "bg-green-500/15" : "bg-blue-500/15"}`}>
-                  {isCreating ? <FilePlus className="w-3 h-3 text-green-400" /> : <FileEdit className="w-3 h-3 text-blue-400" />}
+              <div key={`${i}-${j}`} className="flex items-center gap-2 my-1.5 px-3 py-2 rounded-lg bg-[#0E1525] border border-[#2B3245] text-[11px] animate-[slide-in_0.3s_ease-out]">
+                <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${isCreating ? "bg-[#0CCE6B]/15" : "bg-[#0079F2]/15"}`}>
+                  {isCreating ? <FilePlus className="w-3 h-3 text-[#0CCE6B]" /> : <FileEdit className="w-3 h-3 text-[#0079F2]" />}
                 </div>
-                <span className="text-[#c9d1d9]">{text}</span>
-                <div className="ml-auto w-3 h-3 border-2 border-purple-400/40 border-t-purple-400 rounded-full animate-spin" />
+                <span className="text-[#F5F9FC]">{text}</span>
+                <div className="ml-auto w-3 h-3 border-2 border-[#7C65CB]/40 border-t-[#7C65CB] rounded-full animate-spin" />
               </div>
             );
           }
@@ -365,14 +365,14 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117]">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#30363d] bg-[#161b22] shrink-0">
+    <div className="flex flex-col h-full bg-[#1C2333]">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-purple-600/20 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-purple-400" />
+          <div className="w-7 h-7 rounded-lg bg-[#7C65CB]/20 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-[#7C65CB]" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold text-white">AI</span>
+            <span className="text-sm font-semibold text-[#F5F9FC]">AI</span>
             {mode === "agent" ? (
               <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color}`} title="Agent mode uses Claude for tool capabilities" data-testid="button-model-select">
                 <Sparkles className="w-2.5 h-2.5" />
@@ -387,26 +387,26 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                     <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52 bg-[#1c2128] border-[#30363d] p-1">
-                  <DropdownMenuItem className="gap-2.5 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("claude")} data-testid="model-claude">
-                    <div className="w-5 h-5 rounded bg-purple-500/15 flex items-center justify-center">
-                      <Sparkles className="w-3 h-3 text-purple-400" />
+                <DropdownMenuContent align="start" className="w-52 bg-[#1C2333] border-[#2B3245] p-1">
+                  <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("claude")} data-testid="model-claude">
+                    <div className="w-5 h-5 rounded bg-[#7C65CB]/15 flex items-center justify-center">
+                      <Sparkles className="w-3 h-3 text-[#7C65CB]" />
                     </div>
                     <div className="flex flex-col">
                       <span className="font-medium">Claude Sonnet</span>
-                      <span className="text-[10px] text-[#8b949e]">Anthropic</span>
+                      <span className="text-[10px] text-[#676D7E]">Anthropic</span>
                     </div>
-                    {model === "claude" && <Check className="w-3.5 h-3.5 ml-auto text-green-400" />}
+                    {model === "claude" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2.5 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gpt")} data-testid="model-gpt">
-                    <div className="w-5 h-5 rounded bg-green-500/15 flex items-center justify-center">
-                      <Zap className="w-3 h-3 text-green-400" />
+                  <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gpt")} data-testid="model-gpt">
+                    <div className="w-5 h-5 rounded bg-[#0CCE6B]/15 flex items-center justify-center">
+                      <Zap className="w-3 h-3 text-[#0CCE6B]" />
                     </div>
                     <div className="flex flex-col">
                       <span className="font-medium">GPT-5.2</span>
-                      <span className="text-[10px] text-[#8b949e]">OpenAI</span>
+                      <span className="text-[10px] text-[#676D7E]">OpenAI</span>
                     </div>
-                    {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-green-400" />}
+                    {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -415,16 +415,16 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         </div>
         <div className="flex items-center gap-1">
           {projectId && (
-            <div className="flex items-center mr-1 bg-[#30363d]/50 rounded-md p-0.5">
+            <div className="flex items-center mr-1 bg-[#2B3245]/50 rounded-md p-0.5">
               <button
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${mode === "chat" ? "bg-[#30363d] text-white" : "text-[#8b949e] hover:text-white"}`}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${mode === "chat" ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
                 onClick={() => setMode("chat")}
                 data-testid="mode-chat"
               >
                 <MessageSquare className="w-3 h-3" /> Chat
               </button>
               <button
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${mode === "agent" ? "bg-purple-600/30 text-purple-400" : "text-[#8b949e] hover:text-white"}`}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${mode === "agent" ? "bg-[#7C65CB]/30 text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
                 onClick={() => { setMode("agent"); setModel("claude"); }}
                 data-testid="mode-agent"
               >
@@ -433,26 +433,26 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             </div>
           )}
           {messages.length > 0 && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={() => setMessages([])} title="Clear chat" data-testid="button-clear-chat">
+            <Button variant="ghost" size="icon" className="w-7 h-7 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setMessages([])} title="Clear chat" data-testid="button-clear-chat">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#30363d]" onClick={onClose} data-testid="button-close-ai">
+          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={onClose} data-testid="button-close-ai">
             <X className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
       {context && mode === "chat" && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#30363d] bg-[#161b22]/50 text-[10px] text-[#8b949e] shrink-0">
-          <FileCode className="w-3 h-3 text-[#484f58]" />
-          <span className="px-1.5 py-0.5 rounded bg-[#30363d] text-[#c9d1d9] font-mono">{context.filename}</span>
-          <span className="text-[#484f58]">{context.language}</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#2B3245] bg-[#0E1525]/50 text-[10px] text-[#9DA2B0] shrink-0">
+          <FileCode className="w-3 h-3 text-[#676D7E]" />
+          <span className="px-1.5 py-0.5 rounded bg-[#2B3245] text-[#F5F9FC] font-mono">{context.filename}</span>
+          <span className="text-[#676D7E]">{context.language}</span>
         </div>
       )}
 
       {mode === "agent" && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#30363d] bg-purple-600/5 text-[10px] text-purple-400 shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#2B3245] bg-[#7C65CB]/10 text-[10px] text-[#7C65CB] shrink-0">
           <Bot className="w-3 h-3" />
           <span>Agent mode — AI can create and edit files in your project</span>
         </div>
@@ -461,33 +461,33 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-[fade-in_0.4s_ease-out]">
-            <div className="w-16 h-16 rounded-2xl bg-purple-600/10 flex items-center justify-center mb-4 border border-purple-600/20">
-              {mode === "agent" ? <Bot className="w-8 h-8 text-purple-400/60" /> : <Sparkles className="w-8 h-8 text-purple-400/60" />}
+            <div className="w-16 h-16 rounded-2xl bg-[#7C65CB]/10 flex items-center justify-center mb-4 border border-[#7C65CB]/20">
+              {mode === "agent" ? <Bot className="w-8 h-8 text-[#7C65CB]/60" /> : <Sparkles className="w-8 h-8 text-[#7C65CB]/60" />}
             </div>
-            <p className="text-base font-semibold text-white mb-2" data-testid="text-ai-title">
+            <p className="text-base font-semibold text-[#F5F9FC] mb-2" data-testid="text-ai-title">
               {mode === "agent" ? "AI Coding Agent" : "AI Assistant"}
             </p>
-            <p className="text-xs text-[#8b949e] max-w-[280px] leading-relaxed mb-6">
+            <p className="text-xs text-[#9DA2B0] max-w-[280px] leading-relaxed mb-6">
               {mode === "agent"
                 ? "I can build features, create files, and edit your code directly. Describe what you want to build."
                 : "I can help you write code, debug issues, explain concepts, and suggest improvements."}
             </p>
-            <div className="w-full max-w-[300px] space-y-1.5">
+            <div className="w-full max-w-[300px] grid grid-cols-2 gap-2">
               {(mode === "agent" ? agentSuggestions : chatSuggestions).map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
                     key={item.label}
-                    className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg bg-[#161b22] border border-[#30363d] text-xs text-[#8b949e] hover:text-white hover:border-[#484f58] hover:bg-[#1c2128] transition-all group"
+                    className="flex flex-col items-center gap-2 w-full text-center px-3 py-3 rounded-lg bg-[#0E1525] border border-[#2B3245] text-xs text-[#9DA2B0] hover:text-[#F5F9FC] hover:border-[#323B4F] hover:bg-[#1C2333] transition-all group"
                     onClick={() => { setInput(item.label); inputRef.current?.focus(); }}
                     data-testid={`suggestion-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
-                    <div className="w-6 h-6 rounded-md bg-[#30363d]/50 flex items-center justify-center group-hover:bg-purple-600/15 transition-colors">
-                      <Icon className="w-3.5 h-3.5 group-hover:text-purple-400 transition-colors" />
+                    <div className="w-8 h-8 rounded-lg bg-[#2B3245]/50 flex items-center justify-center group-hover:bg-[#7C65CB]/15 transition-colors">
+                      <Icon className="w-4 h-4 group-hover:text-[#7C65CB] transition-colors" />
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-[11px] font-medium">{item.label}</span>
-                      <span className="text-[9px] text-[#484f58]">{item.category}</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[11px] font-medium leading-tight">{item.label}</span>
+                      <span className="text-[9px] text-[#676D7E] mt-0.5">{item.category}</span>
                     </div>
                   </button>
                 );
@@ -498,14 +498,14 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-3 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-              msg.role === "assistant" ? "bg-purple-600/20" : "bg-[#58a6ff]/20"
+              msg.role === "assistant" ? "bg-[#7C65CB]/20" : "bg-[#0079F2]/20"
             }`}>
-              {msg.role === "assistant" ? <Bot className="w-4 h-4 text-purple-400" /> : <User className="w-4 h-4 text-[#58a6ff]" />}
+              {msg.role === "assistant" ? <Bot className="w-4 h-4 text-[#7C65CB]" /> : <User className="w-4 h-4 text-[#0079F2]" />}
             </div>
             <div className={`max-w-[85%] rounded-lg px-3 py-2.5 text-[13px] leading-relaxed ${
               msg.role === "user"
-                ? "bg-[#58a6ff]/15 text-[#c9d1d9] border border-[#58a6ff]/20"
-                : "bg-[#161b22] text-[#c9d1d9] border border-[#30363d]"
+                ? "bg-[#0079F2]/15 text-[#F5F9FC] border border-[#0079F2]/20"
+                : "bg-[#2B3245] text-[#F5F9FC] border border-[#2B3245]"
             }`}>
               {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
             </div>
@@ -513,7 +513,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         ))}
       </div>
 
-      <div className="p-3 border-t border-[#30363d] bg-[#161b22] shrink-0">
+      <div className="p-3 border-t border-[#2B3245] bg-[#0E1525] shrink-0">
         <div className="relative">
           <textarea
             ref={inputRef}
@@ -522,7 +522,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             onKeyDown={handleKeyDown}
             placeholder={mode === "agent" ? "Tell the agent what to build..." : "Ask anything about your code..."}
             rows={2}
-            className="w-full bg-[#0d1117] border border-[#30363d] text-sm text-[#c9d1d9] rounded-lg px-3 py-2.5 pr-12 resize-none placeholder:text-[#484f58] focus:outline-none focus:border-purple-600/50 focus:ring-1 focus:ring-purple-600/20 min-h-[52px] max-h-[160px]"
+            className="w-full bg-[#0E1525] border border-[#2B3245] text-sm text-[#F5F9FC] rounded-lg px-3 py-2.5 pr-12 resize-none placeholder:text-[#676D7E] focus:outline-none focus:border-[#7C65CB]/50 focus:ring-1 focus:ring-[#7C65CB]/20 min-h-[52px] max-h-[160px]"
             disabled={isStreaming}
             data-testid="input-ai-chat"
           />
@@ -540,7 +540,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
               <Button
                 onClick={sendMessage}
                 size="icon"
-                className="w-8 h-8 bg-purple-600 hover:bg-purple-700 rounded-lg"
+                className="w-8 h-8 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-lg"
                 disabled={!input.trim()}
                 data-testid="button-ai-send"
               >
@@ -550,12 +550,12 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1">
-          <span className="text-[10px] text-[#484f58]">
-            <kbd className="px-1 py-0.5 rounded bg-[#30363d]/50 text-[9px] font-mono">Shift+Enter</kbd> for newline
+          <span className="text-[10px] text-[#676D7E]">
+            <kbd className="px-1 py-0.5 rounded bg-[#2B3245]/50 text-[9px] font-mono">Shift+Enter</kbd> for newline
           </span>
           {isStreaming && (
-            <span className="flex items-center gap-1.5 text-[10px] text-purple-400">
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />
               Generating...
             </span>
           )}

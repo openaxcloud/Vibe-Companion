@@ -719,13 +719,13 @@ export default function Project() {
   const getFileColor = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
     const c: Record<string, string> = { js: "text-yellow-400", jsx: "text-yellow-400", ts: "text-blue-400", tsx: "text-blue-400", py: "text-green-400", json: "text-orange-400", css: "text-pink-400", html: "text-red-400", md: "text-gray-400" };
-    return c[ext || ""] || "text-[#8b949e]";
+    return c[ext || ""] || "text-[#9DA2B0]";
   };
 
   if (projectQuery.isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0d1117]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#58a6ff]" />
+      <div className="h-screen flex items-center justify-center bg-[#1C2333]">
+        <Loader2 className="w-6 h-6 animate-spin text-[#0079F2]" />
       </div>
     );
   }
@@ -734,25 +734,25 @@ export default function Project() {
   const isTablet = viewMode === "tablet";
 
   const sidebarContent = (
-    <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#0d1117] flex flex-col ${isMobile ? "" : "border-r border-[#21262d]"} overflow-hidden`}>
-      <div className="flex items-center justify-between px-3 h-8 border-b border-[#21262d] shrink-0">
+    <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#1C2333] flex flex-col ${isMobile ? "" : "border-r border-[#2B3245]"} overflow-hidden`}>
+      <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-[#8b949e] uppercase tracking-widest">Files</span>
-          {useRunnerFS && <span className="text-[8px] px-1 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">LIVE</span>}
+          <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Files</span>
+          {useRunnerFS && <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20">LIVE</span>}
         </div>
         <div className="flex items-center gap-0">
           {useRunnerFS && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#484f58] hover:text-white hover:bg-[#21262d]" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
-              <FolderPlus className="w-3 h-3" />
+            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+              <FolderPlus className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#484f58] hover:text-white hover:bg-[#21262d]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
-            <Plus className="w-3 h-3" />
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
+            <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
       {useRunnerFS && currentFsPath !== "/" && (
-        <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#58a6ff] hover:bg-[#161b22] border-b border-[#30363d] shrink-0" onClick={() => {
+        <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] hover:bg-[#2B3245] border-b border-[#2B3245] shrink-0" onClick={() => {
           const parent = currentFsPath.substring(0, currentFsPath.lastIndexOf("/")) || "/";
           setCurrentFsPath(parent);
         }}>
@@ -768,31 +768,31 @@ export default function Project() {
               return (
                 <div
                   key={entry.path}
-                  className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${entryId === activeFileId ? "bg-[#1c2128] border-l-2 border-l-[#58a6ff] text-white" : "text-[#c9d1d9] hover:bg-[#1c2128]"}`}
+                  className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${entryId === activeFileId ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#9DA2B0] hover:bg-[#323B4F] hover:text-[#F5F9FC]"}`}
                   onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                   data-testid={`fs-entry-${entry.name}`}
                 >
-                  {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#8b949e]" /> : <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(entry.name)}`} />}
+                  {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileIcon className={`w-3.5 h-3.5 shrink-0 ${getFileColor(entry.name)}`} />}
                   <span className="flex-1 text-xs truncate">{entry.name}{isDir ? "/" : ""}</span>
                   {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
                   <div className="hidden group-hover:flex items-center gap-0.5">
-                    <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); }} data-testid={`button-rename-${entry.name}`}>
+                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); }} data-testid={`button-rename-${entry.name}`}>
                       <Pencil className="w-3 h-3" />
                     </button>
-                    <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }} data-testid={`button-delete-${entry.name}`}>
+                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); }} data-testid={`button-delete-${entry.name}`}>
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
               );
             })}
-            {runnerFsQuery.isLoading && <div className="flex items-center justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-[#58a6ff]" /></div>}
+            {runnerFsQuery.isLoading && <div className="flex items-center justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-[#0079F2]" /></div>}
             {runnerFsQuery.data?.length === 0 && !runnerFsQuery.isLoading && (
               <div className="px-3 py-6 text-center">
-                <p className="text-xs text-[#484f58] mb-2">Empty directory</p>
+                <p className="text-xs text-[#676D7E] mb-2">Empty directory</p>
                 <div className="flex gap-2 justify-center">
-                  <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> File</Button>
-                  <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFolderDialogOpen(true)}><FolderPlus className="w-3 h-3 mr-1" /> Folder</Button>
+                  <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> File</Button>
+                  <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFolderDialogOpen(true)}><FolderPlus className="w-3 h-3 mr-1" /> Folder</Button>
                 </div>
               </div>
             )}
@@ -800,10 +800,10 @@ export default function Project() {
         ) : (
           <>
             {(wsStatus === "stopped" || wsStatus === "none" || wsStatus === "offline") && (
-              <div className="px-2 py-2 border-b border-[#21262d]">
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#161b22] border border-[#21262d]">
-                  <Server className="w-3 h-3 text-[#484f58] shrink-0" />
-                  <span className="text-[10px] text-[#8b949e] flex-1">{wsStatus === "offline" ? "Runner offline" : "Start workspace"}</span>
+              <div className="px-2 py-2 border-b border-[#2B3245]">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#1C2333] border border-[#2B3245]">
+                  <Server className="w-3 h-3 text-[#676D7E] shrink-0" />
+                  <span className="text-[10px] text-[#9DA2B0] flex-1">{wsStatus === "offline" ? "Runner offline" : "Start workspace"}</span>
                   <Button size="sm" variant="ghost" className="h-5 px-2 text-[9px] text-green-400 hover:text-green-300 hover:bg-green-600/10 shrink-0" onClick={handleStartWorkspace} disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending} data-testid="button-sidebar-start-workspace">
                     {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
                   </Button>
@@ -813,7 +813,7 @@ export default function Project() {
             {filesQuery.data?.map((file) => (
               <div
                 key={file.id}
-                className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#1c2128] border-l-2 border-l-[#58a6ff] text-white" : "text-[#c9d1d9] hover:bg-[#1c2128]"}`}
+                className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#9DA2B0] hover:bg-[#323B4F] hover:text-[#F5F9FC]"}`}
                 onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                 data-testid={`file-item-${file.id}`}
               >
@@ -821,15 +821,15 @@ export default function Project() {
                 <span className="flex-1 text-xs truncate">{file.filename}</span>
                 {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />}
                 <div className="hidden group-hover:flex items-center gap-0.5">
-                  <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-3 h-3" /></button>
-                  <button className="p-0.5 rounded hover:bg-[#30363d] text-[#8b949e] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-3 h-3" /></button>
+                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-white" onClick={(e) => { e.stopPropagation(); openRenameDialog(file.id, file.filename); }} data-testid={`button-rename-${file.id}`}><Pencil className="w-3 h-3" /></button>
+                  <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#9DA2B0] hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleDelete(file.id, file.filename, "file"); }} data-testid={`button-delete-${file.id}`}><Trash2 className="w-3 h-3" /></button>
                 </div>
               </div>
             ))}
             {filesQuery.data?.length === 0 && (
               <div className="px-3 py-6 text-center">
-                <p className="text-xs text-[#484f58] mb-2">No files yet</p>
-                <Button size="sm" variant="ghost" className="text-xs text-[#58a6ff]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> Create File</Button>
+                <p className="text-xs text-[#676D7E] mb-2">No files yet</p>
+                <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> Create File</Button>
               </div>
             )}
           </>
@@ -839,7 +839,7 @@ export default function Project() {
   );
 
   const editorTabBar = openTabs.length > 0 ? (
-    <div className="flex items-center bg-[#010409] border-b border-[#21262d] overflow-x-auto shrink-0 scrollbar-hide h-[33px]">
+    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] overflow-x-auto shrink-0 scrollbar-hide h-9">
       {openTabs.map((tabId) => {
         const isRunner = tabId.startsWith("runner:");
         const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
@@ -847,16 +847,16 @@ export default function Project() {
         if (!isRunner && !file) return null;
         const isActive = tabId === activeFileId;
         return (
-          <div key={tabId} className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 transition-colors border-b-2 ${isActive ? "bg-[#0d1117] text-[#e6edf3] border-b-[#58a6ff]" : "text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#161b22]/50 border-b-transparent"}`}
+          <div key={tabId} className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 transition-colors border-b-2 ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-b-transparent"}`}
             onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
             data-testid={`tab-${tabId}`}
           >
             <FileIcon className={`w-3 h-3 shrink-0 ${getFileColor(tabName)}`} />
-            <span className="text-[11px] max-w-[100px] truncate">{tabName}</span>
+            <span className="text-[11px] max-w-[120px] truncate">{tabName}</span>
             {dirtyFiles.has(tabId) ? (
-              <div className="w-2 h-2 rounded-full bg-[#e3b341] shrink-0" />
+              <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
             ) : (
-              <button className="p-0.5 rounded hover:bg-[#30363d] text-[#484f58] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
+              <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
             )}
           </div>
         );
@@ -869,24 +869,24 @@ export default function Project() {
       {activeFileId ? (
         <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} />
       ) : (
-        <div className="flex flex-col items-center justify-center h-full bg-[#0d1117]">
+        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333]">
           <div className="max-w-sm text-center px-6">
-            <div className="w-14 h-14 rounded-xl bg-[#161b22] border border-[#21262d] flex items-center justify-center mx-auto mb-5">
-              <Code2 className="w-7 h-7 text-[#30363d]" />
+            <div className="w-16 h-16 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-6">
+              <Code2 className="w-8 h-8 text-[#676D7E]" />
             </div>
-            <h3 className="text-base font-semibold text-[#e6edf3] mb-1.5">{project?.name || "Untitled"}</h3>
-            <p className="text-xs text-[#484f58] mb-6 leading-relaxed">Open a file to start editing</p>
-            <div className="flex flex-col gap-1.5 max-w-[200px] mx-auto">
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[#8b949e] hover:text-white hover:bg-[#161b22] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
-                <FolderOpen className="w-3.5 h-3.5 text-[#58a6ff]" /> Explorer
-                <span className="ml-auto text-[10px] text-[#30363d] font-mono">Ctrl+B</span>
+            <h3 className="text-lg font-semibold text-[#F5F9FC] mb-2">{project?.name || "Untitled"}</h3>
+            <p className="text-sm text-[#676D7E] mb-8 leading-relaxed">Open a file to start editing</p>
+            <div className="flex flex-col gap-1 max-w-[220px] mx-auto">
+              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
+                <FolderOpen className="w-4 h-4 text-[#0079F2]" /> Explorer
+                <span className="ml-auto text-[10px] text-[#676D7E] font-mono">Ctrl+B</span>
               </button>
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[#8b949e] hover:text-white hover:bg-[#161b22] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }} data-testid="button-open-ai-empty">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" /> AI Agent
+              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }} data-testid="button-open-ai-empty">
+                <Sparkles className="w-4 h-4 text-[#7C65CB]" /> AI Agent
               </button>
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-[#8b949e] hover:text-white hover:bg-[#161b22] transition-colors text-left" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
-                <Plus className="w-3.5 h-3.5 text-green-400" /> New File
-                <span className="ml-auto text-[10px] text-[#30363d] font-mono">Ctrl+N</span>
+              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
+                <Plus className="w-4 h-4 text-[#0CCE6B]" /> New File
+                <span className="ml-auto text-[10px] text-[#676D7E] font-mono">Ctrl+N</span>
               </button>
             </div>
           </div>
@@ -897,35 +897,35 @@ export default function Project() {
 
   const terminalContent = (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }}>
-      {logs.length === 0 && !isRunning && <p className="text-[#484f58] text-center py-4 text-xs">Press Run to execute your code</p>}
+      {logs.length === 0 && !isRunning && <p className="text-[#676D7E] text-center py-4 text-xs">Press Run to execute your code</p>}
       {logs.map((log) => (
-        <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#8b949e]"}`}>
+        <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#9DA2B0]"}`}>
           <span className="whitespace-pre-wrap break-all">{log.text}</span>
         </div>
       ))}
-      {isRunning && <span className="animate-pulse text-[#58a6ff]">_</span>}
+      {isRunning && <span className="animate-pulse text-[#0079F2]">_</span>}
     </div>
   );
 
   const previewContent = (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#0d1117]">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333]">
       {runnerOnline === false ? (
-        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-2">
+        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-2">
           <WifiOff className="w-8 h-8 text-orange-400/60" />
           <p className="text-xs text-orange-400/80">Preview unavailable (runner offline)</p>
         </div>
       ) : wsStatus === "running" && livePreviewUrl ? (
         <>
-          <div className="flex items-center justify-between px-2 py-1 border-b border-[#30363d] bg-[#161b22] shrink-0">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Globe className="w-3 h-3 text-[#8b949e] shrink-0" />
-              <span className="text-[11px] text-[#8b949e] truncate">{livePreviewUrl}</span>
+              <Globe className="w-3 h-3 text-[#9DA2B0] shrink-0" />
+              <span className="text-[11px] text-[#9DA2B0] truncate">{livePreviewUrl}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <Button variant="ghost" size="icon" className="w-5 h-5 text-[#8b949e] hover:text-white hover:bg-[#30363d]"
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245]"
                 onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }}
                 title="Refresh" data-testid="button-preview-refresh"><RefreshCw className="w-3 h-3" /></Button>
-              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-[#8b949e] hover:text-white hover:bg-[#30363d] gap-1"
+              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] gap-1"
                 onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
             </div>
           </div>
@@ -934,13 +934,13 @@ export default function Project() {
       ) : previewHtml ? (
         <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
       ) : (
-        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
+        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
           <Globe className="w-10 h-10" />
-          <p className="text-sm font-medium text-[#c9d1d9]">Live Preview</p>
+          <p className="text-sm font-medium text-[#F5F9FC]">Live Preview</p>
           {wsStatus === "none" || wsStatus === "stopped" ? (
             <>
-              <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#58a6ff] font-mono">:3000</span> in the workspace to see the preview here.</p>
-              <p className="text-[10px] text-[#30363d]">Start the workspace then run your app</p>
+              <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#0079F2] font-mono">:3000</span> in the workspace to see the preview here.</p>
+              <p className="text-[10px] text-[#2B3245]">Start the workspace then run your app</p>
             </>
           ) : (
             <p className="text-xs">Workspace starting up...</p>
@@ -957,20 +957,20 @@ export default function Project() {
   );
 
   const bottomPanel = (
-    <div className="shrink-0 flex flex-col border-t border-[#21262d] bg-[#0d1117]" style={{ height: terminalHeight }}>
-      <div className="h-[3px] cursor-ns-resize resize-handle flex items-center justify-center shrink-0 hover:bg-[#58a6ff]/30 transition-colors" onMouseDown={handleDragStart} onTouchStart={handleDragStart} />
-      <div className="flex items-center justify-between px-1 h-[30px] border-b border-[#21262d] bg-[#010409] shrink-0">
+    <div className="shrink-0 flex flex-col border-t border-[#2B3245] bg-[#1C2333]" style={{ height: terminalHeight }}>
+      <div className="h-[3px] cursor-ns-resize resize-handle flex items-center justify-center shrink-0 hover:bg-[#0079F2]/40 transition-colors" onMouseDown={handleDragStart} onTouchStart={handleDragStart} />
+      <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
         <div className="flex items-center h-full">
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "terminal" ? "text-[#e6edf3] border-[#58a6ff]" : "text-[#484f58] border-transparent hover:text-[#8b949e]"}`} onClick={() => setBottomTab("terminal")}>
-            <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
+            <Terminal className="w-3.5 h-3.5" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
           </button>
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#e6edf3] border-[#58a6ff]" : "text-[#484f58] border-transparent hover:text-[#8b949e]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
-            <Hash className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 transition-colors ${bottomTab === "shell" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
+            <Hash className="w-3.5 h-3.5" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
           </button>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-2.5 h-2.5" /></Button>
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-2.5 h-2.5" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-3 h-3" /></Button>
         </div>
       </div>
       {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
@@ -981,12 +981,12 @@ export default function Project() {
     <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
       wsStatus === "running" ? "bg-green-600/20 text-green-400 border border-green-600/30" :
       wsStatus === "starting" ? "bg-yellow-600/20 text-yellow-400 border border-yellow-600/30" :
-      wsStatus === "stopped" ? "bg-[#30363d] text-[#8b949e] border border-[#484f58]/30" :
+      wsStatus === "stopped" ? "bg-[#2B3245] text-[#9DA2B0] border border-[#676D7E]/30" :
       wsStatus === "error" ? "bg-red-600/20 text-red-400 border border-red-600/30" :
       wsStatus === "offline" ? "bg-orange-600/20 text-orange-400 border border-orange-600/30" :
-      "bg-[#30363d] text-[#484f58] border border-[#30363d]"
+      "bg-[#2B3245] text-[#676D7E] border border-[#2B3245]"
     }`} data-testid="text-workspace-status">
-      <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400 animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "stopped" ? "bg-[#8b949e]" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400 animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "stopped" ? "bg-[#9DA2B0]" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
       {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting..." : wsStatus === "stopped" ? "Stopped" : wsStatus === "error" ? "Error" : wsStatus === "offline" ? "Offline" : "Init"}
     </span>
   );
@@ -1002,22 +1002,22 @@ export default function Project() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-[#0d1117] text-sm select-none overflow-hidden">
+    <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className="grid grid-cols-3 items-center px-2 h-9 bg-[#010409] border-b border-[#21262d] shrink-0 z-40">
+      <div className="grid grid-cols-3 items-center px-2 h-9 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
         <div className="flex items-center gap-1.5 min-w-0">
-          <button className="w-6 h-6 rounded-md bg-gradient-to-br from-[#58a6ff]/80 to-[#a371f7]/80 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+          <button className="w-6 h-6 rounded-md bg-gradient-to-br from-[#0079F2]/80 to-[#7C65CB]/80 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <Code2 className="w-3.5 h-3.5 text-white" />
           </button>
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[13px] font-semibold text-[#e6edf3] truncate max-w-[160px]" data-testid="text-project-name">{project?.name}</span>
+            <span className="text-[13px] font-semibold text-[#F5F9FC] truncate max-w-[160px]" data-testid="text-project-name">{project?.name}</span>
             {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
           </div>
         </div>
         <div className="flex items-center justify-center">
           <Button
             size="sm"
-            className={`h-7 px-4 text-[11px] font-semibold rounded-full gap-1.5 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]" : "bg-[#238636] hover:bg-[#2ea043] text-white shadow-[0_0_12px_rgba(35,134,54,0.3)]"}`}
+            className={`h-7 px-5 text-[11px] font-semibold rounded-full gap-1.5 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)]"}`}
             onClick={handleRun}
             disabled={runMutation.isPending}
             data-testid="button-run"
@@ -1026,21 +1026,21 @@ export default function Project() {
           </Button>
         </div>
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#21262d] rounded-md" onClick={() => setPublishDialogOpen(true)} title="Publish" data-testid="button-publish">
+          <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md" onClick={() => setPublishDialogOpen(true)} title="Publish" data-testid="button-publish">
             <Rocket className="w-3.5 h-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#8b949e] hover:text-white hover:bg-[#21262d] rounded-md" data-testid="button-kebab-menu">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md" data-testid="button-kebab-menu">
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 bg-[#1c2128] border-[#30363d]">
-              <DropdownMenuItem className="gap-2 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
+            <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg">
+              <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
                 <Settings className="w-3.5 h-3.5" /> Project Settings
               </DropdownMenuItem>
               {!isMobile && (
-                <DropdownMenuItem className="gap-2 text-xs text-[#c9d1d9] focus:bg-[#30363d] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
+                <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
                   <Terminal className="w-3.5 h-3.5" /> Toggle Terminal
                 </DropdownMenuItem>
               )}
@@ -1069,11 +1069,11 @@ export default function Project() {
               </div>
             )}
             {mobileTab === "terminal" && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-[#0d1117]">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-[#30363d] bg-[#161b22] shrink-0">
+              <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
+                <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
                   <div className="flex items-center gap-2">
-                    <Terminal className="w-3 h-3 text-[#8b949e]" />
-                    <span className="text-[11px] text-[#8b949e]">Console</span>
+                    <Terminal className="w-3 h-3 text-[#9DA2B0]" />
+                    <span className="text-[11px] text-[#9DA2B0]">Console</span>
                     {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
                   </div>
                   <div className="flex items-center gap-1">
@@ -1083,14 +1083,14 @@ export default function Project() {
                 </div>
                 {terminalContent}
                 {wsStatus === "running" && (
-                  <div className="border-t border-[#30363d] shrink-0" style={{ height: "40%" }}>
+                  <div className="border-t border-[#2B3245] shrink-0" style={{ height: "40%" }}>
                     {shellContent}
                   </div>
                 )}
               </div>
             )}
             {mobileTab === "preview" && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-[#0d1117]">
+              <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
                 {previewContent}
               </div>
             )}
@@ -1127,7 +1127,7 @@ export default function Project() {
             )}
           </div>
           {/* MOBILE BOTTOM NAV */}
-          <div className="flex items-center justify-around h-12 bg-[#161b22] border-t border-[#30363d] shrink-0 z-40" data-testid="mobile-nav-bar">
+          <div className="flex items-center justify-around h-12 bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40" data-testid="mobile-nav-bar">
             {([
               { id: "files" as const, icon: FolderOpen, label: "Files" },
               { id: "editor" as const, icon: Code2, label: "Editor" },
@@ -1137,13 +1137,13 @@ export default function Project() {
             ]).map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
-                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileTab === id ? "text-[#58a6ff]" : "text-[#484f58]"}`}
+                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileTab === id ? (id === "ai" ? "text-[#7C65CB]" : "text-[#0079F2]") : "text-[#676D7E]"}`}
                 onClick={() => setMobileTab(id)}
                 data-testid={`mobile-tab-${id}`}
               >
                 <Icon className="w-4 h-4" />
                 <span className="text-[9px] font-medium">{label}</span>
-                {id === "terminal" && isRunning && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-green-400" />}
+                {id === "terminal" && isRunning && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#0CCE6B]" />}
               </button>
             ))}
           </div>
@@ -1153,9 +1153,9 @@ export default function Project() {
           {/* === TABLET + DESKTOP LAYOUT: VS Code style === */}
           <div className="flex flex-1 overflow-hidden">
             {/* ACTIVITY BAR */}
-            <div className="w-11 bg-[#010409] border-r border-[#21262d] flex flex-col items-center py-1.5 gap-0.5 shrink-0" data-testid="activity-bar">
+            <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-2 gap-1 shrink-0" data-testid="activity-bar">
               <button
-                className={`w-9 h-9 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen ? "text-white border-l-2 border-l-[#58a6ff] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
+                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${sidebarOpen && !aiPanelOpen ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
                 onClick={() => { setSidebarOpen(!sidebarOpen || aiPanelOpen); setAiPanelOpen(false); }}
                 title="Explorer (Ctrl+B)"
                 data-testid="activity-explorer"
@@ -1163,7 +1163,7 @@ export default function Project() {
                 <PanelLeft className="w-[18px] h-[18px]" />
               </button>
               <button
-                className={`w-9 h-9 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-purple-400 border-l-2 border-l-[#a371f7] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
+                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${aiPanelOpen ? "text-[#7C65CB] bg-[#7C65CB]/15" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
                 onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) setSidebarOpen(false); }}
                 title="AI Agent"
                 data-testid="activity-ai"
@@ -1171,7 +1171,15 @@ export default function Project() {
                 <Sparkles className="w-[18px] h-[18px]" />
               </button>
               <button
-                className={`w-9 h-9 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-white border-l-2 border-l-[#58a6ff] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
+                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${false ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
+                onClick={() => {}}
+                title="Search"
+                data-testid="activity-search"
+              >
+                <Search className="w-[18px] h-[18px]" />
+              </button>
+              <button
+                className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${previewPanelOpen ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
                 onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
                 title="Webview"
                 data-testid="activity-webview"
@@ -1181,22 +1189,22 @@ export default function Project() {
 
               <div className="flex-1" />
 
-              <div className="flex flex-col items-center gap-0.5 mb-0.5">
+              <div className="flex flex-col items-center gap-1 mb-1">
                 <button
-                  className={`w-9 h-9 flex items-center justify-center transition-colors relative ${projectSettingsOpen ? "text-white border-l-2 border-l-[#58a6ff] -ml-[2px]" : "text-[#8b949e] hover:text-white"}`}
+                  className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors relative ${projectSettingsOpen ? "text-[#F5F9FC] bg-[#2B3245]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50"}`}
                   onClick={() => setProjectSettingsOpen(true)}
                   title="Settings"
                   data-testid="activity-settings"
                 >
                   <Settings className="w-[18px] h-[18px]" />
-                  <span className={`absolute bottom-1 right-1 w-[6px] h-[6px] rounded-full border border-[#010409] ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#484f58]"}`} />
+                  <span className={`absolute bottom-1 right-1 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
                 </button>
               </div>
             </div>
 
             {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
             {aiPanelOpen && (
-              <div className={`${isTablet ? "w-[320px]" : "w-[45%] max-w-[600px] min-w-[340px]"} shrink-0 border-r border-[#30363d]`} data-testid="ai-agent-panel">
+              <div className={`${isTablet ? "w-[320px]" : "w-[45%] max-w-[600px] min-w-[340px]"} shrink-0 border-r border-[#2B3245]`} data-testid="ai-agent-panel">
                 <AIPanel
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
                   onClose={() => setAiPanelOpen(false)}
@@ -1245,47 +1253,47 @@ export default function Project() {
 
               {previewPanelOpen && !aiPanelOpen && (
                 <>
-                  <div className="w-[3px] cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#21262d] hover:bg-[#58a6ff]/40 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
-                  <div className="flex flex-col overflow-hidden bg-[#0d1117] border-l border-[#21262d]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
-                    <div className="flex items-center gap-1.5 px-2 h-[33px] border-b border-[#21262d] bg-[#010409] shrink-0">
-                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded shrink-0"
+                  <div className="w-[3px] cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#2B3245] hover:bg-[#0079F2]/50 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
+                  <div className="flex flex-col overflow-hidden bg-[#1C2333] border-l border-[#2B3245]" style={{ width: `${previewPanelWidth}%` }} data-testid="preview-panel">
+                    <div className="flex items-center gap-1.5 px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
                         onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
                         title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-2.5 h-2.5" /></Button>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-[#161b22] border border-[#21262d]">
-                          <Globe className="w-2.5 h-2.5 text-[#484f58] shrink-0" />
-                          <span className="text-[10px] text-[#8b949e] truncate font-mono">{livePreviewUrl || "localhost"}</span>
+                        <div className="flex items-center gap-1.5 h-6 px-2.5 rounded-md bg-[#1C2333] border border-[#2B3245]">
+                          <Globe className="w-2.5 h-2.5 text-[#676D7E] shrink-0" />
+                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || "localhost"}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-0 shrink-0">
+                      <div className="flex items-center gap-0.5 shrink-0">
                         {livePreviewUrl && (
-                          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded"
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
                             onClick={() => window.open(livePreviewUrl, "_blank")}
-                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-2.5 h-2.5" /></Button>
+                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
                         )}
-                        <Button variant="ghost" size="icon" className="w-5 h-5 text-[#484f58] hover:text-white hover:bg-[#21262d] rounded"
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
                           onClick={() => setPreviewPanelOpen(false)}
-                          title="Close" data-testid="button-preview-panel-close"><X className="w-2.5 h-2.5" /></Button>
+                          title="Close" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
                       </div>
                     </div>
                     <div className="flex-1 overflow-hidden">
                       {runnerOnline === false ? (
-                        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
-                          <WifiOff className="w-8 h-8 text-[#30363d]" />
-                          <p className="text-xs text-[#8b949e]">Preview unavailable</p>
-                          <p className="text-[10px] text-[#484f58]">Runner is offline</p>
+                        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
+                          <WifiOff className="w-8 h-8 text-[#676D7E]" />
+                          <p className="text-sm text-[#9DA2B0]">Preview unavailable</p>
+                          <p className="text-xs text-[#676D7E]">Runner is offline</p>
                         </div>
                       ) : wsStatus === "running" && livePreviewUrl ? (
                         <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" data-testid="iframe-preview-panel" />
                       ) : previewHtml ? (
                         <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
                       ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-[#484f58] gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-[#161b22] border border-[#21262d] flex items-center justify-center">
-                            <Monitor className="w-6 h-6 text-[#30363d]" />
+                        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
+                          <div className="w-14 h-14 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center">
+                            <Monitor className="w-7 h-7 text-[#676D7E]" />
                           </div>
-                          <p className="text-sm font-medium text-[#8b949e]">Webview</p>
-                          <p className="text-[11px] text-center max-w-[220px] text-[#484f58] leading-relaxed">
+                          <p className="text-sm font-medium text-[#F5F9FC]">Webview</p>
+                          <p className="text-xs text-center max-w-[220px] text-[#676D7E] leading-relaxed">
                             {wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Run your app to see the live preview here"}
                           </p>
                         </div>
@@ -1298,18 +1306,18 @@ export default function Project() {
           </div>
 
           {/* STATUS BAR */}
-          <div className="flex items-center justify-between px-2 h-[22px] bg-[#010409] border-t border-[#21262d] shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[10px] text-[#484f58]">
-                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-green-400" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : "bg-[#30363d]"}`} />
+          <div className="flex items-center justify-between px-3 h-6 bg-[#0E1525] border-t border-[#2B3245] shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-[10px] text-[#676D7E]">
+                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : "bg-[#676D7E]"}`} />
                 {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting" : wsStatus === "none" ? "Ready" : wsStatus}
               </span>
-              <span className={`text-[10px] ${connected ? "text-[#484f58]" : "text-[#30363d]"}`}>{connected ? "WS" : ""}</span>
+              {connected && <span className="text-[10px] text-[#676D7E]">Connected</span>}
             </div>
-            <div className="flex items-center gap-3">
-              {activeFileName && <span className="text-[10px] text-[#484f58]">{editorLanguage}</span>}
-              {activeFileName && <span className="text-[10px] text-[#30363d]">UTF-8</span>}
-              <span className="text-[10px] text-[#30363d]">Vibe</span>
+            <div className="flex items-center gap-4">
+              {activeFileName && <span className="text-[10px] text-[#9DA2B0]">{editorLanguage}</span>}
+              {activeFileName && <span className="text-[10px] text-[#676D7E]">UTF-8</span>}
+              <span className="text-[10px] text-[#676D7E]">Vibe Platform</span>
             </div>
           </div>
         </>
@@ -1317,21 +1325,21 @@ export default function Project() {
 
       {/* DIALOGS */}
       <Dialog open={newFileDialogOpen} onOpenChange={setNewFileDialogOpen}>
-        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#c9d1d9] text-base">New File</DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">
+            <DialogTitle className="text-[#F5F9FC] text-base">New File</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">
               {useRunnerFS
-                ? <>Create a new file in <span className="text-[#c9d1d9] font-mono">{currentFsPath === "/" ? "/" : currentFsPath}</span> (Runner FS)</>
+                ? <>Create a new file in <span className="text-[#F5F9FC] font-mono">{currentFsPath === "/" ? "/" : currentFsPath}</span> (Runner FS)</>
                 : "Create a new file in your project"}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newFileName.trim()) createFileMutation.mutate(newFileName.trim()); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#8b949e]">Filename</Label>
-              <Input value={newFileName} onChange={(e) => setNewFileName(e.target.value)} placeholder={project?.language === "python" ? "script.py" : "index.ts"} className="bg-[#0d1117] border-[#30363d] h-9 text-sm text-[#c9d1d9] rounded-lg" autoFocus data-testid="input-new-filename" />
+              <Label className="text-[11px] text-[#9DA2B0]">Filename</Label>
+              <Input value={newFileName} onChange={(e) => setNewFileName(e.target.value)} placeholder={project?.language === "python" ? "script.py" : "index.ts"} className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]" autoFocus data-testid="input-new-filename" />
             </div>
-            <Button type="submit" className="w-full h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs" disabled={createFileMutation.isPending}>
+            <Button type="submit" className="w-full h-9 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-lg text-xs font-medium" disabled={createFileMutation.isPending}>
               {createFileMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create File"}
             </Button>
           </form>
@@ -1339,27 +1347,27 @@ export default function Project() {
       </Dialog>
 
       <Dialog open={projectSettingsOpen} onOpenChange={setProjectSettingsOpen}>
-        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#c9d1d9] text-base">Project Settings</DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">Configure your project</DialogDescription>
+            <DialogTitle className="text-[#F5F9FC] text-base">Project Settings</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">Configure your project</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); updateProjectMutation.mutate({ name: projectName, language: projectLang }); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#8b949e]">Name</Label>
-              <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} className="bg-[#0d1117] border-[#30363d] h-9 text-sm text-[#c9d1d9] rounded-lg" data-testid="input-project-name-settings" />
+              <Label className="text-[11px] text-[#9DA2B0]">Name</Label>
+              <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]" data-testid="input-project-name-settings" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#8b949e]">Language</Label>
+              <Label className="text-[11px] text-[#9DA2B0]">Language</Label>
               <div className="flex gap-2">
                 {["javascript", "typescript", "python"].map((lang) => (
-                  <button key={lang} type="button" onClick={() => setProjectLang(lang)} className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${projectLang === lang ? "bg-[#58a6ff] text-white" : "bg-[#30363d] text-[#8b949e] hover:text-white"}`}>
+                  <button key={lang} type="button" onClick={() => setProjectLang(lang)} className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${projectLang === lang ? "bg-[#0079F2] text-white" : "bg-[#0E1525] text-[#9DA2B0] hover:text-[#F5F9FC] border border-[#2B3245]"}`}>
                     {lang}
                   </button>
                 ))}
               </div>
             </div>
-            <Button type="submit" className="w-full h-9 bg-[#58a6ff] hover:bg-[#4c96eb] text-white rounded-lg text-xs" disabled={updateProjectMutation.isPending}>
+            <Button type="submit" className="w-full h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" disabled={updateProjectMutation.isPending}>
               {updateProjectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Changes"}
             </Button>
           </form>
@@ -1367,21 +1375,21 @@ export default function Project() {
       </Dialog>
 
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#c9d1d9] text-base flex items-center gap-2">
-              <Rocket className="w-4 h-4 text-[#58a6ff]" /> Publish Project
+            <DialogTitle className="text-[#F5F9FC] text-base flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-[#0CCE6B]" /> Publish Project
             </DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">Make your project publicly accessible via a shareable link</DialogDescription>
+            <DialogDescription className="text-[#9DA2B0] text-xs">Make your project publicly accessible via a shareable link</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[#0d1117] border border-[#30363d]">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#1C2333] border border-[#2B3245]">
               <div>
-                <p className="text-sm font-medium text-[#c9d1d9]">{project?.name}</p>
-                <p className="text-[11px] text-[#8b949e] mt-0.5">{project?.language} · {filesQuery.data?.length || 0} files</p>
+                <p className="text-sm font-medium text-[#F5F9FC]">{project?.name}</p>
+                <p className="text-[11px] text-[#9DA2B0] mt-0.5">{project?.language} · {filesQuery.data?.length || 0} files</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-[#8b949e]">{project?.isPublished ? "Published" : "Draft"}</span>
+                <span className="text-[11px] text-[#9DA2B0]">{project?.isPublished ? "Published" : "Draft"}</span>
                 <Switch
                   checked={project?.isPublished || false}
                   onCheckedChange={() => publishMutation.mutate()}
@@ -1393,18 +1401,18 @@ export default function Project() {
 
             {project?.isPublished && (
               <div className="space-y-2">
-                <Label className="text-[11px] text-[#8b949e]">Shareable URL</Label>
+                <Label className="text-[11px] text-[#9DA2B0]">Shareable URL</Label>
                 <div className="flex gap-2">
                   <Input
                     readOnly
                     value={`${window.location.origin}/shared/${projectId}`}
-                    className="bg-[#0d1117] border-[#30363d] h-9 text-xs text-[#c9d1d9] rounded-lg flex-1"
+                    className="bg-[#1C2333] border-[#2B3245] h-9 text-xs text-[#F5F9FC] rounded-lg flex-1"
                     data-testid="input-share-url"
                   />
-                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[#8b949e] hover:text-white hover:bg-[#30363d] shrink-0" onClick={copyShareUrl}>
+                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] shrink-0" onClick={copyShareUrl}>
                     {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[#8b949e] hover:text-white hover:bg-[#30363d] shrink-0" onClick={() => window.open(`/shared/${projectId}`, "_blank")}>
+                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] shrink-0" onClick={() => window.open(`/shared/${projectId}`, "_blank")}>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -1414,17 +1422,17 @@ export default function Project() {
         </DialogContent>
       </Dialog>
       <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
-        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#c9d1d9] text-base">New Folder</DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">Create a new folder in {currentFsPath === "/" ? "root" : currentFsPath}</DialogDescription>
+            <DialogTitle className="text-[#F5F9FC] text-base">New Folder</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">Create a new folder in {currentFsPath === "/" ? "root" : currentFsPath}</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newFolderName.trim()) createFolderMutation.mutate(newFolderName.trim()); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#8b949e]">Folder name</Label>
-              <Input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="src" className="bg-[#0d1117] border-[#30363d] h-9 text-sm text-[#c9d1d9] rounded-lg" autoFocus data-testid="input-new-foldername" />
+              <Label className="text-[11px] text-[#9DA2B0]">Folder name</Label>
+              <Input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="src" className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]" autoFocus data-testid="input-new-foldername" />
             </div>
-            <Button type="submit" className="w-full h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs" disabled={createFolderMutation.isPending}>
+            <Button type="submit" className="w-full h-9 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-lg text-xs font-medium" disabled={createFolderMutation.isPending}>
               {createFolderMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create Folder"}
             </Button>
           </form>
@@ -1432,15 +1440,15 @@ export default function Project() {
       </Dialog>
 
       <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { setDeleteConfirmOpen(open); if (!open) setDeleteTarget(null); }}>
-        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#c9d1d9] text-base">Delete {deleteTarget?.type === "dir" ? "Folder" : "File"}</DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">
-              Are you sure you want to delete <span className="text-[#c9d1d9] font-medium">{deleteTarget?.name}</span>? This action cannot be undone.
+            <DialogTitle className="text-[#F5F9FC] text-base">Delete {deleteTarget?.type === "dir" ? "Folder" : "File"}</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">
+              Are you sure you want to delete <span className="text-[#F5F9FC] font-medium">{deleteTarget?.name}</span>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mt-3">
-            <Button variant="ghost" className="flex-1 h-9 text-xs text-[#8b949e] hover:text-white hover:bg-[#30363d] rounded-lg" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}>
+            <Button variant="ghost" className="flex-1 h-9 text-xs text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-lg" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}>
               Cancel
             </Button>
             <Button className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs" onClick={confirmDelete} disabled={deleteRunnerEntryMutation.isPending || deleteFileMutation.isPending} data-testid="button-confirm-delete">
@@ -1451,29 +1459,29 @@ export default function Project() {
       </Dialog>
 
       <Dialog open={renameDialogOpen} onOpenChange={(open) => { setRenameDialogOpen(open); if (!open) setRenameDialogTarget(null); }}>
-        <DialogContent className="bg-[#1c2128] border-[#30363d] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#c9d1d9] text-base">Rename</DialogTitle>
-            <DialogDescription className="text-[#8b949e] text-xs">
-              Rename <span className="text-[#c9d1d9] font-medium">{renameDialogTarget?.oldName}</span>
+            <DialogTitle className="text-[#F5F9FC] text-base">Rename</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">
+              Rename <span className="text-[#F5F9FC] font-medium">{renameDialogTarget?.oldName}</span>
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); submitRenameDialog(); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#8b949e]">New name</Label>
+              <Label className="text-[11px] text-[#9DA2B0]">New name</Label>
               <Input
                 value={renameDialogValue}
                 onChange={(e) => setRenameDialogValue(e.target.value)}
-                className="bg-[#0d1117] border-[#30363d] h-9 text-sm text-[#c9d1d9] rounded-lg"
+                className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]"
                 autoFocus
                 data-testid="input-rename"
               />
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[#8b949e] hover:text-white hover:bg-[#30363d] rounded-lg" onClick={() => { setRenameDialogOpen(false); setRenameDialogTarget(null); }}>
+              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-lg" onClick={() => { setRenameDialogOpen(false); setRenameDialogTarget(null); }}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1 h-9 bg-[#58a6ff] hover:bg-[#4c96eb] text-white rounded-lg text-xs" disabled={!renameDialogValue.trim() || renameDialogValue === renameDialogTarget?.oldName || renameFileMutation.isPending || renameRunnerEntryMutation.isPending} data-testid="button-confirm-rename">
+              <Button type="submit" className="flex-1 h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" disabled={!renameDialogValue.trim() || renameDialogValue === renameDialogTarget?.oldName || renameFileMutation.isPending || renameRunnerEntryMutation.isPending} data-testid="button-confirm-rename">
                 {(renameFileMutation.isPending || renameRunnerEntryMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : "Rename"}
               </Button>
             </div>

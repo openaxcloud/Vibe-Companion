@@ -16,8 +16,8 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0d1117]">
-        <div className="w-8 h-8 border-2 border-[#30363d] border-t-[#58a6ff] rounded-full animate-spin" />
+      <div className="h-screen flex items-center justify-center bg-[#0E1525]">
+        <div className="w-8 h-8 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full animate-spin" />
       </div>
     );
   }
@@ -29,7 +29,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="h-screen w-screen overflow-hidden bg-[#0d1117]">
+        <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
           <Switch>
             <Route path="/" component={Auth} />
             <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
