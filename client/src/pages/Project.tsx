@@ -406,12 +406,26 @@ export default function Project() {
     return () => window.removeEventListener("keydown", handler);
   }, [activeFileId, fileContents, searchPanelOpen, isRunning]);
 
+  const scrollTabIntoView = useCallback((tabId: string) => {
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        const el = tabBarRef.current;
+        if (!el) return;
+        const tab = el.querySelector(`[data-testid="tab-${CSS.escape(tabId)}"]`) as HTMLElement;
+        if (tab) {
+          tab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+        }
+      });
+    }, 50);
+  }, []);
+
   const openFile = (file: File) => {
     if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
     if (fileContents[file.id] === undefined) setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
     setActiveFileId(file.id);
     setActiveRunnerPath(null);
     if (window.innerWidth < 768) setSidebarOpen(false);
+    scrollTabIntoView(file.id);
   };
 
   const openRunnerFile = async (entry: FsEntry) => {
@@ -431,6 +445,7 @@ export default function Project() {
     setActiveFileId(tabId);
     setActiveRunnerPath(entry.path);
     if (window.innerWidth < 768) setSidebarOpen(false);
+    scrollTabIntoView(tabId);
   };
 
   const closeTab = (fileId: string, e?: React.MouseEvent) => {
@@ -507,6 +522,7 @@ export default function Project() {
   };
 
   const [dragTabId, setDragTabId] = useState<string | null>(null);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
   const [tabBarOverflow, setTabBarOverflow] = useState(false);
 
@@ -519,7 +535,17 @@ export default function Project() {
     checkOverflow();
     const observer = new ResizeObserver(checkOverflow);
     observer.observe(el);
-    return () => observer.disconnect();
+    const handleWheel = (e: WheelEvent) => {
+      if (el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY || e.deltaX;
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("wheel", handleWheel);
+    };
   }, [openTabs]);
 
   const scrollTabBar = (direction: "left" | "right") => {
@@ -534,20 +560,25 @@ export default function Project() {
     e.dataTransfer.setData("text/plain", tabId);
   };
 
-  const handleTabDragOver = (e: React.DragEvent) => {
+  const handleTabDragOver = (e: React.DragEvent, tabId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    if (dragTabId && tabId !== dragTabId) {
+      setDragOverTabId(tabId);
+    }
   };
 
   const handleTabDrop = (e: React.DragEvent, targetTabId: string) => {
     e.preventDefault();
+    setDragOverTabId(null);
     if (!dragTabId || dragTabId === targetTabId) return;
     const fromIdx = openTabs.indexOf(dragTabId);
     const toIdx = openTabs.indexOf(targetTabId);
     if (fromIdx < 0 || toIdx < 0) return;
     const newTabs = [...openTabs];
     newTabs.splice(fromIdx, 1);
-    newTabs.splice(toIdx, 0, dragTabId);
+    const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    newTabs.splice(insertIdx, 0, dragTabId);
     setOpenTabs(newTabs);
     setDragTabId(null);
   };
@@ -1595,42 +1626,58 @@ export default function Project() {
   );
 
   const editorTabBar = openTabs.length > 0 ? (
-    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 relative">
+    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 overflow-hidden relative">
       {tabBarOverflow && (
         <button
-          className="absolute left-0 z-10 h-full px-1 bg-[#0E1525] border-r border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
+          className="absolute left-0 z-10 h-full px-1.5 bg-[#0E1525] border-r border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
           onClick={() => scrollTabBar("left")}
           data-testid="button-tab-scroll-left"
         >
           <ChevronLeft className="w-3 h-3" />
         </button>
       )}
-      <div ref={tabBarRef} className={`flex items-center h-full overflow-x-auto scrollbar-hide ${tabBarOverflow ? "mx-5" : ""}`}>
+      <div
+        ref={tabBarRef}
+        className={`flex items-center h-full flex-1 min-w-0 overflow-x-auto scrollbar-hide ${tabBarOverflow ? "pl-7 pr-7" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+        onDragLeave={() => setDragOverTabId(null)}
+        onDrop={() => { setDragOverTabId(null); setDragTabId(null); }}
+      >
         {openTabs.map((tabId) => {
           const isRunner = tabId.startsWith("runner:");
           const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
           const tabName = isRunner ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
           if (!isRunner && !file) return null;
           const isActive = tabId === activeFileId;
+          const isDragOver = dragOverTabId === tabId && dragTabId !== tabId;
           return (
             <ContextMenu key={tabId}>
               <ContextMenuTrigger asChild>
                 <div
-                  className={`group flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-t-2 hover-transition transition-all duration-150 ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-t-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/30 border-t-transparent"} ${dragTabId === tabId ? "opacity-50" : ""}`}
+                  className={`group relative flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent"} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
                   onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
                   draggable
                   onDragStart={(e) => handleTabDragStart(e, tabId)}
-                  onDragOver={handleTabDragOver}
+                  onDragOver={(e) => handleTabDragOver(e, tabId)}
                   onDrop={(e) => handleTabDrop(e, tabId)}
-                  onDragEnd={() => setDragTabId(null)}
+                  onDragEnd={() => { setDragTabId(null); setDragOverTabId(null); }}
                   data-testid={`tab-${tabId}`}
                 >
+                  {isDragOver && (
+                    <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-[#0079F2] rounded-full z-10" />
+                  )}
                   <FileTypeIcon filename={tabName} />
-                  <span className="text-[11px] max-w-[120px] truncate font-medium">{tabName}</span>
+                  <span className="text-[11px] max-w-[120px] truncate font-medium whitespace-nowrap">{tabName}</span>
                   {dirtyFiles.has(tabId) ? (
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
                   ) : (
-                    <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0 ml-0.5" onClick={(e) => closeTab(tabId, e)}><X className="w-2.5 h-2.5" /></button>
+                    <button
+                      className={`p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] transition-opacity duration-100 shrink-0 ml-0.5 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                      onClick={(e) => closeTab(tabId, e)}
+                      data-testid={`button-close-tab-${tabId}`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
                   )}
                 </div>
               </ContextMenuTrigger>
@@ -1658,7 +1705,7 @@ export default function Project() {
       </div>
       {tabBarOverflow && (
         <button
-          className="absolute right-0 z-10 h-full px-1 bg-[#0E1525] border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
+          className="absolute right-0 z-10 h-full px-1.5 bg-[#0E1525] border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
           onClick={() => scrollTabBar("right")}
           data-testid="button-tab-scroll-right"
         >
