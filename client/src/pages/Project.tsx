@@ -334,6 +334,9 @@ export default function Project() {
     onSuccess: (_, vars) => {
       setDirtyFiles((prev) => { const n = new Set(prev); n.delete(vars.fileId); return n; });
     },
+    onError: (err: any, vars) => {
+      toast({ title: "Failed to save file", description: err.message || "Could not save changes. Please try again.", variant: "destructive" });
+    },
   });
 
   const autoSave = useCallback((fileId: string, newCode: string) => {
@@ -561,9 +564,12 @@ export default function Project() {
         setDirtyFiles((prev) => { const n = new Set(prev); n.delete(activeFileId); return n; });
       }
       const code = activeFileId ? fileContents[activeFileId] || "" : "";
+      const ext = activeFileName?.split(".").pop()?.toLowerCase();
+      const langMap: Record<string, string> = { js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript", py: "python" };
+      const detectedLang = ext ? langMap[ext] : undefined;
       const res = await apiRequest("POST", `/api/projects/${projectId}/run`, {
         code,
-        language: projectQuery.data?.language || "javascript",
+        language: detectedLang || projectQuery.data?.language || "javascript",
       });
       return res.json();
     },
@@ -579,6 +585,22 @@ export default function Project() {
 
   const handleRun = () => {
     if (isRunning) { setIsRunning(false); return; }
+
+    const isHtmlFile = activeFileName?.endsWith(".html");
+    if (isHtmlFile) {
+      const html = generateHtmlPreview();
+      if (html) {
+        setPreviewHtml(html);
+        setPreviewPanelOpen(true);
+        setLogs((prev) => [...prev, {
+          id: Date.now(),
+          text: `▶ Opened HTML preview for ${activeFileName}`,
+          type: "success",
+        }]);
+        return;
+      }
+    }
+
     const timestamp = new Date().toLocaleTimeString();
     setLogs([{
       id: Date.now(),
@@ -624,6 +646,9 @@ export default function Project() {
       setNewFileName("");
       setNewFileParentFolder(null);
     },
+    onError: (err: any) => {
+      toast({ title: "Failed to create file", description: err.message || "Could not create the file. Please try again.", variant: "destructive" });
+    },
   });
 
   const createFolderMutation = useMutation({
@@ -647,6 +672,9 @@ export default function Project() {
     onSuccess: (_, fileId) => {
       closeTab(fileId);
       invalidateFs();
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to delete file", description: err.message || "Could not delete the file.", variant: "destructive" });
     },
   });
 
@@ -675,6 +703,9 @@ export default function Project() {
       invalidateFs();
       setRenameDialogOpen(false);
       setRenameDialogTarget(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to rename file", description: err.message || "Could not rename the file.", variant: "destructive" });
     },
   });
 
@@ -802,6 +833,9 @@ export default function Project() {
       setProjectSettingsOpen(false);
       toast({ title: "Project updated" });
     },
+    onError: (err: any) => {
+      toast({ title: "Failed to update project", description: err.message || "Could not save project settings.", variant: "destructive" });
+    },
   });
 
   const publishMutation = useMutation({
@@ -812,6 +846,9 @@ export default function Project() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
       toast({ title: project?.isPublished ? "Project unpublished" : "Project published" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Publish failed", description: err.message || "Could not toggle publish state. Please try again.", variant: "destructive" });
     },
   });
 
@@ -1893,8 +1930,8 @@ export default function Project() {
         <div className="flex items-center gap-0.5 pr-1">
           {wsStatusBadge}
           {workspaceButton}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear"><RefreshCw className="w-3 h-3" /></Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close"><X className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console"><Trash2 className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
         </div>
       </div>
       {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
@@ -2018,6 +2055,7 @@ export default function Project() {
                     {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
                   </div>
                   <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
                     {wsStatusBadge}
                     {workspaceButton}
                   </div>

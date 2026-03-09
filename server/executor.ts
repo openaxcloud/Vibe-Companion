@@ -12,7 +12,7 @@ interface ExecutionResult {
 }
 
 const MAX_EXECUTION_TIME_MS = 10000;
-const MAX_OUTPUT_SIZE = 50000;
+const MAX_OUTPUT_SIZE = 200000;
 
 const FORBIDDEN_PATTERNS = [
   /require\s*\(\s*['"]child_process/i,

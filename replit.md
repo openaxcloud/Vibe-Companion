@@ -9,7 +9,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
 - **Code Execution**: Local sandboxed `child_process.spawn` with security pattern blocking, 10s timeout, 64MB memory limit
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
-- **AI**: Dual model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o, both via Replit AI Integrations
+- **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme (replitTheme + replitHighlight)
 
@@ -38,7 +38,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - CodeMirror 6 editor with Replit-accurate syntax theme (red keywords, green strings, teal functions, orange numbers)
 - **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
-- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-4o (OpenAI, default) — both work in chat AND agent mode
+- **Model selection**: Choose between Claude Sonnet (Anthropic), GPT-4o (OpenAI, default), and Gemini Flash (Google) — all three work in chat, agent, AND project generation modes
 - **Markdown rendering in AI chat**: Bold, italic, inline code, links, headers, bullet/numbered lists
 - **AI model badges**: Each AI response shows which model generated it (Claude/GPT)
 - **Character count**: Shows character count while typing in AI input
@@ -164,7 +164,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - React 19, Wouter, TanStack Query
 - Express 5, express-session, connect-pg-simple, bcrypt, express-rate-limit
 - Drizzle ORM, PostgreSQL
-- Anthropic SDK + OpenAI SDK (via Replit AI Integrations)
+- Anthropic SDK + OpenAI SDK + Google GenAI SDK (via Replit AI Integrations)
 - CodeMirror 6 (@uiw/react-codemirror + language packages + custom Replit theme)
 - WebSocket (ws library)
 - IBM Plex Sans / IBM Plex Mono / JetBrains Mono fonts

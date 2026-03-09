@@ -12,6 +12,7 @@ import { executeCode } from "./executor";
 import { log } from "./index";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { GoogleGenAI, Type } from "@google/genai";
 import * as runnerClient from "./runnerClient";
 import { posix as pathPosix } from "path";
 
@@ -694,6 +695,14 @@ export async function registerRoutes(
     baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
   });
 
+  const gemini = new GoogleGenAI({
+    apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
+    httpOptions: {
+      apiVersion: "",
+      baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL!,
+    },
+  });
+
   app.post("/api/projects/generate", requireAuth, async (req: Request, res: Response) => {
     try {
       const { prompt, model: requestedModel } = req.body;
@@ -722,7 +731,16 @@ Rules:
 
       let text = "";
 
-      if (requestedModel === "gpt") {
+      if (requestedModel === "gemini") {
+        const geminiResponse = await gemini.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            { role: "user", parts: [{ text: systemPrompt + "\n\nUser request: " + prompt.trim() }] },
+          ],
+          config: { maxOutputTokens: 16384 },
+        });
+        text = geminiResponse.text || "";
+      } else if (requestedModel === "gpt") {
         const gptResponse = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
@@ -824,7 +842,29 @@ Rules:
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      if (model === "gpt") {
+      if (model === "gemini") {
+        const geminiContents = [
+          { role: "user" as const, parts: [{ text: systemPrompt }] },
+          { role: "model" as const, parts: [{ text: "Understood. I'm ready to help." }] },
+          ...messages.map((m: any) => ({
+            role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
+            parts: [{ text: m.content }],
+          })),
+        ];
+
+        const stream = await gemini.models.generateContentStream({
+          model: "gemini-2.5-flash",
+          contents: geminiContents,
+          config: { maxOutputTokens: 8192 },
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.text || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } else if (model === "gpt") {
         const gptMessages = [
           { role: "system" as const, content: systemPrompt },
           ...messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
@@ -932,9 +972,100 @@ Always write complete, working code. Never use placeholders or TODOs.`;
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const useGpt = requestedModel === "gpt";
+      if (requestedModel === "gemini") {
+        const geminiTools = [{
+          functionDeclarations: [
+            {
+              name: "create_file",
+              description: "Create a new file in the project with the given filename and content",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  filename: { type: Type.STRING, description: "The filename (e.g. 'index.js', 'styles.css')" },
+                  content: { type: Type.STRING, description: "The full file content" },
+                },
+                required: ["filename", "content"],
+              },
+            },
+            {
+              name: "edit_file",
+              description: "Replace the entire content of an existing file",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  filename: { type: Type.STRING, description: "The filename of the existing file to edit" },
+                  content: { type: Type.STRING, description: "The new full file content" },
+                },
+                required: ["filename", "content"],
+              },
+            },
+          ],
+        }];
 
-      if (useGpt) {
+        let geminiContents: any[] = [
+          { role: "user", parts: [{ text: agentSystemPrompt }] },
+          { role: "model", parts: [{ text: "I understand. I'm ready to help with your project." }] },
+          ...messages.map((m: any) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }],
+          })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await gemini.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: geminiContents,
+            config: { maxOutputTokens: 16384, tools: geminiTools },
+          });
+
+          const candidate = response.candidates?.[0];
+          if (!candidate?.content?.parts) { continueLoop = false; break; }
+
+          const parts = candidate.content.parts;
+          let hasToolCall = false;
+          const toolResponseParts: any[] = [];
+
+          for (const part of parts) {
+            if (part.text) {
+              res.write(`data: ${JSON.stringify({ type: "text", content: part.text })}\n\n`);
+            }
+            if (part.functionCall) {
+              hasToolCall = true;
+              const fn = part.functionCall;
+              const toolInput = fn.args as { filename: string; content: string };
+
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+
+              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res);
+
+              toolResponseParts.push({
+                functionResponse: {
+                  name: fn.name,
+                  response: { result: "Done" },
+                },
+              });
+            }
+          }
+
+          if (hasToolCall) {
+            geminiContents = [
+              ...geminiContents,
+              { role: "model", parts },
+              { role: "user", parts: toolResponseParts },
+            ];
+          } else {
+            continueLoop = false;
+          }
+        }
+
+        if (iterations >= MAX_AGENT_ITERATIONS) {
+          res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
+        }
+      } else if (requestedModel === "gpt") {
         const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           {
             type: "function",

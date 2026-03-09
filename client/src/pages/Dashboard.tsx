@@ -51,7 +51,9 @@ export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiModel, setAiModel] = useState<"claude" | "gpt">("gpt");
+  const [aiModel, setAiModel] = useState<"claude" | "gpt" | "gemini">("gpt");
+  const [deleteConfirmDialogOpen, setDeleteConfirmDialogOpen] = useState(false);
+  const [deleteTargetProject, setDeleteTargetProject] = useState<{ id: string; name: string } | null>(null);
   const [sidebarNav, setSidebarNav] = useState<"home" | "repls">("home");
   const [sortBy, setSortBy] = useState<"modified" | "name">("modified");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -98,11 +100,13 @@ export default function Dashboard() {
   const deleteProject = useMutation({
     mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/projects/${id}`); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/projects"] }); toast({ title: "Project deleted" }); },
+    onError: (err: any) => { toast({ title: "Failed to delete project", description: err.message || "Could not delete the project.", variant: "destructive" }); },
   });
 
   const duplicateProject = useMutation({
     mutationFn: async (id: string) => { await apiRequest("POST", `/api/projects/${id}/duplicate`); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/projects"] }); toast({ title: "Project duplicated" }); },
+    onError: (err: any) => { toast({ title: "Failed to duplicate project", description: err.message || "Could not duplicate the project.", variant: "destructive" }); },
   });
 
   const timeAgo = (date: string | Date) => {
@@ -479,6 +483,14 @@ export default function Dashboard() {
                       >
                         <Zap className="w-3 h-3" /> GPT-4o
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiModel("gemini")}
+                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gemini" ? "bg-[#4285F4]/15 text-[#4285F4] border border-[#4285F4]/30" : "text-[#676D7E] border border-transparent hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
+                        data-testid="button-model-gemini"
+                      >
+                        <Star className="w-3 h-3" /> Gemini
+                      </button>
                     </div>
                     <Button
                       type="submit"
@@ -722,7 +734,7 @@ export default function Dashboard() {
                                   <Copy className="w-3 h-3" /> Duplicate
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator className="bg-[#2B3245]/50" />
-                                <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => deleteProject.mutate(project.id)}>
+                                <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => { setDeleteTargetProject({ id: project.id, name: project.name }); setDeleteConfirmDialogOpen(true); }}>
                                   <Trash className="w-3 h-3" /> Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -850,7 +862,7 @@ export default function Dashboard() {
                                   <Copy className="w-3 h-3" /> Duplicate
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator className="bg-[#2B3245]/50" />
-                                <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => deleteProject.mutate(project.id)}>
+                                <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => { setDeleteTargetProject({ id: project.id, name: project.name }); setDeleteConfirmDialogOpen(true); }}>
                                   <Trash className="w-3 h-3" /> Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -881,6 +893,36 @@ export default function Dashboard() {
           )}
         </main>
       </div>
+
+      <Dialog open={deleteConfirmDialogOpen} onOpenChange={(open) => { setDeleteConfirmDialogOpen(open); if (!open) setDeleteTargetProject(null); }}>
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#F5F9FC] text-base">Delete Project</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">
+              Are you sure you want to delete <span className="text-[#F5F9FC] font-medium">{deleteTargetProject?.name}</span>? This action cannot be undone and all files will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-3">
+            <Button variant="ghost" className="flex-1 h-9 text-xs text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-lg" onClick={() => { setDeleteConfirmDialogOpen(false); setDeleteTargetProject(null); }} data-testid="button-cancel-delete-project">
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs"
+              onClick={() => {
+                if (deleteTargetProject) {
+                  deleteProject.mutate(deleteTargetProject.id);
+                  setDeleteConfirmDialogOpen(false);
+                  setDeleteTargetProject(null);
+                }
+              }}
+              disabled={deleteProject.isPending}
+              data-testid="button-confirm-delete-project"
+            >
+              {deleteProject.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -29,12 +29,13 @@ interface AIPanelProps {
   onApplyCode?: (filename: string, code: string) => void;
 }
 
-type AIModel = "claude" | "gpt";
+type AIModel = "claude" | "gpt" | "gemini";
 type AIMode = "chat" | "agent";
 
 const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
   claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
   gpt: { name: "GPT-4o", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
+  gemini: { name: "Gemini Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
 };
 
 const LANG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -95,13 +96,61 @@ function FileOpProgress({ ops }: { ops: { type: "created" | "updated"; filename:
   );
 }
 
-export default function AIPanel({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
+class AIPanelErrorBoundary extends React.Component<
+  { children: React.ReactNode; onClose: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] p-6">
+          <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mb-4">
+            <Bug className="w-6 h-6 text-red-400" />
+          </div>
+          <h3 className="text-sm font-semibold text-[#F5F9FC] mb-1" data-testid="text-ai-error-title">AI Panel Error</h3>
+          <p className="text-xs text-[#676D7E] mb-4 text-center max-w-[260px]">
+            {this.state.error?.message || "Something went wrong in the AI panel."}
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="px-4 py-2 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-xs font-medium transition-colors"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              data-testid="button-ai-retry"
+            >
+              Try Again
+            </button>
+            <button
+              className="px-4 py-2 rounded-lg bg-[#2B3245] hover:bg-[#323B4F] text-[#9DA2B0] text-xs font-medium transition-colors"
+              onClick={this.props.onClose}
+              data-testid="button-ai-close-error"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [model, setModel] = useState<AIModel>("gpt");
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
+  const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -228,8 +277,9 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
       await processSSEStream(res, assistantId, isAgent);
     } catch (err: any) {
       if (err.name !== "AbortError") {
+        setLastFailedInput(userMsg.content);
         setMessages((prev) =>
-          prev.map((m) => m.id === assistantId ? { ...m, content: "Sorry, the AI service is temporarily unavailable. Please try again." } : m)
+          prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m)
         );
       }
     } finally {
@@ -240,6 +290,37 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
 
   const stopStreaming = () => {
     abortRef.current?.abort();
+  };
+
+  const retryLastMessage = () => {
+    if (!lastFailedInput) return;
+    const retryInput = lastFailedInput;
+    setLastFailedInput(null);
+    setMessages((prev) => {
+      const cleaned = prev.slice(0, -2);
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: retryInput };
+      const assistantId = (Date.now() + 1).toString();
+      const updatedMessages = [...cleaned, userMsg, { id: assistantId, role: "assistant" as const, content: "", model }];
+      setIsStreaming(true);
+      abortRef.current = new AbortController();
+      const isAgent = mode === "agent" && !!projectId;
+      const endpoint = isAgent ? "/api/ai/agent" : "/api/ai/chat";
+      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model };
+      if (isAgent) body.projectId = projectId; else body.context = context;
+      fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("AI request failed");
+          await processSSEStream(res, assistantId, isAgent);
+        })
+        .catch((err: any) => {
+          if (err.name !== "AbortError") {
+            setLastFailedInput(retryInput);
+            setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m));
+          }
+        })
+        .finally(() => { setIsStreaming(false); abortRef.current = null; });
+      return updatedMessages;
+    });
   };
 
   const copyCode = (code: string) => {
@@ -524,6 +605,16 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                   </div>
                   {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
                 </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2.5 text-xs text-[#F5F9FC] focus:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gemini")} data-testid="model-gemini">
+                  <div className="w-5 h-5 rounded bg-[#4285F4]/15 flex items-center justify-center">
+                    <Zap className="w-3 h-3 text-[#4285F4]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">Gemini Flash</span>
+                    <span className="text-[10px] text-[#676D7E]">Google</span>
+                  </div>
+                  {model === "gemini" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -614,7 +705,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
             </div>
           </div>
         )}
-        {messages.map((msg) => {
+        {messages.map((msg, idx) => {
           const msgModel = msg.model ? MODEL_LABELS[msg.model] : null;
           const MsgModelIcon = msgModel?.icon || Sparkles;
           return (
@@ -638,6 +729,18 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                   </div>
                 )}
                 {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
+                {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-[11px] font-medium transition-colors"
+                      onClick={retryLastMessage}
+                      data-testid="button-ai-retry-message"
+                    >
+                      <Zap className="w-3 h-3" /> Retry
+                    </button>
+                    <span className="text-[10px] text-[#676D7E]">or try a different model</span>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -697,5 +800,13 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AIPanel(props: AIPanelProps) {
+  return (
+    <AIPanelErrorBoundary onClose={props.onClose}>
+      <AIPanelInner {...props} />
+    </AIPanelErrorBoundary>
   );
 }
