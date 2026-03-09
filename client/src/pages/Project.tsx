@@ -131,6 +131,10 @@ export default function Project() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__" } as const;
+  const isSpecialTab = (id: string) => id === SPECIAL_TABS.WEBVIEW || id === SPECIAL_TABS.SHELL || id === SPECIAL_TABS.CONSOLE;
+  const isFileTab = (id: string) => !isSpecialTab(id);
+
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
@@ -419,6 +423,17 @@ export default function Project() {
     }, 50);
   }, []);
 
+  const openSpecialTab = useCallback((tabId: string) => {
+    if (!openTabs.includes(tabId)) {
+      setOpenTabs((prev) => [...prev, tabId]);
+    }
+    setActiveFileId(tabId);
+    if (tabId !== SPECIAL_TABS.WEBVIEW) {
+      setActiveRunnerPath(null);
+    }
+    scrollTabIntoView(tabId);
+  }, [openTabs, scrollTabIntoView]);
+
   const openFile = (file: File) => {
     if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
     if (fileContents[file.id] === undefined) setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
@@ -606,8 +621,7 @@ export default function Project() {
     },
     onSuccess: () => {
       setIsRunning(true);
-      setTerminalVisible(true);
-      setBottomTab("terminal");
+      openSpecialTab(SPECIAL_TABS.CONSOLE);
     },
     onError: (err: any) => {
       toast({ title: "Run failed", description: err.message, variant: "destructive" });
@@ -622,7 +636,7 @@ export default function Project() {
       const html = generateHtmlPreview();
       if (html) {
         setPreviewHtml(html);
-        setPreviewPanelOpen(true);
+        openSpecialTab(SPECIAL_TABS.WEBVIEW);
         setLogs((prev) => [...prev, {
           id: Date.now(),
           text: `▶ Opened HTML preview for ${activeFileName}`,
@@ -638,8 +652,7 @@ export default function Project() {
       text: `▶ Run started at ${timestamp}`,
       type: "info",
     }]);
-    setTerminalVisible(true);
-    setBottomTab("terminal");
+    openSpecialTab(SPECIAL_TABS.CONSOLE);
     runMutation.mutate();
   };
 
@@ -1118,10 +1131,11 @@ export default function Project() {
   };
 
   const project = projectQuery.data;
-  const isRunnerTab = activeFileId?.startsWith("runner:");
-  const activeFile = isRunnerTab ? null : filesQuery.data?.find((f) => f.id === activeFileId);
-  const activeFileName = isRunnerTab ? (activeFileId!.slice(7).split("/").pop() || "") : (activeFile?.filename || "");
-  const currentCode = activeFileId ? fileContents[activeFileId] ?? "" : "";
+  const activeIsSpecial = activeFileId ? isSpecialTab(activeFileId) : false;
+  const isRunnerTab = !activeIsSpecial && activeFileId?.startsWith("runner:");
+  const activeFile = (isRunnerTab || activeIsSpecial) ? null : filesQuery.data?.find((f) => f.id === activeFileId);
+  const activeFileName = activeIsSpecial ? "" : isRunnerTab ? (activeFileId!.slice(7).split("/").pop() || "") : (activeFile?.filename || "");
+  const currentCode = (activeFileId && !activeIsSpecial) ? fileContents[activeFileId] ?? "" : "";
   const editorLanguage = activeFileName ? detectLanguage(activeFileName) : "javascript";
 
   const generateHtmlPreview = useCallback(() => {
@@ -1625,6 +1639,13 @@ export default function Project() {
     </div>
   );
 
+  const getSpecialTabInfo = (tabId: string) => {
+    if (tabId === SPECIAL_TABS.WEBVIEW) return { name: "Webview", icon: <Monitor className="w-3.5 h-3.5 shrink-0 text-[#0079F2]" /> };
+    if (tabId === SPECIAL_TABS.SHELL) return { name: "Shell", icon: <Hash className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" /> };
+    if (tabId === SPECIAL_TABS.CONSOLE) return { name: "Console", icon: <Terminal className="w-3.5 h-3.5 shrink-0 text-[#F5A623]" /> };
+    return null;
+  };
+
   const editorTabBar = openTabs.length > 0 ? (
     <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 overflow-hidden relative">
       {tabBarOverflow && (
@@ -1644,10 +1665,11 @@ export default function Project() {
         onDrop={() => { setDragOverTabId(null); setDragTabId(null); }}
       >
         {openTabs.map((tabId) => {
-          const isRunner = tabId.startsWith("runner:");
-          const file = isRunner ? null : filesQuery.data?.find((f) => f.id === tabId);
-          const tabName = isRunner ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
-          if (!isRunner && !file) return null;
+          const specialInfo = getSpecialTabInfo(tabId);
+          const isRunner = !specialInfo && tabId.startsWith("runner:");
+          const file = (!specialInfo && !isRunner) ? filesQuery.data?.find((f) => f.id === tabId) : null;
+          const tabName = specialInfo ? specialInfo.name : isRunner ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
+          if (!specialInfo && !isRunner && !file) return null;
           const isActive = tabId === activeFileId;
           const isDragOver = dragOverTabId === tabId && dragTabId !== tabId;
           return (
@@ -1655,7 +1677,17 @@ export default function Project() {
               <ContextMenuTrigger asChild>
                 <div
                   className={`group relative flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent"} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
-                  onClick={() => { setActiveFileId(tabId); if (isRunner) { setActiveRunnerPath(tabId.slice(7)); } else { setActiveRunnerPath(null); if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content })); } }}
+                  onClick={() => {
+                    setActiveFileId(tabId);
+                    if (specialInfo) {
+                      setActiveRunnerPath(null);
+                    } else if (isRunner) {
+                      setActiveRunnerPath(tabId.slice(7));
+                    } else {
+                      setActiveRunnerPath(null);
+                      if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content }));
+                    }
+                  }}
                   draggable
                   onDragStart={(e) => handleTabDragStart(e, tabId)}
                   onDragOver={(e) => handleTabDragOver(e, tabId)}
@@ -1666,9 +1698,15 @@ export default function Project() {
                   {isDragOver && (
                     <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-[#0079F2] rounded-full z-10" />
                   )}
-                  <FileTypeIcon filename={tabName} />
+                  {specialInfo ? specialInfo.icon : <FileTypeIcon filename={tabName} />}
                   <span className="text-[11px] max-w-[120px] truncate font-medium whitespace-nowrap">{tabName}</span>
-                  {dirtyFiles.has(tabId) ? (
+                  {tabId === SPECIAL_TABS.CONSOLE && isRunning && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />
+                  )}
+                  {tabId === SPECIAL_TABS.SHELL && wsStatus === "running" && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />
+                  )}
+                  {!specialInfo && dirtyFiles.has(tabId) ? (
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
                   ) : (
                     <button
@@ -1694,10 +1732,14 @@ export default function Project() {
                 <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeTabsToRight(tabId)} data-testid={`context-close-right-${tabId}`}>
                   Close to the Right
                 </ContextMenuItem>
-                <ContextMenuSeparator className="bg-[#2B3245]" />
-                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
-                  <Copy className="w-3.5 h-3.5" /> Copy Path
-                </ContextMenuItem>
+                {!specialInfo && (
+                  <>
+                    <ContextMenuSeparator className="bg-[#2B3245]" />
+                    <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
+                      <Copy className="w-3.5 h-3.5" /> Copy Path
+                    </ContextMenuItem>
+                  </>
+                )}
               </ContextMenuContent>
             </ContextMenu>
           );
@@ -1739,14 +1781,119 @@ export default function Project() {
     </div>
   ) : null;
 
+  const webviewTabContent = (
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
+      <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
+          onClick={() => {
+            if (wsStatus === "running" && livePreviewUrl) {
+              const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement;
+              if (iframe) iframe.src = iframe.src;
+            } else {
+              const html = generateHtmlPreview();
+              if (html) setPreviewHtml(html);
+            }
+          }}
+          title="Refresh" data-testid="button-webview-tab-refresh"><RefreshCw className="w-3 h-3" /></Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
+            <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
+            <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {livePreviewUrl && (
+            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+              onClick={() => window.open(livePreviewUrl, "_blank")}
+              title="Open in new tab" data-testid="button-webview-tab-newtab"><ExternalLink className="w-3 h-3" /></Button>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        {wsStatus === "running" && livePreviewUrl ? (
+          <iframe id="webview-tab-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
+        ) : previewHtml ? (
+          <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center">
+              <Monitor className="w-7 h-7 text-[#676D7E]" />
+            </div>
+            <p className="text-sm font-medium text-[#F5F9FC]">Webview</p>
+            <p className="text-xs text-center max-w-[220px] text-[#676D7E] leading-relaxed">
+              {hasHtmlFile ? "Click Refresh to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
+            </p>
+            {hasHtmlFile && wsStatus !== "running" && (
+              <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-webview-tab-preview">
+                <Eye className="w-3 h-3" /> Preview HTML
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const shellTabContent = (
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
+      <div className="flex items-center justify-between px-2 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+        <div className="flex items-center gap-2">
+          <Hash className="w-3 h-3 text-[#0CCE6B]" />
+          <span className="text-[11px] text-[#9DA2B0] font-medium">Shell</span>
+          {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+        </div>
+        <div className="flex items-center gap-1">
+          {wsStatusBadge}
+          {workspaceButton}
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <WorkspaceTerminal wsUrl={terminalWsUrl} runnerOffline={runnerOnline === false} visible={activeFileId === SPECIAL_TABS.SHELL} />
+      </div>
+    </div>
+  );
+
+  const consoleTabContent = (
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
+      <div className="flex items-center justify-between px-2 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+        <div className="flex items-center gap-2">
+          <Terminal className="w-3 h-3 text-[#F5A623]" />
+          <span className="text-[11px] text-[#9DA2B0] font-medium">Console</span>
+          {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+        </div>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-console-tab-clear"><Trash2 className="w-3 h-3" /></Button>
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }} data-testid="console-tab-output">
+        {logs.length === 0 && !isRunning && !runMutation.isPending && <p className="text-[#676D7E] text-center py-4 text-xs">Press Run to execute your code</p>}
+        {(isRunning || runMutation.isPending) && logs.length === 0 && (
+          <div className="flex items-center gap-2 py-1 text-[#0079F2] border-b border-[#2B3245]/50 mb-1">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="text-[11px]">Running {activeFileName || "code"}...</span>
+          </div>
+        )}
+        {logs.map((log) => (
+          <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#9DA2B0]"}`}>
+            <span className="whitespace-pre-wrap break-all">{log.text}</span>
+          </div>
+        ))}
+        {isRunning && logs.length > 0 && <span className="animate-pulse text-[#0079F2]">_</span>}
+      </div>
+    </div>
+  );
+
   const editorContent = (
     <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
-      {breadcrumbBar}
-      {activeFileId ? (
-        <div className="flex-1 overflow-hidden">
-          <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} />
-        </div>
-      ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
+      {activeFileId === SPECIAL_TABS.WEBVIEW ? webviewTabContent
+       : activeFileId === SPECIAL_TABS.SHELL ? shellTabContent
+       : activeFileId === SPECIAL_TABS.CONSOLE ? consoleTabContent
+       : (
+        <>
+          {breadcrumbBar}
+          {activeFileId ? (
+            <div className="flex-1 overflow-hidden">
+              <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} />
+            </div>
+          ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in overflow-y-auto">
           <div className="max-w-md text-center px-6 py-8">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F26522]/10 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
@@ -1858,6 +2005,8 @@ export default function Project() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -2249,17 +2398,45 @@ export default function Project() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${previewPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
-                    onClick={() => setPreviewPanelOpen(!previewPanelOpen)}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => openSpecialTab(SPECIAL_TABS.WEBVIEW)}
                     data-testid="activity-webview"
                   >
-                    {previewPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
+                    {openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
                     <Monitor className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Webview</TooltipContent>
               </Tooltip>
 
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL ? "text-[#0CCE6B]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => openSpecialTab(SPECIAL_TABS.SHELL)}
+                    data-testid="activity-shell"
+                  >
+                    {openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
+                    <Hash className="w-5 h-5" />
+                    {wsStatus === "running" && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] border border-[#0E1525]" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Shell</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE ? "text-[#F5A623]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => openSpecialTab(SPECIAL_TABS.CONSOLE)}
+                    data-testid="activity-console"
+                  >
+                    {openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
+                    <Terminal className="w-5 h-5" />
+                    {isRunning && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] animate-pulse border border-[#0E1525]" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Console</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -2583,75 +2760,12 @@ export default function Project() {
               </div>
             </div>
 
-            {/* MAIN EDITOR + PREVIEW AREA */}
-            <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0">
-              <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-                {editorTabBar}
-                {editorContent}
-                <div className={`shrink-0 transition-all duration-200 overflow-hidden border-t border-[#2B3245] bg-[#1C2333]`} style={{ height: terminalVisible ? terminalHeight : 0 }}>
-                  {bottomPanel}
-                </div>
-              </div>
-
-              <div className={`flex transition-all duration-200 overflow-hidden ${previewPanelOpen && !aiPanelOpen ? "" : "w-0"}`} style={previewPanelOpen && !aiPanelOpen ? { width: `${previewPanelWidth}%` } : undefined}>
-                {previewPanelOpen && !aiPanelOpen && (
-                  <div className="w-1 cursor-ew-resize resize-handle flex items-center justify-center shrink-0 bg-[#2B3245] hover:bg-[#0079F2]/50 transition-colors" onMouseDown={handlePreviewDragStart} onTouchStart={handlePreviewDragStart} />
-                )}
-                  <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333] border-l border-[#2B3245]" data-testid="preview-panel">
-                    <div className="flex items-center gap-1 px-1.5 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
-                        onClick={() => {
-                          if (wsStatus === "running" && livePreviewUrl) {
-                            const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
-                            if (iframe) iframe.src = iframe.src;
-                          } else {
-                            const html = generateHtmlPreview();
-                            if (html) setPreviewHtml(html);
-                          }
-                        }}
-                        title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 h-[26px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
-                          <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
-                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {livePreviewUrl && (
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
-                            onClick={() => window.open(livePreviewUrl, "_blank")}
-                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
-                          onClick={() => setPreviewPanelOpen(false)}
-                          title="Close" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                      {wsStatus === "running" && livePreviewUrl ? (
-                        <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
-                      ) : previewHtml ? (
-                        <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview" />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
-                          <div className="w-14 h-14 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center">
-                            <Monitor className="w-7 h-7 text-[#676D7E]" />
-                          </div>
-                          <p className="text-sm font-medium text-[#F5F9FC]">Webview</p>
-                          <p className="text-xs text-center max-w-[220px] text-[#676D7E] leading-relaxed">
-                            {hasHtmlFile ? "Click Preview to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
-                          </p>
-                          {hasHtmlFile && wsStatus !== "running" && (
-                            <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-panel-start">
-                              <Eye className="w-3 h-3" /> Preview HTML
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-              </div>
+            {/* MAIN EDITOR AREA */}
+            <div ref={editorPreviewContainerRef} className="flex-1 flex flex-col overflow-hidden min-w-0">
+              {editorTabBar}
+              {editorContent}
             </div>
+
           </div>
 
           {/* STATUS BAR */}
