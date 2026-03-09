@@ -172,15 +172,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    try {
-      if (messages.length > 0) {
-        localStorage.setItem(storageKey, JSON.stringify(messages));
-      } else {
-        localStorage.removeItem(storageKey);
-      }
-    } catch {}
-  }, [messages, storageKey]);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        if (messages.length > 0) {
+          const hasContent = messages.some(m => m.content.length > 0);
+          if (hasContent) {
+            localStorage.setItem(storageKey, JSON.stringify(messages));
+          }
+        } else {
+          localStorage.removeItem(storageKey);
+        }
+      } catch {}
+    }, isStreaming ? 2000 : 300);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [messages, storageKey, isStreaming]);
 
   useEffect(() => {
     try { localStorage.setItem(`${storageKey}_model`, model); } catch {}
