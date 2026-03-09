@@ -57,6 +57,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
 - Run/Stop buttons with execution state indication
 - **Git version control**: Full source control panel with commit, branch, diff, checkout, and history tracking — stores file snapshots in PostgreSQL JSON columns
+- **Git blame view**: In-editor blame annotations showing per-line commit attribution with colored markers, toggled via breadcrumb bar button
 - **Deployments panel**: Sidebar panel showing publish status, URL, deployment history
 - **Settings panel**: In-sidebar settings with theme toggle, font size, tab size, word wrap controls
 - Project settings dialog (rename, change language)
@@ -117,6 +118,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `DELETE /api/projects/:projectId/git/branches/:branchId` - Delete branch
 - `POST /api/projects/:projectId/git/checkout` - Restore files from commit/branch
 - `GET /api/projects/:projectId/git/diff` - Compare current files to last commit
+- `GET /api/projects/:projectId/git/blame/:filename` - Per-line blame attribution across commit history
 - `GET /api/shared/:id` - Get published project (public, no auth)
 - `GET /api/demo/project` - Get demo project
 - `POST /api/demo/run` - Execute demo code

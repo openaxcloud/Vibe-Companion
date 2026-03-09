@@ -6,11 +6,20 @@ import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorView } from "@codemirror/view";
+import { EditorView, gutter, GutterMarker } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { useRef, useEffect } from "react";
+import { StateField, StateEffect, RangeSetBuilder, RangeSet } from "@codemirror/state";
+
+export interface BlameEntry {
+  line: number;
+  commitId: string | null;
+  message: string;
+  author: string;
+  date: string;
+}
 
 interface CodeEditorProps {
   value: string;
@@ -21,6 +30,7 @@ interface CodeEditorProps {
   fontSize?: number;
   tabSize?: number;
   wordWrap?: boolean;
+  blameData?: BlameEntry[];
 }
 
 const replitHighlight = HighlightStyle.define([
@@ -136,7 +146,153 @@ const replitTheme = EditorView.theme({
     padding: "0 6px",
     borderRadius: "3px",
   },
+  ".cm-blame-gutter": {
+    width: "220px",
+    background: "#0E1525",
+    borderRight: "1px solid #2B3245",
+  },
+  ".cm-blame-gutter .cm-gutterElement": {
+    fontFamily: "'IBM Plex Mono', 'JetBrains Mono', monospace",
+    fontSize: "11px",
+    padding: "0 8px",
+    display: "flex",
+    alignItems: "center",
+    cursor: "default",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
 }, { dark: true });
+
+const BLAME_COLORS = [
+  "#7C65CB",
+  "#0079F2",
+  "#0CCE6B",
+  "#F26522",
+  "#F5A623",
+  "#FF6166",
+  "#56B6C2",
+  "#FFCB6B",
+  "#9DA2B0",
+  "#FF9940",
+];
+
+function getCommitColor(commitId: string | null, commitIds: string[]): string {
+  if (!commitId) return "#676D7E";
+  const idx = commitIds.indexOf(commitId);
+  if (idx === -1) return "#676D7E";
+  return BLAME_COLORS[idx % BLAME_COLORS.length];
+}
+
+function formatBlameDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo ago`;
+  return `${Math.floor(diffMonths / 12)}y ago`;
+}
+
+class BlameMarker extends GutterMarker {
+  constructor(
+    public entry: BlameEntry,
+    public color: string,
+    public showHeader: boolean
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const el = document.createElement("div");
+    el.style.display = "flex";
+    el.style.alignItems = "center";
+    el.style.gap = "6px";
+    el.style.width = "100%";
+    el.style.overflow = "hidden";
+
+    if (this.showHeader) {
+      const bar = document.createElement("span");
+      bar.style.width = "2px";
+      bar.style.height = "14px";
+      bar.style.borderRadius = "1px";
+      bar.style.backgroundColor = this.color;
+      bar.style.flexShrink = "0";
+      el.appendChild(bar);
+
+      const msg = document.createElement("span");
+      msg.style.color = this.color;
+      msg.style.flex = "1";
+      msg.style.overflow = "hidden";
+      msg.style.textOverflow = "ellipsis";
+      msg.style.whiteSpace = "nowrap";
+      msg.style.fontSize = "11px";
+      msg.textContent = this.entry.message.length > 20 ? this.entry.message.slice(0, 20) + "…" : this.entry.message;
+      el.appendChild(msg);
+
+      const date = document.createElement("span");
+      date.style.color = "#676D7E";
+      date.style.fontSize = "10px";
+      date.style.flexShrink = "0";
+      date.textContent = formatBlameDate(this.entry.date);
+      el.appendChild(date);
+    } else {
+      const bar = document.createElement("span");
+      bar.style.width = "2px";
+      bar.style.height = "14px";
+      bar.style.borderRadius = "1px";
+      bar.style.backgroundColor = this.color;
+      bar.style.opacity = "0.3";
+      bar.style.flexShrink = "0";
+      el.appendChild(bar);
+    }
+
+    el.title = `${this.entry.message}\n${this.entry.author} • ${new Date(this.entry.date).toLocaleString()}${this.entry.commitId ? "\n" + this.entry.commitId.slice(0, 8) : ""}`;
+
+    return el;
+  }
+}
+
+const setBlameEffect = StateEffect.define<BlameEntry[]>();
+
+const blameField = StateField.define<BlameEntry[]>({
+  create() { return []; },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setBlameEffect)) return e.value;
+    }
+    return value;
+  },
+});
+
+const blameGutter = gutter({
+  class: "cm-blame-gutter",
+  markers(view) {
+    const blameData = view.state.field(blameField);
+    if (blameData.length === 0) return RangeSet.empty;
+
+    const uniqueCommits = [...new Set(blameData.map(b => b.commitId).filter(Boolean) as string[])];
+
+    const builder = new RangeSetBuilder<GutterMarker>();
+    const doc = view.state.doc;
+
+    for (let i = 1; i <= doc.lines && i <= blameData.length; i++) {
+      const line = doc.line(i);
+      const entry = blameData[i - 1];
+      const color = getCommitColor(entry.commitId, uniqueCommits);
+      const showHeader = i === 1 || blameData[i - 2].commitId !== entry.commitId;
+      builder.add(line.from, line.from, new BlameMarker(entry, color, showHeader));
+    }
+    return builder.finish();
+  },
+  lineMarker: undefined,
+});
 
 function getLanguageExtension(lang: string) {
   switch (lang) {
@@ -185,7 +341,7 @@ function detectLanguage(filename: string): string {
 
 export { detectLanguage };
 
-export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false }: CodeEditorProps) {
+export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData }: CodeEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const onCursorChangeRef = useRef(onCursorChange);
   onCursorChangeRef.current = onCursorChange;
@@ -200,6 +356,8 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     });
   }, []);
 
+  const showBlame = blameData && blameData.length > 0;
+
   const extensions = useMemo(() => {
     const ext = [
       getLanguageExtension(language),
@@ -207,11 +365,20 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       syntaxHighlighting(replitHighlight),
       indentUnit.of(" ".repeat(tabSize)),
       cursorTracker,
+      blameField,
     ];
+    if (showBlame) ext.push(blameGutter);
     if (wordWrap) ext.push(EditorView.lineWrapping);
     if (readOnly) ext.push(EditorView.editable.of(false));
     return ext;
-  }, [language, readOnly, cursorTracker, tabSize, wordWrap]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame]);
+
+  useEffect(() => {
+    const view = editorRef.current?.view;
+    if (view && blameData) {
+      view.dispatch({ effects: setBlameEffect.of(blameData) });
+    }
+  }, [blameData]);
 
   return (
     <CodeMirror

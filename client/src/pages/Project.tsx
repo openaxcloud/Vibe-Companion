@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import {
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
-  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard
+  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +34,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import AIPanel from "@/components/AIPanel";
-import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
+import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
 import WorkspaceTerminal from "@/components/WorkspaceTerminal";
 import CommandPalette from "@/components/CommandPalette";
 import type { Project as ProjectType, File } from "@shared/schema";
@@ -210,6 +210,7 @@ export default function Project() {
   const [deploymentsPanelOpen, setDeploymentsPanelOpen] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  const [blameEnabled, setBlameEnabled] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("main");
   const [commitMessage, setCommitMessage] = useState("");
   const [showDiffModal, setShowDiffModal] = useState(false);
@@ -277,6 +278,22 @@ export default function Project() {
       return res.json();
     },
     enabled: gitPanelOpen,
+  });
+
+  const blameFilename = useMemo(() => {
+    if (!blameEnabled || !activeFileId || isSpecialTab(activeFileId)) return null;
+    const f = filesQuery.data?.find((f) => f.id === activeFileId);
+    return f?.filename || null;
+  }, [blameEnabled, activeFileId, filesQuery.data]);
+
+  const blameQuery = useQuery<{ filename: string; blame: BlameEntry[] }>({
+    queryKey: ["/api/projects", projectId, "git/blame", blameFilename, currentBranch],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/blame/${encodeURIComponent(blameFilename!)}?branch=${currentBranch}`, { credentials: "include" });
+      if (!res.ok) return { filename: blameFilename!, blame: [] };
+      return res.json();
+    },
+    enabled: !!blameFilename,
   });
 
   const useRunnerFS = wsStatus === "running";
@@ -951,6 +968,7 @@ export default function Project() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/branches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/blame"] });
       toast({ title: "Committed", description: `${data.id?.slice(0, 8)}: ${data.message}` });
     },
     onError: (err: any) => {
@@ -1004,6 +1022,7 @@ export default function Project() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/blame"] });
       toast({ title: "Checked out", description: `${data.filesRestored} files restored` });
     },
     onError: (err: any) => {
@@ -1893,6 +1912,19 @@ export default function Project() {
           </span>
         );
       })}
+      <div className="flex-1" />
+      {activeFileId && !isSpecialTab(activeFileId) && (
+        <button
+          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all ${blameEnabled ? "bg-[#7C65CB]/20 text-[#7C65CB] border border-[#7C65CB]/30" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
+          onClick={() => setBlameEnabled(!blameEnabled)}
+          title={blameEnabled ? "Hide Git blame annotations" : "Show Git blame annotations"}
+          data-testid="button-toggle-blame"
+        >
+          <GitCommitHorizontal className="w-3 h-3" />
+          {blameEnabled ? "Blame" : "Blame"}
+          {blameEnabled && blameQuery.isLoading && <span className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />}
+        </button>
+      )}
     </div>
   ) : null;
 
@@ -2030,7 +2062,7 @@ export default function Project() {
           {breadcrumbBar}
           {activeFileId ? (
             <div className="flex-1 overflow-hidden">
-              <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} />
+              <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} />
             </div>
           ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in overflow-y-auto">

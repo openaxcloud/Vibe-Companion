@@ -642,6 +642,145 @@ export async function registerRoutes(
     return res.json({ branch: branchName, changes, hasCommits: !!branch?.headCommitId });
   });
 
+  app.get("/api/projects/:projectId/git/blame/:filename", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const branchName = (req.query.branch as string) || "main";
+    const filename = decodeURIComponent(req.params.filename);
+
+    const currentFile = (await storage.getFiles(req.params.projectId)).find(f => f.filename === filename);
+    if (!currentFile) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    const currentLines = currentFile.content.split("\n");
+    const numLines = currentLines.length;
+    const uncommittedInfo = { commitId: null as string | null, message: "Uncommitted", author: "You", date: new Date().toISOString() };
+
+    const allCommits = await storage.getCommits(req.params.projectId, branchName);
+    const commitsSorted = [...allCommits].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const relevantCommits = commitsSorted.filter(c => filename in (c.snapshot as Record<string, string>));
+
+    if (relevantCommits.length === 0) {
+      return res.json({ filename, blame: currentLines.map((_, i) => ({ line: i + 1, ...uncommittedInfo })) });
+    }
+
+    const { diffArrays } = require("diff");
+    type LineInfo = { commitId: string | null; message: string; author: string; date: string };
+    const attribution: LineInfo[] = new Array(numLines).fill(null).map(() => ({ ...uncommittedInfo }));
+
+    let trackedIndices: number[] = Array.from({ length: numLines }, (_, i) => i);
+    let trackedLines: string[] = currentLines.slice();
+
+    for (let ci = 0; ci < relevantCommits.length; ci++) {
+      if (trackedIndices.length === 0) break;
+
+      const commit = relevantCommits[ci];
+      const snap = commit.snapshot as Record<string, string>;
+      const commitLines = (snap[filename] || "").split("\n");
+      const commitInfo: LineInfo = {
+        commitId: commit.id,
+        message: commit.message,
+        author: commit.authorId,
+        date: new Date(commit.createdAt).toISOString(),
+      };
+
+      let prevLines: string[] = [];
+      if (ci + 1 < relevantCommits.length) {
+        const prevSnap = relevantCommits[ci + 1].snapshot as Record<string, string>;
+        prevLines = prevSnap[filename] ? prevSnap[filename].split("\n") : [];
+      }
+
+      const diff = diffArrays(prevLines, commitLines);
+
+      const addedInThisCommit = new Set<number>();
+      let newIdx = 0;
+      for (const part of diff) {
+        const count = part.count || part.value.length;
+        if (part.removed) {
+          continue;
+        } else if (part.added) {
+          for (let j = 0; j < count; j++) addedInThisCommit.add(newIdx + j);
+          newIdx += count;
+        } else {
+          newIdx += count;
+        }
+      }
+
+      const diffToTracked = diffArrays(commitLines, trackedLines);
+      const commitToTrackedMap: Map<number, number> = new Map();
+      let cIdx = 0;
+      let tIdx = 0;
+      for (const part of diffToTracked) {
+        const count = part.count || part.value.length;
+        if (part.removed) {
+          cIdx += count;
+        } else if (part.added) {
+          tIdx += count;
+        } else {
+          for (let j = 0; j < count; j++) {
+            commitToTrackedMap.set(cIdx + j, tIdx + j);
+          }
+          cIdx += count;
+          tIdx += count;
+        }
+      }
+
+      const newTrackedIndices: number[] = [];
+      const newTrackedLines: string[] = [];
+
+      for (let ti = 0; ti < trackedIndices.length; ti++) {
+        const origIdx = trackedIndices[ti];
+        let found = false;
+        for (const [commitLineIdx, trackedLocalIdx] of commitToTrackedMap.entries()) {
+          if (trackedLocalIdx === ti) {
+            if (addedInThisCommit.has(commitLineIdx)) {
+              attribution[origIdx] = commitInfo;
+              found = true;
+            }
+            break;
+          }
+        }
+        if (!found && ci === relevantCommits.length - 1) {
+          let isInCommit = false;
+          for (const [, trackedLocalIdx] of commitToTrackedMap.entries()) {
+            if (trackedLocalIdx === ti) { isInCommit = true; break; }
+          }
+          if (isInCommit) {
+            attribution[origIdx] = commitInfo;
+          }
+        }
+        if (!found) {
+          newTrackedIndices.push(origIdx);
+          newTrackedLines.push(trackedLines[ti]);
+        }
+      }
+
+      trackedIndices = newTrackedIndices;
+      trackedLines = newTrackedLines;
+    }
+
+    const firstCommit = relevantCommits[relevantCommits.length - 1];
+    for (let i = 0; i < numLines; i++) {
+      if (!attribution[i].commitId && trackedIndices.includes(i)) {
+        attribution[i] = {
+          commitId: firstCommit.id,
+          message: firstCommit.message,
+          author: firstCommit.authorId,
+          date: new Date(firstCommit.createdAt).toISOString(),
+        };
+      }
+    }
+
+    return res.json({
+      filename,
+      blame: attribution.map((info, i) => ({ line: i + 1, ...info })),
+    });
+  });
+
   // --- WORKSPACE / RUNNER ---
   app.get("/api/runner/status", requireAuth, async (_req: Request, res: Response) => {
     const online = await runnerClient.ping();
