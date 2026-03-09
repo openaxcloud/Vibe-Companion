@@ -9,7 +9,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
 - **Code Execution**: Local sandboxed `child_process.spawn` with security pattern blocking, 10s timeout, 64MB memory limit
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
-- **AI**: Dual model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-5.2, both via Replit AI Integrations
+- **AI**: Dual model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o, both via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme (replitTheme + replitHighlight)
 
@@ -38,7 +38,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - CodeMirror 6 editor with Replit-accurate syntax theme (red keywords, green strings, teal functions, orange numbers)
 - **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
-- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-5.2 (OpenAI) — both work in chat AND agent mode
+- **Model selection**: Choose between Claude Sonnet (Anthropic) and GPT-4o (OpenAI, default) — both work in chat AND agent mode
 - **Markdown rendering in AI chat**: Bold, italic, inline code, links, headers, bullet/numbered lists
 - **AI model badges**: Each AI response shows which model generated it (Claude/GPT)
 - **Character count**: Shows character count while typing in AI input
@@ -62,7 +62,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Dark mode with Replit-accurate design tokens
 - Public demo project (read-only)
 - **Skeleton loading states**: Full IDE skeleton, file tree skeletons, dashboard card skeletons
-- **Security**: Path traversal prevention on all file endpoints, agent loop limit (10 iterations max)
+- **HTML Preview**: Local HTML preview via srcdoc iframe when runner is offline — auto-combines HTML + linked CSS/JS from project files, auto-refreshes on save
+- **Run UX**: Run button auto-opens terminal, shows run separator with timestamp, displays exit code on completion
+- **File creation flow**: New files from AI agent or manual creation auto-open in tab, expand parent folders, and show file explorer
+- **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Repl" card, improved empty states with CTAs
+- **Security**: Path traversal prevention on all file endpoints, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
 - **WebSocket heartbeat**: Server-side ping/pong every 30s, client-side auto-reconnect with exponential backoff
 - Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces

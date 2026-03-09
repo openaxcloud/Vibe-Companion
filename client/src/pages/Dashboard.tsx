@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project } from "@shared/schema";
@@ -51,11 +51,13 @@ export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiModel, setAiModel] = useState<"claude" | "gpt">("claude");
+  const [aiModel, setAiModel] = useState<"claude" | "gpt">("gpt");
   const [sidebarNav, setSidebarNav] = useState<"home" | "repls">("home");
   const [sortBy, setSortBy] = useState<"modified" | "name">("modified");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [generationStep, setGenerationStep] = useState(0);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
 
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
@@ -76,15 +78,21 @@ export default function Dashboard() {
 
   const generateProject = useMutation({
     mutationFn: async ({ prompt, model }: { prompt: string; model: string }) => {
+      setGenerationError(null);
+      setGenerationStep(0);
       const res = await apiRequest("POST", "/api/projects/generate", { prompt, model });
       return res.json();
     },
     onSuccess: (data: { project: Project }) => {
+      setGenerationStep(0);
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setAiPrompt("");
       setLocation(`/project/${data.project.id}`);
     },
-    onError: (err: any) => { toast({ title: "Generation failed", description: err.message, variant: "destructive" }); },
+    onError: (err: any) => {
+      setGenerationStep(0);
+      setGenerationError(err.message || "Something went wrong. Please try again.");
+    },
   });
 
   const deleteProject = useMutation({
@@ -119,6 +127,22 @@ export default function Dashboard() {
     { name: "Dashboard", desc: "Admin panel with charts", prompt: "An admin dashboard with sidebar navigation, data tables, charts, and user management", icon: LayoutDashboard, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60" },
     { name: "Game", desc: "Browser game with Canvas", prompt: "A simple browser-based snake game using HTML5 Canvas with score tracking", icon: Gamepad2, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60" },
   ];
+
+  const GENERATION_STEPS = [
+    "Analyzing your prompt...",
+    "Designing project structure...",
+    "Generating code files...",
+    "Setting up configuration...",
+    "Finalizing your project...",
+  ];
+
+  useEffect(() => {
+    if (!generateProject.isPending) return;
+    const interval = setInterval(() => {
+      setGenerationStep((prev) => (prev < GENERATION_STEPS.length - 1 ? prev + 1 : prev));
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [generateProject.isPending]);
 
   const scrollTemplates = (direction: "left" | "right") => {
     if (templatesRef.current) {
@@ -453,7 +477,7 @@ export default function Dashboard() {
                         className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gpt" ? "bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30" : "text-[#676D7E] border border-transparent hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
                         data-testid="button-model-gpt"
                       >
-                        <Zap className="w-3 h-3" /> GPT-5
+                        <Zap className="w-3 h-3" /> GPT-4o
                       </button>
                     </div>
                     <Button
@@ -472,13 +496,67 @@ export default function Dashboard() {
                   </div>
                 </div>
                 {generateProject.isPending ? (
-                  <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-[#7C65CB]">
-                    <div className="flex gap-1">
-                      <span className="bouncing-dot"></span>
-                      <span className="bouncing-dot"></span>
-                      <span className="bouncing-dot"></span>
+                  <div className="mt-4 rounded-xl border border-[#7C65CB]/30 bg-[#7C65CB]/5 p-5 animate-fade-in" data-testid="generation-progress">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[#7C65CB] to-[#0079F2] flex items-center justify-center shrink-0 shadow-lg shadow-[#7C65CB]/20">
+                        <Sparkles className="w-5 h-5 text-white animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-semibold text-[#F5F9FC]" data-testid="text-generation-title">Building your app...</p>
+                        <p className="text-[11px] text-[#9DA2B0] mt-0.5">This usually takes 15-30 seconds</p>
+                      </div>
                     </div>
-                    AI is generating your project...
+                    <div className="space-y-2.5">
+                      {GENERATION_STEPS.map((step, i) => (
+                        <div key={i} className="flex items-center gap-2.5">
+                          {i < generationStep ? (
+                            <div className="w-4.5 h-4.5 rounded-full bg-[#0CCE6B]/20 flex items-center justify-center shrink-0">
+                              <svg className="w-3 h-3 text-[#0CCE6B]" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </div>
+                          ) : i === generationStep ? (
+                            <Loader2 className="w-4 h-4 text-[#7C65CB] animate-spin shrink-0" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-[#2B3245] shrink-0" />
+                          )}
+                          <span className={`text-[11px] transition-colors ${i < generationStep ? "text-[#0CCE6B]" : i === generationStep ? "text-[#F5F9FC] font-medium" : "text-[#676D7E]"}`}>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 w-full h-1.5 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-[#7C65CB] to-[#0079F2] transition-all duration-700 ease-out" style={{ width: `${((generationStep + 1) / GENERATION_STEPS.length) * 100}%` }} />
+                    </div>
+                  </div>
+                ) : generationError ? (
+                  <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4 animate-fade-in" data-testid="generation-error">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <X className="w-4 h-4 text-red-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-medium text-red-400 mb-1" data-testid="text-generation-error">Generation failed</p>
+                        <p className="text-[11px] text-[#9DA2B0] mb-3 leading-relaxed">{generationError}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            className="h-7 px-3 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[11px] rounded-lg gap-1.5"
+                            onClick={() => { setGenerationError(null); if (aiPrompt.trim().length >= 3) generateProject.mutate({ prompt: aiPrompt.trim(), model: aiModel }); }}
+                            data-testid="button-retry-generation"
+                          >
+                            <Zap className="w-3 h-3" /> Try again
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-3 text-[#9DA2B0] hover:text-[#F5F9FC] text-[11px] rounded-lg"
+                            onClick={() => setGenerationError(null)}
+                            data-testid="button-dismiss-error"
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-[#676D7E] mt-2.5">Tip: Try simplifying your prompt or choosing a different AI model</p>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[10px] text-[#676D7E]">
@@ -546,12 +624,37 @@ export default function Dashboard() {
               )}
               {!projectsQuery.isLoading && projects.length === 0 && (
                 <div className="pb-8 animate-fade-in">
-                  <div className="text-center py-12 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/20">
-                    <div className="w-12 h-12 rounded-2xl bg-[#1C2333] border border-[#2B3245] flex items-center justify-center mx-auto mb-3">
-                      <Folder className="w-6 h-6 text-[#323B4F]" />
+                  <div className="text-center py-14 px-6 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/20 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,121,242,0.04)_0%,_transparent_70%)] pointer-events-none" />
+                    <div className="relative">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0079F2]/20 to-[#7C65CB]/20 border border-[#0079F2]/20 flex items-center justify-center mx-auto mb-4">
+                        <Sparkles className="w-7 h-7 text-[#0079F2]" />
+                      </div>
+                      <p className="text-[15px] text-[#F5F9FC] mb-1.5 font-semibold" data-testid="text-empty-home">Start building something amazing</p>
+                      <p className="text-[12px] text-[#676D7E] max-w-xs mx-auto mb-5 leading-relaxed">Describe your idea above and let AI build it, or create an empty project to start coding from scratch</p>
+                      <div className="flex items-center justify-center gap-3">
+                        <Button
+                          size="sm"
+                          className="h-9 px-5 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg gap-1.5 font-medium shadow-sm shadow-[#0079F2]/20"
+                          onClick={() => setDialogOpen(true)}
+                          data-testid="button-empty-create-repl"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Create Repl
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-9 px-4 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 text-[12px] rounded-lg gap-1.5"
+                          onClick={() => {
+                            const el = document.querySelector('[data-testid="input-ai-prompt"]') as HTMLTextAreaElement;
+                            el?.focus();
+                          }}
+                          data-testid="button-empty-use-ai"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" /> Use AI
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-[13px] text-[#9DA2B0] mb-1 font-medium" data-testid="text-empty-home">No repls yet</p>
-                    <p className="text-[11px] text-[#676D7E]">Create your first Repl to get started</p>
                   </div>
                 </div>
               )}
@@ -669,15 +772,59 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : projects.length === 0 ? (
-                <div className="text-center py-16 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/30 animate-fade-in">
-                  <div className="w-14 h-14 rounded-2xl bg-[#1C2333] border border-[#2B3245] flex items-center justify-center mx-auto mb-4">
-                    <Folder className="w-7 h-7 text-[#323B4F]" />
+                <div className="text-center py-16 px-6 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/30 animate-fade-in relative overflow-hidden">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,121,242,0.04)_0%,_transparent_70%)] pointer-events-none" />
+                  <div className="relative">
+                    {searchQuery ? (
+                      <>
+                        <div className="w-14 h-14 rounded-2xl bg-[#1C2333] border border-[#2B3245] flex items-center justify-center mx-auto mb-4">
+                          <Search className="w-6 h-6 text-[#323B4F]" />
+                        </div>
+                        <p className="text-[13px] text-[#9DA2B0] mb-1 font-medium" data-testid="text-empty-state">No repls match your search</p>
+                        <p className="text-[11px] text-[#676D7E]">Try a different search term</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0079F2]/20 to-[#7C65CB]/20 border border-[#0079F2]/20 flex items-center justify-center mx-auto mb-4">
+                          <Code2 className="w-7 h-7 text-[#0079F2]" />
+                        </div>
+                        <p className="text-[15px] text-[#F5F9FC] mb-1.5 font-semibold" data-testid="text-empty-state">No repls yet</p>
+                        <p className="text-[12px] text-[#676D7E] max-w-sm mx-auto mb-5 leading-relaxed">Create your first project to start coding. Use AI to generate one or start from scratch.</p>
+                        <div className="flex items-center justify-center gap-3">
+                          <Button
+                            size="sm"
+                            className="h-9 px-5 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg gap-1.5 font-medium shadow-sm shadow-[#0079F2]/20"
+                            onClick={() => setDialogOpen(true)}
+                            data-testid="button-empty-repls-create"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Create Repl
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-9 px-4 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 text-[12px] rounded-lg gap-1.5"
+                            onClick={() => setSidebarNav("home")}
+                            data-testid="button-empty-repls-ai"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" /> Generate with AI
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <p className="text-[13px] text-[#9DA2B0] mb-1 font-medium" data-testid="text-empty-state">{searchQuery ? "No repls match your search" : "No repls yet"}</p>
-                  <p className="text-[11px] text-[#676D7E]">{searchQuery ? "Try a different search term" : "Create your first Repl to get started"}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
+                  <button
+                    className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[#2B3245] bg-[#1C2333]/20 hover:bg-[#1C2333]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
+                    onClick={() => setDialogOpen(true)}
+                    data-testid="card-create-new-repl"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[#0079F2]/10 border border-[#0079F2]/20 flex items-center justify-center mb-2.5 group-hover:bg-[#0079F2]/20 transition-colors">
+                      <Plus className="w-5 h-5 text-[#0079F2]" />
+                    </div>
+                    <p className="text-[12px] font-medium text-[#9DA2B0] group-hover:text-[#F5F9FC] transition-colors">Create New Repl</p>
+                  </button>
                   {projects.map((project) => {
                     const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
                     return (

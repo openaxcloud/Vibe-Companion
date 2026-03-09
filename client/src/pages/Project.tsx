@@ -175,6 +175,24 @@ export default function Project() {
       return next;
     });
   };
+  const expandParentFolders = (filePath: string) => {
+    const parts = filePath.split("/");
+    if (parts.length > 1) {
+      setExpandedFolders(prev => {
+        const next = new Set(prev);
+        for (let i = 1; i < parts.length; i++) {
+          next.add(parts.slice(0, i).join("/"));
+        }
+        return next;
+      });
+    }
+  };
+  const ensureFileExplorerVisible = () => {
+    setSidebarOpen(true);
+    setSearchPanelOpen(false);
+    setDeploymentsPanelOpen(false);
+    setSettingsPanelOpen(false);
+  };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
@@ -265,6 +283,18 @@ export default function Project() {
       }
       if (msg.type === "run_status" && (msg.status === "completed" || msg.status === "failed")) {
         setIsRunning(false);
+        const exitCode = (msg as any).exitCode ?? (msg.status === "completed" ? 0 : 1);
+        setLogs((prev) => [
+          ...prev,
+          { id: Date.now() + Math.random(), text: "", type: "info" },
+          {
+            id: Date.now() + Math.random(),
+            text: msg.status === "completed"
+              ? `Process exited with code ${exitCode}`
+              : `Process failed with code ${exitCode}`,
+            type: msg.status === "completed" ? "success" : "error",
+          },
+        ]);
       }
     }
   }, [messages]);
@@ -549,7 +579,14 @@ export default function Project() {
 
   const handleRun = () => {
     if (isRunning) { setIsRunning(false); return; }
-    setLogs([]);
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs([{
+      id: Date.now(),
+      text: `▶ Run started at ${timestamp}`,
+      type: "info",
+    }]);
+    setTerminalVisible(true);
+    setBottomTab("terminal");
     runMutation.mutate();
   };
 
@@ -578,8 +615,11 @@ export default function Project() {
         const entry: FsEntry = { name: result.name, path: result.path, type: "file" };
         openRunnerFile(entry);
       } else {
-        openFile(result as File);
+        const file = result as File;
+        openFile(file);
+        expandParentFolders(file.filename);
       }
+      ensureFileExplorerVisible();
       setNewFileDialogOpen(false);
       setNewFileName("");
       setNewFileParentFolder(null);
@@ -686,7 +726,9 @@ export default function Project() {
     },
     onSuccess: (result: any) => {
       invalidateFs();
-      openFile(result as File);
+      const file = result as File;
+      openFile(file);
+      expandParentFolders(file.filename);
     },
     onError: (err: any) => {
       toast({ title: "Failed to duplicate file", description: err.message, variant: "destructive" });
@@ -1014,6 +1056,70 @@ export default function Project() {
   const currentCode = activeFileId ? fileContents[activeFileId] ?? "" : "";
   const editorLanguage = activeFileName ? detectLanguage(activeFileName) : "javascript";
 
+  const generateHtmlPreview = useCallback(() => {
+    const files = filesQuery.data;
+    if (!files || files.length === 0) return null;
+
+    const getContent = (fileId: string, fallback: string) => {
+      return fileContents[fileId] !== undefined ? fileContents[fileId] : fallback;
+    };
+
+    const htmlFile = files.find((f) => f.filename.endsWith(".html")) ||
+      files.find((f) => f.filename === "index.html");
+
+    if (!htmlFile) return null;
+
+    let html = getContent(htmlFile.id, htmlFile.content);
+
+    const cssFiles = files.filter((f) => f.filename.endsWith(".css"));
+    const jsFiles = files.filter((f) => f.filename.endsWith(".js") && !f.filename.endsWith(".min.js"));
+
+    for (const cssFile of cssFiles) {
+      const cssName = cssFile.filename.split("/").pop() || cssFile.filename;
+      const linkRegex = new RegExp(`<link[^>]*href=["'](?:\\./)?${cssName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*/?>`, 'gi');
+      const cssContent = getContent(cssFile.id, cssFile.content);
+      if (linkRegex.test(html)) {
+        html = html.replace(linkRegex, `<style>${cssContent}</style>`);
+      } else if (!html.includes(cssContent)) {
+        html = html.replace('</head>', `<style>${cssContent}</style>\n</head>`);
+      }
+    }
+
+    for (const jsFile of jsFiles) {
+      const jsName = jsFile.filename.split("/").pop() || jsFile.filename;
+      const scriptRegex = new RegExp(`<script[^>]*src=["'](?:\\./)?${jsName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>\\s*</script>`, 'gi');
+      const jsContent = getContent(jsFile.id, jsFile.content);
+      if (scriptRegex.test(html)) {
+        html = html.replace(scriptRegex, `<script>${jsContent}<\/script>`);
+      } else if (!html.includes(jsContent)) {
+        html = html.replace('</body>', `<script>${jsContent}<\/script>\n</body>`);
+      }
+    }
+
+    return html;
+  }, [filesQuery.data, fileContents]);
+
+  const hasHtmlFile = filesQuery.data?.some((f) => f.filename.endsWith(".html")) || false;
+
+  useEffect(() => {
+    if (!useRunnerFS && hasHtmlFile) {
+      const html = generateHtmlPreview();
+      setPreviewHtml(html);
+    } else if (!hasHtmlFile) {
+      setPreviewHtml(null);
+    }
+  }, [generateHtmlPreview, useRunnerFS, hasHtmlFile]);
+
+  const handlePreview = useCallback(() => {
+    const html = generateHtmlPreview();
+    if (html) {
+      setPreviewHtml(html);
+      setPreviewPanelOpen(true);
+    } else {
+      toast({ title: "No HTML file found", description: "Create an HTML file to preview your project", variant: "destructive" });
+    }
+  }, [generateHtmlPreview, toast]);
+
   const getFileColor = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
     const c: Record<string, string> = { js: "text-yellow-400", jsx: "text-yellow-400", ts: "text-blue-400", tsx: "text-blue-400", py: "text-green-400", json: "text-orange-400", css: "text-pink-400", html: "text-red-400", md: "text-gray-400" };
@@ -1110,7 +1216,7 @@ export default function Project() {
           <ChevronLeft className="w-3 h-3" /> ..
         </button>
       )}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
         {useRunnerFS ? (
           <>
             {runnerFsQuery.data?.map((entry) => {
@@ -1673,14 +1779,20 @@ export default function Project() {
   );
 
   const terminalContent = (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }}>
-      {logs.length === 0 && !isRunning && <p className="text-[#676D7E] text-center py-4 text-xs">Press Run to execute your code</p>}
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }} data-testid="terminal-output">
+      {logs.length === 0 && !isRunning && !runMutation.isPending && <p className="text-[#676D7E] text-center py-4 text-xs" data-testid="text-terminal-empty">Press Run to execute your code</p>}
+      {(isRunning || runMutation.isPending) && logs.length === 0 && (
+        <div className="flex items-center gap-2 py-1 text-[#0079F2] border-b border-[#2B3245]/50 mb-1" data-testid="text-run-header">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span className="text-[11px]">Running {activeFileName || "code"}...</span>
+        </div>
+      )}
       {logs.map((log) => (
         <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#9DA2B0]"}`}>
           <span className="whitespace-pre-wrap break-all">{log.text}</span>
         </div>
       ))}
-      {isRunning && <span className="animate-pulse text-[#0079F2]">_</span>}
+      {isRunning && logs.length > 0 && <span className="animate-pulse text-[#0079F2]">_</span>}
     </div>
   );
 
@@ -1706,15 +1818,22 @@ export default function Project() {
                 onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
             </div>
           </div>
-          <iframe id="live-preview-iframe" src={livePreviewUrl} className="flex-1 w-full border-0 bg-white" title="Live Preview" data-testid="iframe-live-preview" />
+          <iframe id="live-preview-iframe" src={livePreviewUrl} className="flex-1 w-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
         </>
       ) : previewHtml ? (
-        <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
+        <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
       ) : (
         <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
           <Globe className="w-10 h-10" />
-          <p className="text-sm font-medium text-[#F5F9FC]">Live Preview</p>
-          {wsStatus === "none" || wsStatus === "stopped" ? (
+          <p className="text-sm font-medium text-[#F5F9FC]">{hasHtmlFile ? "HTML Preview" : "Live Preview"}</p>
+          {hasHtmlFile && wsStatus !== "running" ? (
+            <>
+              <p className="text-xs text-center max-w-[280px]">Preview your HTML project directly in the browser</p>
+              <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-mobile-start">
+                <Eye className="w-3 h-3" /> Preview HTML
+              </Button>
+            </>
+          ) : wsStatus === "none" || wsStatus === "stopped" ? (
             <>
               <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#0079F2] font-mono">:3000</span> in the workspace to see the preview here.</p>
               <p className="text-[10px] text-[#2B3245]">Start the workspace then run your app</p>
@@ -1798,7 +1917,7 @@ export default function Project() {
           <span className="text-[13px] font-medium text-[#F5F9FC] truncate max-w-[180px]" data-testid="text-project-name">{project?.name}</span>
           {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
         </div>
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center gap-1.5">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1814,13 +1933,29 @@ export default function Project() {
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">{isRunning ? "Stop (F5)" : "Run (F5)"}</TooltipContent>
             </Tooltip>
+            {hasHtmlFile && wsStatus !== "running" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-3 text-[11px] font-medium rounded-full gap-1.5 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-[#2B3245] transition-all duration-150"
+                    onClick={handlePreview}
+                    data-testid="button-preview"
+                  >
+                    <Eye className="w-3 h-3" /> Preview
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Preview HTML (⌘\)</TooltipContent>
+              </Tooltip>
+            )}
           </TooltipProvider>
         </div>
         <div className="flex items-center justify-end gap-1">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={copyShareUrl} data-testid="button-invite">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
                   <Users className="w-3.5 h-3.5" /> Invite
                 </Button>
               </TooltipTrigger>
@@ -1912,6 +2047,7 @@ export default function Project() {
                     setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
                     setActiveFileId(file.id);
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                    expandParentFolders(file.filename);
                     setMobileTab("editor");
                   }}
                   onFileUpdated={(file) => {
@@ -2102,6 +2238,8 @@ export default function Project() {
                     setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
                     setActiveFileId(file.id);
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                    expandParentFolders(file.filename);
+                    ensureFileExplorerVisible();
                   }}
                   onFileUpdated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
@@ -2377,12 +2515,20 @@ export default function Project() {
                   <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333] border-l border-[#2B3245]" data-testid="preview-panel">
                     <div className="flex items-center gap-1 px-1.5 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
                       <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
-                        onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe) iframe.src = iframe.src; }}
+                        onClick={() => {
+                          if (wsStatus === "running" && livePreviewUrl) {
+                            const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
+                            if (iframe) iframe.src = iframe.src;
+                          } else {
+                            const html = generateHtmlPreview();
+                            if (html) setPreviewHtml(html);
+                          }
+                        }}
                         title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 h-[26px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
                           <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
-                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || "localhost:3000"}</span>
+                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
@@ -2397,16 +2543,10 @@ export default function Project() {
                       </div>
                     </div>
                     <div className="flex-1 overflow-hidden">
-                      {runnerOnline === false ? (
-                        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
-                          <WifiOff className="w-8 h-8 text-[#676D7E]" />
-                          <p className="text-sm text-[#9DA2B0]">Preview unavailable</p>
-                          <p className="text-xs text-[#676D7E]">Runner is offline</p>
-                        </div>
-                      ) : wsStatus === "running" && livePreviewUrl ? (
-                        <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" data-testid="iframe-preview-panel" />
+                      {wsStatus === "running" && livePreviewUrl ? (
+                        <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
                       ) : previewHtml ? (
-                        <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="Preview" />
+                        <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview" />
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
                           <div className="w-14 h-14 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center">
@@ -2414,8 +2554,13 @@ export default function Project() {
                           </div>
                           <p className="text-sm font-medium text-[#F5F9FC]">Webview</p>
                           <p className="text-xs text-center max-w-[220px] text-[#676D7E] leading-relaxed">
-                            {wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Run your app to see the live preview here"}
+                            {hasHtmlFile ? "Click Preview to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
                           </p>
+                          {hasHtmlFile && wsStatus !== "running" && (
+                            <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-panel-start">
+                              <Eye className="w-3 h-3" /> Preview HTML
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2435,7 +2580,7 @@ export default function Project() {
                     <span className="font-medium">main</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] border-[#2B3245]">
+                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
                   Current branch: main
                 </TooltipContent>
               </Tooltip>
@@ -2455,7 +2600,7 @@ export default function Project() {
                     <span>0</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] border-[#2B3245]">
+                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
                   No Problems
                 </TooltipContent>
               </Tooltip>
@@ -2501,7 +2646,7 @@ export default function Project() {
                     <span>Prettier</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] border-[#2B3245]">
+                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
                   Format Document
                 </TooltipContent>
               </Tooltip>

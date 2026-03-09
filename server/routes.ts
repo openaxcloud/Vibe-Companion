@@ -724,7 +724,7 @@ Rules:
 
       if (requestedModel === "gpt") {
         const gptResponse = await openai.chat.completions.create({
-          model: "gpt-5.2",
+          model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt.trim() },
@@ -831,7 +831,7 @@ Rules:
         ];
 
         const stream = await openai.chat.completions.create({
-          model: "gpt-5.2",
+          model: "gpt-4o",
           messages: gptMessages,
           stream: true,
           max_completion_tokens: 4096,
@@ -979,10 +979,10 @@ Always write complete, working code. Never use placeholders or TODOs.`;
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
           const response = await openai.chat.completions.create({
-            model: "gpt-5.2",
+            model: "gpt-4o",
             messages: gptMessages,
             tools: openaiTools,
-            max_completion_tokens: 4096,
+            max_completion_tokens: 16384,
           });
 
           const choice = response.choices[0];

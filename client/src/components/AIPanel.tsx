@@ -34,7 +34,7 @@ type AIMode = "chat" | "agent";
 
 const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
   claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
-  gpt: { name: "GPT-5.2", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
+  gpt: { name: "GPT-4o", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
 };
 
 const LANG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -100,7 +100,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [model, setModel] = useState<AIModel>("claude");
+  const [model, setModel] = useState<AIModel>("gpt");
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -519,7 +519,7 @@ export default function AIPanel({ context, onClose, projectId, files, onFileCrea
                     <Zap className="w-3 h-3 text-[#0CCE6B]" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="font-medium">GPT-5.2</span>
+                    <span className="font-medium">GPT-4o</span>
                     <span className="text-[10px] text-[#676D7E]">OpenAI</span>
                   </div>
                   {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
