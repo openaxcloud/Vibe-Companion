@@ -13,6 +13,7 @@ import { log } from "./index";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenAI, Type } from "@google/genai";
+import { diffArrays } from "diff";
 import * as runnerClient from "./runnerClient";
 import { posix as pathPosix } from "path";
 
@@ -668,109 +669,88 @@ export async function registerRoutes(
       return res.json({ filename, blame: currentLines.map((_, i) => ({ line: i + 1, ...uncommittedInfo })) });
     }
 
-    const { diffArrays } = require("diff");
     type LineInfo = { commitId: string | null; message: string; author: string; date: string };
     const attribution: LineInfo[] = new Array(numLines).fill(null).map(() => ({ ...uncommittedInfo }));
 
-    let trackedIndices: number[] = Array.from({ length: numLines }, (_, i) => i);
-    let trackedLines: string[] = currentLines.slice();
-
-    for (let ci = 0; ci < relevantCommits.length; ci++) {
-      if (trackedIndices.length === 0) break;
-
-      const commit = relevantCommits[ci];
-      const snap = commit.snapshot as Record<string, string>;
-      const commitLines = (snap[filename] || "").split("\n");
-      const commitInfo: LineInfo = {
-        commitId: commit.id,
-        message: commit.message,
-        author: commit.authorId,
-        date: new Date(commit.createdAt).toISOString(),
-      };
-
-      let prevLines: string[] = [];
-      if (ci + 1 < relevantCommits.length) {
-        const prevSnap = relevantCommits[ci + 1].snapshot as Record<string, string>;
-        prevLines = prevSnap[filename] ? prevSnap[filename].split("\n") : [];
-      }
-
-      const diff = diffArrays(prevLines, commitLines);
-
-      const addedInThisCommit = new Set<number>();
+    function mapLinesToPrev(newerLines: string[], olderLines: string[]): Map<number, number> {
+      const diff = diffArrays(olderLines, newerLines);
+      const mapping = new Map<number, number>();
+      let oldIdx = 0;
       let newIdx = 0;
       for (const part of diff) {
         const count = part.count || part.value.length;
         if (part.removed) {
-          continue;
+          oldIdx += count;
         } else if (part.added) {
-          for (let j = 0; j < count; j++) addedInThisCommit.add(newIdx + j);
           newIdx += count;
-        } else {
-          newIdx += count;
-        }
-      }
-
-      const diffToTracked = diffArrays(commitLines, trackedLines);
-      const commitToTrackedMap: Map<number, number> = new Map();
-      let cIdx = 0;
-      let tIdx = 0;
-      for (const part of diffToTracked) {
-        const count = part.count || part.value.length;
-        if (part.removed) {
-          cIdx += count;
-        } else if (part.added) {
-          tIdx += count;
         } else {
           for (let j = 0; j < count; j++) {
-            commitToTrackedMap.set(cIdx + j, tIdx + j);
+            mapping.set(newIdx + j, oldIdx + j);
           }
-          cIdx += count;
-          tIdx += count;
+          oldIdx += count;
+          newIdx += count;
         }
       }
-
-      const newTrackedIndices: number[] = [];
-      const newTrackedLines: string[] = [];
-
-      for (let ti = 0; ti < trackedIndices.length; ti++) {
-        const origIdx = trackedIndices[ti];
-        let found = false;
-        for (const [commitLineIdx, trackedLocalIdx] of commitToTrackedMap.entries()) {
-          if (trackedLocalIdx === ti) {
-            if (addedInThisCommit.has(commitLineIdx)) {
-              attribution[origIdx] = commitInfo;
-              found = true;
-            }
-            break;
-          }
-        }
-        if (!found && ci === relevantCommits.length - 1) {
-          let isInCommit = false;
-          for (const [, trackedLocalIdx] of commitToTrackedMap.entries()) {
-            if (trackedLocalIdx === ti) { isInCommit = true; break; }
-          }
-          if (isInCommit) {
-            attribution[origIdx] = commitInfo;
-          }
-        }
-        if (!found) {
-          newTrackedIndices.push(origIdx);
-          newTrackedLines.push(trackedLines[ti]);
-        }
-      }
-
-      trackedIndices = newTrackedIndices;
-      trackedLines = newTrackedLines;
+      return mapping;
     }
 
-    const firstCommit = relevantCommits[relevantCommits.length - 1];
+    const latestSnap = (relevantCommits[0].snapshot as Record<string, string>)[filename] || "";
+    const latestCommitLines = latestSnap.split("\n");
+    const currentToLatest = mapLinesToPrev(currentLines, latestCommitLines);
+
+    let lineOrigin: Array<{ lineIdx: number; origIdx: number }> = [];
     for (let i = 0; i < numLines; i++) {
-      if (!attribution[i].commitId && trackedIndices.includes(i)) {
-        attribution[i] = {
-          commitId: firstCommit.id,
-          message: firstCommit.message,
-          author: firstCommit.authorId,
-          date: new Date(firstCommit.createdAt).toISOString(),
+      const mappedIdx = currentToLatest.get(i);
+      if (mappedIdx !== undefined) {
+        lineOrigin.push({ lineIdx: mappedIdx, origIdx: i });
+      }
+    }
+
+    const chronological = [...relevantCommits].reverse();
+    const versionLines: string[][] = chronological.map(c => {
+      const snap = c.snapshot as Record<string, string>;
+      return (snap[filename] || "").split("\n");
+    });
+
+    const lastVersionIdx = versionLines.length - 1;
+    const lineCommitIdx: number[] = new Array(latestCommitLines.length).fill(lastVersionIdx);
+
+    let linePositions: number[] = Array.from({ length: latestCommitLines.length }, (_, i) => i);
+
+    for (let vi = lastVersionIdx; vi >= 1; vi--) {
+      const newerLines = versionLines[vi];
+      const olderLines = versionLines[vi - 1];
+      const mapping = mapLinesToPrev(newerLines, olderLines);
+
+      const newPositions: number[] = new Array(linePositions.length).fill(-1);
+
+      for (let li = 0; li < linePositions.length; li++) {
+        if (lineCommitIdx[li] !== vi) continue;
+        const posInNewer = linePositions[li];
+        if (posInNewer === -1) continue;
+        const olderIdx = mapping.get(posInNewer);
+        if (olderIdx !== undefined) {
+          lineCommitIdx[li] = vi - 1;
+          newPositions[li] = olderIdx;
+        }
+      }
+
+      for (let li = 0; li < linePositions.length; li++) {
+        if (newPositions[li] !== -1) {
+          linePositions[li] = newPositions[li];
+        }
+      }
+    }
+
+    for (const { lineIdx, origIdx } of lineOrigin) {
+      if (lineIdx < lineCommitIdx.length) {
+        const ci = lineCommitIdx[lineIdx];
+        const commit = chronological[ci];
+        attribution[origIdx] = {
+          commitId: commit.id,
+          message: commit.message,
+          author: commit.authorId,
+          date: new Date(commit.createdAt).toISOString(),
         };
       }
     }
