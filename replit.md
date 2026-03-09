@@ -20,6 +20,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `runs`: id, project_id (indexed), user_id (indexed), status, language, code, stdout, stderr, exit_code, started_at, finished_at
 - `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
 - `workspace_sessions`: id (uuid), workspace_id, user_id, created_at, expires_at
+- `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at
+- `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -54,6 +56,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
 - Run/Stop buttons with execution state indication
+- **Git version control**: Full source control panel with commit, branch, diff, checkout, and history tracking — stores file snapshots in PostgreSQL JSON columns
 - **Deployments panel**: Sidebar panel showing publish status, URL, deployment history
 - **Settings panel**: In-sidebar settings with theme toggle, font size, tab size, word wrap controls
 - Project settings dialog (rename, change language)
@@ -79,6 +82,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Cmd+J: Toggle terminal
 - Cmd+\: Toggle preview panel
 - Cmd+Shift+F: Search across files
+- Cmd+Shift+G: Toggle Git source control panel
 - Cmd+Enter / F5: Run project
 
 ## Design System
@@ -105,6 +109,14 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `DELETE /api/files/:id` - Delete file
 - `POST /api/projects/:projectId/run` - Execute code
 - `POST /api/projects/:id/publish` - Toggle publish status
+- `GET /api/projects/:projectId/git/commits` - List commits (query: branch)
+- `GET /api/projects/:projectId/git/commits/:commitId` - Get commit with snapshot
+- `POST /api/projects/:projectId/git/commits` - Create commit (snapshots files)
+- `GET /api/projects/:projectId/git/branches` - List branches
+- `POST /api/projects/:projectId/git/branches` - Create branch
+- `DELETE /api/projects/:projectId/git/branches/:branchId` - Delete branch
+- `POST /api/projects/:projectId/git/checkout` - Restore files from commit/branch
+- `GET /api/projects/:projectId/git/diff` - Compare current files to last commit
 - `GET /api/shared/:id` - Get published project (public, no auth)
 - `GET /api/demo/project` - Get demo project
 - `POST /api/demo/run` - Execute demo code

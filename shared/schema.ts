@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex, index, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -112,3 +112,47 @@ export const insertWorkspaceSessionSchema = createInsertSchema(workspaceSessions
 });
 export type InsertWorkspaceSession = z.infer<typeof insertWorkspaceSessionSchema>;
 export type WorkspaceSession = typeof workspaceSessions.$inferSelect;
+
+export const commits = pgTable("commits", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  branchName: text("branch_name").notNull().default("main"),
+  message: text("message").notNull(),
+  authorId: varchar("author_id", { length: 36 }).notNull(),
+  parentCommitId: varchar("parent_commit_id", { length: 36 }),
+  snapshot: json("snapshot").notNull().$type<Record<string, string>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("commits_project_id_idx").on(table.projectId),
+]);
+
+export const insertCommitSchema = createInsertSchema(commits).pick({
+  projectId: true,
+  branchName: true,
+  message: true,
+  authorId: true,
+  parentCommitId: true,
+  snapshot: true,
+});
+export type InsertCommit = z.infer<typeof insertCommitSchema>;
+export type Commit = typeof commits.$inferSelect;
+
+export const branches = pgTable("branches", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  headCommitId: varchar("head_commit_id", { length: 36 }),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("branches_project_name_unique").on(table.projectId, table.name),
+]);
+
+export const insertBranchSchema = createInsertSchema(branches).pick({
+  projectId: true,
+  name: true,
+  headCommitId: true,
+  isDefault: true,
+});
+export type InsertBranch = z.infer<typeof insertBranchSchema>;
+export type Branch = typeof branches.$inferSelect;

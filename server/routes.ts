@@ -448,6 +448,200 @@ export async function registerRoutes(
     return res.json(result);
   });
 
+  // --- GIT VERSION CONTROL ---
+  app.get("/api/projects/:projectId/git/commits", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const branchName = req.query.branch as string | undefined;
+    const commitList = await storage.getCommits(req.params.projectId, branchName);
+    return res.json(commitList);
+  });
+
+  app.get("/api/projects/:projectId/git/commits/:commitId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const commit = await storage.getCommit(req.params.commitId);
+    if (!commit || commit.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "Commit not found" });
+    }
+    return res.json(commit);
+  });
+
+  app.post("/api/projects/:projectId/git/commits", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { message, branchName = "main" } = req.body;
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
+      return res.status(400).json({ message: "Commit message is required" });
+    }
+
+    let branch = await storage.getBranch(req.params.projectId, branchName);
+    if (!branch) {
+      branch = await storage.createBranch({
+        projectId: req.params.projectId,
+        name: branchName,
+        isDefault: branchName === "main",
+      });
+    }
+
+    const projectFiles = await storage.getFiles(req.params.projectId);
+    const snapshot: Record<string, string> = {};
+    for (const f of projectFiles) {
+      snapshot[f.filename] = f.content;
+    }
+
+    const commit = await storage.createCommit({
+      projectId: req.params.projectId,
+      branchName,
+      message: message.trim(),
+      authorId: req.session.userId!,
+      parentCommitId: branch.headCommitId || undefined,
+      snapshot,
+    });
+
+    await storage.updateBranchHead(branch.id, commit.id);
+    return res.status(201).json(commit);
+  });
+
+  app.get("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const branchList = await storage.getBranches(req.params.projectId);
+    return res.json(branchList);
+  });
+
+  app.post("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { name, fromBranch = "main" } = req.body;
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
+      return res.status(400).json({ message: "Branch name is required" });
+    }
+
+    const existing = await storage.getBranch(req.params.projectId, name.trim());
+    if (existing) {
+      return res.status(409).json({ message: "Branch already exists" });
+    }
+
+    const sourceBranch = await storage.getBranch(req.params.projectId, fromBranch);
+    const branch = await storage.createBranch({
+      projectId: req.params.projectId,
+      name: name.trim(),
+      headCommitId: sourceBranch?.headCommitId || undefined,
+      isDefault: false,
+    });
+    return res.status(201).json(branch);
+  });
+
+  app.delete("/api/projects/:projectId/git/branches/:branchId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const branchList = await storage.getBranches(req.params.projectId);
+    const branch = branchList.find(b => b.id === req.params.branchId);
+    if (!branch) {
+      return res.status(404).json({ message: "Branch not found" });
+    }
+    if (branch.isDefault) {
+      return res.status(400).json({ message: "Cannot delete the default branch" });
+    }
+    await storage.deleteBranch(branch.id);
+    return res.json({ success: true });
+  });
+
+  app.post("/api/projects/:projectId/git/checkout", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { commitId, branchName } = req.body;
+
+    let snapshot: Record<string, string> | null = null;
+
+    if (commitId) {
+      const commit = await storage.getCommit(commitId);
+      if (!commit || commit.projectId !== req.params.projectId) {
+        return res.status(404).json({ message: "Commit not found" });
+      }
+      snapshot = commit.snapshot as Record<string, string>;
+    } else if (branchName) {
+      const branch = await storage.getBranch(req.params.projectId, branchName);
+      if (!branch || !branch.headCommitId) {
+        return res.status(404).json({ message: "Branch not found or has no commits" });
+      }
+      const commit = await storage.getCommit(branch.headCommitId);
+      if (!commit) {
+        return res.status(404).json({ message: "Head commit not found" });
+      }
+      snapshot = commit.snapshot as Record<string, string>;
+    }
+
+    if (!snapshot) {
+      return res.status(400).json({ message: "commitId or branchName is required" });
+    }
+
+    const currentFiles = await storage.getFiles(req.params.projectId);
+    for (const f of currentFiles) {
+      await storage.deleteFile(f.id);
+    }
+    for (const [filename, content] of Object.entries(snapshot)) {
+      await storage.createFile(req.params.projectId, { filename, content });
+    }
+
+    return res.json({ success: true, filesRestored: Object.keys(snapshot).length });
+  });
+
+  app.get("/api/projects/:projectId/git/diff", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const branchName = (req.query.branch as string) || "main";
+    const branch = await storage.getBranch(req.params.projectId, branchName);
+
+    const currentFiles = await storage.getFiles(req.params.projectId);
+    const currentSnapshot: Record<string, string> = {};
+    for (const f of currentFiles) {
+      currentSnapshot[f.filename] = f.content;
+    }
+
+    let lastSnapshot: Record<string, string> = {};
+    if (branch?.headCommitId) {
+      const lastCommit = await storage.getCommit(branch.headCommitId);
+      if (lastCommit) {
+        lastSnapshot = lastCommit.snapshot as Record<string, string>;
+      }
+    }
+
+    const changes: Array<{ filename: string; status: "added" | "modified" | "deleted"; oldContent?: string; newContent?: string }> = [];
+
+    for (const [filename, content] of Object.entries(currentSnapshot)) {
+      if (!(filename in lastSnapshot)) {
+        changes.push({ filename, status: "added", newContent: content });
+      } else if (lastSnapshot[filename] !== content) {
+        changes.push({ filename, status: "modified", oldContent: lastSnapshot[filename], newContent: content });
+      }
+    }
+    for (const filename of Object.keys(lastSnapshot)) {
+      if (!(filename in currentSnapshot)) {
+        changes.push({ filename, status: "deleted", oldContent: lastSnapshot[filename] });
+      }
+    }
+
+    return res.json({ branch: branchName, changes, hasCommits: !!branch?.headCommitId });
+  });
+
   // --- WORKSPACE / RUNNER ---
   app.get("/api/runner/status", requireAuth, async (_req: Request, res: Response) => {
     const online = await runnerClient.ping();

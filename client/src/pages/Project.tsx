@@ -209,6 +209,13 @@ export default function Project() {
   const [cursorCol, setCursorCol] = useState(1);
   const [deploymentsPanelOpen, setDeploymentsPanelOpen] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  const [currentBranch, setCurrentBranch] = useState("main");
+  const [commitMessage, setCommitMessage] = useState("");
+  const [showDiffModal, setShowDiffModal] = useState(false);
+  const [diffFile, setDiffFile] = useState<{ filename: string; oldContent?: string; newContent?: string; status: string } | null>(null);
+  const [showBranchDialog, setShowBranchDialog] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [editorTabSize, setEditorTabSize] = useState(2);
   const [editorWordWrap, setEditorWordWrap] = useState(false);
@@ -240,6 +247,36 @@ export default function Project() {
       if (!res.ok) throw new Error("Failed to load files");
       return res.json();
     },
+  });
+
+  const gitCommitsQuery = useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "git/commits", currentBranch],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/commits?branch=${currentBranch}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: gitPanelOpen,
+  });
+
+  const gitBranchesQuery = useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "git/branches"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/branches`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: gitPanelOpen,
+  });
+
+  const gitDiffQuery = useQuery<{ branch: string; changes: any[]; hasCommits: boolean }>({
+    queryKey: ["/api/projects", projectId, "git/diff", currentBranch],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/diff?branch=${currentBranch}`, { credentials: "include" });
+      if (!res.ok) return { branch: currentBranch, changes: [], hasCommits: false };
+      return res.json();
+    },
+    enabled: gitPanelOpen,
   });
 
   const useRunnerFS = wsStatus === "running";
@@ -380,6 +417,11 @@ export default function Project() {
         setSidebarOpen((prev) => !prev);
         setAiPanelOpen(false);
         setSearchPanelOpen(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "G") {
+        e.preventDefault();
+        setGitPanelOpen((prev) => !prev);
+        if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -893,6 +935,79 @@ export default function Project() {
     },
     onError: (err: any) => {
       toast({ title: "Publish failed", description: err.message || "Could not toggle publish state. Please try again.", variant: "destructive" });
+    },
+  });
+
+  const commitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/git/commits`, {
+        message: commitMessage.trim(),
+        branchName: currentBranch,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setCommitMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/branches"] });
+      toast({ title: "Committed", description: `${data.id?.slice(0, 8)}: ${data.message}` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Commit failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createBranchMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/git/branches`, {
+        name,
+        fromBranch: currentBranch,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setNewBranchName("");
+      setShowBranchDialog(false);
+      setCurrentBranch(data.name);
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/branches"] });
+      toast({ title: "Branch created", description: data.name });
+    },
+    onError: (err: any) => {
+      toast({ title: "Branch creation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteBranchMutation = useMutation({
+    mutationFn: async (branchId: string) => {
+      const res = await apiRequest("DELETE", `/api/projects/${projectId}/git/branches/${branchId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/branches"] });
+      toast({ title: "Branch deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async (params: { commitId?: string; branchName?: string }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/git/checkout`, params);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setFileContents({});
+      setOpenTabs([]);
+      setActiveFileId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+      toast({ title: "Checked out", description: `${data.filesRestored} files restored` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Checkout failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -2373,14 +2488,16 @@ export default function Project() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors text-[#676D7E] hover:text-[#F5F9FC]`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${gitPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    onClick={() => { setGitPanelOpen(!gitPanelOpen); if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-git"
                   >
+                    {gitPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
                     <GitBranch className="w-5 h-5" />
-                    {dirtyFiles.size > 0 && <span className="absolute top-1.5 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border border-[#0E1525]" />}
+                    {(gitDiffQuery.data?.changes?.length || 0) > 0 && <span className="absolute top-1.5 right-2 min-w-[16px] h-4 rounded-full bg-[#0079F2] flex items-center justify-center px-1"><span className="text-[9px] font-bold text-white">{gitDiffQuery.data?.changes?.length}</span></span>}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Git</TooltipContent>
+                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Source Control</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2660,6 +2777,198 @@ export default function Project() {
               </div>
             )}
 
+            {/* GIT PANEL */}
+            {gitPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="git-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
+                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Source Control</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setGitPanelOpen(false)} data-testid="button-close-git">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {/* Branch selector */}
+                  <div className="px-3 py-2.5 border-b border-[#2B3245]">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="w-3.5 h-3.5 text-[#F26522] shrink-0" />
+                      <select
+                        value={currentBranch}
+                        onChange={(e) => {
+                          const newBranch = e.target.value;
+                          setCurrentBranch(newBranch);
+                          const branch = gitBranchesQuery.data?.find((b: any) => b.name === newBranch);
+                          if (branch?.headCommitId) {
+                            checkoutMutation.mutate({ branchName: newBranch });
+                          }
+                        }}
+                        className="flex-1 text-[11px] text-[#F5F9FC] bg-[#0E1525] border border-[#2B3245] rounded px-2 py-1 outline-none focus:border-[#0079F2] cursor-pointer"
+                        data-testid="select-git-branch"
+                      >
+                        {(gitBranchesQuery.data?.length || 0) > 0 ? (
+                          gitBranchesQuery.data!.map((b: any) => (
+                            <option key={b.id} value={b.name}>{b.name}{b.isDefault ? " (default)" : ""}</option>
+                          ))
+                        ) : (
+                          <option value="main">main</option>
+                        )}
+                      </select>
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] shrink-0" onClick={() => setShowBranchDialog(true)} title="Create branch" data-testid="button-create-branch">
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    {showBranchDialog && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={newBranchName}
+                          onChange={(e) => setNewBranchName(e.target.value)}
+                          placeholder="New branch name..."
+                          className="flex-1 text-[11px] bg-[#0E1525] border border-[#2B3245] rounded px-2 py-1 text-[#F5F9FC] placeholder-[#4A5068] outline-none focus:border-[#0079F2]"
+                          onKeyDown={(e) => { if (e.key === "Enter" && newBranchName.trim()) createBranchMutation.mutate(newBranchName.trim()); if (e.key === "Escape") setShowBranchDialog(false); }}
+                          autoFocus
+                          data-testid="input-new-branch"
+                        />
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#0CCE6B] hover:bg-[#0CCE6B]/10 shrink-0" onClick={() => { if (newBranchName.trim()) createBranchMutation.mutate(newBranchName.trim()); }} disabled={createBranchMutation.isPending} data-testid="button-confirm-branch">
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] shrink-0" onClick={() => { setShowBranchDialog(false); setNewBranchName(""); }} data-testid="button-cancel-branch">
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Commit section */}
+                  <div className="px-3 py-2.5 border-b border-[#2B3245]">
+                    <textarea
+                      value={commitMessage}
+                      onChange={(e) => setCommitMessage(e.target.value)}
+                      placeholder="Commit message..."
+                      className="w-full text-[11px] bg-[#0E1525] border border-[#2B3245] rounded px-2.5 py-2 text-[#F5F9FC] placeholder-[#4A5068] outline-none focus:border-[#0079F2] resize-none min-h-[60px]"
+                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && commitMessage.trim()) { e.preventDefault(); commitMutation.mutate(); } }}
+                      data-testid="textarea-commit-message"
+                    />
+                    <Button
+                      className="w-full mt-1.5 h-7 text-[11px] bg-[#0079F2] hover:bg-[#0079F2]/90 text-white rounded font-medium gap-1.5"
+                      onClick={() => commitMutation.mutate()}
+                      disabled={!commitMessage.trim() || commitMutation.isPending}
+                      data-testid="button-commit"
+                    >
+                      {commitMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      Commit to {currentBranch}
+                    </Button>
+                  </div>
+
+                  {/* Changes section */}
+                  <div className="border-b border-[#2B3245]">
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Changes</span>
+                      <span className="text-[10px] text-[#9DA2B0] font-mono">{gitDiffQuery.data?.changes?.length || 0}</span>
+                    </div>
+                    {gitDiffQuery.isLoading ? (
+                      <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[#676D7E]" /></div>
+                    ) : !gitDiffQuery.data?.hasCommits ? (
+                      <div className="px-3 pb-3">
+                        <p className="text-[10px] text-[#4A5068] text-center py-2">No commits yet. Make your first commit to start tracking changes.</p>
+                      </div>
+                    ) : (gitDiffQuery.data?.changes?.length || 0) === 0 ? (
+                      <div className="px-3 pb-3">
+                        <p className="text-[10px] text-[#4A5068] text-center py-2">No changes detected</p>
+                      </div>
+                    ) : (
+                      <div className="pb-1">
+                        {gitDiffQuery.data!.changes.map((change: any) => (
+                          <button
+                            key={change.filename}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#2B3245]/50 text-left transition-colors group"
+                            onClick={() => { setDiffFile(change); setShowDiffModal(true); }}
+                            data-testid={`git-change-${change.filename}`}
+                          >
+                            <span className={`text-[10px] font-bold w-4 text-center shrink-0 ${change.status === "added" ? "text-[#0CCE6B]" : change.status === "deleted" ? "text-red-400" : "text-[#F5A623]"}`}>
+                              {change.status === "added" ? "A" : change.status === "deleted" ? "D" : "M"}
+                            </span>
+                            <span className="text-[11px] text-[#9DA2B0] truncate flex-1 group-hover:text-[#F5F9FC]">{change.filename}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Commit history */}
+                  <div>
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">History</span>
+                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => { gitCommitsQuery.refetch(); gitDiffQuery.refetch(); }} data-testid="button-refresh-git">
+                        <RefreshCw className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    {gitCommitsQuery.isLoading ? (
+                      <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[#676D7E]" /></div>
+                    ) : (gitCommitsQuery.data?.length || 0) === 0 ? (
+                      <div className="px-3 pb-3 text-center">
+                        <div className="w-10 h-10 rounded-xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-2">
+                          <GitBranch className="w-5 h-5 text-[#676D7E]" />
+                        </div>
+                        <p className="text-[11px] text-[#9DA2B0] font-medium">No commits yet</p>
+                        <p className="text-[10px] text-[#4A5068] mt-1">Create your first commit to start version tracking</p>
+                      </div>
+                    ) : (
+                      <div className="pb-2">
+                        {gitCommitsQuery.data!.map((commit: any, i: number) => (
+                          <div key={commit.id} className="px-3 py-2 hover:bg-[#2B3245]/30 transition-colors group" data-testid={`git-commit-${commit.id}`}>
+                            <div className="flex items-start gap-2">
+                              <div className="flex flex-col items-center shrink-0 mt-0.5">
+                                <div className={`w-2 h-2 rounded-full ${i === 0 ? "bg-[#0079F2]" : "bg-[#2B3245]"} shrink-0`} />
+                                {i < (gitCommitsQuery.data!.length - 1) && <div className="w-px flex-1 bg-[#2B3245] min-h-[24px]" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] text-[#F5F9FC] leading-snug truncate">{commit.message}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[9px] text-[#676D7E] font-mono">{commit.id?.slice(0, 7)}</span>
+                                  <span className="text-[9px] text-[#4A5068]">·</span>
+                                  <span className="text-[9px] text-[#4A5068]">{new Date(commit.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                                  <span className="text-[9px] text-[#4A5068]">{new Date(commit.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <button
+                                  className="text-[9px] text-[#0079F2] hover:text-[#0079F2]/80 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => checkoutMutation.mutate({ commitId: commit.id })}
+                                  disabled={checkoutMutation.isPending}
+                                  data-testid={`button-checkout-${commit.id}`}
+                                >
+                                  {checkoutMutation.isPending ? "Restoring..." : "Restore this version"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Branch list */}
+                  {(gitBranchesQuery.data?.length || 0) > 1 && (
+                    <div className="border-t border-[#2B3245]">
+                      <div className="px-3 py-2">
+                        <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Branches</span>
+                      </div>
+                      {gitBranchesQuery.data!.map((branch: any) => (
+                        <div key={branch.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#2B3245]/30 group" data-testid={`git-branch-${branch.name}`}>
+                          <GitBranch className={`w-3 h-3 shrink-0 ${branch.name === currentBranch ? "text-[#F26522]" : "text-[#676D7E]"}`} />
+                          <span className={`text-[11px] flex-1 truncate ${branch.name === currentBranch ? "text-[#F5F9FC] font-medium" : "text-[#9DA2B0]"}`}>{branch.name}</span>
+                          {branch.name === currentBranch && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#F26522]/10 text-[#F26522] border border-[#F26522]/20">current</span>}
+                          {!branch.isDefault && branch.name !== currentBranch && (
+                            <button className="text-[#676D7E] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteBranchMutation.mutate(branch.id)} data-testid={`button-delete-branch-${branch.name}`}>
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* SETTINGS PANEL */}
             {settingsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && (
               <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="settings-panel">
@@ -2754,7 +3063,7 @@ export default function Project() {
             )}
 
             {/* FILE EXPLORER SIDEBAR */}
-            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? (isTablet ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
+            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && !gitPanelOpen ? (isTablet ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
               <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} h-full`}>
                 {sidebarContent}
               </div>
@@ -2774,13 +3083,13 @@ export default function Project() {
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#9DA2B0] hover:bg-[#2B3245]/60 hover:text-[#F5F9FC] transition-colors" data-testid="button-git-branch">
+                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#9DA2B0] hover:bg-[#2B3245]/60 hover:text-[#F5F9FC] transition-colors" onClick={() => { setGitPanelOpen(true); setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }} data-testid="button-git-branch">
                     <GitBranch className="w-3 h-3" />
-                    <span className="font-medium">main</span>
+                    <span className="font-medium">{currentBranch}</span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
-                  Current branch: main
+                  Current branch: {currentBranch}
                 </TooltipContent>
               </Tooltip>
 
@@ -3016,6 +3325,66 @@ export default function Project() {
         onGoToDashboard={() => setLocation("/dashboard")}
         onOpenFile={(file) => { openFile(file); if (isMobile) setMobileTab("editor"); }}
       />
+
+      {showDiffModal && diffFile && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowDiffModal(false)}>
+          <div className="bg-[#1C2333] border border-[#2B3245] rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()} data-testid="diff-modal">
+            <div className="flex items-center justify-between px-4 h-10 border-b border-[#2B3245] shrink-0">
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${diffFile.status === "added" ? "bg-[#0CCE6B]/10 text-[#0CCE6B]" : diffFile.status === "deleted" ? "bg-red-500/10 text-red-400" : "bg-[#F5A623]/10 text-[#F5A623]"}`}>
+                  {diffFile.status === "added" ? "ADDED" : diffFile.status === "deleted" ? "DELETED" : "MODIFIED"}
+                </span>
+                <span className="text-[12px] text-[#F5F9FC] font-medium font-mono">{diffFile.filename}</span>
+              </div>
+              <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setShowDiffModal(false)} data-testid="button-close-diff">
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto font-mono text-[12px] leading-[20px]">
+              {diffFile.status === "added" && diffFile.newContent && (
+                diffFile.newContent.split("\n").map((line, i) => (
+                  <div key={i} className="flex hover:bg-[#0CCE6B]/5">
+                    <span className="w-10 text-right pr-2 text-[#4A5068] select-none shrink-0 bg-[#0CCE6B]/5">{i + 1}</span>
+                    <span className="px-2 text-[#0CCE6B]">+ {line}</span>
+                  </div>
+                ))
+              )}
+              {diffFile.status === "deleted" && diffFile.oldContent && (
+                diffFile.oldContent.split("\n").map((line, i) => (
+                  <div key={i} className="flex hover:bg-red-500/5">
+                    <span className="w-10 text-right pr-2 text-[#4A5068] select-none shrink-0 bg-red-500/5">{i + 1}</span>
+                    <span className="px-2 text-red-400">- {line}</span>
+                  </div>
+                ))
+              )}
+              {diffFile.status === "modified" && (() => {
+                const oldLines = (diffFile.oldContent || "").split("\n");
+                const newLines = (diffFile.newContent || "").split("\n");
+                const maxLen = Math.max(oldLines.length, newLines.length);
+                const diffLines: { type: "same" | "add" | "remove"; text: string; lineNum: number }[] = [];
+                for (let i = 0; i < maxLen; i++) {
+                  const oldLine = i < oldLines.length ? oldLines[i] : undefined;
+                  const newLine = i < newLines.length ? newLines[i] : undefined;
+                  if (oldLine === newLine) {
+                    diffLines.push({ type: "same", text: oldLine || "", lineNum: i + 1 });
+                  } else {
+                    if (oldLine !== undefined) diffLines.push({ type: "remove", text: oldLine, lineNum: i + 1 });
+                    if (newLine !== undefined) diffLines.push({ type: "add", text: newLine, lineNum: i + 1 });
+                  }
+                }
+                return diffLines.map((d, i) => (
+                  <div key={i} className={`flex ${d.type === "add" ? "bg-[#0CCE6B]/8 hover:bg-[#0CCE6B]/12" : d.type === "remove" ? "bg-red-500/8 hover:bg-red-500/12" : "hover:bg-[#2B3245]/30"}`}>
+                    <span className={`w-10 text-right pr-2 select-none shrink-0 ${d.type === "add" ? "text-[#0CCE6B]/60 bg-[#0CCE6B]/5" : d.type === "remove" ? "text-red-400/60 bg-red-500/5" : "text-[#4A5068]"}`}>{d.lineNum}</span>
+                    <span className={`px-2 ${d.type === "add" ? "text-[#0CCE6B]" : d.type === "remove" ? "text-red-400" : "text-[#9DA2B0]"}`}>
+                      {d.type === "add" ? "+" : d.type === "remove" ? "-" : " "} {d.text}
+                    </span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Dialog open={renameDialogOpen} onOpenChange={(open) => { setRenameDialogOpen(open); if (!open) setRenameDialogTarget(null); }}>
         <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
