@@ -139,7 +139,7 @@ export default function Project() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [terminalVisible, setTerminalVisible] = useState(true);
-  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [bottomTab, setBottomTab] = useState<"terminal" | "shell">("terminal");
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
