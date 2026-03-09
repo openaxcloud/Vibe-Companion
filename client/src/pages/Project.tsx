@@ -1834,6 +1834,30 @@ export default function Project() {
     </div>
   );
 
+  const wsStatusBadge = (
+    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+      wsStatus === "running" ? "bg-green-600/20 text-green-400 border border-green-600/30" :
+      wsStatus === "starting" ? "bg-yellow-600/20 text-yellow-400 border border-yellow-600/30" :
+      wsStatus === "stopped" ? "bg-[#2B3245] text-[#9DA2B0] border border-[#676D7E]/30" :
+      wsStatus === "error" ? "bg-red-600/20 text-red-400 border border-red-600/30" :
+      wsStatus === "offline" ? "bg-orange-600/20 text-orange-400 border border-orange-600/30" :
+      "bg-[#2B3245] text-[#676D7E] border border-[#2B3245]"
+    }`} data-testid="text-workspace-status">
+      <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400 animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "stopped" ? "bg-[#9DA2B0]" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+      {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting..." : wsStatus === "stopped" ? "Stopped" : wsStatus === "error" ? "Error" : wsStatus === "offline" ? "Offline" : "Init"}
+    </span>
+  );
+
+  const workspaceButton = wsStatus === "running" ? (
+    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-600/10 gap-1" onClick={handleStopWorkspace} disabled={wsLoading || stopWorkspaceMutation.isPending} data-testid="button-stop-workspace">
+      {wsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CircleStop className="w-3 h-3" />} Stop
+    </Button>
+  ) : (
+    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-green-400 hover:text-green-300 hover:bg-green-600/10 gap-1" onClick={handleStartWorkspace} disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending} data-testid="button-start-workspace">
+      {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />} {wsStatus === "none" || wsStatus === "offline" ? "Init" : "Start"}
+    </Button>
+  );
+
   const shellTabContent = (
     <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
       <div className="flex items-center justify-between px-2 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
@@ -2083,30 +2107,6 @@ export default function Project() {
     <div className="flex-1 overflow-hidden animate-fade-in">
       <WorkspaceTerminal wsUrl={terminalWsUrl} runnerOffline={runnerOnline === false} visible={true} />
     </div>
-  );
-
-  const wsStatusBadge = (
-    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-      wsStatus === "running" ? "bg-green-600/20 text-green-400 border border-green-600/30" :
-      wsStatus === "starting" ? "bg-yellow-600/20 text-yellow-400 border border-yellow-600/30" :
-      wsStatus === "stopped" ? "bg-[#2B3245] text-[#9DA2B0] border border-[#676D7E]/30" :
-      wsStatus === "error" ? "bg-red-600/20 text-red-400 border border-red-600/30" :
-      wsStatus === "offline" ? "bg-orange-600/20 text-orange-400 border border-orange-600/30" :
-      "bg-[#2B3245] text-[#676D7E] border border-[#2B3245]"
-    }`} data-testid="text-workspace-status">
-      <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400 animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "stopped" ? "bg-[#9DA2B0]" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
-      {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting..." : wsStatus === "stopped" ? "Stopped" : wsStatus === "error" ? "Error" : wsStatus === "offline" ? "Offline" : "Init"}
-    </span>
-  );
-
-  const workspaceButton = wsStatus === "running" ? (
-    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-600/10 gap-1" onClick={handleStopWorkspace} disabled={wsLoading || stopWorkspaceMutation.isPending} data-testid="button-stop-workspace">
-      {wsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CircleStop className="w-3 h-3" />} Stop
-    </Button>
-  ) : (
-    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-green-400 hover:text-green-300 hover:bg-green-600/10 gap-1" onClick={handleStartWorkspace} disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending} data-testid="button-start-workspace">
-      {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />} {wsStatus === "none" || wsStatus === "offline" ? "Init" : "Start"}
-    </Button>
   );
 
   const bottomPanel = (
