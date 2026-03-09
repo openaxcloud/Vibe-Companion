@@ -200,7 +200,9 @@ export default function Project() {
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
+  const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => { if (wsStatus !== "running") setMobileShellMode("console"); }, [wsStatus]);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<{ fileId: string; filename: string; line: number; text: string }[]>([]);
@@ -2284,7 +2286,7 @@ export default function Project() {
   return (
     <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className="grid grid-cols-3 items-center px-3 h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40">
+      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2" : "grid-cols-3 px-3"} h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-colors duration-150 group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
@@ -2294,7 +2296,7 @@ export default function Project() {
             </svg>
           </button>
           <ChevronRight className="w-3 h-3 text-[#323B4F] shrink-0" />
-          <span className="text-[13px] font-medium text-[#F5F9FC] truncate max-w-[180px]" data-testid="text-project-name">{project?.name}</span>
+          <span className={`text-[13px] font-medium text-[#F5F9FC] truncate ${isMobile ? "max-w-[120px]" : "max-w-[180px]"}`} data-testid="text-project-name">{project?.name}</span>
           {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
         </div>
         <div className="flex items-center justify-center gap-1.5">
@@ -2303,7 +2305,7 @@ export default function Project() {
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
-                  className={`h-7 px-5 text-[11px] font-semibold rounded-full gap-1.5 transition-all duration-150 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] btn-run-red" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)] btn-run-green"}`}
+                  className={`h-7 ${isMobile ? "px-3" : "px-5"} text-[11px] font-semibold rounded-full gap-1.5 transition-all duration-150 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] btn-run-red" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)] btn-run-green"}`}
                   onClick={handleRun}
                   disabled={runMutation.isPending}
                   data-testid="button-run"
@@ -2313,7 +2315,7 @@ export default function Project() {
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">{isRunning ? "Stop (F5)" : "Run (F5)"}</TooltipContent>
             </Tooltip>
-            {hasHtmlFile && wsStatus !== "running" && (
+            {hasHtmlFile && wsStatus !== "running" && !isMobile && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -2332,24 +2334,26 @@ export default function Project() {
           </TooltipProvider>
         </div>
         <div className="flex items-center justify-end gap-1">
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
-                  <Users className="w-3.5 h-3.5" /> Invite
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Invite collaborators</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
-                  <Rocket className="w-3.5 h-3.5" /> Publish
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Publish your project</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {!isMobile && (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
+                    <Users className="w-3.5 h-3.5" /> Invite
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Invite collaborators</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
+                    <Rocket className="w-3.5 h-3.5" /> Publish
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Publish your project</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
@@ -2360,6 +2364,16 @@ export default function Project() {
               <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
                 <Settings className="w-3.5 h-3.5" /> Project Settings
               </DropdownMenuItem>
+              {isMobile && (
+                <>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
+                    <Rocket className="w-3.5 h-3.5" /> Publish
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
+                    <Users className="w-3.5 h-3.5" /> Invite
+                  </DropdownMenuItem>
+                </>
+              )}
               {!isMobile && (
                 <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
                   <Terminal className="w-3.5 h-3.5" /> Toggle Terminal
@@ -2391,24 +2405,35 @@ export default function Project() {
             )}
             {mobileTab === "terminal" && (
               <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="w-3 h-3 text-[#9DA2B0]" />
-                    <span className="text-[11px] text-[#9DA2B0]">Console</span>
-                    {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                <div className="flex items-center justify-between px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                  <div className="flex items-center gap-0">
+                    <button
+                      className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+                      onClick={() => setMobileShellMode("console")}
+                      data-testid="mobile-shell-tab-console"
+                    >
+                      <Terminal className="w-3 h-3" /> Console
+                      {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+                    </button>
+                    {wsStatus === "running" && (
+                      <button
+                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+                        onClick={() => setMobileShellMode("shell")}
+                        data-testid="mobile-shell-tab-shell"
+                      >
+                        <Hash className="w-3 h-3" /> Shell
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
+                    {mobileShellMode === "console" && (
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
+                    )}
                     {wsStatusBadge}
                     {workspaceButton}
                   </div>
                 </div>
-                {terminalContent}
-                {wsStatus === "running" && (
-                  <div className="border-t border-[#2B3245] shrink-0" style={{ height: "40%" }}>
-                    {shellContent}
-                  </div>
-                )}
+                {mobileShellMode === "console" ? terminalContent : shellContent}
               </div>
             )}
             {mobileTab === "preview" && (
@@ -2450,25 +2475,34 @@ export default function Project() {
             )}
           </div>
           {/* MOBILE BOTTOM NAV */}
-          <div className="flex items-center justify-around h-12 bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40" data-testid="mobile-nav-bar">
+          <div className="flex items-stretch h-[52px] bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
             {([
-              { id: "files" as const, icon: FolderOpen, label: "Files" },
-              { id: "editor" as const, icon: Code2, label: "Editor" },
-              { id: "terminal" as const, icon: Terminal, label: "Terminal" },
-              { id: "preview" as const, icon: Globe, label: "Preview" },
-              { id: "ai" as const, icon: Sparkles, label: "AI" },
-            ]).map(({ id, icon: Icon, label }) => (
-              <button
-                key={id}
-                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileTab === id ? (id === "ai" ? "text-[#7C65CB]" : "text-[#0079F2]") : "text-[#676D7E]"}`}
-                onClick={() => setMobileTab(id)}
-                data-testid={`mobile-tab-${id}`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-[9px] font-medium">{label}</span>
-                {id === "terminal" && isRunning && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#0CCE6B]" />}
-              </button>
-            ))}
+              { id: "files" as const, icon: FolderOpen, label: "Files", color: "#9DA2B0" },
+              { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
+              { id: "terminal" as const, icon: Terminal, label: "Shell", color: "#0CCE6B" },
+              { id: "preview" as const, icon: Globe, label: "Webview", color: "#F5A623" },
+              { id: "ai" as const, icon: Sparkles, label: "AI", color: "#7C65CB" },
+            ]).map(({ id, icon: Icon, label, color }) => {
+              const isActive = mobileTab === id;
+              return (
+                <button
+                  key={id}
+                  className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-150"
+                  style={{ color: isActive ? color : "#676D7E" }}
+                  onClick={() => setMobileTab(id)}
+                  data-testid={`mobile-tab-${id}`}
+                >
+                  {isActive && (
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full" style={{ backgroundColor: color }} />
+                  )}
+                  <Icon className={`w-5 h-5 transition-transform duration-150 ${isActive ? "scale-110" : ""}`} />
+                  <span className={`text-[10px] font-medium leading-none ${isActive ? "opacity-100" : "opacity-70"}`}>{label}</span>
+                  {id === "terminal" && isRunning && (
+                    <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2 h-2 rounded-full bg-[#0CCE6B] border-2 border-[#0E1525]" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </>
       ) : (

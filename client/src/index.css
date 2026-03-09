@@ -105,6 +105,10 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -551,4 +555,31 @@ button:disabled {
 .gradient-shift {
   background-size: 200% 200%;
   animation: gradient-shift 8s ease-in-out infinite;
+}
+
+@media (max-width: 640px) {
+  .cm-gutters {
+    min-width: 40px !important;
+  }
+  .cm-lineNumbers .cm-gutterElement {
+    padding: 0 6px 0 4px !important;
+    min-width: 24px !important;
+    font-size: 11px !important;
+  }
+  .cm-content {
+    font-size: 12px !important;
+  }
+  .cm-foldGutter {
+    width: 0 !important;
+    display: none !important;
+  }
+  .cm-blame-gutter {
+    width: 140px !important;
+  }
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
