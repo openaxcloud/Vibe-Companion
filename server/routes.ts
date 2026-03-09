@@ -1149,7 +1149,14 @@ Rules:
         return res.status(400).json({ message: "messages array required" });
       }
 
-      const systemPrompt = `You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code. Be concise and provide working code snippets. When suggesting code changes, use markdown code blocks with the filename as a comment on the first line.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
+      const systemPrompt = `You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code.
+
+Rules:
+- Always provide COMPLETE, WORKING code — never truncate, abbreviate, or use "..." to skip sections.
+- When showing code, use markdown code blocks with the language tag and filename as a comment on the first line.
+- If the user asks to build or create something, provide the full implementation, not just snippets.
+- Include all imports, all functions, and all necessary code for the file to work standalone.
+- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -1168,7 +1175,7 @@ Rules:
         const stream = await gemini.models.generateContentStream({
           model: "gemini-2.5-flash",
           contents: geminiContents,
-          config: { maxOutputTokens: 8192 },
+          config: { maxOutputTokens: 16384 },
         });
 
         for await (const chunk of stream) {
@@ -1187,7 +1194,7 @@ Rules:
           model: "gpt-4o",
           messages: gptMessages,
           stream: true,
-          max_completion_tokens: 4096,
+          max_completion_tokens: 16384,
         });
 
         for await (const chunk of stream) {
@@ -1201,7 +1208,7 @@ Rules:
           model: "claude-sonnet-4-6",
           system: systemPrompt,
           messages: messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
-          max_tokens: 4096,
+          max_tokens: 16384,
         });
 
         stream.on("text", (text) => {

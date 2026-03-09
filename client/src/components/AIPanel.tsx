@@ -144,16 +144,47 @@ class AIPanelErrorBoundary extends React.Component<
 }
 
 function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const storageKey = projectId ? `ai_chat_${projectId}` : "ai_chat_global";
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [model, setModel] = useState<AIModel>("gpt");
+  const [model, setModel] = useState<AIModel>(() => {
+    try {
+      const saved = localStorage.getItem(`${storageKey}_model`);
+      if (saved && (saved === "claude" || saved === "gpt" || saved === "gemini")) return saved as AIModel;
+    } catch {}
+    return "gpt";
+  });
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    try {
+      if (messages.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+    } catch {}
+  }, [messages, storageKey]);
+
+  useEffect(() => {
+    try { localStorage.setItem(`${storageKey}_model`, model); } catch {}
+  }, [model, storageKey]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

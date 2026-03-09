@@ -2485,6 +2485,7 @@ export default function Project() {
             {mobileTab === "ai" && (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <AIPanel
+                  key={`ai-mobile-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
                   onClose={() => setMobileTab("editor")}
                   projectId={projectId}
@@ -2715,6 +2716,7 @@ export default function Project() {
             {aiPanelOpen && (
               <div className={`${isTablet ? "w-[320px]" : "w-[45%] max-w-[600px] min-w-[340px]"} shrink-0 border-r border-[#2B3245]`} data-testid="ai-agent-panel">
                 <AIPanel
+                  key={`ai-desktop-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
                   onClose={() => setAiPanelOpen(false)}
                   projectId={projectId}
