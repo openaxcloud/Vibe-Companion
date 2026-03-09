@@ -1479,7 +1479,7 @@ export default function Project() {
                 <ContextMenu key={entry.path}>
                   <ContextMenuTrigger asChild>
                     <div
-                      className={`group flex items-center gap-2 px-3 py-[5px] cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
+                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
                       onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                       data-testid={`fs-entry-${entry.name}`}
                     >
@@ -1658,7 +1658,7 @@ export default function Project() {
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
                           <div
-                            className="group flex items-center gap-1 py-[5px] cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40"
+                            className={`group flex items-center gap-1 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40`}
                             style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
                             onClick={() => toggleFolder(node.path)}
                             data-testid={`folder-item-${node.path}`}
@@ -1705,7 +1705,7 @@ export default function Project() {
                   <ContextMenu key={node.fileId}>
                     <ContextMenuTrigger asChild>
                       <div
-                        className={`group flex items-center gap-2 py-[5px] cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
+                        className={`group flex items-center gap-2 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
                         style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
                         onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                         data-testid={`file-item-${file.id}`}
@@ -1784,7 +1784,7 @@ export default function Project() {
 
   const editorTabBar = openTabs.length > 0 ? (
     <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 overflow-hidden relative">
-      {tabBarOverflow && (
+      {tabBarOverflow && !isMobile && (
         <button
           className="absolute left-0 z-10 h-full px-1.5 bg-[#0E1525] border-r border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
           onClick={() => scrollTabBar("left")}
@@ -1795,7 +1795,7 @@ export default function Project() {
       )}
       <div
         ref={tabBarRef}
-        className={`flex items-center h-full flex-1 min-w-0 overflow-x-auto scrollbar-hide ${tabBarOverflow ? "pl-7 pr-7" : ""}`}
+        className={`flex items-center h-full flex-1 min-w-0 overflow-x-auto scrollbar-hide ${tabBarOverflow && !isMobile ? "pl-7 pr-7" : ""}`}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
         onDragLeave={() => setDragOverTabId(null)}
         onDrop={() => { setDragOverTabId(null); setDragTabId(null); }}
@@ -1812,7 +1812,7 @@ export default function Project() {
             <ContextMenu key={tabId}>
               <ContextMenuTrigger asChild>
                 <div
-                  className={`group relative flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent"} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
+                  className={`group relative flex items-center gap-1.5 ${isMobile ? "px-2.5" : "px-3"} h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent"} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
                   onClick={() => {
                     setActiveFileId(tabId);
                     if (specialInfo) {
@@ -1824,10 +1824,10 @@ export default function Project() {
                       if (file && fileContents[tabId] === undefined) setFileContents((prev) => ({ ...prev, [tabId]: file.content }));
                     }
                   }}
-                  draggable
-                  onDragStart={(e) => handleTabDragStart(e, tabId)}
-                  onDragOver={(e) => handleTabDragOver(e, tabId)}
-                  onDrop={(e) => handleTabDrop(e, tabId)}
+                  draggable={!isMobile}
+                  onDragStart={(e) => !isMobile && handleTabDragStart(e, tabId)}
+                  onDragOver={(e) => !isMobile && handleTabDragOver(e, tabId)}
+                  onDrop={(e) => !isMobile && handleTabDrop(e, tabId)}
                   onDragEnd={() => { setDragTabId(null); setDragOverTabId(null); }}
                   data-testid={`tab-${tabId}`}
                 >
@@ -1835,22 +1835,23 @@ export default function Project() {
                     <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-[#0079F2] rounded-full z-10" />
                   )}
                   {specialInfo ? specialInfo.icon : <FileTypeIcon filename={tabName} />}
-                  <span className="text-[11px] max-w-[120px] truncate font-medium whitespace-nowrap">{tabName}</span>
+                  <span className={`${isMobile ? "text-[12px] max-w-[100px]" : "text-[11px] max-w-[120px]"} truncate font-medium whitespace-nowrap`}>{tabName}</span>
                   {tabId === SPECIAL_TABS.CONSOLE && isRunning && (
                     <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />
                   )}
                   {tabId === SPECIAL_TABS.SHELL && wsStatus === "running" && (
                     <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />
                   )}
-                  {!specialInfo && dirtyFiles.has(tabId) ? (
+                  {!specialInfo && dirtyFiles.has(tabId) && (
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
-                  ) : (
+                  )}
+                  {(isMobile || !(!specialInfo && dirtyFiles.has(tabId))) && (
                     <button
-                      className={`p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] transition-opacity duration-100 shrink-0 ml-0.5 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                      className={`${isMobile ? "p-1" : "p-0.5"} rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] transition-opacity duration-100 shrink-0 ${!specialInfo && dirtyFiles.has(tabId) ? "" : "ml-0.5"} ${isMobile ? "opacity-100" : isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                       onClick={(e) => closeTab(tabId, e)}
                       data-testid={`button-close-tab-${tabId}`}
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <X className={`${isMobile ? "w-3 h-3" : "w-2.5 h-2.5"}`} />
                     </button>
                   )}
                 </div>
@@ -1881,7 +1882,16 @@ export default function Project() {
           );
         })}
       </div>
-      {tabBarOverflow && (
+      {isMobile && (
+        <button
+          className="h-full px-2.5 border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150 shrink-0"
+          onClick={() => setNewFileDialogOpen(true)}
+          data-testid="button-mobile-new-tab"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {tabBarOverflow && !isMobile && (
         <button
           className="absolute right-0 z-10 h-full px-1.5 bg-[#0E1525] border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
           onClick={() => scrollTabBar("right")}
@@ -1890,6 +1900,20 @@ export default function Project() {
           <ChevronRight className="w-3 h-3" />
         </button>
       )}
+    </div>
+  ) : isMobile ? (
+    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 flex-1 text-[#676D7E]">
+        <Code2 className="w-3.5 h-3.5" />
+        <span className="text-[11px]">No files open</span>
+      </div>
+      <button
+        className="h-full px-2.5 border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150 shrink-0"
+        onClick={() => setNewFileDialogOpen(true)}
+        data-testid="button-mobile-new-tab-empty"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </button>
     </div>
   ) : null;
 
@@ -2334,53 +2358,70 @@ export default function Project() {
           </TooltipProvider>
         </div>
         <div className="flex items-center justify-end gap-1">
-          {!isMobile && (
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
-                    <Users className="w-3.5 h-3.5" /> Invite
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Invite collaborators</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
-                    <Rocket className="w-3.5 h-3.5" /> Publish
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Publish your project</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
-                <MoreHorizontal className="w-4 h-4" />
+          {isMobile ? (
+            <>
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish-mobile">
+                <Rocket className="w-3.5 h-3.5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
-              <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
-                <Settings className="w-3.5 h-3.5" /> Project Settings
-              </DropdownMenuItem>
-              {isMobile && (
-                <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
+                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
+                    <Settings className="w-3.5 h-3.5" /> Project Settings
+                  </DropdownMenuItem>
                   <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
                     <Rocket className="w-3.5 h-3.5" /> Publish
                   </DropdownMenuItem>
                   <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
                     <Users className="w-3.5 h-3.5" /> Invite
                   </DropdownMenuItem>
-                </>
-              )}
-              {!isMobile && (
-                <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
-                  <Terminal className="w-3.5 h-3.5" /> Toggle Terminal
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setGitPanelOpen(true)}>
+                    <GitBranch className="w-3.5 h-3.5" /> Version Control
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
+                      <Users className="w-3.5 h-3.5" /> Invite
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Invite collaborators</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
+                      <Rocket className="w-3.5 h-3.5" /> Publish
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Publish your project</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
+                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
+                    <Settings className="w-3.5 h-3.5" /> Project Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
+                    <Terminal className="w-3.5 h-3.5" /> Toggle Terminal
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       </div>
 
