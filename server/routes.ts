@@ -745,9 +745,23 @@ Rules:
       let spec: { name: string; language: string; files: { filename: string; content: string }[] };
 
       try {
-        const cleaned = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
-        spec = JSON.parse(cleaned);
-      } catch {
+        log(`AI generate raw response (first 500 chars): ${text.slice(0, 500)}`, "ai");
+
+        let jsonStr = text.trim();
+        const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+        if (codeBlockMatch) {
+          jsonStr = codeBlockMatch[1].trim();
+        } else {
+          const firstBrace = jsonStr.indexOf("{");
+          const lastBrace = jsonStr.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+          }
+        }
+
+        spec = JSON.parse(jsonStr);
+      } catch (parseErr: any) {
+        log(`AI JSON parse error: ${parseErr.message}. Raw text: ${text.slice(0, 300)}`, "ai");
         return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
       }
 
