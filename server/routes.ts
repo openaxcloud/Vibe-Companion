@@ -703,23 +703,22 @@ export async function registerRoutes(
 
       const systemPrompt = `You are a senior software engineer. Given a project description, generate a project specification as JSON.
 
-Return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this structure:
 {
   "name": "project-name-slug",
-  "language": "javascript" | "typescript" | "python",
+  "language": "javascript",
   "files": [
-    { "filename": "index.js", "content": "// full working code here" }
+    { "filename": "index.js", "content": "// code" }
   ]
 }
 
 Rules:
 - name: short kebab-case slug (max 30 chars)
-- language: choose the best fit from javascript, typescript, python
-- files: generate 1-5 real, working files with complete code
-- Each file must have real, functional code — no placeholders or TODOs
-- For web apps: include an HTML file if relevant
-- Keep it focused and functional
-- Do NOT wrap the JSON in markdown code blocks`;
+- language: one of javascript, typescript, python
+- files: generate 1-3 concise, working files. Keep code SHORT but functional.
+- For web apps: put everything in a single HTML file with inline CSS/JS when possible
+- IMPORTANT: Keep total response under 3000 tokens. Prefer fewer, smaller files.
+- Do NOT add any text before or after the JSON object`;
 
       let text = "";
 
@@ -730,7 +729,7 @@ Rules:
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt.trim() },
           ],
-          max_completion_tokens: 4096,
+          max_completion_tokens: 16384,
         });
         text = gptResponse.choices[0]?.message?.content || "";
       } else {
@@ -738,31 +737,50 @@ Rules:
           model: "claude-sonnet-4-6",
           system: systemPrompt,
           messages: [{ role: "user", content: prompt.trim() }],
-          max_tokens: 4096,
+          max_tokens: 16384,
         });
         text = message.content[0].type === "text" ? message.content[0].text : "";
       }
       let spec: { name: string; language: string; files: { filename: string; content: string }[] };
 
-      try {
-        log(`AI generate raw response (first 500 chars): ${text.slice(0, 500)}`, "ai");
+      log(`AI generate raw response (first 500 chars): ${text.slice(0, 500)}`, "ai");
 
-        let jsonStr = text.trim();
-        const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-        if (codeBlockMatch) {
-          jsonStr = codeBlockMatch[1].trim();
-        } else {
-          const firstBrace = jsonStr.indexOf("{");
-          const lastBrace = jsonStr.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
-          }
+      let jsonStr = text.trim();
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim();
+      } else {
+        const firstBrace = jsonStr.indexOf("{");
+        const lastBrace = jsonStr.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
         }
+      }
 
+      try {
         spec = JSON.parse(jsonStr);
       } catch (parseErr: any) {
-        log(`AI JSON parse error: ${parseErr.message}. Raw text: ${text.slice(0, 300)}`, "ai");
-        return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
+        log(`AI JSON parse error: ${parseErr.message}. Attempting truncated recovery...`, "ai");
+        try {
+          let recovered = jsonStr;
+          if (!recovered.endsWith("}")) {
+            const lastFileEnd = recovered.lastIndexOf("}");
+            if (lastFileEnd > 0) {
+              recovered = recovered.slice(0, lastFileEnd + 1);
+              let openBrackets = (recovered.match(/\[/g) || []).length;
+              let closeBrackets = (recovered.match(/\]/g) || []).length;
+              while (closeBrackets < openBrackets) { recovered += "]"; closeBrackets++; }
+              let openBraces = (recovered.match(/\{/g) || []).length;
+              let closeBraces = (recovered.match(/\}/g) || []).length;
+              while (closeBraces < openBraces) { recovered += "}"; closeBraces++; }
+            }
+          }
+          spec = JSON.parse(recovered);
+          log(`Truncated JSON recovery succeeded`, "ai");
+        } catch {
+          log(`Recovery also failed. Raw text (first 500): ${text.slice(0, 500)}`, "ai");
+          return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
+        }
       }
 
       if (!spec.name || !spec.language || !spec.files?.length) {
