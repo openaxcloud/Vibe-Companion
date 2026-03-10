@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2 } from "lucide-react";
+import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2, CreditCard, CheckCircle2, ListChecks } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+
+const steps = [
+  { id: 1, label: "Choose Plan", icon: ListChecks },
+  { id: 2, label: "Payment", icon: CreditCard },
+  { id: 3, label: "Confirmation", icon: CheckCircle2 },
+];
 
 const plans = [
   {
@@ -69,9 +75,18 @@ const plans = [
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
+
+  const currentStep = useMemo(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("billing") === "success") return 3;
+    if (params.get("billing") === "cancelled") return 1;
+    if (loading) return 2;
+    return 1;
+  }, [search, loading]);
 
   const handleUpgrade = async (planId: string) => {
     if (planId === "free") return;
@@ -118,6 +133,57 @@ export default function Pricing() {
           </div>
         </div>
 
+        <div className="max-w-lg mx-auto mb-12" data-testid="progress-bar-container">
+          <div className="flex items-center justify-between relative">
+            <div className="absolute top-5 left-[calc(16.67%)] right-[calc(16.67%)] h-[2px] bg-[#2B3245]" />
+            <div
+              className="absolute top-5 left-[calc(16.67%)] h-[2px] bg-[#0079F2] transition-all duration-500 ease-out"
+              style={{ width: currentStep === 1 ? "0%" : currentStep === 2 ? "calc(50% - 0px)" : "calc(100% - 0px)", maxWidth: "66.66%" }}
+              data-testid="progress-bar-fill"
+            />
+            {steps.map((step) => {
+              const StepIcon = step.icon;
+              const isComplete = currentStep > step.id;
+              const isActive = currentStep === step.id;
+              return (
+                <div key={step.id} className="flex flex-col items-center z-10 flex-1" data-testid={`progress-step-${step.id}`}>
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                      isComplete
+                        ? "bg-[#0079F2] border-[#0079F2] text-white"
+                        : isActive
+                        ? "bg-[#0E1525] border-[#0079F2] text-[#0079F2]"
+                        : "bg-[#0E1525] border-[#2B3245] text-[#676D7E]"
+                    }`}
+                  >
+                    {isComplete ? <Check className="w-4 h-4" /> : <StepIcon className="w-4 h-4" />}
+                  </div>
+                  <span className={`mt-2 text-xs font-medium transition-colors duration-300 ${isComplete || isActive ? "text-[#F5F9FC]" : "text-[#676D7E]"}`}>
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {currentStep === 3 ? (
+          <div className="max-w-md mx-auto text-center py-16" data-testid="billing-success">
+            <div className="w-16 h-16 rounded-full bg-[#0CCE6B]/10 border-2 border-[#0CCE6B] flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="w-8 h-8 text-[#0CCE6B]" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">You're all set!</h2>
+            <p className="text-[#9DA2B0] mb-8">Your plan has been upgraded successfully. Enjoy your new features.</p>
+            <Button
+              className="bg-[#0079F2] hover:bg-[#006AD8] text-white px-8 h-11 rounded-lg"
+              onClick={() => setLocation("/dashboard")}
+              data-testid="button-go-dashboard"
+            >
+              Go to Dashboard
+            </Button>
+          </div>
+        ) : (
+        <>
         <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => (
             <div
@@ -183,6 +249,8 @@ export default function Pricing() {
             ))}
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );
