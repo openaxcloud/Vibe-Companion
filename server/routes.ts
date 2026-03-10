@@ -554,6 +554,7 @@ export async function registerRoutes(
         data.content = sanitizeInput(data.content, 500000);
       }
       const file = await storage.createFile(req.params.projectId, { ...data, filename: safeName });
+      storage.updateStorageUsage(req.session.userId!).catch(() => {});
       return res.status(201).json(file);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -576,6 +577,7 @@ export async function registerRoutes(
     if (typeof content === "string") {
       const sanitizedContent = sanitizeInput(content, 500000);
       const file = await storage.updateFileContent(req.params.id, sanitizedContent);
+      storage.updateStorageUsage(req.session.userId!).catch(() => {});
       return res.json(file);
     }
     if (typeof filename === "string" && filename.trim()) {
@@ -599,6 +601,7 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Access denied" });
     }
     await storage.deleteFile(req.params.id);
+    storage.updateStorageUsage(req.session.userId!).catch(() => {});
     return res.json({ message: "File deleted" });
   });
 

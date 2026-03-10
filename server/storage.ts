@@ -1,4 +1,4 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
@@ -73,6 +73,7 @@ export interface IStorage {
   incrementExecution(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
   incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
   checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
+  updateStorageUsage(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -489,6 +490,19 @@ export class DatabaseStorage implements IStorage {
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
     const userProjects = await db.select().from(projects).where(eq(projects.userId, userId));
     return { allowed: userProjects.length < limits.maxProjects, current: userProjects.length, limit: limits.maxProjects };
+  }
+
+  async updateStorageUsage(userId: string): Promise<number> {
+    const userProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.userId, userId));
+    if (userProjects.length === 0) {
+      await db.update(userQuotas).set({ storageBytes: 0, updatedAt: new Date() }).where(eq(userQuotas.userId, userId));
+      return 0;
+    }
+    const projectIds = userProjects.map(p => p.id);
+    const allFiles = await db.select({ content: files.content }).from(files).where(inArray(files.projectId, projectIds));
+    const totalBytes = allFiles.reduce((sum, f) => sum + (f.content ? Buffer.byteLength(f.content, "utf-8") : 0), 0);
+    await db.update(userQuotas).set({ storageBytes: totalBytes, updatedAt: new Date() }).where(eq(userQuotas.userId, userId));
+    return totalBytes;
   }
 }
 
