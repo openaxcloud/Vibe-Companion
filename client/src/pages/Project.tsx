@@ -2287,12 +2287,7 @@ export default function Project() {
 
   const previewContent = (
     <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
-      {runnerOnline === false ? (
-        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-2">
-          <WifiOff className="w-8 h-8 text-orange-400/60" />
-          <p className="text-xs text-orange-400/80">Preview unavailable (runner offline)</p>
-        </div>
-      ) : wsStatus === "running" && livePreviewUrl ? (
+      {wsStatus === "running" && livePreviewUrl ? (
         <>
           <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -2310,17 +2305,34 @@ export default function Project() {
           <iframe id="live-preview-iframe" src={livePreviewUrl} className="flex-1 w-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
         </>
       ) : previewHtml ? (
-        <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
+        <>
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Globe className="w-3 h-3 text-[#9DA2B0] shrink-0" />
+              <span className="text-[11px] text-[#9DA2B0] truncate">HTML Preview</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245]"
+                onClick={() => { const html = generateHtmlPreview(); if (html) setPreviewHtml(html); }}
+                title="Refresh" data-testid="button-preview-refresh-html"><RefreshCw className="w-3 h-3" /></Button>
+            </div>
+          </div>
+          <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
           <Globe className="w-10 h-10" />
           <p className="text-sm font-medium text-[#F5F9FC]">{hasHtmlFile ? "HTML Preview" : "Live Preview"}</p>
-          {hasHtmlFile && wsStatus !== "running" ? (
+          {hasHtmlFile ? (
             <>
               <p className="text-xs text-center max-w-[280px]">Preview your HTML project directly in the browser</p>
               <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-mobile-start">
                 <Eye className="w-3 h-3" /> Preview HTML
               </Button>
+            </>
+          ) : runnerOnline === false ? (
+            <>
+              <p className="text-xs text-center max-w-[280px] text-orange-400/80">Runner is offline. Create an HTML file to use the built-in preview, or wait for the runner to come back online.</p>
             </>
           ) : wsStatus === "none" || wsStatus === "stopped" ? (
             <>
