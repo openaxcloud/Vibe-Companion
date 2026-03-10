@@ -2,7 +2,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
-  commits, branches, executionLogs,
+  commits, branches, executionLogs, userQuotas,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -12,6 +12,8 @@ import {
   type Commit, type InsertCommit,
   type Branch, type InsertBranch,
   type ExecutionLog, type InsertExecutionLog,
+  type UserQuota, type InsertUserQuota,
+  PLAN_LIMITS,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -66,6 +68,11 @@ export interface IStorage {
   createBranch(data: InsertBranch): Promise<Branch>;
   updateBranchHead(id: string, headCommitId: string): Promise<Branch | undefined>;
   deleteBranch(id: string): Promise<boolean>;
+
+  getUserQuota(userId: string): Promise<UserQuota>;
+  incrementExecution(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
+  incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
+  checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -416,6 +423,72 @@ export class DatabaseStorage implements IStorage {
     return query
       .orderBy(desc(executionLogs.createdAt))
       .limit(filters?.limit || 100);
+  }
+
+  private resetIfNewDay(quota: UserQuota): boolean {
+    const now = new Date();
+    const lastReset = new Date(quota.lastResetAt);
+    return now.getUTCDate() !== lastReset.getUTCDate() ||
+           now.getUTCMonth() !== lastReset.getUTCMonth() ||
+           now.getUTCFullYear() !== lastReset.getUTCFullYear();
+  }
+
+  async getUserQuota(userId: string): Promise<UserQuota> {
+    let [quota] = await db.select().from(userQuotas).where(eq(userQuotas.userId, userId)).limit(1);
+    if (!quota) {
+      [quota] = await db.insert(userQuotas).values({ userId, plan: "free" }).returning();
+    }
+    if (this.resetIfNewDay(quota)) {
+      [quota] = await db.update(userQuotas)
+        .set({ dailyExecutionsUsed: 0, dailyAiCallsUsed: 0, lastResetAt: new Date(), updatedAt: new Date() })
+        .where(eq(userQuotas.userId, userId))
+        .returning();
+    }
+    return quota;
+  }
+
+  async incrementExecution(userId: string): Promise<{ allowed: boolean; quota: UserQuota }> {
+    const quota = await this.getUserQuota(userId);
+    const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    if (quota.dailyExecutionsUsed >= limits.dailyExecutions) {
+      return { allowed: false, quota };
+    }
+    const [updated] = await db.update(userQuotas)
+      .set({
+        dailyExecutionsUsed: quota.dailyExecutionsUsed + 1,
+        totalExecutions: quota.totalExecutions + 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(userQuotas.userId, userId))
+      .returning();
+    return { allowed: true, quota: updated };
+  }
+
+  async incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }> {
+    const quota = await this.getUserQuota(userId);
+    const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    if (quota.dailyAiCallsUsed >= limits.dailyAiCalls) {
+      return { allowed: false, quota };
+    }
+    const [updated] = await db.update(userQuotas)
+      .set({
+        dailyAiCallsUsed: quota.dailyAiCallsUsed + 1,
+        totalAiCalls: quota.totalAiCalls + 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(userQuotas.userId, userId))
+      .returning();
+    return { allowed: true, quota: updated };
+  }
+
+  async checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }> {
+    const quota = await this.getUserQuota(userId);
+    const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const userProjects = await db.select().from(projects).where(eq(projects.userId, userId));
+    return { allowed: userProjects.length < limits.maxProjects, current: userProjects.length, limit: limits.maxProjects };
   }
 }
 

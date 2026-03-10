@@ -9,11 +9,14 @@ interface QueueEntry {
   resolve: () => void;
   reject: (err: Error) => void;
   timestamp: number;
+  priority: number;
 }
 
 const WINDOW_MS = 60 * 1000;
 const MAX_EXECUTIONS_PER_MINUTE = 10;
 const MAX_CONCURRENT_PER_USER = 3;
+const MAX_CONCURRENT_GLOBAL = 5;
+const MAX_GLOBAL_QUEUE = 20;
 const QUEUE_TIMEOUT_MS = 30 * 1000;
 const IP_WINDOW_MS = 60 * 1000;
 const MAX_EXECUTIONS_PER_IP = 20;
@@ -22,6 +25,9 @@ const userMetrics = new Map<string, ExecutionMetrics>();
 const userConcurrent = new Map<string, number>();
 const userQueues = new Map<string, QueueEntry[]>();
 const ipExecutionCounts = new Map<string, { count: number; windowStart: number }>();
+
+let globalConcurrent = 0;
+const globalQueue: QueueEntry[] = [];
 
 function cleanupWindow<T extends { windowStart: number }>(map: Map<string, T>, windowMs: number) {
   const now = Date.now();
@@ -77,41 +83,66 @@ export function checkIpRateLimit(ip: string): { allowed: boolean; retryAfterMs?:
   return { allowed: true };
 }
 
-export async function acquireExecutionSlot(userId: string): Promise<void> {
-  const current = userConcurrent.get(userId) || 0;
-  if (current < MAX_CONCURRENT_PER_USER) {
-    userConcurrent.set(userId, current + 1);
-    return;
+export async function acquireExecutionSlot(userId: string, isAuthenticated: boolean = true): Promise<{ queuePosition?: number }> {
+  const userCurrent = userConcurrent.get(userId) || 0;
+  if (userCurrent >= MAX_CONCURRENT_PER_USER) {
+    return new Promise<{ queuePosition?: number }>((resolve, reject) => {
+      const entry: QueueEntry = { resolve: () => resolve({}), reject, timestamp: Date.now(), priority: isAuthenticated ? 1 : 0 };
+      const queue = userQueues.get(userId) || [];
+      queue.push(entry);
+      userQueues.set(userId, queue);
+      setTimeout(() => {
+        const q = userQueues.get(userId);
+        if (q) {
+          const idx = q.indexOf(entry);
+          if (idx !== -1) { q.splice(idx, 1); reject(new Error("Execution queue timeout - too many concurrent executions")); }
+        }
+      }, QUEUE_TIMEOUT_MS);
+    });
   }
 
-  return new Promise<void>((resolve, reject) => {
-    const entry: QueueEntry = { resolve, reject, timestamp: Date.now() };
-    const queue = userQueues.get(userId) || [];
-    queue.push(entry);
-    userQueues.set(userId, queue);
+  if (globalConcurrent >= MAX_CONCURRENT_GLOBAL) {
+    if (globalQueue.length >= MAX_GLOBAL_QUEUE) {
+      throw new Error("Server is at capacity. Please try again in a moment.");
+    }
+    const position = globalQueue.length + 1;
+    return new Promise<{ queuePosition?: number }>((resolve, reject) => {
+      const entry: QueueEntry = {
+        resolve: () => { userConcurrent.set(userId, (userConcurrent.get(userId) || 0) + 1); resolve({}); },
+        reject,
+        timestamp: Date.now(),
+        priority: isAuthenticated ? 1 : 0,
+      };
+      globalQueue.push(entry);
+      globalQueue.sort((a, b) => b.priority - a.priority || a.timestamp - b.timestamp);
+      setTimeout(() => {
+        const idx = globalQueue.indexOf(entry);
+        if (idx !== -1) { globalQueue.splice(idx, 1); reject(new Error("Server busy - execution queue timeout")); }
+      }, QUEUE_TIMEOUT_MS);
+    });
+  }
 
-    setTimeout(() => {
-      const q = userQueues.get(userId);
-      if (q) {
-        const idx = q.indexOf(entry);
-        if (idx !== -1) {
-          q.splice(idx, 1);
-          reject(new Error("Execution queue timeout - too many concurrent executions"));
-        }
-      }
-    }, QUEUE_TIMEOUT_MS);
-  });
+  globalConcurrent++;
+  userConcurrent.set(userId, userCurrent + 1);
+  return {};
 }
 
 export function releaseExecutionSlot(userId: string): void {
   const current = userConcurrent.get(userId) || 0;
-  const queue = userQueues.get(userId);
+  const userQueue = userQueues.get(userId);
 
-  if (queue && queue.length > 0) {
-    const next = queue.shift()!;
+  if (userQueue && userQueue.length > 0) {
+    const next = userQueue.shift()!;
     next.resolve();
-  } else {
-    userConcurrent.set(userId, Math.max(0, current - 1));
+    return;
+  }
+
+  userConcurrent.set(userId, Math.max(0, current - 1));
+  globalConcurrent = Math.max(0, globalConcurrent - 1);
+
+  if (globalQueue.length > 0 && globalConcurrent < MAX_CONCURRENT_GLOBAL) {
+    const next = globalQueue.shift()!;
+    next.resolve();
   }
 }
 
@@ -143,6 +174,22 @@ export function getExecutionMetrics(userId: string): {
     avgDurationMs: metrics.count > 0 ? Math.round(metrics.totalDuration / metrics.count) : 0,
     concurrentExecutions: concurrent,
     queuedExecutions: queued,
+  };
+}
+
+export function getSystemMetrics(): {
+  globalConcurrent: number;
+  globalQueueLength: number;
+  maxConcurrent: number;
+  maxQueue: number;
+  totalActiveUsers: number;
+} {
+  return {
+    globalConcurrent,
+    globalQueueLength: globalQueue.length,
+    maxConcurrent: MAX_CONCURRENT_GLOBAL,
+    maxQueue: MAX_GLOBAL_QUEUE,
+    totalActiveUsers: userConcurrent.size,
   };
 }
 

@@ -11,6 +11,53 @@ import Settings from "@/pages/Settings";
 import DemoProject from "@/pages/DemoProject";
 import SharedProject from "@/pages/SharedProject";
 import { useAuth } from "@/hooks/use-auth";
+import { Component, type ReactNode } from "react";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[ErrorBoundary]", error, errorInfo);
+    try {
+      fetch("/api/metrics", { method: "GET" }).catch(() => {});
+    } catch {}
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen flex items-center justify-center bg-[#0E1525] text-[#F5F9FC]">
+          <div className="text-center max-w-md px-6" data-testid="error-boundary">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/10 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-400">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
+            <p className="text-sm text-[#9DA2B0] mb-4">{this.state.error?.message || "An unexpected error occurred."}</p>
+            <button
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+              className="px-4 py-2 bg-[#0079F2] hover:bg-[#0066CC] text-white text-sm rounded-lg transition-colors"
+              data-testid="button-reload"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27,22 +74,24 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
-          <Switch>
-            <Route path="/" component={Auth} />
-            <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
-            <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
-            <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
-            <Route path="/demo" component={DemoProject} />
-            <Route path="/shared/:id" component={SharedProject} />
-            <Route component={NotFound} />
-          </Switch>
-        </div>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
+            <Switch>
+              <Route path="/" component={Auth} />
+              <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
+              <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
+              <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+              <Route path="/demo" component={DemoProject} />
+              <Route path="/shared/:id" component={SharedProject} />
+              <Route component={NotFound} />
+            </Switch>
+          </div>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

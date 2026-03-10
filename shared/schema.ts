@@ -186,3 +186,28 @@ export const insertExecutionLogSchema = createInsertSchema(executionLogs).pick({
 });
 export type InsertExecutionLog = z.infer<typeof insertExecutionLogSchema>;
 export type ExecutionLog = typeof executionLogs.$inferSelect;
+
+export const userQuotas = pgTable("user_quotas", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().unique(),
+  plan: text("plan").notNull().default("free"),
+  dailyExecutionsUsed: integer("daily_executions_used").notNull().default(0),
+  dailyAiCallsUsed: integer("daily_ai_calls_used").notNull().default(0),
+  storageBytes: integer("storage_bytes").notNull().default(0),
+  totalExecutions: integer("total_executions").notNull().default(0),
+  totalAiCalls: integer("total_ai_calls").notNull().default(0),
+  lastResetAt: timestamp("last_reset_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertUserQuotaSchema = createInsertSchema(userQuotas).pick({
+  userId: true,
+  plan: true,
+});
+export type InsertUserQuota = z.infer<typeof insertUserQuotaSchema>;
+export type UserQuota = typeof userQuotas.$inferSelect;
+
+export const PLAN_LIMITS = {
+  free: { dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5 },
+  pro: { dailyExecutions: 500, dailyAiCalls: 200, storageMb: 500, maxProjects: 50 },
+} as const;

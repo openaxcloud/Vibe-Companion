@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import { writeFile, mkdir, rm, chmod } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
@@ -19,6 +19,46 @@ const MAX_EXECUTION_TIME_MS = 10000;
 const MAX_OUTPUT_SIZE = 200000;
 const MAX_CODE_SIZE = 500000;
 const NODE_MEMORY_LIMIT_MB = 64;
+
+const ULIMIT_CPU_SECONDS = 10;
+const ULIMIT_VIRTUAL_MEMORY_KB = 131072;
+const ULIMIT_FILE_SIZE_BLOCKS = 0;
+const ULIMIT_MAX_PROCS = 32;
+const NICE_PRIORITY = 15;
+
+let unshareAvailable: boolean | null = null;
+
+function checkUnshareAvailable(): boolean {
+  if (unshareAvailable !== null) return unshareAvailable;
+  try {
+    execSync("unshare --net echo ok", { timeout: 3000, stdio: "pipe" });
+    unshareAvailable = true;
+    log("unshare --net is available for network isolation", "sandbox");
+  } catch {
+    unshareAvailable = false;
+    log("unshare --net is not available, skipping network isolation", "sandbox");
+  }
+  return unshareAvailable;
+}
+
+function buildShellCommand(command: string, args: string[]): { shellCmd: string; shellArgs: string[] } {
+  const escapedArgs = args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
+  const ulimits = `ulimit -t ${ULIMIT_CPU_SECONDS} -v ${ULIMIT_VIRTUAL_MEMORY_KB} -f ${ULIMIT_FILE_SIZE_BLOCKS} -u ${ULIMIT_MAX_PROCS} 2>/dev/null;`;
+  const niceCmd = `nice -n ${NICE_PRIORITY}`;
+  const innerCmd = `${ulimits} exec ${niceCmd} ${command} ${escapedArgs}`;
+
+  if (checkUnshareAvailable()) {
+    return {
+      shellCmd: "unshare",
+      shellArgs: ["--net", "/bin/sh", "-c", innerCmd],
+    };
+  }
+
+  return {
+    shellCmd: "/bin/sh",
+    shellArgs: ["-c", innerCmd],
+  };
+}
 
 const DANGEROUS_MODULES = new Set([
   "child_process", "fs", "fs/promises", "net", "http", "https", "http2",
@@ -587,6 +627,7 @@ export async function executeCode(
       args = [
         `--max-old-space-size=${NODE_MEMORY_LIMIT_MB}`,
         "--no-warnings",
+        "--no-addons",
         "--disallow-code-generation-from-strings",
         join(sandboxDir, filename),
       ];
@@ -621,7 +662,9 @@ export async function executeCode(
         minimalEnv.NODE_EXTRA_CA_CERTS = "";
       }
 
-      const proc = spawn(command, args, {
+      const { shellCmd, shellArgs } = buildShellCommand(command, args);
+
+      const proc = spawn(shellCmd, shellArgs, {
         cwd: sandboxDir,
         timeout: MAX_EXECUTION_TIME_MS,
         env: minimalEnv,

@@ -232,7 +232,7 @@ export default function Project() {
   const editorPreviewContainerRef = useRef<HTMLDivElement>(null);
 
   const { user, logout: logoutMutation } = useAuth();
-  const { messages, connected } = useProjectWebSocket(projectId);
+  const { messages, connected, connectionQuality, retryWebSocket } = useProjectWebSocket(projectId);
 
   const projectQuery = useQuery<ProjectType>({
     queryKey: ["/api/projects", projectId],
@@ -3228,7 +3228,29 @@ export default function Project() {
                 <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B] shadow-[0_0_6px_rgba(12,206,107,0.6)] animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.5)] animate-pulse" : wsStatus === "error" ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)] animate-pulse" : "bg-[#4A5068]"}`} />
                 {wsStatus === "running" ? "Workspace Running" : wsStatus === "starting" ? "Starting Workspace..." : wsStatus === "none" ? "Ready" : wsStatus === "stopped" ? "Workspace Stopped" : wsStatus === "error" ? "Workspace Error" : wsStatus === "offline" ? "Offline" : wsStatus}
               </span>
-              {connected && <span className="text-[10px] text-[#4A5068] flex items-center gap-1"><Wifi className="w-2.5 h-2.5" /> WS</span>}
+              <span
+                className={`text-[10px] flex items-center gap-1 cursor-pointer ${
+                  connectionQuality === "excellent" ? "text-[#0CCE6B]" :
+                  connectionQuality === "good" ? "text-[#4A9F6E]" :
+                  connectionQuality === "poor" ? "text-yellow-400" :
+                  connectionQuality === "polling" ? "text-orange-400" :
+                  "text-red-400"
+                }`}
+                data-testid="status-connection-quality"
+                onClick={connectionQuality === "polling" || connectionQuality === "disconnected" ? retryWebSocket : undefined}
+                title={
+                  connectionQuality === "excellent" ? "Excellent connection" :
+                  connectionQuality === "good" ? "Good connection" :
+                  connectionQuality === "poor" ? "Poor connection" :
+                  connectionQuality === "polling" ? "Polling fallback (click to retry WS)" :
+                  "Disconnected (click to retry)"
+                }
+              >
+                <Wifi className="w-2.5 h-2.5" />
+                {connectionQuality === "polling" ? "Poll" :
+                 connectionQuality === "disconnected" ? "Off" :
+                 "WS"}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}

@@ -18,8 +18,10 @@ import {
   releaseExecutionSlot,
   recordExecution,
   getExecutionMetrics,
+  getSystemMetrics,
   getClientIp,
 } from "./rateLimiter";
+import { PLAN_LIMITS } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -184,8 +186,44 @@ function csrfProtection(req: Request, res: Response, next: NextFunction) {
 }
 
 const wsClients = new Map<string, Set<WebSocket>>();
+const wsConnectionsByIp = new Map<string, Set<WebSocket>>();
+const WS_MAX_CONNECTIONS_PER_IP = 5;
+const WS_MESSAGE_RATE_LIMIT = 30;
+const WS_MESSAGE_RATE_WINDOW_MS = 10000;
+
+interface WsMessageTracker {
+  timestamps: number[];
+}
+const wsMessageTrackers = new WeakMap<WebSocket, WsMessageTracker>();
+
+function checkWsMessageRate(ws: WebSocket): boolean {
+  let tracker = wsMessageTrackers.get(ws);
+  if (!tracker) {
+    tracker = { timestamps: [] };
+    wsMessageTrackers.set(ws, tracker);
+  }
+  const now = Date.now();
+  tracker.timestamps = tracker.timestamps.filter(t => now - t < WS_MESSAGE_RATE_WINDOW_MS);
+  if (tracker.timestamps.length >= WS_MESSAGE_RATE_LIMIT) {
+    return false;
+  }
+  tracker.timestamps.push(now);
+  return true;
+}
+
+const recentBroadcasts = new Map<string, { data: any; timestamp: number }[]>();
+const MAX_RECENT_BROADCASTS = 50;
 
 function broadcastToProject(projectId: string, data: any) {
+  if (!recentBroadcasts.has(projectId)) {
+    recentBroadcasts.set(projectId, []);
+  }
+  const broadcasts = recentBroadcasts.get(projectId)!;
+  broadcasts.push({ data, timestamp: Date.now() });
+  if (broadcasts.length > MAX_RECENT_BROADCASTS) {
+    broadcasts.splice(0, broadcasts.length - MAX_RECENT_BROADCASTS);
+  }
+
   const clients = wsClients.get(projectId);
   if (!clients) return;
   const message = JSON.stringify(data);
@@ -201,24 +239,23 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   const PgStore = connectPgSimple(session);
-  app.use(
-    session({
-      store: new PgStore({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: true,
-        tableName: "user_sessions",
-      }),
-      secret: process.env.SESSION_SECRET || "vibe-platform-secret-key-change-in-prod",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-      },
-    })
-  );
+  const sessionMiddleware = session({
+    store: new PgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+      tableName: "user_sessions",
+    }),
+    secret: process.env.SESSION_SECRET || "vibe-platform-secret-key-change-in-prod",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    },
+  });
+  app.use(sessionMiddleware);
 
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -255,6 +292,52 @@ export async function registerRoutes(
   });
 
   app.use("/api", apiLimiter);
+
+  const serverStartTime = Date.now();
+  const errorBuffer: Array<{ timestamp: string; method: string; path: string; status: number; message: string }> = [];
+  const MAX_ERROR_BUFFER = 100;
+
+  app.get("/api/health", async (_req: Request, res: Response) => {
+    const uptime = Math.floor((Date.now() - serverStartTime) / 1000);
+    const mem = process.memoryUsage();
+    let dbStatus = "connected";
+    try {
+      const { db } = await import("./db");
+      await db.execute("SELECT 1");
+    } catch {
+      dbStatus = "disconnected";
+    }
+    const system = getSystemMetrics();
+    res.json({
+      status: dbStatus === "connected" ? "healthy" : "degraded",
+      uptime,
+      database: dbStatus,
+      memory: {
+        rss: Math.round(mem.rss / 1024 / 1024),
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+      },
+      execution: {
+        activeSandboxes: system.globalConcurrent,
+        maxConcurrent: system.maxConcurrent,
+        queueLength: system.globalQueueLength,
+        activeUsers: system.totalActiveUsers,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get("/api/metrics", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.json({ execution: getSystemMetrics(), errorCount: 0 });
+    }
+    const system = getSystemMetrics();
+    res.json({
+      execution: system,
+      recentErrors: errorBuffer.slice(-20),
+      errorCount: errorBuffer.length,
+    });
+  });
 
   app.get("/api/csrf-token", (req: Request, res: Response) => {
     if (!req.session.csrfToken) {
@@ -358,6 +441,30 @@ export async function registerRoutes(
     });
   });
 
+  // --- USAGE & QUOTAS ---
+  app.get("/api/user/usage", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const quota = await storage.getUserQuota(userId);
+      const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
+      const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+      const projectList = await storage.getProjects(userId);
+      res.json({
+        plan: quota.plan,
+        daily: {
+          executions: { used: quota.dailyExecutionsUsed, limit: limits.dailyExecutions },
+          aiCalls: { used: quota.dailyAiCallsUsed, limit: limits.dailyAiCalls },
+        },
+        storage: { usedMb: Math.round(quota.storageBytes / 1024 / 1024 * 100) / 100, limitMb: limits.storageMb },
+        projects: { count: projectList.length, limit: limits.maxProjects },
+        totals: { executions: quota.totalExecutions, aiCalls: quota.totalAiCalls },
+        resetsAt: new Date(new Date(quota.lastResetAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch usage data" });
+    }
+  });
+
   // --- PROJECTS ---
   app.get("/api/projects", requireAuth, async (req: Request, res: Response) => {
     const projectList = await storage.getProjects(req.session.userId!);
@@ -366,6 +473,10 @@ export async function registerRoutes(
 
   app.post("/api/projects", requireAuth, async (req: Request, res: Response) => {
     try {
+      const projectCheck = await storage.checkProjectLimit(req.session.userId!);
+      if (!projectCheck.allowed) {
+        return res.status(429).json({ message: `Project limit reached (${projectCheck.current}/${projectCheck.limit}). Upgrade to Pro for more.` });
+      }
       const data = insertProjectSchema.parse(req.body);
       if (data.name) {
         const safeName = sanitizeProjectName(data.name);
@@ -404,6 +515,10 @@ export async function registerRoutes(
   });
 
   app.post("/api/projects/:id/duplicate", requireAuth, async (req: Request, res: Response) => {
+    const projectLimit = await storage.checkProjectLimit(req.session.userId!);
+    if (!projectLimit.allowed) {
+      return res.status(403).json({ message: `Project limit reached (${projectLimit.current}/${projectLimit.limit}). Upgrade to Pro for more.` });
+    }
     const project = await storage.duplicateProject(req.params.id, req.session.userId!);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
@@ -541,6 +656,11 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Code and language are required" });
     }
 
+    const quotaCheck = await storage.incrementExecution(userId);
+    if (!quotaCheck.allowed) {
+      return res.status(429).json({ message: "Daily execution limit reached. Upgrade to Pro for more." });
+    }
+
     try {
       await acquireExecutionSlot(userId);
     } catch (err: any) {
@@ -646,6 +766,21 @@ export async function registerRoutes(
   app.get("/api/execution-metrics", requireAuth, async (req: Request, res: Response) => {
     const metrics = getExecutionMetrics(req.session.userId!);
     return res.json(metrics);
+  });
+
+  app.get("/api/projects/:projectId/poll", requireAuth, async (req: Request, res: Response) => {
+    const projectId = req.params.projectId;
+    const project = await storage.getProject(projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.userId !== req.session.userId && !project.isDemo && !project.isPublished) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const since = parseInt(req.query.since as string) || 0;
+    const broadcasts = recentBroadcasts.get(projectId) || [];
+    const newMessages = broadcasts
+      .filter(b => b.timestamp > since)
+      .map(b => b.data);
+    return res.json({ messages: newMessages, timestamp: Date.now() });
   });
 
   // --- DEMO ---
@@ -1315,6 +1450,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)` });
       }
 
+      const genProjectLimit = await storage.checkProjectLimit(req.session.userId!);
+      if (!genProjectLimit.allowed) {
+        return res.status(403).json({ message: `Project limit reached (${genProjectLimit.current}/${genProjectLimit.limit}). Upgrade to Pro for more.` });
+      }
+
       const systemPrompt = `You are a senior software engineer. Given a project description, generate a project specification as JSON.
 
 Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this structure:
@@ -1464,6 +1604,11 @@ Rules:
 - Include all imports, all functions, and all necessary code for the file to work standalone.
 - When modifying existing code, show the COMPLETE updated file, not just the changed parts.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
 
+      const chatAiQuota = await storage.incrementAiCall(req.session.userId!);
+      if (!chatAiQuota.allowed) {
+        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+      }
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
@@ -1587,6 +1732,11 @@ Rules:
       const project = await storage.getProject(projectId);
       if (!project || project.userId !== req.session.userId) {
         return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const agentAiQuota = await storage.incrementAiCall(req.session.userId!);
+      if (!agentAiQuota.allowed) {
+        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
       }
 
       const existingFiles = await storage.getFiles(projectId);
@@ -1890,13 +2040,46 @@ Always write complete, working code. Never use placeholders or TODOs.`;
   });
 
   // --- WebSocket ---
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) {
+      errorBuffer.push({
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+        status: err.status || 500,
+        message: err.message || "Unknown error",
+      });
+      if (errorBuffer.length > MAX_ERROR_BUFFER) errorBuffer.shift();
+    }
+    next(err);
+  });
+
   const wss = new WebSocketServer({ noServer: true });
 
-  httpServer.on("upgrade", (req, socket, head) => {
+  httpServer.on("upgrade", (req: any, socket, head) => {
     const pathname = new URL(req.url || "/", `http://${req.headers.host}`).pathname;
     if (pathname === "/ws") {
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        wss.emit("connection", ws, req);
+      sessionMiddleware(req, {} as any, () => {
+        const url = new URL(req.url || "/", `http://${req.headers.host}`);
+        const projectId = url.searchParams.get("projectId");
+        if (!req.session?.userId || !projectId) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        storage.getProject(projectId).then((project) => {
+          if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          wss.handleUpgrade(req, socket, head, (ws) => {
+            wss.emit("connection", ws, req);
+          });
+        }).catch(() => {
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+        });
       });
     }
   });
@@ -1910,16 +2093,50 @@ Always write complete, working code. Never use placeholders or TODOs.`;
       return;
     }
 
+    const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress || "unknown";
+
+    if (!wsConnectionsByIp.has(clientIp)) {
+      wsConnectionsByIp.set(clientIp, new Set());
+    }
+    const ipConnections = wsConnectionsByIp.get(clientIp)!;
+    Array.from(ipConnections).forEach(existingWs => {
+      if ((existingWs as any).readyState !== WebSocket.OPEN) {
+        ipConnections.delete(existingWs);
+      }
+    });
+    if (ipConnections.size >= WS_MAX_CONNECTIONS_PER_IP) {
+      ws.close(1013, "Too many connections");
+      log(`WebSocket connection rejected for IP ${clientIp}: limit reached`, "ws");
+      return;
+    }
+    ipConnections.add(ws);
+
     if (!wsClients.has(projectId)) {
       wsClients.set(projectId, new Set());
     }
     wsClients.get(projectId)!.add(ws);
     ws.isAlive = true;
 
-    log(`WebSocket connected for project ${projectId}`, "ws");
+    ws.send(JSON.stringify({ type: "connected", timestamp: Date.now() }));
+
+    log(`WebSocket connected for project ${projectId} (IP: ${clientIp}, connections: ${ipConnections.size})`, "ws");
 
     ws.on("pong", () => {
       ws.isAlive = true;
+    });
+
+    ws.on("message", (rawData) => {
+      if (!checkWsMessageRate(ws)) {
+        ws.send(JSON.stringify({ type: "error", message: "Message rate limit exceeded" }));
+        return;
+      }
+      try {
+        const data = JSON.parse(rawData.toString());
+        if (data.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+        }
+      } catch {}
     });
 
     ws.on("close", () => {
@@ -1927,10 +2144,15 @@ Always write complete, working code. Never use placeholders or TODOs.`;
       if (wsClients.get(projectId)?.size === 0) {
         wsClients.delete(projectId);
       }
+      wsConnectionsByIp.get(clientIp)?.delete(ws);
+      if (wsConnectionsByIp.get(clientIp)?.size === 0) {
+        wsConnectionsByIp.delete(clientIp);
+      }
     });
 
     ws.on("error", () => {
       wsClients.get(projectId)?.delete(ws);
+      wsConnectionsByIp.get(clientIp)?.delete(ws);
     });
   });
 

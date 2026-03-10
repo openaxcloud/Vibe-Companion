@@ -12,6 +12,8 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import { useRef, useEffect } from "react";
 import { StateField, StateEffect, RangeSetBuilder, RangeSet } from "@codemirror/state";
+import { autocompletion, type CompletionContext, type Completion } from "@codemirror/autocomplete";
+import { linter, type Diagnostic } from "@codemirror/lint";
 
 export interface BlameEntry {
   line: number;
@@ -145,6 +147,35 @@ const replitTheme = EditorView.theme({
     color: "#9DA2B0",
     padding: "0 6px",
     borderRadius: "3px",
+  },
+  ".cm-diagnostic": {
+    padding: "4px 8px",
+    fontSize: "12px",
+    fontFamily: "'JetBrains Mono', monospace",
+  },
+  ".cm-diagnostic-error": {
+    borderLeft: "3px solid #F44747",
+  },
+  ".cm-diagnostic-warning": {
+    borderLeft: "3px solid #FF9940",
+  },
+  ".cm-lintRange-error": {
+    backgroundImage: "none",
+    textDecoration: "wavy underline #F44747",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-lintRange-warning": {
+    backgroundImage: "none",
+    textDecoration: "wavy underline #FF9940",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-lint-marker-error": {
+    content: "'●'",
+    color: "#F44747",
+  },
+  ".cm-lint-marker-warning": {
+    content: "'●'",
+    color: "#FF9940",
   },
   ".cm-blame-gutter": {
     width: "220px",
@@ -294,6 +325,493 @@ const blameGutter = gutter({
   lineMarker: undefined,
 });
 
+const jsGlobals: Completion[] = [
+  { label: "console", type: "variable", detail: "Console", boost: 10 },
+  { label: "console.log", type: "function", detail: "Log to console", boost: 10 },
+  { label: "console.error", type: "function", detail: "Log error" },
+  { label: "console.warn", type: "function", detail: "Log warning" },
+  { label: "console.info", type: "function", detail: "Log info" },
+  { label: "console.table", type: "function", detail: "Display tabular data" },
+  { label: "console.time", type: "function", detail: "Start timer" },
+  { label: "console.timeEnd", type: "function", detail: "End timer" },
+  { label: "console.clear", type: "function", detail: "Clear console" },
+  { label: "document", type: "variable", detail: "Document" },
+  { label: "document.getElementById", type: "function", detail: "Get element by ID" },
+  { label: "document.querySelector", type: "function", detail: "Query selector" },
+  { label: "document.querySelectorAll", type: "function", detail: "Query all matching" },
+  { label: "document.createElement", type: "function", detail: "Create element" },
+  { label: "document.addEventListener", type: "function", detail: "Add event listener" },
+  { label: "document.body", type: "property", detail: "Body element" },
+  { label: "document.head", type: "property", detail: "Head element" },
+  { label: "window", type: "variable", detail: "Window" },
+  { label: "window.location", type: "property", detail: "Location object" },
+  { label: "window.localStorage", type: "property", detail: "Local storage" },
+  { label: "window.sessionStorage", type: "property", detail: "Session storage" },
+  { label: "window.setTimeout", type: "function", detail: "Set timeout" },
+  { label: "window.setInterval", type: "function", detail: "Set interval" },
+  { label: "window.fetch", type: "function", detail: "Fetch API" },
+  { label: "setTimeout", type: "function", detail: "Set timeout" },
+  { label: "setInterval", type: "function", detail: "Set interval" },
+  { label: "clearTimeout", type: "function", detail: "Clear timeout" },
+  { label: "clearInterval", type: "function", detail: "Clear interval" },
+  { label: "fetch", type: "function", detail: "Fetch API" },
+  { label: "Promise", type: "class", detail: "Promise" },
+  { label: "Promise.all", type: "function", detail: "Wait for all promises" },
+  { label: "Promise.race", type: "function", detail: "Race promises" },
+  { label: "Promise.resolve", type: "function", detail: "Resolve promise" },
+  { label: "Promise.reject", type: "function", detail: "Reject promise" },
+  { label: "JSON.parse", type: "function", detail: "Parse JSON string" },
+  { label: "JSON.stringify", type: "function", detail: "Stringify to JSON" },
+  { label: "Math.floor", type: "function", detail: "Round down" },
+  { label: "Math.ceil", type: "function", detail: "Round up" },
+  { label: "Math.round", type: "function", detail: "Round" },
+  { label: "Math.random", type: "function", detail: "Random number" },
+  { label: "Math.max", type: "function", detail: "Maximum value" },
+  { label: "Math.min", type: "function", detail: "Minimum value" },
+  { label: "Math.abs", type: "function", detail: "Absolute value" },
+  { label: "Math.PI", type: "constant", detail: "3.14159..." },
+  { label: "Array.isArray", type: "function", detail: "Check if array" },
+  { label: "Array.from", type: "function", detail: "Create array from iterable" },
+  { label: "Object.keys", type: "function", detail: "Get object keys" },
+  { label: "Object.values", type: "function", detail: "Get object values" },
+  { label: "Object.entries", type: "function", detail: "Get object entries" },
+  { label: "Object.assign", type: "function", detail: "Assign properties" },
+  { label: "Object.freeze", type: "function", detail: "Freeze object" },
+  { label: "parseInt", type: "function", detail: "Parse integer" },
+  { label: "parseFloat", type: "function", detail: "Parse float" },
+  { label: "isNaN", type: "function", detail: "Check if NaN" },
+  { label: "isFinite", type: "function", detail: "Check if finite" },
+  { label: "encodeURIComponent", type: "function", detail: "Encode URI component" },
+  { label: "decodeURIComponent", type: "function", detail: "Decode URI component" },
+  { label: "Map", type: "class", detail: "Map collection" },
+  { label: "Set", type: "class", detail: "Set collection" },
+  { label: "WeakMap", type: "class", detail: "WeakMap collection" },
+  { label: "WeakSet", type: "class", detail: "WeakSet collection" },
+  { label: "Symbol", type: "class", detail: "Symbol primitive" },
+  { label: "RegExp", type: "class", detail: "Regular expression" },
+  { label: "Date", type: "class", detail: "Date object" },
+  { label: "Error", type: "class", detail: "Error object" },
+  { label: "TypeError", type: "class", detail: "Type error" },
+  { label: "RangeError", type: "class", detail: "Range error" },
+  { label: "addEventListener", type: "function", detail: "Add event listener" },
+  { label: "removeEventListener", type: "function", detail: "Remove event listener" },
+  { label: "requestAnimationFrame", type: "function", detail: "Request animation frame" },
+  { label: "cancelAnimationFrame", type: "function", detail: "Cancel animation frame" },
+];
+
+const jsMethodCompletions: Completion[] = [
+  { label: "map", type: "method", detail: "Array.map()" },
+  { label: "filter", type: "method", detail: "Array.filter()" },
+  { label: "reduce", type: "method", detail: "Array.reduce()" },
+  { label: "forEach", type: "method", detail: "Array.forEach()" },
+  { label: "find", type: "method", detail: "Array.find()" },
+  { label: "findIndex", type: "method", detail: "Array.findIndex()" },
+  { label: "some", type: "method", detail: "Array.some()" },
+  { label: "every", type: "method", detail: "Array.every()" },
+  { label: "includes", type: "method", detail: "Array/String.includes()" },
+  { label: "indexOf", type: "method", detail: "Array/String.indexOf()" },
+  { label: "slice", type: "method", detail: "Array/String.slice()" },
+  { label: "splice", type: "method", detail: "Array.splice()" },
+  { label: "push", type: "method", detail: "Array.push()" },
+  { label: "pop", type: "method", detail: "Array.pop()" },
+  { label: "shift", type: "method", detail: "Array.shift()" },
+  { label: "unshift", type: "method", detail: "Array.unshift()" },
+  { label: "concat", type: "method", detail: "Array.concat()" },
+  { label: "join", type: "method", detail: "Array.join()" },
+  { label: "sort", type: "method", detail: "Array.sort()" },
+  { label: "reverse", type: "method", detail: "Array.reverse()" },
+  { label: "flat", type: "method", detail: "Array.flat()" },
+  { label: "flatMap", type: "method", detail: "Array.flatMap()" },
+  { label: "length", type: "property", detail: "Array/String.length" },
+  { label: "toString", type: "method", detail: "Object.toString()" },
+  { label: "valueOf", type: "method", detail: "Object.valueOf()" },
+  { label: "hasOwnProperty", type: "method", detail: "Object.hasOwnProperty()" },
+  { label: "split", type: "method", detail: "String.split()" },
+  { label: "trim", type: "method", detail: "String.trim()" },
+  { label: "trimStart", type: "method", detail: "String.trimStart()" },
+  { label: "trimEnd", type: "method", detail: "String.trimEnd()" },
+  { label: "toUpperCase", type: "method", detail: "String.toUpperCase()" },
+  { label: "toLowerCase", type: "method", detail: "String.toLowerCase()" },
+  { label: "replace", type: "method", detail: "String.replace()" },
+  { label: "replaceAll", type: "method", detail: "String.replaceAll()" },
+  { label: "match", type: "method", detail: "String.match()" },
+  { label: "search", type: "method", detail: "String.search()" },
+  { label: "startsWith", type: "method", detail: "String.startsWith()" },
+  { label: "endsWith", type: "method", detail: "String.endsWith()" },
+  { label: "padStart", type: "method", detail: "String.padStart()" },
+  { label: "padEnd", type: "method", detail: "String.padEnd()" },
+  { label: "charAt", type: "method", detail: "String.charAt()" },
+  { label: "charCodeAt", type: "method", detail: "String.charCodeAt()" },
+  { label: "repeat", type: "method", detail: "String.repeat()" },
+  { label: "substring", type: "method", detail: "String.substring()" },
+  { label: "then", type: "method", detail: "Promise.then()" },
+  { label: "catch", type: "method", detail: "Promise.catch()" },
+  { label: "finally", type: "method", detail: "Promise.finally()" },
+];
+
+const tsKeywords: Completion[] = [
+  { label: "interface", type: "keyword", detail: "TypeScript interface" },
+  { label: "type", type: "keyword", detail: "TypeScript type alias" },
+  { label: "enum", type: "keyword", detail: "TypeScript enum" },
+  { label: "namespace", type: "keyword", detail: "TypeScript namespace" },
+  { label: "readonly", type: "keyword", detail: "Readonly modifier" },
+  { label: "abstract", type: "keyword", detail: "Abstract class/method" },
+  { label: "implements", type: "keyword", detail: "Implements interface" },
+  { label: "declare", type: "keyword", detail: "Declare ambient" },
+  { label: "as", type: "keyword", detail: "Type assertion" },
+  { label: "keyof", type: "keyword", detail: "Key of type" },
+  { label: "typeof", type: "keyword", detail: "Type of value" },
+  { label: "Partial", type: "type", detail: "Make all props optional" },
+  { label: "Required", type: "type", detail: "Make all props required" },
+  { label: "Readonly", type: "type", detail: "Make all props readonly" },
+  { label: "Record", type: "type", detail: "Record<Keys, Type>" },
+  { label: "Pick", type: "type", detail: "Pick<Type, Keys>" },
+  { label: "Omit", type: "type", detail: "Omit<Type, Keys>" },
+  { label: "Exclude", type: "type", detail: "Exclude from union" },
+  { label: "Extract", type: "type", detail: "Extract from union" },
+  { label: "ReturnType", type: "type", detail: "Function return type" },
+  { label: "Parameters", type: "type", detail: "Function parameters" },
+];
+
+const pythonBuiltins: Completion[] = [
+  { label: "print", type: "function", detail: "Print to stdout", boost: 10 },
+  { label: "len", type: "function", detail: "Length of object" },
+  { label: "range", type: "function", detail: "Range of numbers" },
+  { label: "int", type: "function", detail: "Convert to integer" },
+  { label: "float", type: "function", detail: "Convert to float" },
+  { label: "str", type: "function", detail: "Convert to string" },
+  { label: "bool", type: "function", detail: "Convert to boolean" },
+  { label: "list", type: "function", detail: "Create list" },
+  { label: "dict", type: "function", detail: "Create dictionary" },
+  { label: "tuple", type: "function", detail: "Create tuple" },
+  { label: "set", type: "function", detail: "Create set" },
+  { label: "type", type: "function", detail: "Get type of object" },
+  { label: "isinstance", type: "function", detail: "Check instance type" },
+  { label: "issubclass", type: "function", detail: "Check subclass" },
+  { label: "input", type: "function", detail: "Read user input" },
+  { label: "open", type: "function", detail: "Open file" },
+  { label: "abs", type: "function", detail: "Absolute value" },
+  { label: "max", type: "function", detail: "Maximum value" },
+  { label: "min", type: "function", detail: "Minimum value" },
+  { label: "sum", type: "function", detail: "Sum of iterable" },
+  { label: "sorted", type: "function", detail: "Sorted iterable" },
+  { label: "reversed", type: "function", detail: "Reversed iterator" },
+  { label: "enumerate", type: "function", detail: "Enumerate iterable" },
+  { label: "zip", type: "function", detail: "Zip iterables" },
+  { label: "map", type: "function", detail: "Map function over iterable" },
+  { label: "filter", type: "function", detail: "Filter iterable" },
+  { label: "any", type: "function", detail: "Any element is true" },
+  { label: "all", type: "function", detail: "All elements are true" },
+  { label: "hasattr", type: "function", detail: "Has attribute" },
+  { label: "getattr", type: "function", detail: "Get attribute" },
+  { label: "setattr", type: "function", detail: "Set attribute" },
+  { label: "delattr", type: "function", detail: "Delete attribute" },
+  { label: "callable", type: "function", detail: "Check if callable" },
+  { label: "chr", type: "function", detail: "Char from code point" },
+  { label: "ord", type: "function", detail: "Code point from char" },
+  { label: "hex", type: "function", detail: "Convert to hex string" },
+  { label: "bin", type: "function", detail: "Convert to binary string" },
+  { label: "oct", type: "function", detail: "Convert to octal string" },
+  { label: "round", type: "function", detail: "Round number" },
+  { label: "pow", type: "function", detail: "Power" },
+  { label: "divmod", type: "function", detail: "Division and modulo" },
+  { label: "hash", type: "function", detail: "Hash of object" },
+  { label: "id", type: "function", detail: "Object identity" },
+  { label: "repr", type: "function", detail: "Printable representation" },
+  { label: "iter", type: "function", detail: "Get iterator" },
+  { label: "next", type: "function", detail: "Next item from iterator" },
+  { label: "super", type: "function", detail: "Parent class reference" },
+  { label: "property", type: "function", detail: "Property decorator" },
+  { label: "staticmethod", type: "function", detail: "Static method decorator" },
+  { label: "classmethod", type: "function", detail: "Class method decorator" },
+  { label: "Exception", type: "class", detail: "Base exception class" },
+  { label: "ValueError", type: "class", detail: "Value error" },
+  { label: "TypeError", type: "class", detail: "Type error" },
+  { label: "KeyError", type: "class", detail: "Key error" },
+  { label: "IndexError", type: "class", detail: "Index error" },
+  { label: "AttributeError", type: "class", detail: "Attribute error" },
+  { label: "ImportError", type: "class", detail: "Import error" },
+  { label: "FileNotFoundError", type: "class", detail: "File not found" },
+  { label: "RuntimeError", type: "class", detail: "Runtime error" },
+  { label: "StopIteration", type: "class", detail: "Stop iteration" },
+  { label: "True", type: "constant", detail: "Boolean true" },
+  { label: "False", type: "constant", detail: "Boolean false" },
+  { label: "None", type: "constant", detail: "None value" },
+];
+
+const pythonModules: Completion[] = [
+  { label: "os", type: "namespace", detail: "Operating system interface" },
+  { label: "sys", type: "namespace", detail: "System-specific parameters" },
+  { label: "math", type: "namespace", detail: "Mathematical functions" },
+  { label: "json", type: "namespace", detail: "JSON encoder/decoder" },
+  { label: "re", type: "namespace", detail: "Regular expressions" },
+  { label: "datetime", type: "namespace", detail: "Date and time" },
+  { label: "collections", type: "namespace", detail: "Container datatypes" },
+  { label: "itertools", type: "namespace", detail: "Iterator functions" },
+  { label: "functools", type: "namespace", detail: "Higher-order functions" },
+  { label: "pathlib", type: "namespace", detail: "Object-oriented paths" },
+  { label: "typing", type: "namespace", detail: "Type hints" },
+  { label: "random", type: "namespace", detail: "Random number generation" },
+  { label: "string", type: "namespace", detail: "String operations" },
+  { label: "time", type: "namespace", detail: "Time access and conversion" },
+  { label: "copy", type: "namespace", detail: "Shallow and deep copy" },
+  { label: "io", type: "namespace", detail: "I/O core tools" },
+  { label: "csv", type: "namespace", detail: "CSV file reading/writing" },
+  { label: "hashlib", type: "namespace", detail: "Secure hash algorithms" },
+  { label: "urllib", type: "namespace", detail: "URL handling" },
+  { label: "http", type: "namespace", detail: "HTTP modules" },
+  { label: "subprocess", type: "namespace", detail: "Subprocess management" },
+  { label: "threading", type: "namespace", detail: "Thread-based parallelism" },
+  { label: "multiprocessing", type: "namespace", detail: "Process-based parallelism" },
+  { label: "logging", type: "namespace", detail: "Logging facility" },
+  { label: "unittest", type: "namespace", detail: "Unit testing framework" },
+  { label: "argparse", type: "namespace", detail: "Command-line parsing" },
+  { label: "dataclasses", type: "namespace", detail: "Data classes" },
+  { label: "abc", type: "namespace", detail: "Abstract base classes" },
+  { label: "enum", type: "namespace", detail: "Enumeration support" },
+  { label: "contextlib", type: "namespace", detail: "Context managers" },
+];
+
+function jsAutocomplete(context: CompletionContext) {
+  const before = context.matchBefore(/[\w.]+/);
+  if (!before) return null;
+  if (before.from === before.to && !context.explicit) return null;
+
+  const text = before.text;
+
+  if (text.includes(".")) {
+    const parts = text.split(".");
+    const prefix = parts.slice(0, -1).join(".");
+    const partial = parts[parts.length - 1];
+
+    const dotCompletions = jsGlobals
+      .filter(c => c.label.startsWith(prefix + "."))
+      .map(c => ({ ...c, label: c.label.slice(prefix.length + 1) }));
+
+    const methodOptions = jsMethodCompletions.filter(c =>
+      c.label.startsWith(partial)
+    );
+
+    const allOptions = [...dotCompletions, ...methodOptions];
+    if (allOptions.length === 0) return null;
+
+    return {
+      from: before.from + prefix.length + 1,
+      options: allOptions,
+      validFor: /^[\w]*$/,
+    };
+  }
+
+  return {
+    from: before.from,
+    options: jsGlobals,
+    validFor: /^[\w]*$/,
+  };
+}
+
+function tsAutocomplete(context: CompletionContext) {
+  const jsResult = jsAutocomplete(context);
+  const before = context.matchBefore(/[\w.]+/);
+  if (!before) return jsResult;
+  if (before.from === before.to && !context.explicit) return jsResult;
+
+  if (!before.text.includes(".")) {
+    return {
+      from: before.from,
+      options: [...jsGlobals, ...tsKeywords],
+      validFor: /^[\w]*$/,
+    };
+  }
+
+  return jsResult;
+}
+
+function pythonAutocomplete(context: CompletionContext) {
+  const importMatch = context.matchBefore(/import\s+[\w.]*/);
+  if (importMatch) {
+    const modPart = importMatch.text.replace(/^import\s+/, "");
+    return {
+      from: importMatch.from + importMatch.text.indexOf(modPart),
+      options: pythonModules,
+      validFor: /^[\w.]*$/,
+    };
+  }
+
+  const fromMatch = context.matchBefore(/from\s+[\w.]*/);
+  if (fromMatch) {
+    const modPart = fromMatch.text.replace(/^from\s+/, "");
+    return {
+      from: fromMatch.from + fromMatch.text.indexOf(modPart),
+      options: pythonModules,
+      validFor: /^[\w.]*$/,
+    };
+  }
+
+  const before = context.matchBefore(/[\w.]+/);
+  if (!before) return null;
+  if (before.from === before.to && !context.explicit) return null;
+
+  return {
+    from: before.from,
+    options: pythonBuiltins,
+    validFor: /^[\w]*$/,
+  };
+}
+
+function createJsLinter(isTypescript: boolean) {
+  return linter((view) => {
+    const diagnostics: Diagnostic[] = [];
+    const doc = view.state.doc;
+    const text = doc.toString();
+
+    const unclosedBrackets: { char: string; pos: number }[] = [];
+    const bracketPairs: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
+    const closingBrackets: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+    let inString = false;
+    let stringChar = "";
+    let inLineComment = false;
+    let inBlockComment = false;
+    let inTemplate = false;
+    let templateDepth = 0;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const next = text[i + 1];
+
+      if (inLineComment) {
+        if (ch === "\n") inLineComment = false;
+        continue;
+      }
+      if (inBlockComment) {
+        if (ch === "*" && next === "/") { inBlockComment = false; i++; }
+        continue;
+      }
+      if (inString) {
+        if (ch === "\\" ) { i++; continue; }
+        if (ch === stringChar) inString = false;
+        continue;
+      }
+      if (inTemplate) {
+        if (ch === "\\") { i++; continue; }
+        if (ch === "`") { inTemplate = false; continue; }
+        if (ch === "$" && next === "{") { templateDepth++; i++; continue; }
+        continue;
+      }
+
+      if (ch === "/" && next === "/") { inLineComment = true; i++; continue; }
+      if (ch === "/" && next === "*") { inBlockComment = true; i++; continue; }
+      if (ch === '"' || ch === "'") { inString = true; stringChar = ch; continue; }
+      if (ch === "`") { inTemplate = true; continue; }
+
+      if (bracketPairs[ch]) {
+        unclosedBrackets.push({ char: ch, pos: i });
+      } else if (closingBrackets[ch]) {
+        const last = unclosedBrackets[unclosedBrackets.length - 1];
+        if (last && last.char === closingBrackets[ch]) {
+          unclosedBrackets.pop();
+        } else if (last && last.char !== closingBrackets[ch]) {
+          diagnostics.push({
+            from: i,
+            to: i + 1,
+            severity: "error",
+            message: `Mismatched bracket: expected '${bracketPairs[last.char]}' but found '${ch}'`,
+          });
+        } else {
+          diagnostics.push({
+            from: i,
+            to: i + 1,
+            severity: "error",
+            message: `Unexpected closing bracket '${ch}'`,
+          });
+        }
+      }
+    }
+
+    for (const bracket of unclosedBrackets) {
+      diagnostics.push({
+        from: bracket.pos,
+        to: bracket.pos + 1,
+        severity: "error",
+        message: `Unclosed bracket '${bracket.char}'`,
+      });
+    }
+
+    if (inBlockComment) {
+      diagnostics.push({
+        from: text.length - 1,
+        to: text.length,
+        severity: "error",
+        message: "Unterminated block comment",
+      });
+    }
+
+    return diagnostics;
+  });
+}
+
+function createPythonLinter() {
+  return linter((view) => {
+    const diagnostics: Diagnostic[] = [];
+    const doc = view.state.doc;
+
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      const lineText = line.text;
+      const trimmed = lineText.trimStart();
+
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      if (/\t/.test(lineText) && / /.test(lineText.substring(0, lineText.length - trimmed.length))) {
+        diagnostics.push({
+          from: line.from,
+          to: line.from + (lineText.length - trimmed.length),
+          severity: "warning",
+          message: "Mixed tabs and spaces in indentation",
+        });
+      }
+
+      const colonKeywords = ["def", "class", "if", "elif", "else", "for", "while", "try", "except", "finally", "with"];
+      for (const kw of colonKeywords) {
+        const pattern = new RegExp(`^${kw}\\b`);
+        if (pattern.test(trimmed) && !trimmed.endsWith(":") && !trimmed.endsWith(":\\") && !trimmed.includes("#")) {
+          if (!trimmed.endsWith("\\")) {
+            diagnostics.push({
+              from: line.from,
+              to: line.to,
+              severity: "error",
+              message: `'${kw}' statement should end with ':'`,
+            });
+          }
+        }
+      }
+    }
+
+    return diagnostics;
+  });
+}
+
+function getAutocompleteExtension(lang: string) {
+  switch (lang) {
+    case "javascript":
+      return [
+        autocompletion({ override: [jsAutocomplete] }),
+        createJsLinter(false),
+      ];
+    case "typescript":
+      return [
+        autocompletion({ override: [tsAutocomplete] }),
+        createJsLinter(true),
+      ];
+    case "python":
+      return [
+        autocompletion({ override: [pythonAutocomplete] }),
+        createPythonLinter(),
+      ];
+    default:
+      return [];
+  }
+}
+
 function getLanguageExtension(lang: string) {
   switch (lang) {
     case "javascript":
@@ -361,6 +879,7 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
   const extensions = useMemo(() => {
     const ext = [
       getLanguageExtension(language),
+      ...getAutocompleteExtension(language),
       replitTheme,
       syntaxHighlighting(replitHighlight),
       indentUnit.of(" ".repeat(tabSize)),
@@ -390,7 +909,10 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       basicSetup={{
         lineNumbers: true,
         bracketMatching: true,
+        closeBrackets: true,
+        autocompletion: false,
         highlightActiveLine: true,
+        indentOnInput: true,
         searchKeymap: true,
         foldGutter: true,
         tabSize,

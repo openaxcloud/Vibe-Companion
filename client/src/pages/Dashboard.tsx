@@ -25,6 +25,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project } from "@shared/schema";
 
+interface UsageData {
+  plan: string;
+  daily: { executions: { used: number; limit: number }; aiCalls: { used: number; limit: number } };
+  storage: { usedMb: number; limitMb: number };
+  projects: { count: number; limit: number };
+  totals: { executions: number; aiCalls: number };
+  resetsAt: string;
+}
+
 const LANG_ICONS: Record<string, { color: string; bg: string; label: string; borderAccent: string }> = {
   javascript: { color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "JS", borderAccent: "border-l-yellow-400" },
   typescript: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", label: "TS", borderAccent: "border-l-blue-400" },
@@ -63,6 +72,7 @@ export default function Dashboard() {
   const templatesRef = useRef<HTMLDivElement>(null);
 
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
+  const usageQuery = useQuery<UsageData>({ queryKey: ["/api/user/usage"], staleTime: 60000 });
 
   const createProject = useMutation({
     mutationFn: async (data: { name: string; language: string }) => {
@@ -363,17 +373,46 @@ export default function Dashboard() {
           </nav>
 
           <div className="p-3 border-t border-[#2B3245]/40 space-y-3">
-            <div className="px-2">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
-                  <HardDrive className="w-3 h-3" /> Storage
-                </span>
-                <span className="text-[10px] text-[#676D7E]">0.1 / 10 GB</span>
+            {usageQuery.data && (
+              <div className="px-2 space-y-2.5" data-testid="sidebar-usage">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
+                    <span className="text-[10px] text-[#676D7E]" data-testid="text-runs-usage">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
+                  </div>
+                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                    <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.executions.used / usageQuery.data.daily.executions.limit) * 100)}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
+                    <span className="text-[10px] text-[#676D7E]" data-testid="text-ai-usage">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
+                  </div>
+                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                    <div className="h-full rounded-full bg-[#7C65CB] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.aiCalls.used / usageQuery.data.daily.aiCalls.limit) * 100)}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
+                    <span className="text-[10px] text-[#676D7E]" data-testid="text-storage-usage">{usageQuery.data.storage.usedMb} / {usageQuery.data.storage.limitMb} MB</span>
+                  </div>
+                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                    <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.storage.usedMb / usageQuery.data.storage.limitMb) * 100)}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><Folder className="w-3 h-3" /> Projects</span>
+                    <span className="text-[10px] text-[#676D7E]" data-testid="text-projects-usage">{usageQuery.data.projects.count}/{usageQuery.data.projects.limit}</span>
+                  </div>
+                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                    <div className="h-full rounded-full bg-[#F26522] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.projects.count / usageQuery.data.projects.limit) * 100)}%` }} />
+                  </div>
+                </div>
               </div>
-              <div className="w-full h-1.5 rounded-full bg-[#2B3245]/50 overflow-hidden">
-                <div className="h-full rounded-full bg-[#0079F2]" style={{ width: "1%" }} />
-              </div>
-            </div>
+            )}
             <div className="flex items-center gap-2.5 px-2 py-1.5">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center shrink-0">
                 <span className="text-[9px] font-bold text-white">{initials}</span>

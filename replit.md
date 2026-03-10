@@ -7,11 +7,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
-- **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, `--disallow-code-generation-from-strings`, minimal env vars, 10s timeout, 64MB memory limit
+- **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, OS-level isolation (ulimit, nice, unshare --net), `--disallow-code-generation-from-strings`, `--no-addons`, minimal env vars, 10s timeout, 64MB memory limit
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
-- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme (replitTheme + replitHighlight)
+- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme, language-aware autocomplete, and basic lint integration
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name
@@ -23,11 +23,13 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at
 - `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
 - `execution_logs`: id (uuid), user_id (indexed), project_id, language, exit_code, duration_ms, security_violation (indexed), code_hash, ip_address, created_at (indexed)
+- `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, last_reset_at, updated_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
 - Email/password authentication with persistent PostgreSQL-backed sessions
-- CRUD projects (create, list, duplicate, delete)
+- CRUD projects (create, list, duplicate, delete) with project limit enforcement
+- **Usage quotas**: Per-user daily limits (50 executions, 20 AI calls on free plan), project limits (5 on free), storage limits, with live usage display in dashboard sidebar
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
 - **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
 - **Smooth panel transitions**: Sidebar, terminal, and preview panels animate open/close with CSS transitions
@@ -39,6 +41,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Breadcrumbs**: Path segments above editor (src > components > App.tsx) with clickable segments
 - **Command Palette** (Cmd+K): Searchable command overlay with file switching and action shortcuts
 - CodeMirror 6 editor with Replit-accurate syntax theme (red keywords, green strings, teal functions, orange numbers)
+- **Code Intelligence**: Language-aware autocomplete (JS/TS globals, DOM APIs, Python builtins/stdlib), bracket auto-close, auto-indent, syntax error highlighting (linter)
 - **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
 - **Model selection**: Choose between Claude Sonnet (Anthropic), GPT-4o (OpenAI, default), and Gemini Flash (Google) — all three work in chat, agent, AND project generation modes
@@ -71,10 +74,12 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Run UX**: Run button auto-opens terminal, shows run separator with timestamp, displays exit code on completion
 - **File creation flow**: New files from AI agent or manual creation auto-open in tab, expand parent folders, and show file explorer
 - **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Repl" card, improved empty states with CTAs
-- **Security**: Multi-layered sandbox (AST analysis + runtime wrappers + process isolation + resource limits + FS isolation), CSRF protection with token validation, Helmet.js security headers (CSP, HSTS, X-Frame-Options), path traversal prevention, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
-- **Rate Limiting**: Per-user + per-IP execution rate limiting (10 runs/min), concurrent execution queue (3 max), AI rate limiting (20 req/min chat, 5 req/min generate), express-rate-limit on all API endpoints
+- **Error boundary**: React error boundary with reload button and styled error display
+- **Security**: Multi-layered sandbox (AST analysis + runtime wrappers + OS-level isolation via ulimit/nice/unshare + process isolation + resource limits + FS isolation), CSRF protection with token validation, Helmet.js security headers (CSP, HSTS, X-Frame-Options), path traversal prevention, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
+- **Rate Limiting**: Per-user + per-IP execution rate limiting (10 runs/min), global execution pool (5 max concurrent, 20 max queue with priority), concurrent execution queue (3 max per user), AI rate limiting (20 req/min chat, 5 req/min generate), express-rate-limit on all API endpoints
 - **Audit Logging**: All code executions logged to `execution_logs` table with userId, language, exitCode, durationMs, securityViolation, codeHash, ipAddress
-- **WebSocket heartbeat**: Server-side ping/pong every 30s, client-side auto-reconnect with exponential backoff
+- **Monitoring**: `/api/health` (DB status, memory, uptime, execution stats), `/api/metrics` (system metrics, error buffer), error tracking middleware
+- **WebSocket**: Heartbeat ping/pong (30s), per-IP connection limits (max 5), message rate limiting (30/10s), polling fallback after 3 failures, connection quality indicator in status bar
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
 - **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
 
@@ -99,8 +104,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/auth/login` - Login
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/me` - Current user
+- `GET /api/health` - Health check (DB, memory, uptime, execution pool status)
+- `GET /api/metrics` - System metrics + error buffer (auth-gated details)
+- `GET /api/user/usage` - User quota/usage stats (daily runs, AI calls, storage, projects)
 - `GET /api/projects` - List user projects
-- `POST /api/projects` - Create project
+- `POST /api/projects` - Create project (enforces project limit quota)
 - `POST /api/projects/generate` - AI-generate project from prompt (Claude)
 - `GET /api/projects/:id` - Get project
 - `PATCH /api/projects/:id` - Update project (name, language)
@@ -110,7 +118,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/projects/:projectId/files` - Create file
 - `PATCH /api/files/:id` - Update file content or rename
 - `DELETE /api/files/:id` - Delete file
-- `POST /api/projects/:projectId/run` - Execute code
+- `POST /api/projects/:projectId/run` - Execute code (quota + rate limit enforced)
+- `GET /api/projects/:projectId/poll` - Polling fallback for WS (auth + access control)
 - `POST /api/projects/:id/publish` - Toggle publish status
 - `GET /api/projects/:projectId/git/commits` - List commits (query: branch)
 - `GET /api/projects/:projectId/git/commits/:commitId` - Get commit with snapshot
@@ -124,8 +133,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `GET /api/shared/:id` - Get published project (public, no auth)
 - `GET /api/demo/project` - Get demo project
 - `POST /api/demo/run` - Execute demo code
-- `POST /api/ai/chat` - AI chat (Claude or GPT, streaming SSE, model selection)
-- `POST /api/ai/agent` - AI agent with tool use (creates/edits files, Claude only)
+- `POST /api/ai/chat` - AI chat (streaming SSE, quota enforced)
+- `POST /api/ai/agent` - AI agent with tool use (quota enforced)
 - `GET /api/runner/status` - Check runner VPS health
 - `POST /api/workspaces/:projectId` - Init/provision workspace
 - `POST /api/workspaces/:projectId/start` - Start workspace
@@ -143,39 +152,42 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 ## WebSocket
 - Path: `/ws?projectId=<id>` (noServer mode with manual upgrade handling to avoid conflicts with Vite HMR at `/vite-hmr`)
 - Messages: `run_log` (real-time output), `run_status` (started/completed/failed)
+- Per-IP connection limit (5), message rate limiting (30/10s), heartbeat (30s), polling fallback
 
 ## Important Files
-- `shared/schema.ts` - Drizzle schema + Zod insert schemas (indexed columns)
-- `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo)
+- `shared/schema.ts` - Drizzle schema + Zod insert schemas (indexed columns), PLAN_LIMITS config
+- `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo, health, metrics, usage)
 - `server/runnerClient.ts` - Runner VPS HTTP client
-- `server/storage.ts` - IStorage interface + DatabaseStorage implementation
-- `server/executor.ts` - Multi-layered sandboxed code execution (AST analysis, runtime wrappers, process isolation)
-- `server/rateLimiter.ts` - Per-user/IP rate limiting, execution queue, metrics tracking
+- `server/storage.ts` - IStorage interface + DatabaseStorage implementation (includes quota methods)
+- `server/executor.ts` - Multi-layered sandboxed code execution (AST analysis, runtime wrappers, OS-level ulimit/nice/unshare isolation)
+- `server/rateLimiter.ts` - Per-user/IP rate limiting, global execution pool (5 concurrent), execution queue with priority, metrics tracking
 - `server/index.ts` - Express setup with Helmet.js security headers
-- `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel)
-- `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation, skeleton loading
+- `client/src/App.tsx` - Root app with ErrorBoundary, routing, providers
+- `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel, connection quality indicator)
+- `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation, live usage quotas display
 - `client/src/pages/Auth.tsx` - Login/register page
 - `client/src/pages/Settings.tsx` - Account settings (profile, password, danger zone)
 - `client/src/pages/SharedProject.tsx` - Public shared project view
-- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with Replit syntax theme + cursor tracking
+- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with Replit syntax theme, autocomplete, lint, cursor tracking
 - `client/src/components/AIPanel.tsx` - AI agent panel with markdown rendering, model selection, chat/agent modes
 - `client/src/components/CommandPalette.tsx` - Cmd+K command palette with file switching and actions
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
+- `client/src/hooks/use-websocket.ts` - WebSocket hook with polling fallback, reconnection, connection quality tracking
 
-## IDE Layout (Desktop — Replit Clone)
-- **Activity Bar** (48px, far left): Explorer, Search, AI Agent, Git (with dirty badge), Deployments, Preview, Settings — active icon has left-2 border indicator (blue #0079F2, purple for AI)
+## IDE Layout (Desktop -- Replit Clone)
+- **Activity Bar** (48px, far left): Explorer, Search, AI Agent, Git (with dirty badge), Deployments, Preview, Settings -- active icon has left-2 border indicator (blue #0079F2, purple for AI)
 - **AI Agent Panel** (45% width, toggleable): Chat/agent mode toggle, model selection (Claude/GPT), rich markdown rendering, file operation indicators, apply-to-file code blocks
 - **File Explorer** (240px, toggleable): Nested folder tree with expand/collapse, colored file type icons, create/rename/delete
-- **Header Bar** (h-11/44px): Left (Replit orange logo → chevron → project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
+- **Header Bar** (h-11/44px): Left (Replit orange logo > chevron > project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
 - **Breadcrumbs**: Path segments between tab bar and editor (src > components > App.tsx)
 - **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files
-- **Editor** (center): CodeMirror 6 with tabs + Replit syntax theme + cursor position tracking
+- **Editor** (center): CodeMirror 6 with tabs + Replit syntax theme + autocomplete + lint + cursor position tracking
 - **Deployments Panel**: Publish status, URL, history, custom domain placeholder
 - **Settings Panel**: Theme toggle, editor font size/tab size/word wrap controls, about section
 - **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab
 - **Bottom Panel** (resizable): Console + Shell tabs with xterm.js terminal
-- **Status Bar** (h-6, bottom): git branch "main", workspace status, WS indicator, problems count, language picker, cursor Ln/Col, tab size, encoding, Prettier, Replit logo
-- **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) — single-pane navigation
+- **Status Bar** (h-6, bottom): git branch "main", workspace status, WS connection quality indicator, problems count, language picker, cursor Ln/Col, tab size, encoding, Prettier, Replit logo
+- **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) -- single-pane navigation
 
 ## Tech Stack
 - React 19, Wouter, TanStack Query
@@ -184,4 +196,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Anthropic SDK + OpenAI SDK + Google GenAI SDK (via Replit AI Integrations)
 - CodeMirror 6 (@uiw/react-codemirror + language packages + custom Replit theme)
 - WebSocket (ws library)
+- Helmet.js (security headers)
+- Acorn + Acorn-Walk (JS AST analysis)
+- esbuild (TypeScript transpilation)
 - IBM Plex Sans / IBM Plex Mono / JetBrains Mono fonts
