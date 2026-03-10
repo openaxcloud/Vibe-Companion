@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { useLocation, useRoute, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -70,7 +70,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+function ProtectedPage({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) {
     return (
@@ -80,7 +80,60 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     );
   }
   if (!isAuthenticated) return <Redirect to="/" />;
-  return <Component key={Component.displayName || Component.name} />;
+  return <>{children}</>;
+}
+
+function ProtectedDashboard() {
+  return <ProtectedPage><Dashboard /></ProtectedPage>;
+}
+
+function ProtectedProject() {
+  return <ProtectedPage><Project /></ProtectedPage>;
+}
+
+function ProtectedSettings() {
+  return <ProtectedPage><Settings /></ProtectedPage>;
+}
+
+function ProtectedTeams() {
+  return <ProtectedPage><Teams /></ProtectedPage>;
+}
+
+function ProtectedAdmin() {
+  return <ProtectedPage><Admin /></ProtectedPage>;
+}
+
+function AppRoutes() {
+  const [location] = useLocation();
+
+  const [isHome] = useRoute("/");
+  const [isDashboard] = useRoute("/dashboard");
+  const [isProject, projectParams] = useRoute("/project/:id");
+  const [isSettings] = useRoute("/settings");
+  const [isTeams] = useRoute("/teams");
+  const [isAdmin] = useRoute("/admin");
+  const [isPricing] = useRoute("/pricing");
+  const [isDemo] = useRoute("/demo");
+  const [isShared] = useRoute("/shared/:id");
+  const [isForgot] = useRoute("/forgot-password");
+  const [isReset] = useRoute("/reset-password");
+  const [isTerms] = useRoute("/terms");
+  const [isPrivacy] = useRoute("/privacy");
+
+  if (isHome) return <Auth />;
+  if (isDashboard) return <ProtectedDashboard key="dashboard" />;
+  if (isProject) return <ProtectedProject key={`project-${projectParams?.id}`} />;
+  if (isSettings) return <ProtectedSettings key="settings" />;
+  if (isTeams) return <ProtectedTeams key="teams" />;
+  if (isAdmin) return <ProtectedAdmin key="admin" />;
+  if (isPricing) return <Pricing />;
+  if (isDemo) return <DemoProject />;
+  if (isShared) return <SharedProject />;
+  if (isForgot) return <ForgotPassword />;
+  if (isReset) return <ResetPassword />;
+  if (isTerms) return <Terms />;
+  if (isPrivacy) return <Privacy />;
+  return <NotFound />;
 }
 
 function App() {
@@ -89,22 +142,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
-            <Switch>
-              <Route key="auth" path="/" component={Auth} />
-              <Route key="dashboard" path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
-              <Route key="project" path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
-              <Route key="settings" path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
-              <Route key="teams" path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
-              <Route key="admin" path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
-              <Route key="pricing" path="/pricing" component={Pricing} />
-              <Route key="demo" path="/demo" component={DemoProject} />
-              <Route key="shared" path="/shared/:id" component={SharedProject} />
-              <Route key="forgot" path="/forgot-password" component={ForgotPassword} />
-              <Route key="reset" path="/reset-password" component={ResetPassword} />
-              <Route key="terms" path="/terms" component={Terms} />
-              <Route key="privacy" path="/privacy" component={Privacy} />
-              <Route key="404" component={NotFound} />
-            </Switch>
+            <AppRoutes />
           </div>
           <Toaster />
         </TooltipProvider>
