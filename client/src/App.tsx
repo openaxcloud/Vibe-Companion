@@ -80,7 +80,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     );
   }
   if (!isAuthenticated) return <Redirect to="/" />;
-  return <Component />;
+  return <Component key={Component.displayName || Component.name} />;
 }
 
 function App() {

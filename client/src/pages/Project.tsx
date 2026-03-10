@@ -1,4 +1,3 @@
-/* @refresh reset */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -3879,3 +3878,4 @@ export default function Project() {
     </div>
   );
 }
+
