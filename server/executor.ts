@@ -435,72 +435,50 @@ function generateJSWrapper(userCode: string, sandboxDir: string): string {
 
 function generatePythonWrapper(userCode: string, sandboxDir: string): string {
   return `
-import sys as _sys
-
-_BLOCKED_MODULES = {
-    'os', 'sys', 'subprocess', 'shutil', 'socket', 'http', 'urllib',
-    'requests', 'ctypes', 'signal', 'resource', 'multiprocessing',
-    'threading', 'asyncio', 'pathlib', 'tempfile', 'glob', 'fnmatch',
-    'pickle', 'shelve', 'marshal', 'importlib', 'runpy', 'code',
-    'codeop', 'compile', 'compileall', 'py_compile', 'pty', 'fcntl',
-    'termios', 'tty', 'pipes', 'posixpath', 'posix', 'pwd', 'grp',
-    'select', 'selectors', 'mmap', 'sysconfig', 'platform',
-    'webbrowser', 'antigravity', 'turtle', 'tkinter',
-}
-
-_SAFE_BUILTINS = {
-    'abs', 'all', 'any', 'ascii', 'bin', 'bool', 'bytearray', 'bytes',
-    'callable', 'chr', 'complex', 'dict', 'divmod', 'enumerate',
-    'filter', 'float', 'format', 'frozenset', 'hash', 'hex', 'id',
-    'input', 'int', 'isinstance', 'issubclass', 'iter', 'len', 'list',
-    'map', 'max', 'min', 'next', 'object', 'oct', 'ord', 'pow',
-    'print', 'property', 'range', 'repr', 'reversed', 'round', 'set',
-    'slice', 'sorted', 'staticmethod', 'classmethod', 'str', 'sum',
-    'super', 'tuple', 'type', 'zip', 'True', 'False', 'None',
-    'NotImplemented', 'Ellipsis', '__name__', '__doc__',
-    'Exception', 'BaseException', 'ValueError', 'TypeError',
-    'KeyError', 'IndexError', 'AttributeError', 'RuntimeError',
-    'StopIteration', 'GeneratorExit', 'ArithmeticError',
-    'ZeroDivisionError', 'OverflowError', 'FloatingPointError',
-    'LookupError', 'NameError', 'SyntaxError', 'IndentationError',
-    'TabError', 'SystemExit', 'UnicodeError', 'UnicodeDecodeError',
-    'UnicodeEncodeError', 'UnicodeTranslateError', 'OSError',
-    'IOError', 'FileNotFoundError', 'PermissionError',
-    'FileExistsError', 'NotADirectoryError', 'IsADirectoryError',
-    'ConnectionError', 'TimeoutError', 'EOFError',
-    'RecursionError', 'MemoryError', 'BufferError',
-    'ImportError', 'ModuleNotFoundError', 'NotImplementedError',
-    'AssertionError', 'Warning', 'UserWarning',
-    'DeprecationWarning', 'PendingDeprecationWarning',
-    'FutureWarning', 'SyntaxWarning', 'RuntimeWarning',
-    'ResourceWarning', 'UnicodeWarning', 'BytesWarning',
-}
-
 import builtins as _builtins
+import traceback as _tb
+
+_USER_BLOCKED = frozenset({
+    'subprocess', 'shutil', 'ctypes', 'multiprocessing',
+    'pickle', 'shelve', 'marshal',
+    'pty', 'fcntl', 'termios', 'tty', 'pipes',
+    'webbrowser', 'antigravity', 'turtle', 'tkinter',
+    'runpy', 'compileall', 'py_compile', 'codeop',
+})
 
 _orig_import = _builtins.__import__
+_sandbox_setup_done = False
 
-def _safe_import(name, *args, **kwargs):
-    base_name = name.split('.')[0]
-    if base_name in _BLOCKED_MODULES:
-        raise ImportError(f"Sandbox: module '{name}' is blocked for security. Only math, json, re, datetime, collections, itertools, functools, operator, string, textwrap, unicodedata, decimal, fractions, statistics, random, copy, pprint, and typing are allowed.")
-    return _orig_import(name, *args, **kwargs)
+def _make_safe_import(_blocked, _orig, _traceback):
+    def _safe_import(name, *args, **kwargs):
+        global _sandbox_setup_done
+        if _sandbox_setup_done:
+            base_name = name.split('.')[0]
+            if base_name in _blocked:
+                raise ImportError(f"Sandbox: module '{name}' is blocked for security.")
+        return _orig(name, *args, **kwargs)
+    return _safe_import
 
-_builtins.__import__ = _safe_import
+_builtins.__import__ = _make_safe_import(_USER_BLOCKED, _orig_import, _tb)
 
-_blocked_builtins = ['exec', 'eval', 'compile', 'open', '__import__',
-                     'globals', 'locals', 'vars', 'dir', 'getattr',
-                     'setattr', 'delattr', 'breakpoint']
+_orig_open = _builtins.open
+def _blocked_open(*a, **kw):
+    raise RuntimeError("Sandbox: open() is blocked for security — file access is not allowed")
+_builtins.open = _blocked_open
 
-for _b in _blocked_builtins:
-    if hasattr(_builtins, _b) and _b != '__import__':
-        def _make_blocked(name):
-            def _blocked(*a, **kw):
-                raise RuntimeError(f"Sandbox: {name}() is blocked for security")
-            return _blocked
-        setattr(_builtins, _b, _make_blocked(_b))
+_orig_breakpoint = getattr(_builtins, 'breakpoint', None)
+if _orig_breakpoint:
+    def _blocked_breakpoint(*a, **kw):
+        raise RuntimeError("Sandbox: breakpoint() is blocked for security")
+    _builtins.breakpoint = _blocked_breakpoint
 
-del _sys, _builtins, _orig_import, _blocked_builtins, _b, _make_blocked, _BLOCKED_MODULES, _SAFE_BUILTINS
+del _USER_BLOCKED, _orig_import, _make_safe_import, _orig_open, _blocked_open, _orig_breakpoint
+try:
+    del _blocked_breakpoint
+except NameError:
+    pass
+del _builtins, _tb
+_sandbox_setup_done = True
 
 # === User code begins ===
 ${userCode}

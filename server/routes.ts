@@ -172,7 +172,8 @@ function csrfProtection(req: Request, res: Response, next: NextFunction) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return next();
   }
-  if (CSRF_EXEMPT_PATHS.some(p => req.path === p)) {
+  const fullPath = req.originalUrl?.split("?")[0] || req.path;
+  if (CSRF_EXEMPT_PATHS.some(p => fullPath === p || req.path === p)) {
     return next();
   }
   const token = req.headers["x-csrf-token"] as string;
