@@ -26,6 +26,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, last_reset_at, updated_at
 - `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
 - `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
+- `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value, created_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -73,7 +74,15 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Dark mode with Replit-accurate design tokens
 - Public demo project (read-only)
 - **Skeleton loading states**: Full IDE skeleton, file tree skeletons, dashboard card skeletons
-- **HTML Preview**: Local HTML preview via srcdoc iframe when runner is offline — auto-combines HTML + linked CSS/JS from project files, auto-refreshes on save
+- **HTML Preview**: Local HTML preview via srcdoc iframe when runner is offline — auto-combines HTML + linked CSS/JS from project files, auto-refreshes on save, live preview auto-refresh on file save
+- **Inline AI Completions**: Ghost text suggestions in the editor (Tab to accept, Escape to dismiss), debounced API calls with per-editor instance isolation, quota-tracked
+- **GitHub Integration**: Import repos from GitHub, export/push projects to GitHub, GitHub panel in Source Control sidebar with repo list, search filter, private/public toggle
+- **Per-Project Environment Variables**: CRUD env vars panel in IDE sidebar, env vars injected into code execution
+- **Project Templates**: Template picker on Dashboard (React, Express, Python Flask, Node CLI, HTML/CSS/JS)
+- **File Upload**: Upload files/assets into projects via file explorer (max 5 files, 2MB each)
+- **Extended Language Support**: Go, Ruby, C/C++, Java, Bash execution and CodeMirror language modes
+- **Pricing Page**: Free/Pro/Team tiers with feature comparison, Stripe billing stub routes
+- **Real Terminal**: node-pty PTY management with WebSocket terminal connections
 - **Run UX**: Run button auto-opens terminal, shows run separator with timestamp, displays exit code on completion
 - **File creation flow**: New files from AI agent or manual creation auto-open in tab, expand parent folders, and show file explorer
 - **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Repl" card, improved empty states with CTAs
@@ -137,7 +146,21 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `GET /api/demo/project` - Get demo project
 - `POST /api/demo/run` - Execute demo code
 - `POST /api/ai/chat` - AI chat (streaming SSE, quota enforced)
+- `POST /api/ai/complete` - Inline AI code completion (quota enforced)
 - `POST /api/ai/agent` - AI agent with tool use (quota enforced)
+- `GET /api/github/user` - Get authenticated GitHub user
+- `GET /api/github/repos` - List user's GitHub repos
+- `POST /api/github/import` - Import GitHub repo as new project
+- `POST /api/github/export` - Export project to new GitHub repo
+- `GET /api/projects/:projectId/env-vars` - List project env vars
+- `POST /api/projects/:projectId/env-vars` - Create env var
+- `PATCH /api/projects/:projectId/env-vars/:id` - Update env var
+- `DELETE /api/projects/:projectId/env-vars/:id` - Delete env var
+- `POST /api/projects/:projectId/upload` - Upload files to project
+- `GET /api/templates` - List project templates
+- `POST /api/billing/checkout` - Create billing checkout
+- `POST /api/billing/portal` - Open billing portal
+- `GET /api/billing/status` - Get billing status
 - `GET /api/runner/status` - Check runner VPS health
 - `POST /api/workspaces/:projectId` - Init/provision workspace
 - `POST /api/workspaces/:projectId/start` - Start workspace
@@ -175,6 +198,13 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/components/AIPanel.tsx` - AI agent panel with markdown rendering, model selection, chat/agent modes
 - `client/src/components/CommandPalette.tsx` - Cmd+K command palette with file switching and actions
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
+- `client/src/components/GitHubPanel.tsx` - GitHub import/export panel in Source Control sidebar
+- `client/src/components/EnvVarsPanel.tsx` - Per-project environment variables panel
+- `client/src/components/AICompletions.ts` - Inline AI ghost text completion extension for CodeMirror
+- `server/terminal.ts` - node-pty PTY session management with WebSocket relay
+- `server/github.ts` - GitHub API proxy via Replit connectors SDK
+- `server/templates.ts` - Project template definitions
+- `client/src/pages/Pricing.tsx` - Pricing page with tier comparison
 - `client/src/hooks/use-websocket.ts` - WebSocket hook with polling fallback, reconnection, connection quality tracking
 
 ## IDE Layout (Desktop -- Replit Clone)

@@ -9,7 +9,7 @@ import {
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
-  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal
+  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,8 @@ import AIPanel from "@/components/AIPanel";
 import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
 import WorkspaceTerminal from "@/components/WorkspaceTerminal";
 import CommandPalette from "@/components/CommandPalette";
+import EnvVarsPanel from "@/components/EnvVarsPanel";
+import GitHubPanel from "@/components/GitHubPanel";
 import type { Project as ProjectType, File } from "@shared/schema";
 
 function FileTypeIcon({ filename, className = "" }: { filename: string; className?: string }) {
@@ -51,6 +53,18 @@ function FileTypeIcon({ filename, className = "" }: { filename: string; classNam
     html: { bg: "bg-orange-500", text: "text-white", label: "HT" },
     json: { bg: "bg-amber-500", text: "text-black", label: "JS" },
     md: { bg: "bg-gray-500", text: "text-white", label: "MD" },
+    go: { bg: "bg-cyan-500", text: "text-white", label: "GO" },
+    rb: { bg: "bg-red-500", text: "text-white", label: "RB" },
+    c: { bg: "bg-indigo-500", text: "text-white", label: "C" },
+    h: { bg: "bg-indigo-400", text: "text-white", label: "H" },
+    cpp: { bg: "bg-indigo-600", text: "text-white", label: "C+" },
+    cc: { bg: "bg-indigo-600", text: "text-white", label: "C+" },
+    cxx: { bg: "bg-indigo-600", text: "text-white", label: "C+" },
+    hpp: { bg: "bg-indigo-400", text: "text-white", label: "H+" },
+    java: { bg: "bg-red-600", text: "text-white", label: "JV" },
+    rs: { bg: "bg-orange-700", text: "text-white", label: "RS" },
+    sh: { bg: "bg-slate-500", text: "text-white", label: "SH" },
+    bash: { bg: "bg-slate-500", text: "text-white", label: "SH" },
     svg: { bg: "bg-emerald-600", text: "text-white", label: "SV" },
     png: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
     jpg: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
@@ -151,6 +165,7 @@ export default function Project() {
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [newFileParentFolder, setNewFileParentFolder] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -212,6 +227,7 @@ export default function Project() {
   const [deploymentsPanelOpen, setDeploymentsPanelOpen] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  const [envVarsPanelOpen, setEnvVarsPanelOpen] = useState(false);
   const [blameEnabled, setBlameEnabled] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("main");
   const [commitMessage, setCommitMessage] = useState("");
@@ -393,6 +409,16 @@ export default function Project() {
     },
     onSuccess: (_, vars) => {
       setDirtyFiles((prev) => { const n = new Set(prev); n.delete(vars.fileId); return n; });
+      if (previewPanelOpen && previewHtml) {
+        const html = generateHtmlPreview();
+        if (html) setPreviewHtml(html);
+      }
+      if (previewPanelOpen && livePreviewUrl) {
+        setTimeout(() => {
+          const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement || document.getElementById("live-preview-iframe") as HTMLIFrameElement;
+          if (iframe) iframe.src = iframe.src;
+        }, 500);
+      }
     },
     onError: (err: any, vars) => {
       toast({ title: "Failed to save file", description: err.message || "Could not save changes. Please try again.", variant: "destructive" });
@@ -756,6 +782,31 @@ export default function Project() {
     },
   });
 
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0 || !projectId) return;
+    const formData = new FormData();
+    for (let i = 0; i < Math.min(fileList.length, 5); i++) {
+      formData.append("files", fileList[i]);
+    }
+    try {
+      const res = await fetch(`/api/projects/${projectId}/upload`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      if (data.files && data.files.length > 0) {
+        invalidateFs();
+        toast({ title: `Uploaded ${data.count} file(s)` });
+      }
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    }
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+  }, [projectId, invalidateFs, toast]);
+
   const createFolderMutation = useMutation({
     mutationFn: async (folderName: string) => {
       const basePath = newFileParentFolder || currentFsPath;
@@ -1088,7 +1139,7 @@ export default function Project() {
   }, []);
 
   useEffect(() => {
-    if (wsStatus === "running" && projectId) {
+    if (projectId) {
       fetch(`/api/workspaces/${projectId}/terminal-url`, { credentials: "include" })
         .then((r) => {
           if (!r.ok) throw new Error("Failed to get terminal URL");
@@ -1096,6 +1147,11 @@ export default function Project() {
         })
         .then((d) => setTerminalWsUrl(d.wsUrl))
         .catch(() => setTerminalWsUrl(null));
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (wsStatus === "running" && projectId) {
       fetch(`/api/workspaces/${projectId}/preview-url`, { credentials: "include" })
         .then((r) => {
           if (!r.ok) throw new Error("Failed to get preview URL");
@@ -1107,7 +1163,6 @@ export default function Project() {
         })
         .catch(() => setLivePreviewUrl(null));
     } else {
-      setTerminalWsUrl(null);
       setLivePreviewUrl(null);
     }
   }, [wsStatus, projectId]);
@@ -1421,6 +1476,10 @@ export default function Project() {
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
             <Plus className="w-3.5 h-3.5" />
           </Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => uploadInputRef.current?.click()} data-testid="button-upload-file" title="Upload File">
+            <Upload className="w-3.5 h-3.5" />
+          </Button>
+          <input ref={uploadInputRef} type="file" multiple className="hidden" onChange={handleFileUpload} accept="*/*" />
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => invalidateFs()} title="Refresh">
             <RefreshCw className="w-3 h-3" />
           </Button>
@@ -2088,7 +2147,7 @@ export default function Project() {
           {breadcrumbBar}
           {activeFileId ? (
             <div className="flex-1 overflow-hidden">
-              <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} />
+              <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={true} />
             </div>
           ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in overflow-y-auto">
@@ -3074,7 +3133,21 @@ export default function Project() {
                       ))}
                     </div>
                   )}
+
+                  <div className="border-t border-[#2B3245]">
+                    <div className="px-3 py-2">
+                      <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">GitHub</span>
+                    </div>
+                    <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={() => filesQuery.refetch()} />
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/* ENV VARS PANEL */}
+            {envVarsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="env-vars-sidebar">
+                <EnvVarsPanel projectId={projectId} onClose={() => setEnvVarsPanelOpen(false)} />
               </div>
             )}
 
@@ -3134,10 +3207,15 @@ export default function Project() {
                   </div>
                   <div className="px-3 py-3 border-b border-[#2B3245]">
                     <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Project</span>
-                    <div className="mt-2">
+                    <div className="mt-2 space-y-0.5">
                       <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[#2B3245] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setProjectSettingsOpen(true); }} data-testid="button-open-project-settings">
                         <Settings className="w-3.5 h-3.5 text-[#676D7E]" />
                         <span className="text-[11px] text-[#9DA2B0]">Project Settings</span>
+                        <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
+                      </button>
+                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[#2B3245] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setEnvVarsPanelOpen(true); }} data-testid="button-open-env-vars">
+                        <Key className="w-3.5 h-3.5 text-[#F5A623]" />
+                        <span className="text-[11px] text-[#9DA2B0]">Secrets</span>
                         <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
                       </button>
                     </div>
@@ -3172,7 +3250,7 @@ export default function Project() {
             )}
 
             {/* FILE EXPLORER SIDEBAR */}
-            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && !gitPanelOpen ? (isTablet ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
+            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && !gitPanelOpen && !envVarsPanelOpen ? (isTablet ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
               <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} h-full`}>
                 {sidebarContent}
               </div>

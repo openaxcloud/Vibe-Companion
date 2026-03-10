@@ -536,9 +536,10 @@ export async function executeCode(
   onLog?: (message: string, type: "info" | "error" | "success") => void,
   userId?: number,
   projectId?: number,
+  envVars?: Record<string, string>,
 ): Promise<ExecutionResult> {
   const startTime = Date.now();
-  const supported = ["javascript", "typescript", "python"];
+  const supported = ["javascript", "typescript", "python", "go", "ruby", "c", "cpp", "java", "bash"];
   if (!supported.includes(language)) {
     return { stdout: "", stderr: `Unsupported language: ${language}`, exitCode: 1 };
   }
@@ -555,7 +556,7 @@ export async function executeCode(
 
   if (language === "python") {
     violations = analyzePythonCode(code);
-  } else {
+  } else if (language === "javascript" || language === "typescript") {
     let codeToAnalyze = code;
     if (language === "typescript") {
       try {
@@ -612,6 +613,119 @@ export async function executeCode(
       command = "python3";
       wrappedCode = generatePythonWrapper(code, sandboxDir);
       args = ["-u", "-B", join(sandboxDir, filename)];
+    } else if (language === "go") {
+      filename = "main.go";
+      command = "go";
+      wrappedCode = code;
+      args = ["run", join(sandboxDir, filename)];
+    } else if (language === "ruby") {
+      filename = "main.rb";
+      command = "ruby";
+      wrappedCode = code;
+      args = [join(sandboxDir, filename)];
+    } else if (language === "c") {
+      filename = "main.c";
+      const outFile = join(sandboxDir, "a.out");
+      wrappedCode = code;
+      await writeFile(join(sandboxDir, filename), wrappedCode, "utf-8");
+      await chmod(join(sandboxDir, filename), 0o444);
+      onLog?.("Compiling C code...", "info");
+      const compileResult = await new Promise<ExecutionResult>((resolve) => {
+        const compProc = spawn("gcc", [join(sandboxDir, filename), "-o", outFile, "-lm"], {
+          cwd: sandboxDir,
+          timeout: MAX_EXECUTION_TIME_MS,
+          env: { PATH: process.env.PATH || "/usr/bin:/bin", HOME: sandboxDir, TMPDIR: sandboxDir },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let compStdout = "";
+        let compStderr = "";
+        compProc.stdout.on("data", (d: Buffer) => { compStdout += d.toString(); });
+        compProc.stderr.on("data", (d: Buffer) => { compStderr += d.toString(); });
+        compProc.on("close", (exitCode) => {
+          resolve({ stdout: compStdout, stderr: compStderr, exitCode: exitCode ?? 1 });
+        });
+        compProc.on("error", (err) => {
+          resolve({ stdout: "", stderr: `Compilation error: ${err.message}`, exitCode: 1 });
+        });
+      });
+      if (compileResult.exitCode !== 0) {
+        const msg = `Compilation failed:\n${compileResult.stderr}`;
+        onLog?.(msg, "error");
+        return { stdout: "", stderr: msg, exitCode: 1, durationMs: Date.now() - startTime };
+      }
+      command = outFile;
+      args = [];
+      filename = "";
+    } else if (language === "cpp") {
+      filename = "main.cpp";
+      const outFile = join(sandboxDir, "a.out");
+      wrappedCode = code;
+      await writeFile(join(sandboxDir, filename), wrappedCode, "utf-8");
+      await chmod(join(sandboxDir, filename), 0o444);
+      onLog?.("Compiling C++ code...", "info");
+      const compileResult = await new Promise<ExecutionResult>((resolve) => {
+        const compProc = spawn("g++", [join(sandboxDir, filename), "-o", outFile, "-lm"], {
+          cwd: sandboxDir,
+          timeout: MAX_EXECUTION_TIME_MS,
+          env: { PATH: process.env.PATH || "/usr/bin:/bin", HOME: sandboxDir, TMPDIR: sandboxDir },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let compStdout = "";
+        let compStderr = "";
+        compProc.stdout.on("data", (d: Buffer) => { compStdout += d.toString(); });
+        compProc.stderr.on("data", (d: Buffer) => { compStderr += d.toString(); });
+        compProc.on("close", (exitCode) => {
+          resolve({ stdout: compStdout, stderr: compStderr, exitCode: exitCode ?? 1 });
+        });
+        compProc.on("error", (err) => {
+          resolve({ stdout: "", stderr: `Compilation error: ${err.message}`, exitCode: 1 });
+        });
+      });
+      if (compileResult.exitCode !== 0) {
+        const msg = `Compilation failed:\n${compileResult.stderr}`;
+        onLog?.(msg, "error");
+        return { stdout: "", stderr: msg, exitCode: 1, durationMs: Date.now() - startTime };
+      }
+      command = outFile;
+      args = [];
+      filename = "";
+    } else if (language === "java") {
+      filename = "Main.java";
+      wrappedCode = code;
+      await writeFile(join(sandboxDir, filename), wrappedCode, "utf-8");
+      await chmod(join(sandboxDir, filename), 0o444);
+      onLog?.("Compiling Java code...", "info");
+      const compileResult = await new Promise<ExecutionResult>((resolve) => {
+        const compProc = spawn("javac", [join(sandboxDir, filename)], {
+          cwd: sandboxDir,
+          timeout: MAX_EXECUTION_TIME_MS,
+          env: { PATH: process.env.PATH || "/usr/bin:/bin", HOME: sandboxDir, TMPDIR: sandboxDir, JAVA_HOME: process.env.JAVA_HOME || "" },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let compStdout = "";
+        let compStderr = "";
+        compProc.stdout.on("data", (d: Buffer) => { compStdout += d.toString(); });
+        compProc.stderr.on("data", (d: Buffer) => { compStderr += d.toString(); });
+        compProc.on("close", (exitCode) => {
+          resolve({ stdout: compStdout, stderr: compStderr, exitCode: exitCode ?? 1 });
+        });
+        compProc.on("error", (err) => {
+          resolve({ stdout: "", stderr: `Compilation error: ${err.message}`, exitCode: 1 });
+        });
+      });
+      if (compileResult.exitCode !== 0) {
+        const msg = `Compilation failed:\n${compileResult.stderr}`;
+        onLog?.(msg, "error");
+        return { stdout: "", stderr: msg, exitCode: 1, durationMs: Date.now() - startTime };
+      }
+      command = "java";
+      args = ["-cp", sandboxDir, "Main"];
+      filename = "";
+    } else if (language === "bash") {
+      filename = "script.sh";
+      command = "bash";
+      wrappedCode = code;
+      args = [join(sandboxDir, filename)];
     } else {
       filename = "index.js";
       if (language === "typescript") {
@@ -633,8 +747,10 @@ export async function executeCode(
       ];
     }
 
-    await writeFile(join(sandboxDir, filename), wrappedCode, "utf-8");
-    await chmod(join(sandboxDir, filename), 0o444);
+    if (filename) {
+      await writeFile(join(sandboxDir, filename), wrappedCode!, "utf-8");
+      await chmod(join(sandboxDir, filename), 0o444);
+    }
 
     onLog?.(`Executing ${language} code in sandbox...`, "info");
 
@@ -649,17 +765,27 @@ export async function executeCode(
         LANG: "en_US.UTF-8",
       };
 
-      if (command === "python3" || command === "node") {
-        minimalEnv.PATH = process.env.PATH || "/usr/bin:/bin";
-      }
+      minimalEnv.PATH = process.env.PATH || "/usr/bin:/bin";
 
       if (language === "python") {
         minimalEnv.PYTHONDONTWRITEBYTECODE = "1";
         minimalEnv.PYTHONHASHSEED = "0";
-      } else {
+      } else if (language === "javascript" || language === "typescript") {
         minimalEnv.NODE_PATH = "";
         minimalEnv.NODE_OPTIONS = "";
         minimalEnv.NODE_EXTRA_CA_CERTS = "";
+      } else if (language === "go") {
+        if (process.env.GOROOT) minimalEnv.GOROOT = process.env.GOROOT;
+        if (process.env.GOPATH) minimalEnv.GOPATH = process.env.GOPATH;
+        minimalEnv.GOCACHE = join(sandboxDir, ".cache");
+      } else if (language === "java") {
+        if (process.env.JAVA_HOME) minimalEnv.JAVA_HOME = process.env.JAVA_HOME;
+      }
+
+      if (envVars) {
+        for (const [k, v] of Object.entries(envVars)) {
+          minimalEnv[k] = v;
+        }
       }
 
       const { shellCmd, shellArgs } = buildShellCommand(command, args);

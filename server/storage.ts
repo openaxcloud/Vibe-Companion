@@ -3,6 +3,7 @@ import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
   commits, branches, executionLogs, userQuotas,
+  projectEnvVars,
   aiConversations, aiMessages,
   type User, type InsertUser,
   type Project, type InsertProject,
@@ -14,6 +15,7 @@ import {
   type Branch, type InsertBranch,
   type ExecutionLog, type InsertExecutionLog,
   type UserQuota, type InsertUserQuota,
+  type ProjectEnvVar,
   type AiConversation, type InsertAiConversation,
   type AiMessage, type InsertAiMessage,
   PLAN_LIMITS,
@@ -29,6 +31,8 @@ export interface IStorage {
   createProject(userId: string, data: InsertProject): Promise<Project>;
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
+
+  createProjectFromTemplate(userId: string, data: { name: string; language: string; files: { filename: string; content: string }[] }): Promise<Project>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -77,6 +81,12 @@ export interface IStorage {
   incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
   checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
   updateStorageUsage(userId: string): Promise<number>;
+
+  getProjectEnvVars(projectId: string): Promise<ProjectEnvVar[]>;
+  getProjectEnvVar(id: string): Promise<ProjectEnvVar | undefined>;
+  createProjectEnvVar(projectId: string, key: string, encryptedValue: string): Promise<ProjectEnvVar>;
+  updateProjectEnvVar(id: string, encryptedValue: string): Promise<ProjectEnvVar | undefined>;
+  deleteProjectEnvVar(id: string): Promise<boolean>;
 
   getConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
   getConversationById(id: string): Promise<AiConversation | undefined>;
@@ -145,6 +155,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(workspaceSessions).where(eq(workspaceSessions.workspaceId, ws.id));
       await db.delete(workspaces).where(eq(workspaces.id, ws.id));
     }
+    await db.delete(projectEnvVars).where(eq(projectEnvVars.projectId, id));
     await db.delete(commits).where(eq(commits.projectId, id));
     await db.delete(branches).where(eq(branches.projectId, id));
     await db.delete(files).where(eq(files.projectId, id));
@@ -173,6 +184,26 @@ export class DatabaseStorage implements IStorage {
     }
 
     return newProject;
+  }
+
+  async createProjectFromTemplate(userId: string, data: { name: string; language: string; files: { filename: string; content: string }[] }): Promise<Project> {
+    const [project] = await db.insert(projects).values({
+      userId,
+      name: data.name,
+      language: data.language,
+    }).returning();
+
+    if (data.files.length > 0) {
+      await db.insert(files).values(
+        data.files.map(f => ({
+          projectId: project.id,
+          filename: f.filename,
+          content: f.content,
+        }))
+      );
+    }
+
+    return project;
   }
 
   async getFiles(projectId: string): Promise<File[]> {
@@ -503,6 +534,30 @@ export class DatabaseStorage implements IStorage {
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
     const userProjects = await db.select().from(projects).where(eq(projects.userId, userId));
     return { allowed: userProjects.length < limits.maxProjects, current: userProjects.length, limit: limits.maxProjects };
+  }
+
+  async getProjectEnvVars(projectId: string): Promise<ProjectEnvVar[]> {
+    return db.select().from(projectEnvVars).where(eq(projectEnvVars.projectId, projectId));
+  }
+
+  async getProjectEnvVar(id: string): Promise<ProjectEnvVar | undefined> {
+    const [envVar] = await db.select().from(projectEnvVars).where(eq(projectEnvVars.id, id)).limit(1);
+    return envVar;
+  }
+
+  async createProjectEnvVar(projectId: string, key: string, encryptedValue: string): Promise<ProjectEnvVar> {
+    const [envVar] = await db.insert(projectEnvVars).values({ projectId, key, encryptedValue }).returning();
+    return envVar;
+  }
+
+  async updateProjectEnvVar(id: string, encryptedValue: string): Promise<ProjectEnvVar | undefined> {
+    const [envVar] = await db.update(projectEnvVars).set({ encryptedValue }).where(eq(projectEnvVars.id, id)).returning();
+    return envVar;
+  }
+
+  async deleteProjectEnvVar(id: string): Promise<boolean> {
+    const result = await db.delete(projectEnvVars).where(eq(projectEnvVars.id, id)).returning();
+    return result.length > 0;
   }
 
   async getConversation(projectId: string, userId: string): Promise<AiConversation | undefined> {

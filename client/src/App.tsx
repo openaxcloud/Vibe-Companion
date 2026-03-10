@@ -10,6 +10,7 @@ import Project from "@/pages/Project";
 import Settings from "@/pages/Settings";
 import DemoProject from "@/pages/DemoProject";
 import SharedProject from "@/pages/SharedProject";
+import Pricing from "@/pages/Pricing";
 import { useAuth } from "@/hooks/use-auth";
 import { Component, type ReactNode } from "react";
 
@@ -83,6 +84,7 @@ function App() {
               <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
               <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
               <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+              <Route path="/pricing" component={Pricing} />
               <Route path="/demo" component={DemoProject} />
               <Route path="/shared/:id" component={SharedProject} />
               <Route component={NotFound} />

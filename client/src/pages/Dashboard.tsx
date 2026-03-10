@@ -6,7 +6,7 @@ import {
   Loader2, Code2, Search, Eye, Zap, Sparkles, Send,
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
-  Bell, CreditCard, Menu, X
+  Bell, CreditCard, Menu, X, Terminal, FileText
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -119,6 +119,18 @@ export default function Dashboard() {
     onError: (err: any) => { toast({ title: "Failed to duplicate project", description: err.message || "Could not duplicate the project.", variant: "destructive" }); },
   });
 
+  const createFromTemplate = useMutation({
+    mutationFn: async (templateId: string) => {
+      const res = await apiRequest("POST", "/api/projects/from-template", { templateId });
+      return res.json();
+    },
+    onSuccess: (project: Project) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setLocation(`/project/${project.id}`);
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to create project from template", variant: "destructive" }); },
+  });
+
   const timeAgo = (date: string | Date) => {
     const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
     if (s < 60) return "just now";
@@ -136,10 +148,11 @@ export default function Dashboard() {
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
   const TEMPLATES = [
-    { name: "Web App", desc: "React + Express full-stack starter", prompt: "A modern web app with React frontend, Express backend, and a responsive dashboard", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60" },
-    { name: "API Server", desc: "REST API with authentication", prompt: "A REST API server with user authentication, CRUD endpoints, and JSON responses", icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60" },
-    { name: "Dashboard", desc: "Admin panel with charts", prompt: "An admin dashboard with sidebar navigation, data tables, charts, and user management", icon: LayoutDashboard, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60" },
-    { name: "Game", desc: "Browser game with Canvas", prompt: "A simple browser-based snake game using HTML5 Canvas with score tracking", icon: Gamepad2, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60" },
+    { id: "react-app", name: "React App", desc: "React frontend with components and hooks", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60" },
+    { id: "express-api", name: "Express API", desc: "REST API with Express and routing", icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60" },
+    { id: "python-flask", name: "Python Flask", desc: "Flask web server with routing", icon: Terminal, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60" },
+    { id: "node-cli", name: "Node CLI", desc: "Command-line tool with Node.js", icon: FileCode, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60" },
+    { id: "html-css-js", name: "HTML/CSS/JS", desc: "Static website with vanilla web tech", icon: FileText, gradient: "from-[#E34F26] to-[#F06529]", iconColor: "text-[#E34F26]", borderColor: "border-[#E34F26]/30 hover:border-[#E34F26]/60" },
   ];
 
   const GENERATION_STEPS = [
@@ -269,13 +282,13 @@ export default function Dashboard() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1C2333] border border-[#2B3245]/50 cursor-default" data-testid="badge-cycles">
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1C2333] border border-[#2B3245]/50 cursor-pointer" data-testid="badge-cycles" onClick={() => setLocation("/pricing")}>
                   <CreditCard className="w-3.5 h-3.5 text-[#676D7E]" />
                   <span className="text-[11px] font-medium text-[#9DA2B0]">Free</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-[#1C2333] border-[#2B3245] text-[#F5F9FC] text-[11px]">
-                Your plan
+                Click to view plans
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -634,9 +647,9 @@ export default function Dashboard() {
                     <button
                       key={tmpl.name}
                       className={`relative flex flex-col items-start gap-3 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[#1C2333] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[160px] shrink-0`}
-                      onClick={() => { setAiPrompt(tmpl.prompt); generateProject.mutate({ prompt: tmpl.prompt, model: aiModel }); }}
-                      disabled={generateProject.isPending}
-                      data-testid={`template-${tmpl.name.toLowerCase().replace(/\s/g, "-")}`}
+                      onClick={() => createFromTemplate.mutate(tmpl.id)}
+                      disabled={createFromTemplate.isPending}
+                      data-testid={`template-${tmpl.id}`}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${tmpl.gradient} opacity-[0.06] group-hover:opacity-[0.12] transition-opacity`} />
                       <div className="relative w-8 h-8 rounded-lg bg-[#0E1525]/80 flex items-center justify-center border border-[#2B3245]/50">

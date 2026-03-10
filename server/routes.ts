@@ -10,6 +10,7 @@ import { storage } from "./storage";
 import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared/schema";
 import { z } from "zod";
 import { executeCode } from "./executor";
+import { getOrCreateTerminal, resizeTerminal } from "./terminal";
 import { log } from "./index";
 import {
   checkUserRateLimit,
@@ -26,8 +27,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenAI, Type } from "@google/genai";
 import { diffArrays } from "diff";
+import multer from "multer";
 import * as runnerClient from "./runnerClient";
+import * as github from "./github";
 import { posix as pathPosix } from "path";
+import { getTemplateById, getAllTemplates } from "./templates";
 
 function sanitizePath(p: string): string | null {
   if (!p || typeof p !== "string") return null;
@@ -168,6 +172,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/demo/run",
   "/api/demo/project",
   "/api/ai/chat",
+  "/api/ai/complete",
 ];
 
 function csrfProtection(req: Request, res: Response, next: NextFunction) {
@@ -465,6 +470,96 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
+    const { plan } = req.body;
+    if (!plan || !["pro", "team"].includes(plan)) {
+      return res.status(400).json({ message: "Invalid plan" });
+    }
+    return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
+  });
+
+  app.post("/api/billing/portal", requireAuth, async (req: Request, res: Response) => {
+    return res.json({ url: null, message: "Stripe is not configured yet." });
+  });
+
+  app.get("/api/billing/status", requireAuth, async (req: Request, res: Response) => {
+    const quota = await storage.getUserQuota(req.session.userId!);
+    return res.json({ plan: quota.plan, status: "active" });
+  });
+
+  app.get("/api/github/user", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const user = await github.getAuthenticatedUser();
+      if (!user) return res.json({ connected: false });
+      return res.json({ connected: true, user });
+    } catch {
+      return res.json({ connected: false });
+    }
+  });
+
+  app.get("/api/github/repos", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const repos = await github.listUserRepos();
+      return res.json(repos);
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message || "Failed to fetch repos" });
+    }
+  });
+
+  app.post("/api/github/import", requireAuth, async (req: Request, res: Response) => {
+    const { owner, repo, name } = req.body;
+    if (!owner || !repo) return res.status(400).json({ message: "owner and repo required" });
+    try {
+      const projectCheck = await storage.checkProjectLimit(req.session.userId!);
+      if (!projectCheck.allowed) {
+        return res.status(429).json({ message: `Project limit reached` });
+      }
+      const contents = await github.getRepoContents(owner, repo);
+      const repoInfo = await github.getRepo(owner, repo);
+      const lang = repoInfo.language === "Python" ? "python" : repoInfo.language === "TypeScript" ? "typescript" : "javascript";
+      const project = await storage.createProject(req.session.userId!, {
+        name: (name || repo).slice(0, 50),
+        language: lang,
+      });
+      const importFiles = contents.filter((c: any) => c.type === "file").slice(0, 20);
+      for (const item of importFiles) {
+        try {
+          const content = await github.getFileContent(owner, repo, item.path);
+          await storage.createFile(project.id, { filename: item.path, content: content.slice(0, 500000) });
+        } catch {}
+      }
+      const files = await storage.getFiles(project.id);
+      return res.status(201).json({ project, files });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message || "Failed to import from GitHub" });
+    }
+  });
+
+  app.post("/api/github/export", requireAuth, async (req: Request, res: Response) => {
+    const { projectId, repoName, isPrivate } = req.body;
+    if (!projectId || !repoName) return res.status(400).json({ message: "projectId and repoName required" });
+    const project = await storage.getProject(projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    try {
+      const ghUser = await github.getAuthenticatedUser();
+      if (!ghUser) return res.status(401).json({ message: "GitHub not connected" });
+      const newRepo = await github.createRepo(repoName, `Exported from IDE: ${project.name}`, isPrivate !== false);
+      const files = await storage.getFiles(projectId);
+      for (const file of files) {
+        if (file.content && !file.content.startsWith("data:")) {
+          try {
+            await github.pushFile(ghUser.login, newRepo.name, file.filename, file.content, `Add ${file.filename}`);
+          } catch {}
+        }
+      }
+      return res.json({ repo: newRepo, url: newRepo.html_url });
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message || "Failed to export to GitHub" });
+    }
+  });
+
   // --- PROJECTS ---
   app.get("/api/projects", requireAuth, async (req: Request, res: Response) => {
     const projectList = await storage.getProjects(req.session.userId!);
@@ -492,6 +587,41 @@ export async function registerRoutes(
         return res.status(400).json({ message: error.errors[0].message });
       }
       return res.status(500).json({ message: "Failed to create project" });
+    }
+  });
+
+  app.get("/api/templates", (_req: Request, res: Response) => {
+    return res.json(getAllTemplates());
+  });
+
+  app.post("/api/projects/from-template", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const projectCheck = await storage.checkProjectLimit(userId);
+      if (!projectCheck.allowed) {
+        return res.status(429).json({ message: `Project limit reached (${projectCheck.current}/${projectCheck.limit}). Upgrade to Pro for more.` });
+      }
+      const schema = z.object({
+        templateId: z.string(),
+        name: z.string().optional(),
+      });
+      const data = schema.parse(req.body);
+      const template = getTemplateById(data.templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      const projectName = data.name ? (sanitizeProjectName(data.name) || template.name) : template.name;
+      const project = await storage.createProjectFromTemplate(userId, {
+        name: projectName,
+        language: template.language,
+        files: template.files,
+      });
+      return res.status(201).json(project);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      return res.status(500).json({ message: "Failed to create project from template" });
     }
   });
 
@@ -564,6 +694,40 @@ export async function registerRoutes(
     }
   });
 
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024, files: 5 },
+  });
+
+  app.post("/api/projects/:projectId/upload", requireAuth, upload.array("files", 5), async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded" });
+    }
+    const prefix = (req.body.path || "").replace(/^\/+|\/+$/g, "");
+    const created = [];
+    for (const f of files) {
+      const rawName = f.originalname.replace(/[^a-zA-Z0-9._\-\/]/g, "_").slice(0, 100);
+      const filename = prefix ? `${prefix}/${rawName}` : rawName;
+      const safeName = sanitizeFilename(filename);
+      if (!safeName) continue;
+      const isBinary = !f.mimetype.startsWith("text/") && !f.mimetype.includes("json") && !f.mimetype.includes("javascript") && !f.mimetype.includes("xml") && !f.mimetype.includes("css") && !f.mimetype.includes("html") && !f.mimetype.includes("svg");
+      const content = isBinary
+        ? `data:${f.mimetype};base64,${f.buffer.toString("base64")}`
+        : f.buffer.toString("utf-8");
+      try {
+        const file = await storage.createFile(req.params.projectId, { filename: safeName, content });
+        created.push(file);
+      } catch {}
+    }
+    storage.updateStorageUsage(req.session.userId!).catch(() => {});
+    return res.status(201).json({ files: created, count: created.length });
+  });
+
   app.patch("/api/files/:id", requireAuth, async (req: Request, res: Response) => {
     const existingFile = await storage.getFile(req.params.id);
     if (!existingFile) {
@@ -623,6 +787,76 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     return res.json(updated);
+  });
+
+  // --- ENV VARS ---
+  app.get("/api/projects/:projectId/env-vars", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const envVars = await storage.getProjectEnvVars(req.params.projectId);
+    return res.json(envVars);
+  });
+
+  app.post("/api/projects/:projectId/env-vars", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { key, value } = req.body;
+    if (!key || typeof key !== "string" || !value || typeof value !== "string") {
+      return res.status(400).json({ message: "key and value are required" });
+    }
+    const sanitizedKey = key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+    if (!sanitizedKey || sanitizedKey.length > 100) {
+      return res.status(400).json({ message: "Invalid key name" });
+    }
+    if (value.length > 10000) {
+      return res.status(400).json({ message: "Value too long" });
+    }
+    try {
+      const envVar = await storage.createProjectEnvVar(req.params.projectId, sanitizedKey, value);
+      return res.status(201).json(envVar);
+    } catch (err: any) {
+      if (err.message?.includes("unique") || err.code === "23505") {
+        return res.status(409).json({ message: `Variable "${sanitizedKey}" already exists` });
+      }
+      return res.status(500).json({ message: "Failed to create env var" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const envVar = await storage.getProjectEnvVar(req.params.id);
+    if (!envVar || envVar.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "Env var not found" });
+    }
+    const { value } = req.body;
+    if (!value || typeof value !== "string") {
+      return res.status(400).json({ message: "value is required" });
+    }
+    if (value.length > 10000) {
+      return res.status(400).json({ message: "Value too long" });
+    }
+    const updated = await storage.updateProjectEnvVar(req.params.id, value);
+    return res.json(updated);
+  });
+
+  app.delete("/api/projects/:projectId/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const envVar = await storage.getProjectEnvVar(req.params.id);
+    if (!envVar || envVar.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "Env var not found" });
+    }
+    await storage.deleteProjectEnvVar(req.params.id);
+    return res.json({ message: "Env var deleted" });
   });
 
   // --- RUNS ---
@@ -688,6 +922,12 @@ export async function registerRoutes(
 
     const codeHash = crypto.createHash("sha256").update(code).digest("hex").slice(0, 16);
 
+    const projectEnvVarsList = await storage.getProjectEnvVars(project.id);
+    const envVarsMap: Record<string, string> = {};
+    for (const ev of projectEnvVarsList) {
+      envVarsMap[ev.key] = ev.encryptedValue;
+    }
+
     try {
       const result = await executeCode(code, language, (message, type) => {
         broadcastToProject(project.id, {
@@ -697,7 +937,7 @@ export async function registerRoutes(
           logType: type,
           timestamp: Date.now(),
         });
-      }, undefined, undefined);
+      }, undefined, undefined, envVarsMap);
 
       const durationMs = Date.now() - startTime;
       const failed = result.exitCode !== 0;
@@ -1303,17 +1543,10 @@ export async function registerRoutes(
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const workspace = await storage.getWorkspaceByProject(project.id);
-    if (!workspace) {
-      return res.status(404).json({ message: "Workspace not initialized" });
-    }
-    try {
-      const token = runnerClient.generateToken(workspace.id, req.session.userId!);
-      const wsUrl = runnerClient.terminalWsUrl(workspace.id, token);
-      return res.json({ wsUrl, workspaceId: workspace.id });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
+    const protocol = req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
+    const host = req.headers.host || "localhost:5000";
+    const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(project.id)}`;
+    return res.json({ wsUrl, workspaceId: project.id });
   });
 
   const getWorkspaceForProject = async (req: Request, res: Response): Promise<{ project: any; workspace: any } | null> => {
@@ -1665,6 +1898,33 @@ Rules:
       await storage.deleteConversation(conversation.id);
     }
     return res.json({ message: "Conversation cleared" });
+  });
+
+  app.post("/api/ai/complete", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { code, cursorOffset, language } = req.body;
+      if (!code || typeof cursorOffset !== "number") {
+        return res.status(400).json({ message: "code and cursorOffset required" });
+      }
+      const quota = await storage.incrementAiCall(req.session.userId!);
+      if (!quota.allowed) {
+        return res.json({ completion: "" });
+      }
+      const before = code.slice(Math.max(0, cursorOffset - 1500), cursorOffset);
+      const after = code.slice(cursorOffset, cursorOffset + 500);
+      const prompt = `You are a code completion engine. Given the code context, output ONLY the completion text (no explanation, no markdown). If there is nothing to suggest, respond with an empty string.\n\nLanguage: ${language || "javascript"}\nCode before cursor:\n${before}\n[CURSOR]\nCode after cursor:\n${after}`;
+      const result = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 120,
+        temperature: 0.1,
+      });
+      const completion = result.choices[0]?.message?.content?.trim() || "";
+      return res.json({ completion });
+    } catch (err: any) {
+      console.error("AI complete error:", err.message);
+      return res.json({ completion: "" });
+    }
   });
 
   app.post("/api/ai/chat", requireAuth, aiLimiter, async (req: Request, res: Response) => {
@@ -2145,6 +2405,7 @@ Always write complete, working code. Never use placeholders or TODOs.`;
   });
 
   const wss = new WebSocketServer({ noServer: true });
+  const terminalWss = new WebSocketServer({ noServer: true });
 
   httpServer.on("upgrade", (req: any, socket, head) => {
     const pathname = new URL(req.url || "/", `http://${req.headers.host}`).pathname;
@@ -2165,6 +2426,29 @@ Always write complete, working code. Never use placeholders or TODOs.`;
           }
           wss.handleUpgrade(req, socket, head, (ws) => {
             wss.emit("connection", ws, req);
+          });
+        }).catch(() => {
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+        });
+      });
+    } else if (pathname === "/ws/terminal") {
+      sessionMiddleware(req, {} as any, () => {
+        const url = new URL(req.url || "/", `http://${req.headers.host}`);
+        const projectId = url.searchParams.get("projectId");
+        if (!req.session?.userId || !projectId) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        storage.getProject(projectId).then((project) => {
+          if (!project || project.userId !== req.session.userId) {
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          terminalWss.handleUpgrade(req, socket, head, (ws) => {
+            terminalWss.emit("connection", ws, req);
           });
         }).catch(() => {
           socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
@@ -2258,6 +2542,53 @@ Always write complete, working code. Never use placeholders or TODOs.`;
 
   wss.on("close", () => {
     clearInterval(heartbeatInterval);
+  });
+
+  terminalWss.on("connection", (ws: WebSocket, req) => {
+    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    const projectId = url.searchParams.get("projectId");
+    const userId = (req as any).session?.userId;
+
+    if (!projectId || !userId) {
+      ws.close(1008, "Missing projectId or auth");
+      return;
+    }
+
+    log(`Terminal WebSocket connected for project ${projectId}`, "terminal");
+
+    try {
+      const term = getOrCreateTerminal(projectId, userId);
+
+      const dataHandler = term.onData((data: string) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "output", data }));
+        }
+      });
+
+      ws.on("message", (rawData) => {
+        try {
+          const msg = JSON.parse(rawData.toString());
+          if (msg.type === "input" && typeof msg.data === "string") {
+            term.write(msg.data);
+          } else if (msg.type === "resize" && msg.cols && msg.rows) {
+            resizeTerminal(projectId, userId, msg.cols, msg.rows);
+          }
+        } catch {}
+      });
+
+      ws.on("close", () => {
+        dataHandler.dispose();
+        log(`Terminal WebSocket disconnected for project ${projectId}`, "terminal");
+      });
+
+      ws.on("error", () => {
+        dataHandler.dispose();
+      });
+    } catch (err: any) {
+      log(`Terminal error: ${err.message}`, "terminal");
+      ws.send(JSON.stringify({ type: "error", message: "Failed to start terminal" }));
+      ws.close(1011, "Terminal error");
+    }
   });
 
   await storage.seedDemoProject();

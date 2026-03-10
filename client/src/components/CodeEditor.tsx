@@ -6,6 +6,10 @@ import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { go } from "@codemirror/lang-go";
+import { java } from "@codemirror/lang-java";
+import { cpp } from "@codemirror/lang-cpp";
+import { rust } from "@codemirror/lang-rust";
 import { EditorView, gutter, GutterMarker } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -14,6 +18,7 @@ import { useRef, useEffect } from "react";
 import { StateField, StateEffect, RangeSetBuilder, RangeSet } from "@codemirror/state";
 import { autocompletion, type CompletionContext, type Completion } from "@codemirror/autocomplete";
 import { linter, type Diagnostic } from "@codemirror/lint";
+import { inlineAICompletion } from "./AICompletions";
 
 export interface BlameEntry {
   line: number;
@@ -33,6 +38,7 @@ interface CodeEditorProps {
   tabSize?: number;
   wordWrap?: boolean;
   blameData?: BlameEntry[];
+  aiCompletions?: boolean;
 }
 
 const replitHighlight = HighlightStyle.define([
@@ -828,6 +834,18 @@ function getLanguageExtension(lang: string) {
       return json();
     case "markdown":
       return markdown();
+    case "go":
+      return go();
+    case "java":
+      return java();
+    case "c":
+    case "cpp":
+      return cpp();
+    case "rust":
+      return rust();
+    case "bash":
+    case "shell":
+      return javascript();
     default:
       return javascript();
   }
@@ -852,6 +870,26 @@ function detectLanguage(filename: string): string {
       return "json";
     case "md":
       return "markdown";
+    case "go":
+      return "go";
+    case "rb":
+      return "ruby";
+    case "c":
+    case "h":
+      return "c";
+    case "cpp":
+    case "cc":
+    case "cxx":
+    case "hpp":
+    case "hxx":
+      return "cpp";
+    case "java":
+      return "java";
+    case "rs":
+      return "rust";
+    case "sh":
+    case "bash":
+      return "bash";
     default:
       return "javascript";
   }
@@ -859,7 +897,7 @@ function detectLanguage(filename: string): string {
 
 export { detectLanguage };
 
-export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData }: CodeEditorProps) {
+export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false }: CodeEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const onCursorChangeRef = useRef(onCursorChange);
   onCursorChangeRef.current = onCursorChange;
@@ -889,8 +927,9 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     if (showBlame) ext.push(blameGutter);
     if (wordWrap) ext.push(EditorView.lineWrapping);
     if (readOnly) ext.push(EditorView.editable.of(false));
+    if (aiCompletions && !readOnly) ext.push(...inlineAICompletion(language));
     return ext;
-  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions]);
 
   useEffect(() => {
     const view = editorRef.current?.view;

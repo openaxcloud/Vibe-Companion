@@ -212,6 +212,25 @@ export const PLAN_LIMITS = {
   pro: { dailyExecutions: 500, dailyAiCalls: 200, storageMb: 500, maxProjects: 50 },
 } as const;
 
+export const projectEnvVars = pgTable("project_env_vars", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  key: text("key").notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("env_vars_project_id_idx").on(table.projectId),
+  uniqueIndex("env_vars_project_key_unique").on(table.projectId, table.key),
+]);
+
+export const insertProjectEnvVarSchema = createInsertSchema(projectEnvVars).pick({
+  projectId: true,
+  key: true,
+  encryptedValue: true,
+});
+export type InsertProjectEnvVar = z.infer<typeof insertProjectEnvVarSchema>;
+export type ProjectEnvVar = typeof projectEnvVars.$inferSelect;
+
 export const aiConversations = pgTable("ai_conversations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
