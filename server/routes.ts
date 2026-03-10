@@ -250,7 +250,13 @@ export async function registerRoutes(
       createTableIfMissing: true,
       tableName: "user_sessions",
     }),
-    secret: process.env.SESSION_SECRET || "vibe-platform-secret-key-change-in-prod",
+    secret: (() => {
+      const s = process.env.SESSION_SECRET;
+      if (!s && process.env.NODE_ENV === "production") {
+        throw new Error("SESSION_SECRET is required in production");
+      }
+      return s || "dev-only-fallback-" + Date.now();
+    })(),
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -2544,7 +2550,7 @@ Always write complete, working code. Never use placeholders or TODOs.`;
     clearInterval(heartbeatInterval);
   });
 
-  terminalWss.on("connection", (ws: WebSocket, req) => {
+  terminalWss.on("connection", async (ws: WebSocket, req) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
     const projectId = url.searchParams.get("projectId");
     const userId = (req as any).session?.userId;
@@ -2557,7 +2563,12 @@ Always write complete, working code. Never use placeholders or TODOs.`;
     log(`Terminal WebSocket connected for project ${projectId}`, "terminal");
 
     try {
-      const term = getOrCreateTerminal(projectId, userId);
+      const projectEnvVarsList = await storage.getProjectEnvVars(projectId);
+      const envVarsMap: Record<string, string> = {};
+      for (const ev of projectEnvVarsList) {
+        envVarsMap[ev.key] = ev.encryptedValue;
+      }
+      const term = getOrCreateTerminal(projectId, userId, envVarsMap);
 
       const dataHandler = term.onData((data: string) => {
         if (ws.readyState === WebSocket.OPEN) {

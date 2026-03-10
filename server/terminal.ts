@@ -12,11 +12,47 @@ const sessions = new Map<string, TerminalSession>();
 const MAX_SESSIONS = 20;
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
+const SAFE_ENV_KEYS = new Set([
+  "PATH", "HOME", "SHELL", "LANG", "LC_ALL", "TMPDIR", "USER",
+  "GOROOT", "GOPATH", "GOCACHE", "JAVA_HOME", "PYTHONPATH",
+  "NODE_PATH", "RUSTUP_HOME", "CARGO_HOME", "GEM_HOME", "GEM_PATH",
+]);
+
+function buildSafeEnv(projectId: string, projectEnvVars?: Record<string, string>): Record<string, string> {
+  const env: Record<string, string> = {
+    TERM: "xterm-256color",
+    COLORTERM: "truecolor",
+    PROJECT_ID: projectId,
+    HOME: process.env.HOME || "/home/runner",
+    TMPDIR: "/tmp",
+    LANG: "en_US.UTF-8",
+    PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+  };
+
+  for (const key of SAFE_ENV_KEYS) {
+    if (key !== "HOME" && key !== "TMPDIR" && key !== "LANG" && key !== "PATH" && process.env[key]) {
+      env[key] = process.env[key]!;
+    }
+  }
+
+  if (projectEnvVars) {
+    for (const [k, v] of Object.entries(projectEnvVars)) {
+      env[k] = v;
+    }
+  }
+
+  return env;
+}
+
 function sessionKey(projectId: string, userId: string): string {
   return `${projectId}:${userId}`;
 }
 
-export function getOrCreateTerminal(projectId: string, userId: string): pty.IPty {
+export function getOrCreateTerminal(
+  projectId: string,
+  userId: string,
+  projectEnvVars?: Record<string, string>,
+): pty.IPty {
   const key = sessionKey(projectId, userId);
   const existing = sessions.get(key);
   if (existing) {
@@ -38,18 +74,15 @@ export function getOrCreateTerminal(projectId: string, userId: string): pty.IPty
     }
   }
 
-  const shell = process.env.SHELL || "/bin/bash";
+  const shell = "/bin/bash";
+  const safeEnv = buildSafeEnv(projectId, projectEnvVars);
+
   const term = pty.spawn(shell, [], {
     name: "xterm-256color",
     cols: 80,
     rows: 24,
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      TERM: "xterm-256color",
-      COLORTERM: "truecolor",
-      PROJECT_ID: projectId,
-    } as Record<string, string>,
+    cwd: safeEnv.HOME,
+    env: safeEnv,
   });
 
   sessions.set(key, {

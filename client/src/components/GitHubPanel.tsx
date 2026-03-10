@@ -8,7 +8,7 @@ import { GitBranch, Download, Upload, Loader2, ExternalLink, Lock, Globe, Refres
 interface GitHubPanelProps {
   projectId: string;
   projectName: string;
-  onImported?: () => void;
+  onImported?: (newProjectId?: string) => void;
 }
 
 interface GHRepo {
@@ -78,8 +78,8 @@ export default function GitHubPanel({ projectId, projectName, onImported }: GitH
     try {
       const res = await apiRequest("POST", "/api/github/import", { owner: repo.owner.login, repo: repo.name });
       const data = await res.json();
-      toast({ title: `Imported ${repo.name}` });
-      onImported?.();
+      toast({ title: `Imported ${repo.name}`, description: "Opening project..." });
+      onImported?.(data.project?.id);
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     } finally {

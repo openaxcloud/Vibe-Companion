@@ -85,8 +85,21 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (capturedJsonResponse && !path.includes("env-var") && !path.includes("csrf")) {
+        const safe = JSON.parse(JSON.stringify(capturedJsonResponse));
+        const redactKeys = ["password", "csrfToken", "encryptedValue", "token", "secret", "apiKey"];
+        function redact(obj: any) {
+          if (!obj || typeof obj !== "object") return;
+          for (const k of Object.keys(obj)) {
+            if (redactKeys.some(rk => k.toLowerCase().includes(rk.toLowerCase()))) {
+              obj[k] = "[REDACTED]";
+            } else if (typeof obj[k] === "object") {
+              redact(obj[k]);
+            }
+          }
+        }
+        redact(safe);
+        logLine += ` :: ${JSON.stringify(safe)}`;
       }
 
       log(logLine);

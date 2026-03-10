@@ -3138,7 +3138,7 @@ export default function Project() {
                     <div className="px-3 py-2">
                       <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">GitHub</span>
                     </div>
-                    <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={() => filesQuery.refetch()} />
+                    <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={(newProjectId) => { if (newProjectId) { setLocation(`/project/${newProjectId}`); } else { filesQuery.refetch(); } }} />
                   </div>
                 </div>
               </div>
