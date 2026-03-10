@@ -148,11 +148,11 @@ export default function Dashboard() {
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
   const TEMPLATES = [
-    { id: "react-app", name: "React App", desc: "React frontend with components and hooks", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60" },
-    { id: "express-api", name: "Express API", desc: "REST API with Express and routing", icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60" },
-    { id: "python-flask", name: "Python Flask", desc: "Flask web server with routing", icon: Terminal, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60" },
-    { id: "node-cli", name: "Node CLI", desc: "Command-line tool with Node.js", icon: FileCode, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60" },
-    { id: "html-css-js", name: "HTML/CSS/JS", desc: "Static website with vanilla web tech", icon: FileText, gradient: "from-[#E34F26] to-[#F06529]", iconColor: "text-[#E34F26]", borderColor: "border-[#E34F26]/30 hover:border-[#E34F26]/60" },
+    { id: "react-app", name: "React App", desc: "React frontend with components and hooks", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60", lang: "JavaScript", snippet: "export default function App() {" },
+    { id: "express-api", name: "Express API", desc: "REST API with Express and routing", icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60", lang: "JavaScript", snippet: "app.get('/api', (req, res) =>" },
+    { id: "python-flask", name: "Python Flask", desc: "Flask web server with routing", icon: Terminal, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60", lang: "Python", snippet: "@app.route('/')" },
+    { id: "node-cli", name: "Node CLI", desc: "Command-line tool with Node.js", icon: FileCode, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60", lang: "JavaScript", snippet: "process.argv.slice(2)" },
+    { id: "html-css-js", name: "HTML/CSS/JS", desc: "Static website with vanilla web tech", icon: FileText, gradient: "from-[#E34F26] to-[#F06529]", iconColor: "text-[#E34F26]", borderColor: "border-[#E34F26]/30 hover:border-[#E34F26]/60", lang: "HTML", snippet: "<!DOCTYPE html>" },
   ];
 
   const GENERATION_STEPS = [
@@ -646,19 +646,25 @@ export default function Dashboard() {
                   {TEMPLATES.map((tmpl) => (
                     <button
                       key={tmpl.name}
-                      className={`relative flex flex-col items-start gap-3 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[#1C2333] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[160px] shrink-0`}
+                      className={`relative flex flex-col items-start gap-2 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[#1C2333] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[180px] shrink-0`}
                       onClick={() => createFromTemplate.mutate(tmpl.id)}
                       disabled={createFromTemplate.isPending}
                       data-testid={`template-${tmpl.id}`}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${tmpl.gradient} opacity-[0.06] group-hover:opacity-[0.12] transition-opacity`} />
-                      <div className="relative w-8 h-8 rounded-lg bg-[#0E1525]/80 flex items-center justify-center border border-[#2B3245]/50">
-                        <tmpl.icon className={`w-4 h-4 ${tmpl.iconColor}`} />
+                      <div className="relative flex items-center gap-2.5 w-full">
+                        <div className="w-8 h-8 rounded-lg bg-[#0E1525]/80 flex items-center justify-center border border-[#2B3245]/50 shrink-0">
+                          <tmpl.icon className={`w-4 h-4 ${tmpl.iconColor}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold text-[#F5F9FC] group-hover:text-white transition-colors">{tmpl.name}</p>
+                          <p className="text-[9px] text-[#676D7E]">{tmpl.lang}</p>
+                        </div>
                       </div>
-                      <div className="relative">
-                        <p className="text-[12px] font-semibold text-[#F5F9FC] group-hover:text-white transition-colors">{tmpl.name}</p>
-                        <p className="text-[10px] text-[#676D7E] mt-0.5 leading-relaxed">{tmpl.desc}</p>
+                      <div className="relative w-full mt-1 px-2 py-1.5 rounded-md bg-[#0E1525]/60 border border-[#2B3245]/30">
+                        <code className="text-[9px] text-[#676D7E] font-mono group-hover:text-[#9DA2B0] transition-colors">{tmpl.snippet}</code>
                       </div>
+                      <p className="relative text-[10px] text-[#676D7E] leading-relaxed">{tmpl.desc}</p>
                     </button>
                   ))}
                 </div>

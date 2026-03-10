@@ -360,14 +360,15 @@ export default function Project() {
       if (msg.type === "run_status" && (msg.status === "completed" || msg.status === "failed")) {
         setIsRunning(false);
         const exitCode = (msg as any).exitCode ?? (msg.status === "completed" ? 0 : 1);
+        const timestamp = new Date().toLocaleTimeString();
         setLogs((prev) => [
           ...prev,
           { id: Date.now() + Math.random(), text: "", type: "info" },
           {
             id: Date.now() + Math.random(),
             text: msg.status === "completed"
-              ? `Process exited with code ${exitCode}`
-              : `Process failed with code ${exitCode}`,
+              ? `\x1b[32m✓ Process exited with code ${exitCode}\x1b[0m  (${timestamp})`
+              : `\x1b[31m✗ Process failed with code ${exitCode}\x1b[0m  (${timestamp})`,
             type: msg.status === "completed" ? "success" : "error",
           },
         ]);
@@ -410,12 +411,12 @@ export default function Project() {
     onSuccess: (_, vars) => {
       setDirtyFiles((prev) => { const n = new Set(prev); n.delete(vars.fileId); return n; });
       if (previewPanelOpen && previewHtml) {
-        const html = generateHtmlPreview();
+        const html = generateHtmlPreviewRef.current?.();
         if (html) setPreviewHtml(html);
       }
       if (previewPanelOpen && livePreviewUrl) {
         setTimeout(() => {
-          const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement || document.getElementById("live-preview-iframe") as HTMLIFrameElement;
+          const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement || document.getElementById("webview-tab-iframe") as HTMLIFrameElement || document.getElementById("live-preview-iframe") as HTMLIFrameElement;
           if (iframe) iframe.src = iframe.src;
         }, 500);
       }
@@ -433,11 +434,21 @@ export default function Project() {
     }, 2000);
   }, []);
 
+  const previewRefreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const generateHtmlPreviewRef = useRef<(() => string | null) | null>(null);
+
   const handleCodeChange = useCallback((value: string) => {
     if (!activeFileId) return;
     setFileContents((prev) => ({ ...prev, [activeFileId]: value }));
     autoSave(activeFileId, value);
-  }, [activeFileId, autoSave]);
+    if (previewPanelOpen) {
+      clearTimeout(previewRefreshTimer.current);
+      previewRefreshTimer.current = setTimeout(() => {
+        const html = generateHtmlPreviewRef.current?.();
+        if (html) setPreviewHtml(html);
+      }, 500);
+    }
+  }, [activeFileId, autoSave, previewPanelOpen]);
 
   const handleCursorChange = useCallback((line: number, col: number) => {
     setCursorLine(line);
@@ -476,7 +487,7 @@ export default function Project() {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "`")) {
         e.preventDefault();
         setTerminalVisible((prev) => !prev);
       }
@@ -708,7 +719,11 @@ export default function Project() {
     },
     onSuccess: () => {
       setIsRunning(true);
-      openSpecialTab(SPECIAL_TABS.CONSOLE);
+      if (viewMode === "desktop") {
+        setTerminalVisible(true);
+      } else {
+        openSpecialTab(SPECIAL_TABS.CONSOLE);
+      }
     },
     onError: (err: any) => {
       toast({ title: "Run failed", description: err.message, variant: "destructive" });
@@ -723,7 +738,11 @@ export default function Project() {
       const html = generateHtmlPreview();
       if (html) {
         setPreviewHtml(html);
-        openSpecialTab(SPECIAL_TABS.WEBVIEW);
+        if (!isMobile) {
+          setPreviewPanelOpen(true);
+        } else {
+          openSpecialTab(SPECIAL_TABS.WEBVIEW);
+        }
         setLogs((prev) => [...prev, {
           id: Date.now(),
           text: `▶ Opened HTML preview for ${activeFileName}`,
@@ -736,10 +755,11 @@ export default function Project() {
     const timestamp = new Date().toLocaleTimeString();
     setLogs([{
       id: Date.now(),
-      text: `▶ Run started at ${timestamp}`,
+      text: `\x1b[36m━━━ Run started at ${timestamp} ━━━\x1b[0m`,
       type: "info",
     }]);
-    openSpecialTab(SPECIAL_TABS.CONSOLE);
+    setTerminalVisible(true);
+    setBottomTab("terminal");
     runMutation.mutate();
   };
 
@@ -1371,6 +1391,8 @@ export default function Project() {
 
     return html;
   }, [filesQuery.data, fileContents]);
+
+  useEffect(() => { generateHtmlPreviewRef.current = generateHtmlPreview; }, [generateHtmlPreview]);
 
   const hasHtmlFile = filesQuery.data?.some((f) => f.filename.endsWith(".html")) || false;
 
@@ -2267,21 +2289,55 @@ export default function Project() {
     </div>
   );
 
+  const parseAnsi = useCallback((text: string) => {
+    const parts: { text: string; color?: string }[] = [];
+    const regex = /\x1b\[([\d;]+)m/g;
+    let lastIndex = 0;
+    let currentColor: string | undefined;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ text: text.slice(lastIndex, match.index), color: currentColor });
+      }
+      const colorMap: Record<number, string | undefined> = {
+        0: undefined, 31: "#EF4444", 32: "#22C55E", 33: "#EAB308", 34: "#3B82F6",
+        35: "#A855F7", 36: "#06B6D4", 37: "#D1D5DB", 39: undefined,
+        90: "#6B7280", 91: "#F87171", 92: "#4ADE80", 93: "#FACC15", 94: "#60A5FA",
+        95: "#C084FC", 96: "#22D3EE", 97: "#F3F4F6",
+      };
+      const codes = match[1].split(";").map(Number);
+      for (const code of codes) {
+        if (code in colorMap) currentColor = colorMap[code];
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      parts.push({ text: text.slice(lastIndex), color: currentColor });
+    }
+    if (parts.length === 0) return <span>{text}</span>;
+    return <>{parts.map((p, i) => <span key={i} style={p.color ? { color: p.color } : undefined}>{p.text}</span>)}</>;
+  }, []);
+
   const terminalContent = (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }} data-testid="terminal-output">
-      {logs.length === 0 && !isRunning && !runMutation.isPending && <p className="text-[#676D7E] text-center py-4 text-xs" data-testid="text-terminal-empty">Press Run to execute your code</p>}
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "12px", lineHeight: "1.6" }} data-testid="terminal-output">
+      {logs.length === 0 && !isRunning && !runMutation.isPending && (
+        <div className="flex flex-col items-center justify-center py-8 text-[#676D7E]" data-testid="text-terminal-empty">
+          <Terminal className="w-6 h-6 mb-2 opacity-40" />
+          <p className="text-xs">Press <kbd className="px-1.5 py-0.5 mx-1 rounded bg-[#0E1525] border border-[#2B3245] text-[#9DA2B0] text-[10px]">F5</kbd> or click <span className="text-[#0CCE6B] font-medium">Run</span> to execute your code</p>
+        </div>
+      )}
       {(isRunning || runMutation.isPending) && logs.length === 0 && (
-        <div className="flex items-center gap-2 py-1 text-[#0079F2] border-b border-[#2B3245]/50 mb-1" data-testid="text-run-header">
+        <div className="flex items-center gap-2 py-1.5 text-[#0079F2] border-b border-[#2B3245]/50 mb-1" data-testid="text-run-header">
           <Loader2 className="w-3 h-3 animate-spin" />
           <span className="text-[11px]">Running {activeFileName || "code"}...</span>
         </div>
       )}
       {logs.map((log) => (
-        <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#9DA2B0]"}`}>
-          <span className="whitespace-pre-wrap break-all">{log.text}</span>
+        <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-[#0CCE6B]" : "text-[#C5C8D4]"}`}>
+          <span className="whitespace-pre-wrap break-all">{log.text.includes('\x1b[') ? parseAnsi(log.text) : log.text}</span>
         </div>
       ))}
-      {isRunning && logs.length > 0 && <span className="animate-pulse text-[#0079F2]">_</span>}
+      {isRunning && logs.length > 0 && <span className="inline-block w-[7px] h-[14px] bg-[#0079F2] animate-pulse ml-0.5" />}
     </div>
   );
 
@@ -2496,13 +2552,7 @@ export default function Project() {
         </div>
       </div>
 
-      {/* RUNNER OFFLINE BANNER */}
-      {runnerOnline === false && !isMobile && (
-        <div className="flex items-center gap-2 px-3 py-1 bg-orange-600/10 border-b border-orange-600/20 shrink-0">
-          <AlertTriangle className="w-3 h-3 text-orange-400 shrink-0" />
-          <span className="text-[10px] text-orange-400">Runner offline — Live terminal and preview are disabled.</span>
-        </div>
-      )}
+      {/* RUNNER OFFLINE BANNER - only show briefly, not blocking */}
 
       {/* === MOBILE LAYOUT === */}
       {isMobile ? (
@@ -3268,10 +3318,74 @@ export default function Project() {
               </div>
             </div>
 
-            {/* MAIN EDITOR AREA */}
-            <div ref={editorPreviewContainerRef} className="flex-1 flex flex-col overflow-hidden min-w-0">
-              {editorTabBar}
-              {editorContent}
+            {/* MAIN EDITOR + TERMINAL + PREVIEW AREA */}
+            <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0">
+              <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={previewPanelOpen ? { width: `${100 - previewPanelWidth}%` } : undefined}>
+                {editorTabBar}
+                <div className="flex-1 overflow-hidden min-w-0">
+                  {editorContent}
+                </div>
+                {terminalVisible && (
+                  <div className="shrink-0 border-t border-[#2B3245]" style={{ height: `${terminalHeight}px` }}>
+                    {bottomPanel}
+                  </div>
+                )}
+              </div>
+              {previewPanelOpen && (
+                <>
+                  <div className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[#2B3245]/50" onMouseDown={handlePreviewDragStart}>
+                    <div className="w-[2px] h-8 rounded-full bg-[#2B3245]" />
+                  </div>
+                  <div className="overflow-hidden flex flex-col" style={{ width: `${previewPanelWidth}%` }}>
+                    <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
+                        onClick={() => {
+                          if (wsStatus === "running" && livePreviewUrl) {
+                            const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
+                            if (iframe) iframe.src = iframe.src;
+                          } else {
+                            const html = generateHtmlPreview();
+                            if (html) setPreviewHtml(html);
+                          }
+                        }}
+                        title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
+                          <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
+                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {(livePreviewUrl || previewHtml) && (
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+                            onClick={() => { if (livePreviewUrl) window.open(livePreviewUrl, "_blank"); else if (previewHtml) { const blob = new Blob([previewHtml], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); } }}
+                            title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+                          onClick={() => setPreviewPanelOpen(false)}
+                          title="Close preview" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden bg-white">
+                      {wsStatus === "running" && livePreviewUrl ? (
+                        <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
+                      ) : previewHtml ? (
+                        <iframe srcDoc={previewHtml} className="w-full h-full border-0" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-preview-panel-html" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] text-[#676D7E] gap-3">
+                          <Globe className="w-8 h-8" />
+                          <p className="text-xs text-center max-w-[200px]">{hasHtmlFile ? "Click Run to preview your HTML" : "Run your app to see the preview"}</p>
+                          {hasHtmlFile && (
+                            <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5" onClick={handlePreview} data-testid="button-preview-panel-start">
+                              <Eye className="w-3 h-3" /> Preview HTML
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
           </div>

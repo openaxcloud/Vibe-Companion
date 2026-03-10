@@ -35,6 +35,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Usage quotas**: Per-user daily limits (50 executions, 20 AI calls on free plan), project limits (5 on free), storage limits, with live usage display in dashboard sidebar
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
 - **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
+- **Desktop bottom panel**: Console + Shell tabs in resizable bottom panel (like VS Code) with Ctrl+J/Ctrl+` toggle
+- **Split preview panel**: Side-by-side editor + preview on desktop with resizable drag handle (Ctrl+\), auto-opens for HTML, live-refreshes on code change (500ms debounce)
+- **ANSI color support**: Console output parses ANSI escape codes for colored output (red, green, yellow, blue, purple, cyan)
 - **Smooth panel transitions**: Sidebar, terminal, and preview panels animate open/close with CSS transitions
 - **Nested file tree**: Files with paths like `src/components/App.tsx` display in proper folder hierarchy with expand/collapse
 - **File tree context menu**: Right-click for Open, Rename, Duplicate, Delete, Copy Path; folders get New File/New Folder
