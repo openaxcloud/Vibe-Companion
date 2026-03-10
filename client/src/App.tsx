@@ -11,6 +11,12 @@ import Settings from "@/pages/Settings";
 import DemoProject from "@/pages/DemoProject";
 import SharedProject from "@/pages/SharedProject";
 import Pricing from "@/pages/Pricing";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import Teams from "@/pages/Teams";
+import Admin from "@/pages/Admin";
+import Terms from "@/pages/Terms";
+import Privacy from "@/pages/Privacy";
 import { useAuth } from "@/hooks/use-auth";
 import { Component, type ReactNode } from "react";
 
@@ -27,7 +33,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[ErrorBoundary]", error, errorInfo);
     try {
-      fetch("/api/metrics", { method: "GET" }).catch(() => {});
+      fetch("/api/analytics/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "frontend_error", properties: { message: error.message, stack: error.stack?.slice(0, 500) } }),
+      }).catch(() => {});
     } catch {}
   }
 
@@ -84,9 +94,15 @@ function App() {
               <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
               <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
               <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+              <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
+              <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
               <Route path="/pricing" component={Pricing} />
               <Route path="/demo" component={DemoProject} />
               <Route path="/shared/:id" component={SharedProject} />
+              <Route path="/forgot-password" component={ForgotPassword} />
+              <Route path="/reset-password" component={ResetPassword} />
+              <Route path="/terms" component={Terms} />
+              <Route path="/privacy" component={Privacy} />
               <Route component={NotFound} />
             </Switch>
           </div>

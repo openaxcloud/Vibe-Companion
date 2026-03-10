@@ -6,8 +6,13 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password").notNull().default(""),
   displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  githubId: text("github_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -21,10 +26,13 @@ export type User = typeof users.$inferSelect;
 export const projects = pgTable("projects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
+  teamId: varchar("team_id", { length: 36 }),
   name: text("name").notNull(),
   language: text("language").notNull().default("javascript"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublished: boolean("is_published").notNull().default(false),
+  publishedSlug: text("published_slug"),
+  customDomain: text("custom_domain"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("projects_user_id_idx").on(table.userId),
@@ -191,6 +199,8 @@ export const userQuotas = pgTable("user_quotas", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull().unique(),
   plan: text("plan").notNull().default("free"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   dailyExecutionsUsed: integer("daily_executions_used").notNull().default(0),
   dailyAiCallsUsed: integer("daily_ai_calls_used").notNull().default(0),
   storageBytes: integer("storage_bytes").notNull().default(0),
@@ -208,8 +218,9 @@ export type InsertUserQuota = z.infer<typeof insertUserQuotaSchema>;
 export type UserQuota = typeof userQuotas.$inferSelect;
 
 export const PLAN_LIMITS = {
-  free: { dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5 },
-  pro: { dailyExecutions: 500, dailyAiCalls: 200, storageMb: 500, maxProjects: 50 },
+  free: { dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5, price: 0 },
+  pro: { dailyExecutions: 500, dailyAiCalls: 200, storageMb: 5000, maxProjects: 50, price: 1200 },
+  team: { dailyExecutions: 2000, dailyAiCalls: 1000, storageMb: 50000, maxProjects: 200, price: 2500 },
 } as const;
 
 export const projectEnvVars = pgTable("project_env_vars", {
@@ -275,3 +286,105 @@ export const insertAiMessageSchema = createInsertSchema(aiMessages).pick({
 });
 export type InsertAiMessage = z.infer<typeof insertAiMessageSchema>;
 export type AiMessage = typeof aiMessages.$inferSelect;
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+
+export const emailVerifications = pgTable("email_verifications", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type EmailVerification = typeof emailVerifications.$inferSelect;
+
+export const teams = pgTable("teams", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  ownerId: varchar("owner_id", { length: 36 }).notNull(),
+  avatarUrl: text("avatar_url"),
+  plan: text("plan").notNull().default("free"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertTeamSchema = createInsertSchema(teams).pick({
+  name: true,
+  slug: true,
+  ownerId: true,
+});
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type Team = typeof teams.$inferSelect;
+
+export const teamMembers = pgTable("team_members", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  role: text("role").notNull().default("member"),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("team_member_unique").on(table.teamId, table.userId),
+  index("team_members_team_idx").on(table.teamId),
+  index("team_members_user_idx").on(table.userId),
+]);
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).pick({
+  teamId: true,
+  userId: true,
+  role: true,
+});
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type TeamMember = typeof teamMembers.$inferSelect;
+
+export const teamInvites = pgTable("team_invites", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id", { length: 36 }).notNull(),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("member"),
+  token: text("token").notNull().unique(),
+  invitedBy: varchar("invited_by", { length: 36 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type TeamInvite = typeof teamInvites.$inferSelect;
+
+export const analyticsEvents = pgTable("analytics_events", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }),
+  event: text("event").notNull(),
+  properties: json("properties").$type<Record<string, any>>(),
+  sessionId: text("session_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("analytics_user_idx").on(table.userId),
+  index("analytics_event_idx").on(table.event),
+  index("analytics_created_idx").on(table.createdAt),
+]);
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+
+export const deployments = pgTable("deployments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  status: text("status").notNull().default("building"),
+  buildLog: text("build_log"),
+  url: text("url"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+}, (table) => [
+  index("deployments_project_idx").on(table.projectId),
+]);
+export const insertDeploymentSchema = createInsertSchema(deployments).pick({
+  projectId: true,
+  userId: true,
+});
+export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
+export type Deployment = typeof deployments.$inferSelect;

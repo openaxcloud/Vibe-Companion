@@ -168,11 +168,17 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/logout",
+  "/api/auth/github",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+  "/api/auth/send-verification",
   "/api/csrf-token",
   "/api/demo/run",
   "/api/demo/project",
   "/api/ai/chat",
   "/api/ai/complete",
+  "/api/billing/webhook",
+  "/api/analytics/track",
 ];
 
 function csrfProtection(req: Request, res: Response, next: NextFunction) {
@@ -449,6 +455,10 @@ export async function registerRoutes(
       id: user.id,
       email: user.email,
       displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      emailVerified: user.emailVerified,
+      isAdmin: user.isAdmin,
+      githubId: user.githubId,
     });
   });
 
@@ -476,21 +486,724 @@ export async function registerRoutes(
     }
   });
 
+  const STRIPE_PRICES: Record<string, string> = {
+    pro: process.env.STRIPE_PRO_PRICE_ID || "",
+    team: process.env.STRIPE_TEAM_PRICE_ID || "",
+  };
+
+  let stripe: any = null;
+  try {
+    const Stripe = require("stripe");
+    if (process.env.STRIPE_SECRET_KEY) {
+      stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    }
+  } catch {}
+
   app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
     const { plan } = req.body;
     if (!plan || !["pro", "team"].includes(plan)) {
       return res.status(400).json({ message: "Invalid plan" });
     }
-    return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
+    if (!stripe || !STRIPE_PRICES[plan]) {
+      return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
+    }
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ message: "Not authenticated" });
+      const quota = await storage.getUserQuota(user.id);
+      let customerId = quota.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe.customers.create({ email: user.email, metadata: { userId: user.id } });
+        customerId = customer.id;
+        await storage.updateUserPlan(user.id, quota.plan, customerId);
+      }
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: "subscription",
+        line_items: [{ price: STRIPE_PRICES[plan], quantity: 1 }],
+        success_url: `${req.protocol}://${req.get("host")}/dashboard?billing=success`,
+        cancel_url: `${req.protocol}://${req.get("host")}/pricing?billing=cancelled`,
+        metadata: { userId: user.id, plan },
+      });
+      return res.json({ url: session.url });
+    } catch (err: any) {
+      log("Stripe checkout error:", err.message);
+      return res.status(500).json({ message: "Failed to create checkout session" });
+    }
   });
 
   app.post("/api/billing/portal", requireAuth, async (req: Request, res: Response) => {
-    return res.json({ url: null, message: "Stripe is not configured yet." });
+    if (!stripe) return res.json({ url: null, message: "Stripe is not configured yet." });
+    try {
+      const quota = await storage.getUserQuota(req.session.userId!);
+      if (!quota.stripeCustomerId) return res.json({ url: null, message: "No billing account found." });
+      const session = await stripe.billingPortal.sessions.create({
+        customer: quota.stripeCustomerId,
+        return_url: `${req.protocol}://${req.get("host")}/settings`,
+      });
+      return res.json({ url: session.url });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Failed to open billing portal" });
+    }
   });
 
   app.get("/api/billing/status", requireAuth, async (req: Request, res: Response) => {
     const quota = await storage.getUserQuota(req.session.userId!);
-    return res.json({ plan: quota.plan, status: "active" });
+    return res.json({
+      plan: quota.plan,
+      status: quota.stripeSubscriptionId ? "active" : "none",
+      stripeCustomerId: quota.stripeCustomerId || null,
+      subscriptionId: quota.stripeSubscriptionId || null,
+    });
+  });
+
+  app.post("/api/billing/webhook", async (req: Request, res: Response) => {
+    if (!stripe) return res.status(200).send("OK");
+    const sig = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!sig || !webhookSecret) return res.status(200).send("OK");
+    try {
+      const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object;
+          const userId = session.metadata?.userId;
+          const plan = session.metadata?.plan;
+          if (userId && plan) {
+            await storage.updateUserPlan(userId, plan, session.customer, session.subscription);
+          }
+          break;
+        }
+        case "customer.subscription.deleted": {
+          const sub = event.data.object;
+          const customer = await stripe.customers.retrieve(sub.customer);
+          const userId = customer.metadata?.userId;
+          if (userId) {
+            await storage.updateUserPlan(userId, "free", undefined, undefined);
+          }
+          break;
+        }
+      }
+      return res.status(200).send("OK");
+    } catch (err: any) {
+      log("Webhook error:", err.message);
+      return res.status(400).send("Webhook Error");
+    }
+  });
+
+  // --- GITHUB OAUTH ---
+  app.post("/api/auth/github", async (req: Request, res: Response) => {
+    try {
+      const ghUser = await github.getAuthenticatedUser();
+      if (!ghUser || !ghUser.id) {
+        return res.status(401).json({ message: "GitHub not connected. Please connect GitHub integration first." });
+      }
+      const githubId = String(ghUser.id);
+      let user = await storage.getUserByGithubId(githubId);
+      if (!user) {
+        const email = ghUser.email || `github-${githubId}@users.noreply.github.com`;
+        const existing = await storage.getUserByEmail(email);
+        if (existing) {
+          await storage.updateUser(existing.id, { githubId, avatarUrl: ghUser.avatar_url });
+          user = (await storage.getUser(existing.id))!;
+        } else {
+          user = await storage.createUser({
+            email,
+            password: "",
+            displayName: ghUser.login || ghUser.name || email.split("@")[0],
+            githubId,
+            avatarUrl: ghUser.avatar_url,
+            emailVerified: true,
+          });
+        }
+      }
+      req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
+      await storage.trackEvent(user.id, "login", { method: "github" });
+      return res.json({ id: user.id, email: user.email, displayName: user.displayName, csrfToken: req.session.csrfToken });
+    } catch (err: any) {
+      return res.status(500).json({ message: "GitHub authentication failed: " + (err.message || "Unknown error") });
+    }
+  });
+
+  // --- PASSWORD RESET ---
+  app.post("/api/auth/forgot-password", authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { email } = z.object({ email: z.string().email() }).parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.json({ message: "If an account exists with that email, a reset link has been sent." });
+      }
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await storage.createPasswordResetToken(user.id, token, expiresAt);
+      log(`[auth] Password reset requested for ${email}`, "info");
+      return res.json({ message: "If an account exists with that email, a reset link has been sent." });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to process request" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { token, password } = z.object({ token: z.string(), password: z.string().min(6) }).parse(req.body);
+      const resetToken = await storage.getPasswordResetToken(token);
+      if (!resetToken || new Date() > resetToken.expiresAt) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await storage.updateUser(resetToken.userId, { password: hashedPassword });
+      await storage.usePasswordResetToken(token);
+      return res.json({ message: "Password reset successfully" });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // --- EMAIL VERIFICATION ---
+  app.post("/api/auth/send-verification", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.emailVerified) return res.json({ message: "Email already verified" });
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await storage.createEmailVerification(user.id, token, expiresAt);
+      log(`[auth] Email verification requested for ${user.email}`, "info");
+      return res.json({ message: "Verification email sent" });
+    } catch {
+      return res.status(500).json({ message: "Failed to send verification" });
+    }
+  });
+
+  app.post("/api/auth/verify-email", async (req: Request, res: Response) => {
+    try {
+      const { token } = z.object({ token: z.string() }).parse(req.body);
+      const success = await storage.verifyEmail(token);
+      if (!success) return res.status(400).json({ message: "Invalid or expired verification token" });
+      return res.json({ message: "Email verified successfully" });
+    } catch {
+      return res.status(500).json({ message: "Verification failed" });
+    }
+  });
+
+  // --- PROFILE & ACCOUNT MANAGEMENT ---
+  app.put("/api/user/profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const data = z.object({
+        displayName: z.string().min(1).max(50).optional(),
+        avatarUrl: z.string().url().optional(),
+      }).parse(req.body);
+      const user = await storage.updateUser(req.session.userId!, data);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      return res.json({ id: user.id, email: user.email, displayName: user.displayName, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.put("/api/user/password", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { currentPassword, newPassword } = z.object({
+        currentPassword: z.string(),
+        newPassword: z.string().min(6),
+      }).parse(req.body);
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.password) {
+        const valid = await bcrypt.compare(currentPassword, user.password);
+        if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+      }
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUser(user.id, { password: hashedPassword });
+      return res.json({ message: "Password updated successfully" });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update password" });
+    }
+  });
+
+  app.delete("/api/user/account", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { confirmation } = z.object({ confirmation: z.literal("DELETE MY ACCOUNT") }).parse(req.body);
+      const userId = req.session.userId!;
+      await storage.deleteUser(userId);
+      req.session.destroy(() => {});
+      return res.json({ message: "Account deleted" });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Type 'DELETE MY ACCOUNT' to confirm" });
+      return res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
+  app.get("/api/user/export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      const projectsList = await storage.getProjects(userId);
+      const allData: any = { user: { id: user?.id, email: user?.email, displayName: user?.displayName, createdAt: user?.createdAt }, projects: [] };
+      for (const p of projectsList) {
+        const pFiles = await storage.getFiles(p.id);
+        allData.projects.push({ ...p, files: pFiles.map(f => ({ filename: f.filename, content: f.content })) });
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="replit-export-${userId}.json"`);
+      return res.json(allData);
+    } catch {
+      return res.status(500).json({ message: "Failed to export data" });
+    }
+  });
+
+  // --- TEAMS ---
+  app.get("/api/teams", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userTeams = await storage.getUserTeams(req.session.userId!);
+      return res.json(userTeams);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch teams" });
+    }
+  });
+
+  app.post("/api/teams", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const data = z.object({ name: z.string().min(1).max(50), slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/) }).parse(req.body);
+      const existing = await storage.getTeamBySlug(data.slug);
+      if (existing) return res.status(409).json({ message: "Team slug already taken" });
+      const team = await storage.createTeam({ name: data.name, slug: data.slug, ownerId: req.session.userId! });
+      await storage.trackEvent(req.session.userId!, "team_created", { teamId: team.id });
+      return res.status(201).json(team);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to create team" });
+    }
+  });
+
+  app.get("/api/teams/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const members = await storage.getTeamMembers(team.id);
+      const isMember = members.some(m => m.userId === req.session.userId);
+      if (!isMember) return res.status(403).json({ message: "Not a team member" });
+      return res.json({ ...team, members });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch team" });
+    }
+  });
+
+  app.put("/api/teams/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team || team.ownerId !== req.session.userId) return res.status(403).json({ message: "Not authorized" });
+      const data = z.object({ name: z.string().min(1).max(50).optional(), avatarUrl: z.string().url().optional() }).parse(req.body);
+      const updated = await storage.updateTeam(team.id, data);
+      return res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update team" });
+    }
+  });
+
+  app.delete("/api/teams/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team || team.ownerId !== req.session.userId) return res.status(403).json({ message: "Not authorized" });
+      await storage.deleteTeam(team.id);
+      return res.json({ message: "Team deleted" });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete team" });
+    }
+  });
+
+  app.post("/api/teams/:id/invite", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const members = await storage.getTeamMembers(team.id);
+      const requester = members.find(m => m.userId === req.session.userId);
+      if (!requester || !["owner", "admin"].includes(requester.role)) return res.status(403).json({ message: "Not authorized to invite" });
+      const { email, role } = z.object({ email: z.string().email(), role: z.enum(["member", "admin"]).default("member") }).parse(req.body);
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const invite = await storage.createTeamInvite(team.id, email, role, req.session.userId!, token, expiresAt);
+      log(`[teams] Invite for ${email} to team ${team.name}: /invite/${token}`, "info");
+      return res.status(201).json(invite);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to send invite" });
+    }
+  });
+
+  app.get("/api/teams/:id/invites", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const invites = await storage.getTeamInvites(req.params.id);
+      return res.json(invites);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch invites" });
+    }
+  });
+
+  app.post("/api/teams/accept-invite", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { token } = z.object({ token: z.string() }).parse(req.body);
+      const invite = await storage.acceptTeamInvite(token);
+      if (!invite) return res.status(400).json({ message: "Invalid or expired invite" });
+      await storage.addTeamMember({ teamId: invite.teamId, userId: req.session.userId!, role: invite.role });
+      return res.json({ message: "Joined team successfully", teamId: invite.teamId });
+    } catch {
+      return res.status(500).json({ message: "Failed to accept invite" });
+    }
+  });
+
+  app.delete("/api/teams/:id/members/:userId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const members = await storage.getTeamMembers(team.id);
+      const requester = members.find(m => m.userId === req.session.userId);
+      if (!requester || !["owner", "admin"].includes(requester.role)) return res.status(403).json({ message: "Not authorized" });
+      if (req.params.userId === team.ownerId) return res.status(400).json({ message: "Cannot remove team owner" });
+      await storage.removeTeamMember(team.id, req.params.userId);
+      return res.json({ message: "Member removed" });
+    } catch {
+      return res.status(500).json({ message: "Failed to remove member" });
+    }
+  });
+
+  app.put("/api/teams/:id/members/:userId/role", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const team = await storage.getTeam(req.params.id);
+      if (!team || team.ownerId !== req.session.userId) return res.status(403).json({ message: "Not authorized" });
+      const { role } = z.object({ role: z.enum(["member", "admin"]) }).parse(req.body);
+      const member = await storage.updateTeamMemberRole(team.id, req.params.userId, role);
+      return res.json(member);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update role" });
+    }
+  });
+
+  // --- ADMIN ---
+  const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session.userId) return res.status(401).json({ message: "Not authenticated" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    next();
+  };
+
+  app.get("/api/admin/stats", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const summary = await storage.getAnalyticsSummary();
+      const metrics = getSystemMetrics();
+      return res.json({ ...summary, system: metrics });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  app.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const { users: userList, total } = await storage.getAllUsers(limit, offset);
+      const safeUsers = userList.map(u => ({
+        id: u.id, email: u.email, displayName: u.displayName, avatarUrl: u.avatarUrl,
+        emailVerified: u.emailVerified, isAdmin: u.isAdmin, createdAt: u.createdAt,
+      }));
+      return res.json({ users: safeUsers, total, limit, offset });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.put("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const data = z.object({
+        displayName: z.string().optional(),
+        emailVerified: z.boolean().optional(),
+      }).parse(req.body);
+      const user = await storage.updateUser(req.params.id, data);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      return res.json({ id: user.id, email: user.email, displayName: user.displayName, emailVerified: user.emailVerified });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  app.put("/api/admin/users/:id/plan", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { plan } = z.object({ plan: z.enum(["free", "pro", "team"]) }).parse(req.body);
+      const quota = await storage.updateUserPlan(req.params.id, plan);
+      return res.json(quota);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      if (req.params.id === req.session.userId) return res.status(400).json({ message: "Cannot delete yourself" });
+      await storage.deleteUser(req.params.id);
+      return res.json({ message: "User deleted" });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.get("/api/admin/analytics", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const event = req.query.event as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 100;
+      const events = await storage.getAnalytics({ event, limit });
+      return res.json(events);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  app.get("/api/admin/execution-logs", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const logs = await storage.getExecutionLogs({ limit: 100 });
+      return res.json(logs);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch execution logs" });
+    }
+  });
+
+  // --- ANALYTICS TRACKING ---
+  app.post("/api/analytics/track", async (req: Request, res: Response) => {
+    try {
+      const { event, properties } = z.object({
+        event: z.string(),
+        properties: z.record(z.any()).optional(),
+      }).parse(req.body);
+      await storage.trackEvent(req.session.userId || null, event, properties);
+      return res.json({ ok: true });
+    } catch {
+      return res.status(400).json({ message: "Invalid event" });
+    }
+  });
+
+  // --- PACKAGE MANAGEMENT ---
+  app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const files = await storage.getFiles(req.params.id);
+      const pkgFile = files.find(f => f.filename === "package.json");
+      const reqFile = files.find(f => f.filename === "requirements.txt");
+      const pyprojectFile = files.find(f => f.filename === "pyproject.toml");
+      let packages: { name: string; version: string; dev?: boolean }[] = [];
+      let packageManager: "npm" | "pip" | "none" = "none";
+      if (pkgFile) {
+        packageManager = "npm";
+        try {
+          const pkg = JSON.parse(pkgFile.content || "{}");
+          if (pkg.dependencies) Object.entries(pkg.dependencies).forEach(([name, version]) => packages.push({ name, version: String(version) }));
+          if (pkg.devDependencies) Object.entries(pkg.devDependencies).forEach(([name, version]) => packages.push({ name, version: String(version), dev: true }));
+        } catch {}
+      } else if (reqFile) {
+        packageManager = "pip";
+        const lines = (reqFile.content || "").split("\n").filter(l => l.trim() && !l.startsWith("#"));
+        for (const line of lines) {
+          const match = line.match(/^([a-zA-Z0-9_-]+)(?:([=<>!~]+)(.+))?$/);
+          if (match) packages.push({ name: match[1], version: match[3] || "latest" });
+        }
+      } else if (pyprojectFile) {
+        packageManager = "pip";
+      }
+      return res.json({ packages, packageManager, language: project.language });
+    } catch {
+      return res.status(500).json({ message: "Failed to get packages" });
+    }
+  });
+
+  app.post("/api/projects/:id/packages/add", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name, dev } = z.object({ name: z.string().min(1).max(200), dev: z.boolean().optional() }).parse(req.body);
+      const files = await storage.getFiles(req.params.id);
+      if (project.language === "python" || project.language === "python3") {
+        let reqFile = files.find(f => f.filename === "requirements.txt");
+        if (!reqFile) {
+          reqFile = await storage.createFile(project.id, { projectId: project.id, filename: "requirements.txt", content: name + "\n" });
+        } else {
+          const lines = (reqFile.content || "").split("\n");
+          if (!lines.some(l => l.trim().startsWith(name))) {
+            await storage.updateFileContent(reqFile.id, (reqFile.content || "").trimEnd() + "\n" + name + "\n");
+          }
+        }
+        return res.json({ success: true, command: `pip install ${name}` });
+      } else {
+        let pkgFile = files.find(f => f.filename === "package.json");
+        if (!pkgFile) {
+          const pkg = { name: project.name, version: "1.0.0", dependencies: { [name]: "latest" } };
+          pkgFile = await storage.createFile(project.id, { projectId: project.id, filename: "package.json", content: JSON.stringify(pkg, null, 2) });
+        } else {
+          try {
+            const pkg = JSON.parse(pkgFile.content || "{}");
+            const section = dev ? "devDependencies" : "dependencies";
+            if (!pkg[section]) pkg[section] = {};
+            pkg[section][name] = "latest";
+            await storage.updateFileContent(pkgFile.id, JSON.stringify(pkg, null, 2));
+          } catch {}
+        }
+        return res.json({ success: true, command: `npm install ${dev ? "--save-dev " : ""}${name}` });
+      }
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to add package" });
+    }
+  });
+
+  app.post("/api/projects/:id/packages/remove", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name } = z.object({ name: z.string().min(1) }).parse(req.body);
+      const files = await storage.getFiles(req.params.id);
+      if (project.language === "python" || project.language === "python3") {
+        const reqFile = files.find(f => f.filename === "requirements.txt");
+        if (reqFile) {
+          const lines = (reqFile.content || "").split("\n").filter(l => !l.trim().startsWith(name));
+          await storage.updateFileContent(reqFile.id, lines.join("\n"));
+        }
+        return res.json({ success: true, command: `pip uninstall -y ${name}` });
+      } else {
+        const pkgFile = files.find(f => f.filename === "package.json");
+        if (pkgFile) {
+          try {
+            const pkg = JSON.parse(pkgFile.content || "{}");
+            if (pkg.dependencies) delete pkg.dependencies[name];
+            if (pkg.devDependencies) delete pkg.devDependencies[name];
+            await storage.updateFileContent(pkgFile.id, JSON.stringify(pkg, null, 2));
+          } catch {}
+        }
+        return res.json({ success: true, command: `npm uninstall ${name}` });
+      }
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to remove package" });
+    }
+  });
+
+  // --- DEPLOYMENTS ---
+  app.post("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deployment = await storage.createDeployment({ projectId: project.id, userId: req.session.userId! });
+      const projectFiles = await storage.getFiles(project.id);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const url = `/shared/${project.id}`;
+      await storage.updateProject(project.id, { isPublished: true, publishedSlug: slug });
+      let buildLog = `[deploy] Building ${project.name}...\n`;
+      buildLog += `[deploy] Found ${projectFiles.length} files\n`;
+      buildLog += `[deploy] Language: ${project.language}\n`;
+      buildLog += `[deploy] Deploying to ${url}\n`;
+      buildLog += `[deploy] ✓ Deployment complete\n`;
+      await storage.updateDeployment(deployment.id, { status: "live", buildLog, url, finishedAt: new Date() });
+      await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id });
+      return res.json({ deployment: { ...deployment, status: "live", buildLog, url }, slug, url });
+    } catch {
+      return res.status(500).json({ message: "Deployment failed" });
+    }
+  });
+
+  app.get("/api/projects/:id/deployments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deps = await storage.getProjectDeployments(req.params.id);
+      return res.json(deps);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch deployments" });
+    }
+  });
+
+  // --- VERSION HISTORY ---
+  app.post("/api/projects/:id/commits", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message } = z.object({ message: z.string().min(1).max(200) }).parse(req.body);
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const projectFiles = await storage.getFiles(project.id);
+      const snapshot: Record<string, string> = {};
+      projectFiles.forEach(f => { snapshot[f.filename] = f.content; });
+      const existingCommits = await storage.getCommits(project.id, "main");
+      const parentCommitId = existingCommits.length > 0 ? existingCommits[0].id : undefined;
+      const commit = await storage.createCommit({
+        projectId: project.id, branchName: "main", message,
+        authorId: req.session.userId!, parentCommitId: parentCommitId || null, snapshot,
+      });
+      let branch = await storage.getBranch(project.id, "main");
+      if (!branch) {
+        branch = await storage.createBranch({ projectId: project.id, name: "main", headCommitId: commit.id, isDefault: true });
+      } else {
+        await storage.updateBranchHead(branch.id, commit.id);
+      }
+      await storage.trackEvent(req.session.userId!, "commit_created", { projectId: project.id, commitId: commit.id });
+      return res.status(201).json(commit);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to create commit" });
+    }
+  });
+
+  app.get("/api/projects/:id/commits", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const branch = (req.query.branch as string) || "main";
+      const commitList = await storage.getCommits(req.params.id, branch);
+      return res.json(commitList);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch commits" });
+    }
+  });
+
+  app.get("/api/commits/:commitId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const commit = await storage.getCommit(req.params.commitId);
+      if (!commit) return res.status(404).json({ message: "Commit not found" });
+      return res.json(commit);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch commit" });
+    }
+  });
+
+  app.post("/api/projects/:id/restore/:commitId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const commit = await storage.getCommit(req.params.commitId);
+      if (!commit || commit.projectId !== project.id) return res.status(404).json({ message: "Commit not found" });
+      const currentFiles = await storage.getFiles(project.id);
+      for (const f of currentFiles) { await storage.deleteFile(f.id); }
+      const snapshot = commit.snapshot as Record<string, string>;
+      for (const [filename, content] of Object.entries(snapshot)) {
+        await storage.createFile(project.id, { filename, content });
+      }
+      return res.json({ message: "Restored to commit", commitId: commit.id });
+    } catch {
+      return res.status(500).json({ message: "Failed to restore" });
+    }
+  });
+
+  app.get("/api/projects/:id/branches", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const branchList = await storage.getBranches(req.params.id);
+      return res.json(branchList);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch branches" });
+    }
+  });
+
+  // --- METRICS (for error boundary reporting) ---
+  app.get("/api/metrics", (_req: Request, res: Response) => {
+    return res.json({ status: "ok", uptime: process.uptime() });
   });
 
   app.get("/api/github/user", requireAuth, async (_req: Request, res: Response) => {

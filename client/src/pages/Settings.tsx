@@ -1,12 +1,13 @@
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 function UserAvatar({ initials, size = "lg" }: { initials: string; size?: "sm" | "md" | "lg" }) {
   const sizes = {
@@ -50,34 +51,72 @@ export default function Settings() {
 
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
-  const handleSaveProfile = () => {
-    toast({ title: "Profile updated", description: "Your display name has been saved." });
-    setIsEditingProfile(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [sendingVerification, setSendingVerification] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await apiRequest("PUT", "/api/user/profile", { displayName });
+      toast({ title: "Profile updated" });
+      setIsEditingProfile(false);
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally { setSavingProfile(false); }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      toast({ title: "Passwords don't match", description: "New password and confirmation must match.", variant: "destructive" });
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast({ title: "Password too short", description: "Password must be at least 6 characters.", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Password changed", description: "Your password has been updated successfully." });
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    if (newPassword !== confirmPassword) { toast({ title: "Passwords don't match", variant: "destructive" }); return; }
+    setSavingPassword(true);
+    try {
+      await apiRequest("PUT", "/api/user/password", { currentPassword, newPassword });
+      toast({ title: "Password updated" });
+      setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally { setSavingPassword(false); }
   };
 
-  const handleDeleteAccount = () => {
-    if (deleteConfirm !== "DELETE") {
-      toast({ title: "Confirmation required", description: "Type DELETE to confirm account deletion.", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Account deleted", description: "Your account has been permanently deleted.", variant: "destructive" });
-    logout.mutate();
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== "DELETE") { toast({ title: "Type DELETE to confirm", variant: "destructive" }); return; }
+    setDeletingAccount(true);
+    try {
+      await apiRequest("DELETE", "/api/user/account", { confirmation: "DELETE MY ACCOUNT" });
+      toast({ title: "Account deleted" });
+      logout.mutate();
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally { setDeletingAccount(false); }
+  };
+
+  const handleExportData = async () => {
+    setExportingData(true);
+    try {
+      const res = await apiRequest("GET", "/api/user/export");
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "replit-data-export.json"; a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Data exported" });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally { setExportingData(false); }
+  };
+
+  const handleSendVerification = async () => {
+    setSendingVerification(true);
+    try {
+      await apiRequest("POST", "/api/auth/send-verification");
+      toast({ title: "Verification email sent", description: "Check your inbox to verify your email." });
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally { setSendingVerification(false); }
   };
 
   return (
@@ -237,6 +276,106 @@ export default function Settings() {
                   Update Password
                 </Button>
               </form>
+            </div>
+          </div>
+
+          <div className="h-px bg-[#2B3245]/60" />
+
+          <div className="space-y-3" data-testid="section-connected">
+            <h2 className="text-[11px] font-semibold text-[#9DA2B0] uppercase tracking-wider px-1 flex items-center gap-1.5">
+              <Shield className="w-3 h-3" /> Connected Accounts & Data
+            </h2>
+            <div className="rounded-xl bg-[#1C2333] border border-[#2B3245] divide-y divide-[#2B3245]">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#2B3245] flex items-center justify-center">
+                    <Mail className="w-4 h-4 text-[#0079F2]" />
+                  </div>
+                  <div>
+                    <span className="text-sm text-[#F5F9FC] font-medium">Email Verification</span>
+                    <p className="text-[11px] text-[#676D7E]">
+                      {(user as any)?.emailVerified ? "Your email is verified" : "Verify your email address"}
+                    </p>
+                  </div>
+                </div>
+                {(user as any)?.emailVerified ? (
+                  <span className="flex items-center gap-1 text-xs text-[#0CCE6B]" data-testid="text-email-verified"><CheckCircle className="w-3.5 h-3.5" /> Verified</span>
+                ) : (
+                  <Button size="sm" onClick={handleSendVerification} disabled={sendingVerification}
+                    className="h-8 px-4 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg" data-testid="button-verify-email">
+                    {sendingVerification ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Send Verification"}
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#2B3245] flex items-center justify-center">
+                    <Github className="w-4 h-4 text-[#F5F9FC]" />
+                  </div>
+                  <div>
+                    <span className="text-sm text-[#F5F9FC] font-medium">GitHub</span>
+                    <p className="text-[11px] text-[#676D7E]">
+                      {(user as any)?.githubId ? "Connected" : "Connect your GitHub account"}
+                    </p>
+                  </div>
+                </div>
+                {(user as any)?.githubId ? (
+                  <span className="flex items-center gap-1 text-xs text-[#0CCE6B]" data-testid="text-github-connected"><CheckCircle className="w-3.5 h-3.5" /> Connected</span>
+                ) : (
+                  <span className="text-xs text-[#676D7E]" data-testid="text-github-not-connected">Not connected</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#2B3245] flex items-center justify-center">
+                    <Download className="w-4 h-4 text-[#0CCE6B]" />
+                  </div>
+                  <div>
+                    <span className="text-sm text-[#F5F9FC] font-medium">Export Your Data</span>
+                    <p className="text-[11px] text-[#676D7E]">Download all your projects and data (GDPR)</p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={handleExportData} disabled={exportingData}
+                  className="h-8 px-4 border-[#2B3245] text-[#9DA2B0] hover:text-[#F5F9FC] text-[12px] rounded-lg" data-testid="button-export-data">
+                  {exportingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Export JSON"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-px bg-[#2B3245]/60" />
+
+          <div className="space-y-3" data-testid="section-billing">
+            <h2 className="text-[11px] font-semibold text-[#9DA2B0] uppercase tracking-wider px-1">Billing & Plan</h2>
+            <div className="rounded-xl bg-[#1C2333] border border-[#2B3245] divide-y divide-[#2B3245]">
+              <div className="flex items-center justify-between p-4">
+                <div>
+                  <span className="text-sm text-[#F5F9FC] font-medium">Current Plan</span>
+                  <p className="text-[11px] text-[#676D7E]">Free tier</p>
+                </div>
+                <Link href="/pricing" className="text-xs text-[#0079F2] hover:text-[#0079F2]/80 transition-colors" data-testid="link-upgrade-plan">
+                  Upgrade
+                </Link>
+              </div>
+              <div className="flex items-center justify-between p-4">
+                <div>
+                  <span className="text-sm text-[#F5F9FC] font-medium">Manage Billing</span>
+                  <p className="text-[11px] text-[#676D7E]">View invoices and update payment method</p>
+                </div>
+                <Button size="sm" variant="outline" className="h-8 px-4 border-[#2B3245] text-[#9DA2B0] hover:text-[#F5F9FC] text-[12px] rounded-lg"
+                  onClick={async () => {
+                    try {
+                      const res = await apiRequest("POST", "/api/billing/portal");
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                      else toast({ title: data.message || "Billing portal unavailable" });
+                    } catch { toast({ title: "Failed to open billing portal", variant: "destructive" }); }
+                  }}
+                  data-testid="button-manage-billing"
+                >
+                  Open Portal
+                </Button>
+              </div>
             </div>
           </div>
 

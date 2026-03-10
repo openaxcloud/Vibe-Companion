@@ -14,8 +14,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme, language-aware autocomplete, and basic lint integration
 
 ## Database Schema (PostgreSQL)
-- `users`: id, email, password (hashed), display_name
-- `projects`: id, user_id (indexed), name, language, is_demo, is_published, updated_at
+- `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id
+- `projects`: id, user_id (indexed), team_id, name, language, is_demo, is_published, published_slug, custom_domain, updated_at
 - `files`: id, project_id (indexed), filename, content, updated_at
 - `runs`: id, project_id (indexed), user_id (indexed), status, language, code, stdout, stderr, exit_code, started_at, finished_at
 - `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
@@ -23,10 +23,17 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at
 - `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
 - `execution_logs`: id (uuid), user_id (indexed), project_id, language, exit_code, duration_ms, security_violation (indexed), code_hash, ip_address, created_at (indexed)
-- `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, last_reset_at, updated_at
+- `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, stripe_customer_id, stripe_subscription_id, last_reset_at, updated_at
 - `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
 - `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
 - `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value, created_at
+- `password_reset_tokens`: id, user_id, token, expires_at, used
+- `email_verifications`: id, user_id, token, expires_at, used
+- `teams`: id, name, slug, owner_id, created_at
+- `team_members`: id, team_id, user_id, role, joined_at
+- `team_invites`: id, team_id, email, role, token, invited_by, expires_at, accepted
+- `analytics_events`: id, user_id, event, properties, created_at
+- `deployments`: id, project_id, user_id, status, url, logs, created_at, updated_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -62,7 +69,15 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Credits indicator**: "Free" plan badge near profile in dashboard
 - **Welcome/Onboarding states**: New project shows welcome with quick-start actions; no-files-open shows recent file list
 - **Mobile dashboard navigation**: Hamburger menu slides in sidebar; mobile search expands from icon
-- **Social login placeholders**: GitHub/Google buttons show "coming soon" toasts
+- **GitHub OAuth login**: Login/register with GitHub via Replit connector
+- **Password reset flow**: Token-based forgot/reset password pages
+- **Email verification**: Send verification emails, status shown in settings
+- **Teams & Organizations**: Create teams, invite members, role-based access (owner/admin/member)
+- **Admin Dashboard**: Platform metrics, user management, analytics (admin-only)
+- **Package Management**: Detect package.json/requirements.txt, add/remove packages, activity bar icon
+- **Profile Settings**: Display name, connected accounts (GitHub), GDPR data export, email verification, billing portal, account deletion
+- **Legal Pages**: Terms of Service, Privacy Policy with proper routing
+- **Stripe Billing**: Checkout sessions, subscription management, webhook handling, billing portal (when Stripe configured)
 - Remote code execution (JavaScript, TypeScript, Python) via local sandbox with esbuild TypeScript transpilation
 - Real-time logs via WebSocket in resizable terminal panel
 - Console + Preview (iframe) + Shell (xterm.js) bottom tabs
@@ -161,9 +176,33 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `DELETE /api/projects/:projectId/env-vars/:id` - Delete env var
 - `POST /api/projects/:projectId/upload` - Upload files to project
 - `GET /api/templates` - List project templates
-- `POST /api/billing/checkout` - Create billing checkout
-- `POST /api/billing/portal` - Open billing portal
-- `GET /api/billing/status` - Get billing status
+- `POST /api/billing/checkout` - Create Stripe checkout session
+- `POST /api/billing/portal` - Open Stripe billing portal
+- `GET /api/billing/status` - Get billing/subscription status
+- `POST /api/billing/webhook` - Stripe webhook handler
+- `POST /api/auth/github` - GitHub OAuth login
+- `POST /api/auth/forgot-password` - Send password reset email
+- `POST /api/auth/reset-password` - Reset password with token
+- `POST /api/auth/send-verification` - Send email verification
+- `GET /api/auth/verify-email` - Verify email token
+- `PUT /api/user/profile` - Update display name/avatar
+- `PUT /api/user/password` - Change password
+- `DELETE /api/user/account` - Delete account (GDPR)
+- `GET /api/user/export` - Export user data (GDPR)
+- `GET /api/teams` - List user teams
+- `POST /api/teams` - Create team
+- `PUT /api/teams/:id` - Update team
+- `DELETE /api/teams/:id` - Delete team
+- `POST /api/teams/:id/invite` - Invite member
+- `POST /api/teams/:id/remove` - Remove member
+- `POST /api/teams/accept-invite` - Accept invitation
+- `GET /api/admin/stats` - Admin platform stats
+- `GET /api/admin/users` - Admin user list
+- `POST /api/admin/users/:id/role` - Admin update user role
+- `GET /api/projects/:id/packages` - List project packages
+- `POST /api/projects/:id/packages/add` - Add package
+- `POST /api/projects/:id/packages/remove` - Remove package
+- `POST /api/analytics/track` - Track analytics event
 - `GET /api/runner/status` - Check runner VPS health
 - `POST /api/workspaces/:projectId` - Init/provision workspace
 - `POST /api/workspaces/:projectId/start` - Start workspace
@@ -203,7 +242,13 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
 - `client/src/components/GitHubPanel.tsx` - GitHub import/export panel in Source Control sidebar
 - `client/src/components/EnvVarsPanel.tsx` - Per-project environment variables panel
-- `client/src/components/AICompletions.ts` - Inline AI ghost text completion extension for CodeMirror
+- `client/src/components/AICompletions.tsx` - Inline AI ghost text completion extension for CodeMirror
+- `client/src/pages/ForgotPassword.tsx` - Forgot password page
+- `client/src/pages/ResetPassword.tsx` - Reset password with token page
+- `client/src/pages/Teams.tsx` - Team management page
+- `client/src/pages/Admin.tsx` - Admin dashboard page
+- `client/src/pages/Terms.tsx` - Terms of Service
+- `client/src/pages/Privacy.tsx` - Privacy Policy
 - `server/terminal.ts` - node-pty PTY session management with WebSocket relay
 - `server/github.ts` - GitHub API proxy via Replit connectors SDK
 - `server/templates.ts` - Project template definitions

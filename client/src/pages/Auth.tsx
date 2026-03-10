@@ -100,7 +100,20 @@ export default function Auth() {
               variant="outline"
               className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
               data-testid="button-github-login"
-              onClick={() => toast({ title: "GitHub login coming soon", description: "This feature is not yet available." })}
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/auth/github", { method: "POST", headers: { "Content-Type": "application/json" } });
+                  const data = await res.json();
+                  if (res.ok && data.id) {
+                    if (data.csrfToken) localStorage.setItem("csrfToken", data.csrfToken);
+                    window.location.href = "/dashboard";
+                  } else {
+                    toast({ title: "GitHub Login", description: data.message || "Connect GitHub integration first", variant: "destructive" });
+                  }
+                } catch (err: any) {
+                  toast({ title: "GitHub Login Failed", description: err.message, variant: "destructive" });
+                }
+              }}
             >
               <Github className="w-5 h-5" />
               Continue with GitHub
@@ -110,7 +123,7 @@ export default function Auth() {
               variant="outline"
               className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
               data-testid="button-google-login"
-              onClick={() => toast({ title: "Google login coming soon", description: "This feature is not yet available." })}
+              onClick={() => toast({ title: "Google Sign-In", description: "Configure Google OAuth to enable this option." })}
             >
               <GoogleIcon />
               Continue with Google
@@ -158,9 +171,9 @@ export default function Auth() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-xs font-medium text-[#9DA2B0]">Password</Label>
                 {isLogin && (
-                  <span className="text-xs text-[#0079F2] hover:text-[#0079F2]/80 cursor-pointer transition-colors" data-testid="link-forgot-password">
+                  <Link href="/forgot-password" className="text-xs text-[#0079F2] hover:text-[#0079F2]/80 cursor-pointer transition-colors" data-testid="link-forgot-password">
                     Forgot password?
-                  </span>
+                  </Link>
                 )}
               </div>
               <Input
@@ -214,9 +227,9 @@ export default function Auth() {
             <span>Try the demo</span>
           </Link>
           <span className="text-[#2B3245]">·</span>
-          <span className="text-xs text-[#676D7E]">Terms</span>
+          <Link href="/terms" className="text-xs text-[#676D7E] hover:text-[#0079F2] transition-colors" data-testid="link-terms">Terms</Link>
           <span className="text-[#2B3245]">·</span>
-          <span className="text-xs text-[#676D7E]">Privacy</span>
+          <Link href="/privacy" className="text-xs text-[#676D7E] hover:text-[#0079F2] transition-colors" data-testid="link-privacy">Privacy</Link>
         </div>
       </div>
     </div>
