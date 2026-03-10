@@ -7,7 +7,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
-- **Code Execution**: Local sandboxed `child_process.spawn` with security pattern blocking, 10s timeout, 64MB memory limit
+- **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, `--disallow-code-generation-from-strings`, minimal env vars, 10s timeout, 64MB memory limit
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
@@ -22,6 +22,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `workspace_sessions`: id (uuid), workspace_id, user_id, created_at, expires_at
 - `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at
 - `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
+- `execution_logs`: id (uuid), user_id (indexed), project_id, language, exit_code, duration_ms, security_violation (indexed), code_hash, ip_address, created_at (indexed)
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -70,9 +71,10 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Run UX**: Run button auto-opens terminal, shows run separator with timestamp, displays exit code on completion
 - **File creation flow**: New files from AI agent or manual creation auto-open in tab, expand parent folders, and show file explorer
 - **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Repl" card, improved empty states with CTAs
-- **Security**: Path traversal prevention on all file endpoints, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
+- **Security**: Multi-layered sandbox (AST analysis + runtime wrappers + process isolation + resource limits + FS isolation), CSRF protection with token validation, Helmet.js security headers (CSP, HSTS, X-Frame-Options), path traversal prevention, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
+- **Rate Limiting**: Per-user + per-IP execution rate limiting (10 runs/min), concurrent execution queue (3 max), AI rate limiting (20 req/min chat, 5 req/min generate), express-rate-limit on all API endpoints
+- **Audit Logging**: All code executions logged to `execution_logs` table with userId, language, exitCode, durationMs, securityViolation, codeHash, ipAddress
 - **WebSocket heartbeat**: Server-side ping/pong every 30s, client-side auto-reconnect with exponential backoff
-- Rate limiting: 50 req/15min on auth, 100 req/min on API, 10 req/min on execution
 - **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
 - **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
 
@@ -147,8 +149,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo)
 - `server/runnerClient.ts` - Runner VPS HTTP client
 - `server/storage.ts` - IStorage interface + DatabaseStorage implementation
-- `server/executor.ts` - Sandboxed code execution engine
-- `server/index.ts` - Express setup
+- `server/executor.ts` - Multi-layered sandboxed code execution (AST analysis, runtime wrappers, process isolation)
+- `server/rateLimiter.ts` - Per-user/IP rate limiting, execution queue, metrics tracking
+- `server/index.ts` - Express setup with Helmet.js security headers
 - `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel)
 - `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation, skeleton loading
 - `client/src/pages/Auth.tsx` - Login/register page

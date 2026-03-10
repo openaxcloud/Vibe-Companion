@@ -1,4 +1,4 @@
-import { apiRequest } from "./queryClient";
+import { apiRequest, setCsrfToken, fetchCsrfToken } from "./queryClient";
 
 export interface AuthUser {
   id: string;
@@ -7,13 +7,23 @@ export interface AuthUser {
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
+  await fetchCsrfToken();
   const res = await apiRequest("POST", "/api/auth/login", { email, password });
-  return res.json();
+  const data = await res.json();
+  if (data.csrfToken) {
+    setCsrfToken(data.csrfToken);
+  }
+  return { id: data.id, email: data.email, displayName: data.displayName };
 }
 
 export async function register(email: string, password: string, displayName?: string): Promise<AuthUser> {
+  await fetchCsrfToken();
   const res = await apiRequest("POST", "/api/auth/register", { email, password, displayName });
-  return res.json();
+  const data = await res.json();
+  if (data.csrfToken) {
+    setCsrfToken(data.csrfToken);
+  }
+  return { id: data.id, email: data.email, displayName: data.displayName };
 }
 
 export async function logout(): Promise<void> {
@@ -25,6 +35,7 @@ export async function getMe(): Promise<AuthUser | null> {
     const res = await fetch("/api/auth/me", { credentials: "include" });
     if (res.status === 401) return null;
     if (!res.ok) return null;
+    await fetchCsrfToken();
     return res.json();
   } catch {
     return null;

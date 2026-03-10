@@ -1,8 +1,8 @@
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
-  commits, branches,
+  commits, branches, executionLogs,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -11,6 +11,7 @@ import {
   type WorkspaceSession, type InsertWorkspaceSession,
   type Commit, type InsertCommit,
   type Branch, type InsertBranch,
+  type ExecutionLog, type InsertExecutionLog,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -53,6 +54,9 @@ export interface IStorage {
 
   getDemoProject(): Promise<Project | undefined>;
   seedDemoProject(): Promise<void>;
+
+  createExecutionLog(data: InsertExecutionLog): Promise<ExecutionLog>;
+  getExecutionLogs(filters?: { userId?: string; securityViolation?: boolean; limit?: number }): Promise<ExecutionLog[]>;
 
   getCommits(projectId: string, branchName?: string): Promise<Commit[]>;
   getCommit(id: string): Promise<Commit | undefined>;
@@ -382,6 +386,36 @@ export class DatabaseStorage implements IStorage {
   async deleteBranch(id: string): Promise<boolean> {
     const result = await db.delete(branches).where(eq(branches.id, id)).returning();
     return result.length > 0;
+  }
+
+  async createExecutionLog(data: InsertExecutionLog): Promise<ExecutionLog> {
+    const [log] = await db.insert(executionLogs).values(data).returning();
+    return log;
+  }
+
+  async getExecutionLogs(filters?: { userId?: string; securityViolation?: boolean; limit?: number }): Promise<ExecutionLog[]> {
+    const conditions = [];
+    if (filters?.userId) {
+      conditions.push(eq(executionLogs.userId, filters.userId));
+    }
+    if (filters?.securityViolation !== undefined) {
+      if (filters.securityViolation) {
+        conditions.push(sql`${executionLogs.securityViolation} IS NOT NULL`);
+      } else {
+        conditions.push(sql`${executionLogs.securityViolation} IS NULL`);
+      }
+    }
+
+    const query = db.select().from(executionLogs);
+    if (conditions.length > 0) {
+      return query
+        .where(and(...conditions))
+        .orderBy(desc(executionLogs.createdAt))
+        .limit(filters?.limit || 100);
+    }
+    return query
+      .orderBy(desc(executionLogs.createdAt))
+      .limit(filters?.limit || 100);
   }
 }
 

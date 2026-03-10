@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
@@ -10,6 +11,15 @@ import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { log } from "./index";
+import {
+  checkUserRateLimit,
+  checkIpRateLimit,
+  acquireExecutionSlot,
+  releaseExecutionSlot,
+  recordExecution,
+  getExecutionMetrics,
+  getClientIp,
+} from "./rateLimiter";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -27,6 +37,27 @@ function sanitizePath(p: string): string | null {
   return normalized;
 }
 
+function sanitizeInput(input: string, maxLength: number = 10000): string {
+  if (typeof input !== "string") return "";
+  return input.slice(0, maxLength);
+}
+
+function sanitizeProjectName(name: string): string | null {
+  if (!name || typeof name !== "string") return null;
+  const trimmed = name.trim().slice(0, 200);
+  const sanitized = trimmed.replace(/[<>"'`;{}]/g, "");
+  if (!sanitized || sanitized.length === 0) return null;
+  return sanitized;
+}
+
+function sanitizeFilename(filename: string): string | null {
+  if (!filename || typeof filename !== "string") return null;
+  const trimmed = filename.trim().slice(0, 500);
+  if (/[<>"'`;{}|&$!]/.test(trimmed)) return null;
+  if (/[\x00-\x1f\x7f]/.test(trimmed)) return null;
+  return sanitizePath(trimmed);
+}
+
 function validateRunnerPath(p: string): boolean {
   if (!p || typeof p !== "string") return false;
   const decoded = decodeURIComponent(p);
@@ -37,16 +68,116 @@ function validateRunnerPath(p: string): boolean {
 }
 
 const MAX_AGENT_ITERATIONS = 10;
+const MAX_PROMPT_LENGTH = 50000;
+const MAX_MESSAGE_CONTENT_LENGTH = 100000;
+const MAX_MESSAGES_COUNT = 50;
+const MAX_AI_FILENAME_LENGTH = 255;
+
+const FORBIDDEN_FILENAME_PATTERNS = [
+  /\.\./,
+  /\\/,
+  /^\/+/,
+  /[\x00-\x1f\x7f]/,
+  /^\.+$/,
+  /[<>:"|?*]/,
+  /^\s|\s$/,
+  /\.(env|pem|key|crt|cer|p12|pfx|jks)$/i,
+  /^\.git\//,
+  /^\.ssh\//,
+  /^node_modules\//,
+  /^__pycache__\//,
+];
+
+function sanitizeAIFilename(filename: string): string | null {
+  if (!filename || typeof filename !== "string") return null;
+  if (filename.length > MAX_AI_FILENAME_LENGTH) return null;
+
+  const trimmed = filename.trim();
+  if (!trimmed) return null;
+
+  for (const pattern of FORBIDDEN_FILENAME_PATTERNS) {
+    if (pattern.test(trimmed)) return null;
+  }
+
+  const sanitized = sanitizePath(trimmed);
+  if (!sanitized) return null;
+
+  const parts = sanitized.split("/");
+  for (const part of parts) {
+    if (part.startsWith(".") && part !== ".gitignore" && part !== ".eslintrc" && part !== ".prettierrc") {
+      return null;
+    }
+  }
+
+  return sanitized;
+}
+
+function validateAIMessages(messages: any[]): string | null {
+  if (!Array.isArray(messages)) return "messages must be an array";
+  if (messages.length === 0) return "messages array cannot be empty";
+  if (messages.length > MAX_MESSAGES_COUNT) return `Too many messages (max ${MAX_MESSAGES_COUNT})`;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (!msg || typeof msg !== "object") return `Invalid message at index ${i}`;
+    if (!msg.role || !["user", "assistant"].includes(msg.role)) {
+      return `Invalid role at message index ${i}`;
+    }
+    if (typeof msg.content !== "string") return `Message content must be a string at index ${i}`;
+    if (msg.content.length > MAX_MESSAGE_CONTENT_LENGTH) {
+      return `Message at index ${i} exceeds maximum length (${MAX_MESSAGE_CONTENT_LENGTH} chars)`;
+    }
+  }
+  return null;
+}
+
+function sanitizeAIFileContent(content: string): string {
+  if (typeof content !== "string") return "";
+  const maxFileSize = 500000;
+  if (content.length > maxFileSize) {
+    content = content.slice(0, maxFileSize);
+  }
+  return content;
+}
 
 declare module "express-session" {
   interface SessionData {
     userId?: string;
+    csrfToken?: string;
   }
+}
+
+function generateCsrfToken(): string {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Authentication required" });
+  }
+  next();
+}
+
+const CSRF_EXEMPT_PATHS = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/logout",
+  "/api/csrf-token",
+  "/api/demo/run",
+  "/api/demo/project",
+  "/api/ai/chat",
+];
+
+function csrfProtection(req: Request, res: Response, next: NextFunction) {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    return next();
+  }
+  if (CSRF_EXEMPT_PATHS.some(p => req.path === p)) {
+    return next();
+  }
+  const token = req.headers["x-csrf-token"] as string;
+  if (!token || !req.session.csrfToken || token !== req.session.csrfToken) {
+    return res.status(403).json({ message: "Invalid CSRF token" });
   }
   next();
 }
@@ -106,7 +237,32 @@ export async function registerRoutes(
     message: { message: "Too many executions. Please wait." },
   });
 
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    keyGenerator: (req: Request) => req.session?.userId || "anonymous",
+    message: { message: "Too many AI requests. Please wait a moment." },
+    validate: { xForwardedForHeader: false, ip: false },
+  });
+
+  const aiGenerateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    keyGenerator: (req: Request) => req.session?.userId || "anonymous",
+    message: { message: "Too many project generation requests. Please wait." },
+    validate: { xForwardedForHeader: false, ip: false },
+  });
+
   app.use("/api", apiLimiter);
+
+  app.get("/api/csrf-token", (req: Request, res: Response) => {
+    if (!req.session.csrfToken) {
+      req.session.csrfToken = generateCsrfToken();
+    }
+    return res.json({ csrfToken: req.session.csrfToken });
+  });
+
+  app.use("/api", csrfProtection);
 
   // --- AUTH ---
   app.post("/api/auth/register", authLimiter, async (req: Request, res: Response) => {
@@ -131,10 +287,12 @@ export async function registerRoutes(
       });
 
       req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
       return res.status(201).json({
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        csrfToken: req.session.csrfToken,
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -163,10 +321,12 @@ export async function registerRoutes(
       }
 
       req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
       return res.json({
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        csrfToken: req.session.csrfToken,
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -206,6 +366,13 @@ export async function registerRoutes(
   app.post("/api/projects", requireAuth, async (req: Request, res: Response) => {
     try {
       const data = insertProjectSchema.parse(req.body);
+      if (data.name) {
+        const safeName = sanitizeProjectName(data.name);
+        if (!safeName) {
+          return res.status(400).json({ message: "Invalid project name" });
+        }
+        data.name = safeName;
+      }
       const project = await storage.createProject(req.session.userId!, data);
       return res.status(201).json(project);
     } catch (error: any) {
@@ -263,9 +430,12 @@ export async function registerRoutes(
     }
     try {
       const data = insertFileSchema.parse(req.body);
-      const safeName = sanitizePath(data.filename);
+      const safeName = sanitizeFilename(data.filename);
       if (!safeName) {
         return res.status(400).json({ message: "Invalid filename" });
+      }
+      if (data.content) {
+        data.content = sanitizeInput(data.content, 500000);
       }
       const file = await storage.createFile(req.params.projectId, { ...data, filename: safeName });
       return res.status(201).json(file);
@@ -288,11 +458,12 @@ export async function registerRoutes(
     }
     const { content, filename } = req.body;
     if (typeof content === "string") {
-      const file = await storage.updateFileContent(req.params.id, content);
+      const sanitizedContent = sanitizeInput(content, 500000);
+      const file = await storage.updateFileContent(req.params.id, sanitizedContent);
       return res.json(file);
     }
     if (typeof filename === "string" && filename.trim()) {
-      const safeName = sanitizePath(filename.trim());
+      const safeName = sanitizeFilename(filename.trim());
       if (!safeName) {
         return res.status(400).json({ message: "Invalid filename" });
       }
@@ -321,7 +492,14 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Access denied" });
     }
     const { name, language } = req.body;
-    const updated = await storage.updateProject(req.params.id, { name, language });
+    let safeName = name;
+    if (typeof name === "string") {
+      safeName = sanitizeProjectName(name);
+      if (!safeName) {
+        return res.status(400).json({ message: "Invalid project name" });
+      }
+    }
+    const updated = await storage.updateProject(req.params.id, { name: safeName, language });
     if (!updated) {
       return res.status(404).json({ message: "Project not found" });
     }
@@ -330,11 +508,30 @@ export async function registerRoutes(
 
   // --- RUNS ---
   app.post("/api/projects/:projectId/run", requireAuth, runLimiter, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const clientIp = getClientIp(req);
+
+    const ipCheck = checkIpRateLimit(clientIp);
+    if (!ipCheck.allowed) {
+      return res.status(429).json({
+        message: "Too many executions from this IP. Please wait.",
+        retryAfterMs: ipCheck.retryAfterMs,
+      });
+    }
+
+    const userCheck = checkUserRateLimit(userId);
+    if (!userCheck.allowed) {
+      return res.status(429).json({
+        message: "Execution rate limit exceeded. Please wait.",
+        retryAfterMs: userCheck.retryAfterMs,
+      });
+    }
+
     const project = await storage.getProject(req.params.projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (project.userId !== req.session.userId && !project.isDemo) {
+    if (project.userId !== userId && !project.isDemo) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -343,7 +540,15 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Code and language are required" });
     }
 
-    const run = await storage.createRun(req.session.userId!, {
+    try {
+      await acquireExecutionSlot(userId);
+    } catch (err: any) {
+      return res.status(429).json({ message: err.message });
+    }
+
+    const startTime = Date.now();
+
+    const run = await storage.createRun(userId, {
       projectId: project.id,
       language,
       code,
@@ -357,6 +562,8 @@ export async function registerRoutes(
 
     res.status(202).json({ runId: run.id, status: "running" });
 
+    const codeHash = crypto.createHash("sha256").update(code).digest("hex").slice(0, 16);
+
     try {
       const result = await executeCode(code, language, (message, type) => {
         broadcastToProject(project.id, {
@@ -366,10 +573,25 @@ export async function registerRoutes(
           logType: type,
           timestamp: Date.now(),
         });
-      });
+      }, undefined, undefined);
+
+      const durationMs = Date.now() - startTime;
+      const failed = result.exitCode !== 0;
+      recordExecution(userId, clientIp, durationMs, failed);
+
+      storage.createExecutionLog({
+        userId,
+        projectId: project.id,
+        language,
+        exitCode: result.exitCode,
+        durationMs,
+        securityViolation: result.securityViolation || null,
+        codeHash,
+        ipAddress: clientIp,
+      }).catch(() => {});
 
       await storage.updateRun(run.id, {
-        status: result.exitCode === 0 ? "completed" : "failed",
+        status: failed ? "failed" : "completed",
         stdout: result.stdout,
         stderr: result.stderr,
         exitCode: result.exitCode,
@@ -379,10 +601,24 @@ export async function registerRoutes(
       broadcastToProject(project.id, {
         type: "run_status",
         runId: run.id,
-        status: result.exitCode === 0 ? "completed" : "failed",
+        status: failed ? "failed" : "completed",
         exitCode: result.exitCode,
       });
     } catch (error: any) {
+      const durationMs = Date.now() - startTime;
+      recordExecution(userId, clientIp, durationMs, true);
+
+      storage.createExecutionLog({
+        userId,
+        projectId: project.id,
+        language,
+        exitCode: 1,
+        durationMs,
+        securityViolation: null,
+        codeHash,
+        ipAddress: clientIp,
+      }).catch(() => {});
+
       await storage.updateRun(run.id, {
         status: "failed",
         stderr: error.message,
@@ -396,12 +632,19 @@ export async function registerRoutes(
         status: "failed",
         exitCode: 1,
       });
+    } finally {
+      releaseExecutionSlot(userId);
     }
   });
 
   app.get("/api/projects/:projectId/runs", requireAuth, async (req: Request, res: Response) => {
     const runList = await storage.getRunsByProject(req.params.projectId);
     return res.json(runList);
+  });
+
+  app.get("/api/execution-metrics", requireAuth, async (req: Request, res: Response) => {
+    const metrics = getExecutionMetrics(req.session.userId!);
+    return res.json(metrics);
   });
 
   // --- DEMO ---
@@ -415,20 +658,65 @@ export async function registerRoutes(
   });
 
   app.post("/api/demo/run", runLimiter, async (req: Request, res: Response) => {
+    const clientIp = getClientIp(req);
+
+    const ipCheck = checkIpRateLimit(clientIp);
+    if (!ipCheck.allowed) {
+      return res.status(429).json({
+        message: "Too many executions from this IP. Please wait.",
+        retryAfterMs: ipCheck.retryAfterMs,
+      });
+    }
+
+    const demoUserId = `demo-${clientIp}`;
+    const userCheck = checkUserRateLimit(demoUserId);
+    if (!userCheck.allowed) {
+      return res.status(429).json({
+        message: "Execution rate limit exceeded. Please wait.",
+        retryAfterMs: userCheck.retryAfterMs,
+      });
+    }
+
     const { code, language } = req.body;
     if (!code || !language) {
       return res.status(400).json({ message: "Code and language are required" });
     }
 
     try {
+      await acquireExecutionSlot(demoUserId);
+    } catch (err: any) {
+      return res.status(429).json({ message: err.message });
+    }
+
+    const startTime = Date.now();
+    const codeHash = crypto.createHash("sha256").update(code).digest("hex").slice(0, 16);
+    try {
       const result = await executeCode(code, language);
+      const durationMs = Date.now() - startTime;
+      recordExecution(demoUserId, clientIp, durationMs, result.exitCode !== 0);
+
+      storage.createExecutionLog({
+        userId: null,
+        projectId: null,
+        language,
+        exitCode: result.exitCode,
+        durationMs,
+        securityViolation: result.securityViolation || null,
+        codeHash,
+        ipAddress: clientIp,
+      }).catch(() => {});
+
       return res.json({
         stdout: result.stdout,
         stderr: result.stderr,
         exitCode: result.exitCode,
       });
     } catch (error: any) {
+      const durationMs = Date.now() - startTime;
+      recordExecution(demoUserId, clientIp, durationMs, true);
       return res.status(500).json({ message: "Execution failed" });
+    } finally {
+      releaseExecutionSlot(demoUserId);
     }
   });
 
@@ -1016,11 +1304,14 @@ export async function registerRoutes(
     },
   });
 
-  app.post("/api/projects/generate", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
     try {
       const { prompt, model: requestedModel } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
         return res.status(400).json({ message: "Please provide a project description (at least 3 characters)" });
+      }
+      if (prompt.length > MAX_PROMPT_LENGTH) {
+        return res.status(400).json({ message: `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)` });
       }
 
       const systemPrompt = `You are a senior software engineer. Given a project description, generate a project specification as JSON.
@@ -1127,9 +1418,12 @@ Rules:
       });
 
       for (const file of spec.files.slice(0, 10)) {
+        const safeFilename = sanitizeAIFilename(file.filename);
+        if (!safeFilename) continue;
+        const safeContent = sanitizeAIFileContent(file.content || "");
         await storage.createFile(project.id, {
-          filename: file.filename,
-          content: file.content || "",
+          filename: safeFilename,
+          content: safeContent,
         });
       }
 
@@ -1142,11 +1436,22 @@ Rules:
     }
   });
 
-  app.post("/api/ai/chat", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/ai/chat", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
       const { messages, context, model } = req.body;
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ message: "messages array required" });
+      }
+
+      const msgError = validateAIMessages(messages);
+      if (msgError) {
+        return res.status(400).json({ message: msgError });
+      }
+
+      if (context) {
+        if (typeof context.code === "string" && context.code.length > MAX_MESSAGE_CONTENT_LENGTH) {
+          return res.status(400).json({ message: "Context code too large" });
+        }
       }
 
       const systemPrompt = `You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code.
@@ -1240,17 +1545,19 @@ Rules:
   ) => {
     try {
       if (toolName === "create_file" || toolName === "edit_file") {
-        const safeName = sanitizePath(toolInput.filename);
+        const safeName = sanitizeAIFilename(toolInput.filename);
         if (!safeName) {
-          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid filename" })}\n\n`);
+          log(`AI agent: blocked invalid filename "${toolInput.filename}"`, "ai");
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid or forbidden filename" })}\n\n`);
           return;
         }
+        const safeContent = sanitizeAIFileContent(toolInput.content);
         const existingFile = existingFiles.find(f => f.filename === safeName);
         if (existingFile) {
-          const file = await storage.updateFileContent(existingFile.id, toolInput.content);
+          const file = await storage.updateFileContent(existingFile.id, safeContent);
           res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
         } else {
-          const file = await storage.createFile(projectId, { filename: safeName, content: toolInput.content });
+          const file = await storage.createFile(projectId, { filename: safeName, content: safeContent });
           existingFiles.push(file);
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
         }
@@ -1260,11 +1567,20 @@ Rules:
     }
   };
 
-  app.post("/api/ai/agent", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/ai/agent", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
       const { messages, projectId, model: requestedModel } = req.body;
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
+      }
+
+      const msgError = validateAIMessages(messages);
+      if (msgError) {
+        return res.status(400).json({ message: msgError });
+      }
+
+      if (typeof projectId !== "string" || projectId.length > 100) {
+        return res.status(400).json({ message: "Invalid projectId" });
       }
 
       const project = await storage.getProject(projectId);

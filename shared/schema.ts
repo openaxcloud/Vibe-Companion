@@ -156,3 +156,33 @@ export const insertBranchSchema = createInsertSchema(branches).pick({
 });
 export type InsertBranch = z.infer<typeof insertBranchSchema>;
 export type Branch = typeof branches.$inferSelect;
+
+export const executionLogs = pgTable("execution_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }),
+  projectId: varchar("project_id", { length: 36 }),
+  language: text("language").notNull(),
+  exitCode: integer("exit_code"),
+  durationMs: integer("duration_ms"),
+  securityViolation: text("security_violation"),
+  codeHash: text("code_hash").notNull(),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("execution_logs_user_id_idx").on(table.userId),
+  index("execution_logs_created_at_idx").on(table.createdAt),
+  index("execution_logs_security_violation_idx").on(table.securityViolation),
+]);
+
+export const insertExecutionLogSchema = createInsertSchema(executionLogs).pick({
+  userId: true,
+  projectId: true,
+  language: true,
+  exitCode: true,
+  durationMs: true,
+  securityViolation: true,
+  codeHash: true,
+  ipAddress: true,
+});
+export type InsertExecutionLog = z.infer<typeof insertExecutionLogSchema>;
+export type ExecutionLog = typeof executionLogs.$inferSelect;

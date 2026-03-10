@@ -8,6 +8,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getCsrfToken } from "@/lib/queryClient";
 
 type FileInfo = { id: string; filename: string; content: string };
 
@@ -303,9 +304,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         body.context = context;
       }
 
+      const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      const csrfToken = getCsrfToken();
+      if (csrfToken && isAgent) fetchHeaders["X-CSRF-Token"] = csrfToken;
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: fetchHeaders,
         credentials: "include",
         body: JSON.stringify(body),
         signal: abortRef.current.signal,
@@ -346,7 +350,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const endpoint = isAgent ? "/api/ai/agent" : "/api/ai/chat";
       const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model };
       if (isAgent) body.projectId = projectId; else body.context = context;
-      fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
+      const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      const retryToken = getCsrfToken();
+      if (retryToken && isAgent) retryHeaders["X-CSRF-Token"] = retryToken;
+      fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
           if (!res.ok) throw new Error("AI request failed");
           await processSSEStream(res, assistantId, isAgent);
