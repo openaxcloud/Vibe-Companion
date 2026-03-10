@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 const plans = [
   {
@@ -84,16 +85,7 @@ export default function Pricing() {
     }
     setLoading(planId);
     try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ plan: planId }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to start checkout");
-      }
+      const res = await apiRequest("POST", "/api/billing/checkout", { plan: planId });
       const { url } = await res.json();
       if (url) {
         window.location.href = url;
