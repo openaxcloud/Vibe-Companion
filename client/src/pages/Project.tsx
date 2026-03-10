@@ -1,3 +1,4 @@
+/* @refresh reset */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -229,7 +230,6 @@ export default function Project() {
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
   const [envVarsPanelOpen, setEnvVarsPanelOpen] = useState(false);
-  const [packagesPanelOpen, setPackagesPanelOpen] = useState(false);
   const [blameEnabled, setBlameEnabled] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("main");
   const [commitMessage, setCommitMessage] = useState("");
@@ -240,6 +240,7 @@ export default function Project() {
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [editorTabSize, setEditorTabSize] = useState(2);
   const [editorWordWrap, setEditorWordWrap] = useState(false);
+  const [packagesPanelOpen, setPackagesPanelOpen] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
