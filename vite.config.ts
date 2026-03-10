@@ -40,15 +40,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
-  optimizeDeps: {
-    force: true,
-  },
   server: {
     host: "0.0.0.0",
     allowedHosts: true,
-    headers: {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
     fs: {
       strict: true,
       deny: ["**/.*"],
