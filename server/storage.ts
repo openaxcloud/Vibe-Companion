@@ -3,6 +3,7 @@ import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
   commits, branches, executionLogs, userQuotas,
+  aiConversations, aiMessages,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -13,6 +14,8 @@ import {
   type Branch, type InsertBranch,
   type ExecutionLog, type InsertExecutionLog,
   type UserQuota, type InsertUserQuota,
+  type AiConversation, type InsertAiConversation,
+  type AiMessage, type InsertAiMessage,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -74,6 +77,16 @@ export interface IStorage {
   incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
   checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
   updateStorageUsage(userId: string): Promise<number>;
+
+  getConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
+  getConversationById(id: string): Promise<AiConversation | undefined>;
+  createConversation(data: InsertAiConversation): Promise<AiConversation>;
+  updateConversation(id: string, data: Partial<{ title: string; model: string }>): Promise<AiConversation | undefined>;
+  deleteConversation(id: string): Promise<boolean>;
+  getMessages(conversationId: string): Promise<AiMessage[]>;
+  addMessage(data: InsertAiMessage): Promise<AiMessage>;
+  addMessages(data: InsertAiMessage[]): Promise<AiMessage[]>;
+  clearMessages(conversationId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -490,6 +503,64 @@ export class DatabaseStorage implements IStorage {
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
     const userProjects = await db.select().from(projects).where(eq(projects.userId, userId));
     return { allowed: userProjects.length < limits.maxProjects, current: userProjects.length, limit: limits.maxProjects };
+  }
+
+  async getConversation(projectId: string, userId: string): Promise<AiConversation | undefined> {
+    const [conv] = await db.select().from(aiConversations)
+      .where(and(eq(aiConversations.projectId, projectId), eq(aiConversations.userId, userId)))
+      .orderBy(desc(aiConversations.updatedAt))
+      .limit(1);
+    return conv;
+  }
+
+  async getConversationById(id: string): Promise<AiConversation | undefined> {
+    const [conv] = await db.select().from(aiConversations).where(eq(aiConversations.id, id)).limit(1);
+    return conv;
+  }
+
+  async createConversation(data: InsertAiConversation): Promise<AiConversation> {
+    const [conv] = await db.insert(aiConversations).values(data).returning();
+    return conv;
+  }
+
+  async updateConversation(id: string, data: Partial<{ title: string; model: string }>): Promise<AiConversation | undefined> {
+    const updates: any = { updatedAt: new Date() };
+    if (data.title !== undefined) updates.title = data.title;
+    if (data.model !== undefined) updates.model = data.model;
+    const [conv] = await db.update(aiConversations).set(updates).where(eq(aiConversations.id, id)).returning();
+    return conv;
+  }
+
+  async deleteConversation(id: string): Promise<boolean> {
+    await db.delete(aiMessages).where(eq(aiMessages.conversationId, id));
+    const result = await db.delete(aiConversations).where(eq(aiConversations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getMessages(conversationId: string): Promise<AiMessage[]> {
+    return db.select().from(aiMessages)
+      .where(eq(aiMessages.conversationId, conversationId))
+      .orderBy(aiMessages.createdAt);
+  }
+
+  async addMessage(data: InsertAiMessage): Promise<AiMessage> {
+    const [msg] = await db.insert(aiMessages).values(data).returning();
+    await db.update(aiConversations).set({ updatedAt: new Date() }).where(eq(aiConversations.id, data.conversationId));
+    return msg;
+  }
+
+  async addMessages(data: InsertAiMessage[]): Promise<AiMessage[]> {
+    if (data.length === 0) return [];
+    const msgs = await db.insert(aiMessages).values(data).returning();
+    if (data[0]?.conversationId) {
+      await db.update(aiConversations).set({ updatedAt: new Date() }).where(eq(aiConversations.id, data[0].conversationId));
+    }
+    return msgs;
+  }
+
+  async clearMessages(conversationId: string): Promise<void> {
+    await db.delete(aiMessages).where(eq(aiMessages.conversationId, conversationId));
+    await db.update(aiConversations).set({ updatedAt: new Date() }).where(eq(aiConversations.id, conversationId));
   }
 
   async updateStorageUsage(userId: string): Promise<number> {

@@ -24,6 +24,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
 - `execution_logs`: id (uuid), user_id (indexed), project_id, language, exit_code, duration_ms, security_violation (indexed), code_hash, ip_address, created_at (indexed)
 - `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, last_reset_at, updated_at
+- `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
+- `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -44,6 +46,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Code Intelligence**: Language-aware autocomplete (JS/TS globals, DOM APIs, Python builtins/stdlib), bracket auto-close, auto-indent, syntax error highlighting (linter)
 - **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
+- **Persistent AI conversations**: DB-backed chat history survives page refreshes/sessions; homepage prompts auto-seed into project conversation
 - **Model selection**: Choose between Claude Sonnet (Anthropic), GPT-4o (OpenAI, default), and Gemini Flash (Google) — all three work in chat, agent, AND project generation modes
 - **Markdown rendering in AI chat**: Bold, italic, inline code, links, headers, bullet/numbered lists
 - **AI model badges**: Each AI response shows which model generated it (Claude/GPT)

@@ -1573,11 +1573,98 @@ Rules:
 
       const files = await storage.getFiles(project.id);
 
+      const conversation = await storage.createConversation({
+        projectId: project.id,
+        userId: req.session.userId!,
+        title: prompt.slice(0, 100),
+        model: requestedModel || "gpt",
+      });
+      await storage.addMessage({
+        conversationId: conversation.id,
+        role: "user",
+        content: prompt,
+      });
+      const fileList = files.map(f => f.filename).join(", ");
+      await storage.addMessage({
+        conversationId: conversation.id,
+        role: "assistant",
+        content: `I've created your project **${spec.name}** with the following files: ${fileList}.\n\nThe project is set up and ready to go! You can run it or ask me to make any changes.`,
+        model: requestedModel || "gpt",
+        fileOps: files.map(f => ({ type: "created" as const, filename: f.filename })),
+      });
+
       return res.json({ project, files });
     } catch (error: any) {
       log(`AI project generation error: ${error.message}`, "ai");
       return res.status(500).json({ message: "Failed to generate project. Please try again." });
     }
+  });
+
+  app.get("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+    if (!conversation) {
+      return res.json({ conversation: null, messages: [] });
+    }
+    const msgs = await storage.getMessages(conversation.id);
+    return res.json({ conversation, messages: msgs });
+  });
+
+  app.post("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const existing = await storage.getConversation(req.params.projectId, req.session.userId!);
+    if (existing) {
+      return res.json(existing);
+    }
+    const { title, model } = req.body;
+    const conversation = await storage.createConversation({
+      projectId: req.params.projectId,
+      userId: req.session.userId!,
+      title: title || "",
+      model: model || "gpt",
+    });
+    return res.status(201).json(conversation);
+  });
+
+  app.post("/api/ai/conversations/:projectId/messages", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    let conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+    if (!conversation) {
+      conversation = await storage.createConversation({
+        projectId: req.params.projectId,
+        userId: req.session.userId!,
+        model: req.body.model || "gpt",
+      });
+    }
+    const { role, content, model: msgModel, fileOps } = req.body;
+    if (!role || !content) {
+      return res.status(400).json({ message: "role and content required" });
+    }
+    const msg = await storage.addMessage({
+      conversationId: conversation.id,
+      role,
+      content: typeof content === "string" ? content.slice(0, 100000) : "",
+      model: msgModel || null,
+      fileOps: fileOps || null,
+    });
+    return res.status(201).json(msg);
+  });
+
+  app.delete("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+    if (conversation) {
+      await storage.deleteConversation(conversation.id);
+    }
+    return res.json({ message: "Conversation cleared" });
   });
 
   app.post("/api/ai/chat", requireAuth, aiLimiter, async (req: Request, res: Response) => {

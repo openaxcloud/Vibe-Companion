@@ -145,55 +145,59 @@ class AIPanelErrorBoundary extends React.Component<
 }
 
 function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
-  const storageKey = projectId ? `ai_chat_${projectId}` : "ai_chat_global";
-
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-    return [];
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [model, setModel] = useState<AIModel>(() => {
-    try {
-      const saved = localStorage.getItem(`${storageKey}_model`);
-      if (saved && (saved === "claude" || saved === "gpt" || saved === "gemini")) return saved as AIModel;
-    } catch {}
-    return "gpt";
-  });
+  const [model, setModel] = useState<AIModel>("gpt");
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
+  const [conversationLoaded, setConversationLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
+    if (!projectId) { setConversationLoaded(true); return; }
+    let cancelled = false;
+    (async () => {
       try {
-        if (messages.length > 0) {
-          const hasContent = messages.some(m => m.content.length > 0);
-          if (hasContent) {
-            localStorage.setItem(storageKey, JSON.stringify(messages));
+        const res = await fetch(`/api/ai/conversations/${projectId}`, { credentials: "include" });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.conversation) {
+          if (data.conversation.model) setModel(data.conversation.model as AIModel);
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages.map((m: any) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              model: m.model || undefined,
+              fileOps: m.fileOps || undefined,
+            })));
           }
-        } else {
-          localStorage.removeItem(storageKey);
         }
       } catch {}
-    }, isStreaming ? 2000 : 300);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [messages, storageKey, isStreaming]);
+      setConversationLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
-  useEffect(() => {
-    try { localStorage.setItem(`${storageKey}_model`, model); } catch {}
-  }, [model, storageKey]);
+  const persistMessage = useCallback(async (role: string, content: string, msgModel?: string, fileOps?: any) => {
+    if (!projectId || !content) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      await fetch(`/api/ai/conversations/${projectId}/messages`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ role, content, model: msgModel || null, fileOps: fileOps || null }),
+      });
+    } catch {}
+  }, [projectId]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -201,7 +205,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [conversationLoaded]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -284,6 +288,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     setInput("");
     setIsStreaming(true);
 
+    persistMessage("user", userMsg.content);
+
     const assistantId = (Date.now() + 1).toString();
     setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
 
@@ -318,6 +324,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (!res.ok) throw new Error("AI request failed");
 
       await processSSEStream(res, assistantId, isAgent);
+
+      setMessages((prev) => {
+        const assistantMsg = prev.find((m) => m.id === assistantId);
+        if (assistantMsg && assistantMsg.content) {
+          persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
+        }
+        return prev;
+      });
     } catch (err: any) {
       if (err.name !== "AbortError") {
         setLastFailedInput(userMsg.content);
@@ -353,10 +367,18 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
       if (retryToken && isAgent) retryHeaders["X-CSRF-Token"] = retryToken;
+      persistMessage("user", retryInput);
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
           if (!res.ok) throw new Error("AI request failed");
           await processSSEStream(res, assistantId, isAgent);
+          setMessages((prev) => {
+            const assistantMsg = prev.find((m) => m.id === assistantId);
+            if (assistantMsg && assistantMsg.content) {
+              persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
+            }
+            return prev;
+          });
         })
         .catch((err: any) => {
           if (err.name !== "AbortError") {
@@ -685,7 +707,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             </div>
           )}
           {messages.length > 0 && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setMessages([])} title="Clear chat" data-testid="button-clear-chat">
+            <Button variant="ghost" size="icon" className="w-7 h-7 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => { setMessages([]); if (projectId) { const ct = getCsrfToken(); const h: Record<string, string> = {}; if (ct) h["X-CSRF-Token"] = ct; fetch(`/api/ai/conversations/${projectId}`, { method: "DELETE", credentials: "include", headers: h }).catch(() => {}); } }} title="Clear chat" data-testid="button-clear-chat">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}

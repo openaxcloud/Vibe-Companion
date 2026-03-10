@@ -211,3 +211,48 @@ export const PLAN_LIMITS = {
   free: { dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5 },
   pro: { dailyExecutions: 500, dailyAiCalls: 200, storageMb: 500, maxProjects: 50 },
 } as const;
+
+export const aiConversations = pgTable("ai_conversations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  title: text("title").default(""),
+  model: text("model").notNull().default("gpt"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("ai_conv_project_idx").on(table.projectId),
+  index("ai_conv_user_idx").on(table.userId),
+  uniqueIndex("ai_conv_project_user_unique").on(table.projectId, table.userId),
+]);
+
+export const insertAiConversationSchema = createInsertSchema(aiConversations).pick({
+  projectId: true,
+  userId: true,
+  title: true,
+  model: true,
+});
+export type InsertAiConversation = z.infer<typeof insertAiConversationSchema>;
+export type AiConversation = typeof aiConversations.$inferSelect;
+
+export const aiMessages = pgTable("ai_messages", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id", { length: 36 }).notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  model: text("model"),
+  fileOps: json("file_ops"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("ai_msg_conv_idx").on(table.conversationId),
+]);
+
+export const insertAiMessageSchema = createInsertSchema(aiMessages).pick({
+  conversationId: true,
+  role: true,
+  content: true,
+  model: true,
+  fileOps: true,
+});
+export type InsertAiMessage = z.infer<typeof insertAiMessageSchema>;
+export type AiMessage = typeof aiMessages.$inferSelect;
