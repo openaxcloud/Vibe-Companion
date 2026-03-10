@@ -90,20 +90,20 @@ function App() {
         <TooltipProvider>
           <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
             <Switch>
-              <Route path="/" component={Auth} />
-              <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
-              <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
-              <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
-              <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
-              <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
-              <Route path="/pricing" component={Pricing} />
-              <Route path="/demo" component={DemoProject} />
-              <Route path="/shared/:id" component={SharedProject} />
-              <Route path="/forgot-password" component={ForgotPassword} />
-              <Route path="/reset-password" component={ResetPassword} />
-              <Route path="/terms" component={Terms} />
-              <Route path="/privacy" component={Privacy} />
-              <Route component={NotFound} />
+              <Route key="auth" path="/" component={Auth} />
+              <Route key="dashboard" path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
+              <Route key="project" path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
+              <Route key="settings" path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+              <Route key="teams" path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
+              <Route key="admin" path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
+              <Route key="pricing" path="/pricing" component={Pricing} />
+              <Route key="demo" path="/demo" component={DemoProject} />
+              <Route key="shared" path="/shared/:id" component={SharedProject} />
+              <Route key="forgot" path="/forgot-password" component={ForgotPassword} />
+              <Route key="reset" path="/reset-password" component={ResetPassword} />
+              <Route key="terms" path="/terms" component={Terms} />
+              <Route key="privacy" path="/privacy" component={Privacy} />
+              <Route key="404" component={NotFound} />
             </Switch>
           </div>
           <Toaster />
