@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, Eye } from "lucide-react";
+import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, Eye, Menu, X } from "lucide-react";
 
 function ECodeLogo({ size = 32 }: { size?: number }) {
   return (
@@ -98,6 +98,7 @@ const stats = [
 export default function Landing() {
   const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) setLocation("/dashboard");
@@ -129,13 +130,38 @@ export default function Landing() {
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login">
-            <Button variant="ghost" className="text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333]" data-testid="nav-login">Log in</Button>
+            <Button variant="ghost" className="hidden md:inline-flex text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333]" data-testid="nav-login">Log in</Button>
           </Link>
           <Link href="/login?signup=true">
-            <Button className="h-9 px-5 text-sm font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="nav-signup">Sign up</Button>
+            <Button className="hidden md:inline-flex h-9 px-5 text-sm font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="nav-signup">Sign up</Button>
           </Link>
+          <button
+            className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            data-testid="button-mobile-hamburger"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </nav>
+
+      <div
+        className={`md:hidden fixed inset-0 top-16 z-50 transition-all duration-300 ${mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+      >
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+        <div className={`absolute top-0 right-0 w-[280px] h-full bg-[#0E1525] border-l border-[#2B3245]/50 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}>
+          <nav className="flex flex-col p-6 gap-2">
+            <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-pricing">Pricing</Link>
+            <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-demo">Demo</Link>
+            <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" data-testid="mobile-nav-docs">Docs</a>
+            <div className="my-3 border-t border-[#2B3245]/50" />
+            <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-login">Log in</Link>
+            <Link href="/login?signup=true" onClick={() => setMobileMenuOpen(false)}>
+              <Button className="w-full h-11 text-[15px] font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl" data-testid="mobile-nav-signup">Sign up</Button>
+            </Link>
+          </nav>
+        </div>
+      </div>
 
       <section className="relative z-10 flex flex-col items-center pt-20 pb-16 px-6 lg:pt-28 lg:pb-24">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#7C65CB]/10 border border-[#7C65CB]/20 text-[#7C65CB] text-xs font-medium mb-8" data-testid="badge-ai">

@@ -10,7 +10,8 @@ import {
   File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
-  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package
+  Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
+  ArrowLeft, ArrowRight, Save, GripHorizontal
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -30,6 +31,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Drawer, DrawerContent,
+} from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -216,9 +220,43 @@ function _projectPage() {
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
+  const [prevMobileTab, setPrevMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  const [mobileToolbarHidden, setMobileToolbarHidden] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+  const [aiSheetOpen, setAiSheetOpen] = useState(false);
+  const lastScrollY = useRef(0);
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai"] as const;
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
+  const [swipedFileId, setSwipedFileId] = useState<string | null>(null);
+  const swipeStartX = useRef(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const swipingFileId = useRef<string | null>(null);
   useEffect(() => { if (wsStatus !== "running") setMobileShellMode("console"); }, [wsStatus]);
+
+  const handleMobileTabChange = useCallback((newTab: typeof mobileTab) => {
+    if (newTab === "ai") {
+      setAiSheetOpen(true);
+      return;
+    }
+    const oldIdx = tabOrder.indexOf(mobileTab);
+    const newIdx = tabOrder.indexOf(newTab);
+    setSlideDirection(newIdx > oldIdx ? "right" : "left");
+    setPrevMobileTab(mobileTab);
+    setMobileTab(newTab);
+    setTimeout(() => setSlideDirection(null), 300);
+  }, [mobileTab]);
+
+  const handleMobileScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
+    const currentY = e.currentTarget.scrollTop;
+    if (currentY > lastScrollY.current && currentY > 50) {
+      setMobileToolbarHidden(true);
+    } else if (currentY < lastScrollY.current) {
+      setMobileToolbarHidden(false);
+    }
+    lastScrollY.current = currentY;
+  }, []);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [replaceTerm, setReplaceTerm] = useState("");
@@ -1621,14 +1659,25 @@ function _projectPage() {
                 <ContextMenu key={entry.path}>
                   <ContextMenuTrigger asChild>
                     <div
-                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
-                      onClick={() => { isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
+                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"} relative overflow-hidden`}
+                      onClick={() => { if (swipedFileId === entryId) { setSwipedFileId(null); return; } isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
+                      onTouchStart={(e) => { if (isMobile) { swipeStartX.current = e.touches[0].clientX; swipingFileId.current = entryId; setSwipeOffset(0); } }}
+                      onTouchMove={(e) => { if (isMobile && swipeStartX.current > 0 && swipingFileId.current === entryId) { const diff = swipeStartX.current - e.touches[0].clientX; if (diff > 10) setSwipeOffset(Math.min(diff, 120)); else if (diff < -10) { setSwipedFileId(null); setSwipeOffset(0); } } }}
+                      onTouchEnd={() => { if (isMobile && swipingFileId.current === entryId) { if (swipeOffset > 60) { setSwipedFileId(entryId); } else { setSwipedFileId(null); } setSwipeOffset(0); swipeStartX.current = 0; swipingFileId.current = null; } }}
                       data-testid={`fs-entry-${entry.name}`}
                     >
-                      {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileTypeIcon filename={entry.name} />}
-                      <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
-                      {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                      <DropdownMenu>
+                      <div className={`flex items-center gap-2 flex-1 min-w-0 transition-transform duration-200 ${swipedFileId === entryId ? "-translate-x-[120px]" : ""}`} style={swipeOffset > 0 && swipingFileId.current === entryId && swipedFileId !== entryId ? { transform: `translateX(-${swipeOffset}px)` } : undefined}>
+                        {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileTypeIcon filename={entry.name} />}
+                        <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
+                        {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                      </div>
+                      {isMobile && swipedFileId === entryId && (
+                        <div className="absolute right-0 top-0 bottom-0 flex items-stretch">
+                          <button className="w-[60px] bg-[#0079F2] text-white flex items-center justify-center text-[10px] font-medium" onClick={(e) => { e.stopPropagation(); openRenameDialog(entryId, entry.name); setSwipedFileId(null); }} data-testid={`swipe-rename-${entry.name}`}><Pencil className="w-3 h-3" /></button>
+                          <button className="w-[60px] bg-red-500 text-white flex items-center justify-center text-[10px] font-medium" onClick={(e) => { e.stopPropagation(); handleDelete(entry.path, entry.name, entry.type); setSwipedFileId(null); }} data-testid={`swipe-delete-${entry.name}`}><Trash2 className="w-3 h-3" /></button>
+                        </div>
+                      )}
+                      {!isMobile && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${entry.name}`}>
                             <MoreHorizontal className="w-3 h-3" />
@@ -1671,7 +1720,7 @@ function _projectPage() {
                             </>
                           )}
                         </DropdownMenuContent>
-                      </DropdownMenu>
+                      </DropdownMenu>}
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
@@ -2276,7 +2325,7 @@ function _projectPage() {
               </button>
               <button
                 className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#7C65CB]/40 hover:bg-[#7C65CB]/5 transition-all text-center group"
-                onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }}
+                onClick={() => { if (isMobile) setAiSheetOpen(true); else { setAiPanelOpen(true); setSidebarOpen(false); } }}
                 data-testid="button-quickstart-ask-ai"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#7C65CB]/10 flex items-center justify-center group-hover:bg-[#7C65CB]/20 transition-colors">
@@ -2516,7 +2565,7 @@ function _projectPage() {
   return (
     <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2" : "grid-cols-3 px-3"} h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40`}>
+      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2" : "grid-cols-3 px-3"} h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-colors duration-150 group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
@@ -2636,58 +2685,117 @@ function _projectPage() {
       {/* === MOBILE LAYOUT === */}
       {isMobile ? (
         <>
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            {mobileTab === "files" && sidebarContent}
-            {mobileTab === "editor" && (
-              <div className="flex-1 flex flex-col overflow-hidden">
-                {editorTabBar}
-                {editorContent}
-              </div>
-            )}
-            {mobileTab === "terminal" && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
-                <div className="flex items-center justify-between px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-                  <div className="flex items-center gap-0">
-                    <button
-                      className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
-                      onClick={() => setMobileShellMode("console")}
-                      data-testid="mobile-shell-tab-console"
-                    >
-                      <Terminal className="w-3 h-3" /> Console
-                      {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
-                    </button>
-                    {wsStatus === "running" && (
-                      <button
-                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
-                        onClick={() => setMobileShellMode("shell")}
-                        data-testid="mobile-shell-tab-shell"
-                      >
-                        <Hash className="w-3 h-3" /> Shell
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {mobileShellMode === "console" && (
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
-                    )}
-                    {wsStatusBadge}
-                    {workspaceButton}
-                  </div>
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+            <div className={`flex-1 flex flex-col overflow-hidden ${slideDirection === "right" ? "mobile-slide-left" : slideDirection === "left" ? "mobile-slide-right" : ""}`}>
+              {mobileTab === "files" && sidebarContent}
+              {mobileTab === "editor" && (
+                <div className="flex-1 flex flex-col overflow-hidden" onScroll={handleMobileScroll}>
+                  {editorTabBar}
+                  {editorContent}
                 </div>
-                {mobileShellMode === "console" ? terminalContent : shellContent}
+              )}
+              {mobileTab === "terminal" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
+                  <div className="flex items-center justify-between px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                    <div className="flex items-center gap-0">
+                      <button
+                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+                        onClick={() => setMobileShellMode("console")}
+                        data-testid="mobile-shell-tab-console"
+                      >
+                        <Terminal className="w-3 h-3" /> Console
+                        {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+                      </button>
+                      {wsStatus === "running" && (
+                        <button
+                          className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+                          onClick={() => setMobileShellMode("shell")}
+                          data-testid="mobile-shell-tab-shell"
+                        >
+                          <Hash className="w-3 h-3" /> Shell
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {mobileShellMode === "console" && (
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
+                      )}
+                      {wsStatusBadge}
+                      {workspaceButton}
+                    </div>
+                  </div>
+                  {mobileShellMode === "console" ? terminalContent : shellContent}
+                </div>
+              )}
+              {mobileTab === "preview" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
+                  {wsStatus === "running" && livePreviewUrl && (
+                    <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.back(); } catch {} }} data-testid="button-webview-back"><ArrowLeft className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
+                      <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[#1C2333] border border-[#2B3245] text-[11px] text-[#9DA2B0] truncate font-mono" data-testid="text-webview-url">
+                        <Globe className="w-3 h-3 text-[#676D7E] mr-1.5 shrink-0" />
+                        <span className="truncate">{livePreviewUrl}</span>
+                      </div>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
+                  {previewContent}
+                </div>
+              )}
+            </div>
+
+            {mobileTab === "editor" && (
+              <div className={`absolute bottom-4 right-4 z-30 flex flex-col items-end gap-2 transition-all duration-200 ${fabOpen ? "opacity-100" : ""}`}>
+                {fabOpen && (
+                  <div className="flex flex-col gap-2 mb-1 animate-fade-in">
+                    <button
+                      className="w-11 h-11 rounded-full bg-[#0CCE6B] text-[#0E1525] flex items-center justify-center shadow-lg shadow-[#0CCE6B]/30 active:scale-90 transition-transform"
+                      onClick={() => { handleRun(); setFabOpen(false); }}
+                      data-testid="fab-run"
+                    >
+                      {isRunning ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                    </button>
+                    <button
+                      className="w-11 h-11 rounded-full bg-[#0079F2] text-white flex items-center justify-center shadow-lg shadow-[#0079F2]/30 active:scale-90 transition-transform"
+                      onClick={() => {
+                        if (activeFileId && fileContents[activeFileId]) {
+                          saveMutation.mutate({ fileId: activeFileId, content: fileContents[activeFileId] });
+                        }
+                        setFabOpen(false);
+                      }}
+                      data-testid="fab-save"
+                    >
+                      <Save className="w-4 h-4" />
+                    </button>
+                    <button
+                      className="w-11 h-11 rounded-full bg-[#7C65CB] text-white flex items-center justify-center shadow-lg shadow-[#7C65CB]/30 active:scale-90 transition-transform"
+                      onClick={() => { setAiSheetOpen(true); setFabOpen(false); }}
+                      data-testid="fab-ai"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  className={`w-14 h-14 rounded-full bg-[#0079F2] text-white flex items-center justify-center shadow-xl shadow-[#0079F2]/40 active:scale-90 transition-all duration-200 ${fabOpen ? "rotate-45" : ""}`}
+                  onClick={() => setFabOpen(!fabOpen)}
+                  data-testid="fab-toggle"
+                >
+                  <Plus className="w-6 h-6" />
+                </button>
               </div>
             )}
-            {mobileTab === "preview" && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
-                {previewContent}
-              </div>
-            )}
-            {mobileTab === "ai" && (
-              <div className="flex-1 flex flex-col overflow-hidden">
+          </div>
+
+          <Drawer open={aiSheetOpen} onOpenChange={setAiSheetOpen}>
+            <DrawerContent className="bg-[#1C2333] border-[#2B3245] h-[90vh] max-h-[90vh]">
+              <div className="flex-1 flex flex-col overflow-hidden h-full">
                 <AIPanel
-                  key={`ai-mobile-${projectId}`}
+                  key={`ai-mobile-sheet-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
-                  onClose={() => setMobileTab("editor")}
+                  onClose={() => setAiSheetOpen(false)}
                   projectId={projectId}
                   files={filesQuery.data}
                   onFileCreated={(file) => {
@@ -2697,6 +2805,7 @@ function _projectPage() {
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
                     expandParentFolders(file.filename);
                     setMobileTab("editor");
+                    setAiSheetOpen(false);
                   }}
                   onFileUpdated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
@@ -2710,14 +2819,16 @@ function _projectPage() {
                       if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
                       setActiveFileId(file.id);
                       setMobileTab("editor");
+                      setAiSheetOpen(false);
                     }
                   }}
                 />
               </div>
-            )}
-          </div>
+            </DrawerContent>
+          </Drawer>
+
           {/* MOBILE BOTTOM NAV */}
-          <div className="flex items-stretch h-[52px] bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
+          <div className="flex items-stretch h-[56px] bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
             {([
               { id: "files" as const, icon: FolderOpen, label: "Files", color: "#9DA2B0" },
               { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
@@ -2725,17 +2836,17 @@ function _projectPage() {
               { id: "preview" as const, icon: Globe, label: "Webview", color: "#F5A623" },
               { id: "ai" as const, icon: Sparkles, label: "AI", color: "#7C65CB" },
             ]).map(({ id, icon: Icon, label, color }) => {
-              const isActive = mobileTab === id;
+              const isActive = id === "ai" ? aiSheetOpen : mobileTab === id;
               return (
                 <button
                   key={id}
-                  className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-150"
+                  className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-150 active:scale-90"
                   style={{ color: isActive ? color : "#676D7E" }}
-                  onClick={() => setMobileTab(id)}
+                  onClick={() => handleMobileTabChange(id)}
                   data-testid={`mobile-tab-${id}`}
                 >
                   {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full" style={{ backgroundColor: color }} />
+                    <span className="absolute top-1 left-1/2 -translate-x-1/2 w-10 h-[4px] rounded-full transition-all duration-200" style={{ backgroundColor: color }} />
                   )}
                   <Icon className={`w-5 h-5 transition-transform duration-150 ${isActive ? "scale-110" : ""}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "opacity-100" : "opacity-70"}`}>{label}</span>

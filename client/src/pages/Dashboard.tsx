@@ -16,11 +16,15 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription,
+} from "@/components/ui/drawer";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project } from "@shared/schema";
@@ -70,6 +74,38 @@ export default function Dashboard() {
   const [generationStep, setGenerationStep] = useState(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullStartY = useRef(0);
+  const projectListRef = useRef<HTMLDivElement>(null);
+
+  const handlePullStart = useCallback((e: React.TouchEvent) => {
+    const el = projectListRef.current;
+    if (el && el.scrollTop <= 0) {
+      pullStartY.current = e.touches[0].clientY;
+    }
+  }, []);
+
+  const handlePullMove = useCallback((e: React.TouchEvent) => {
+    if (pullStartY.current === 0) return;
+    const diff = e.touches[0].clientY - pullStartY.current;
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.4, 80));
+    }
+  }, []);
+
+  const handlePullEnd = useCallback(() => {
+    if (pullDistance > 50) {
+      setIsRefreshing(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] }).then(() => {
+        setTimeout(() => { setIsRefreshing(false); setPullDistance(0); }, 500);
+      });
+    } else {
+      setPullDistance(0);
+    }
+    pullStartY.current = 0;
+  }, [pullDistance, queryClient]);
 
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
   const usageQuery = useQuery<UsageData>({ queryKey: ["/api/user/usage"], staleTime: 60000 });
@@ -292,36 +328,69 @@ export default function Dashboard() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
-              <DialogHeader>
-                <DialogTitle className="text-[#F5F9FC] text-base">Create Repl</DialogTitle>
-                <DialogDescription className="text-[#9DA2B0] text-xs">Start with an empty project</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 mt-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-[#9DA2B0]">Title</Label>
-                  <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[#0E1525] border-[#2B3245] h-10 rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-[#0079F2]/40" required data-testid="input-project-name" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-[#9DA2B0]">Language</Label>
-                  <div className="flex gap-2">
-                    {(["javascript", "typescript", "python"] as const).map((lang) => {
-                      const info = LANG_ICONS[lang];
-                      return (
-                        <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}`}>
-                          <Code2 className="w-3 h-3" /> {info.label}
-                        </button>
-                      );
-                    })}
+          {isMobile ? (
+            <Drawer open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DrawerContent className="bg-[#1C2333] border-[#2B3245]">
+                <DrawerHeader className="text-left">
+                  <DrawerTitle className="text-[#F5F9FC] text-base">Create Repl</DrawerTitle>
+                  <DrawerDescription className="text-[#9DA2B0] text-xs">Start with an empty project</DrawerDescription>
+                </DrawerHeader>
+                <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 px-4 pb-8">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#9DA2B0]">Title</Label>
+                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[#0E1525] border-[#2B3245] h-12 rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-[#0079F2]/40 text-base" required data-testid="input-project-name" />
                   </div>
-                </div>
-                <Button type="submit" className="w-full rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white h-10" disabled={createProject.isPending} data-testid="button-create-project">
-                  {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Repl"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#9DA2B0]">Language</Label>
+                    <div className="flex gap-2">
+                      {(["javascript", "typescript", "python"] as const).map((lang) => {
+                        const info = LANG_ICONS[lang];
+                        return (
+                          <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}`}>
+                            <Code2 className="w-4 h-4" /> {info.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white h-12 text-base" disabled={createProject.isPending} data-testid="button-create-project">
+                    {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Repl"}
+                  </Button>
+                </form>
+              </DrawerContent>
+            </Drawer>
+          ) : (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="text-[#F5F9FC] text-base">Create Repl</DialogTitle>
+                  <DialogDescription className="text-[#9DA2B0] text-xs">Start with an empty project</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 mt-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#9DA2B0]">Title</Label>
+                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[#0E1525] border-[#2B3245] h-10 rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-[#0079F2]/40" required data-testid="input-project-name" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#9DA2B0]">Language</Label>
+                    <div className="flex gap-2">
+                      {(["javascript", "typescript", "python"] as const).map((lang) => {
+                        const info = LANG_ICONS[lang];
+                        return (
+                          <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}`}>
+                            <Code2 className="w-3 h-3" /> {info.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white h-10" disabled={createProject.isPending} data-testid="button-create-project">
+                    {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Repl"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center hover:ring-2 hover:ring-[#0079F2]/30 transition-all" data-testid="button-user-menu">
@@ -806,7 +875,18 @@ export default function Dashboard() {
               )}
             </div>
           ) : (
-            <div className="max-w-[800px] mx-auto px-4 sm:px-6 py-6">
+            <div
+              ref={projectListRef}
+              className="max-w-[800px] mx-auto px-4 sm:px-6 py-6"
+              onTouchStart={handlePullStart}
+              onTouchMove={handlePullMove}
+              onTouchEnd={handlePullEnd}
+            >
+              {(pullDistance > 0 || isRefreshing) && (
+                <div className="flex items-center justify-center overflow-hidden transition-all" style={{ height: pullDistance > 0 ? pullDistance : 40 }}>
+                  <div className={`w-6 h-6 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full ${isRefreshing || pullDistance > 50 ? "animate-spin" : ""}`} style={{ opacity: Math.min(1, pullDistance / 50) }} />
+                </div>
+              )}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-[#F5F9FC]" data-testid="text-my-repls">My Repls</h2>
                 <div className="flex items-center gap-2">
@@ -900,19 +980,19 @@ export default function Dashboard() {
                     return (
                       <div
                         key={project.id}
-                        className={`flex flex-col p-4 rounded-xl border border-[#2B3245]/50 border-l-2 ${langInfo.borderAccent} bg-[#1C2333]/40 hover:bg-[#1C2333]/80 hover:border-[#2B3245] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group`}
+                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border border-[#2B3245]/50 border-l-2 ${langInfo.borderAccent} bg-[#1C2333]/40 hover:bg-[#1C2333]/80 hover:border-[#2B3245] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
                         onClick={() => setLocation(`/project/${project.id}`)}
                         data-testid={`card-project-${project.id}`}
                       >
                         <div className="flex items-start justify-between mb-3">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center border text-[10px] font-bold ${langInfo.bg} ${langInfo.color}`}>
+                          <div className={`${isMobile ? "w-11 h-11" : "w-9 h-9"} rounded-lg flex items-center justify-center border text-[10px] font-bold ${langInfo.bg} ${langInfo.color}`}>
                             {langInfo.label}
                           </div>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                          <div className={`${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`} onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="w-6 h-6 rounded-md text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]">
-                                  <MoreVertical className="w-3 h-3" />
+                                <Button variant="ghost" size="icon" className={`${isMobile ? "w-10 h-10" : "w-6 h-6"} rounded-md text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]`}>
+                                  <MoreVertical className={`${isMobile ? "w-4 h-4" : "w-3 h-3"}`} />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-40 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">

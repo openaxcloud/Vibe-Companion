@@ -582,4 +582,25 @@ button:disabled {
   .mobile-safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  .mobile-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@keyframes mobile-slide-left-in {
+  from { transform: translateX(30px); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes mobile-slide-right-in {
+  from { transform: translateX(-30px); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.mobile-slide-left {
+  animation: mobile-slide-left-in 250ms ease-out;
+}
+
+.mobile-slide-right {
+  animation: mobile-slide-right-in 250ms ease-out;
 }
