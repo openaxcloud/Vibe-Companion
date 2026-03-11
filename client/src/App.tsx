@@ -1,4 +1,4 @@
-import { useLocation, useRoute, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -70,7 +70,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
-function ProtectedPage({ children }: { children: ReactNode }) {
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) {
     return (
@@ -80,69 +80,32 @@ function ProtectedPage({ children }: { children: ReactNode }) {
     );
   }
   if (!isAuthenticated) return <Redirect to="/" />;
-  return <>{children}</>;
-}
-
-function ProtectedDashboard() {
-  return <ProtectedPage><Dashboard /></ProtectedPage>;
-}
-
-function ProtectedProject() {
-  return <ProtectedPage><Project /></ProtectedPage>;
-}
-
-function ProtectedSettings() {
-  return <ProtectedPage><Settings /></ProtectedPage>;
-}
-
-function ProtectedTeams() {
-  return <ProtectedPage><Teams /></ProtectedPage>;
-}
-
-function ProtectedAdmin() {
-  return <ProtectedPage><Admin /></ProtectedPage>;
-}
-
-function AppRoutes() {
-  const [location] = useLocation();
-
-  const [isHome] = useRoute("/");
-  const [isDashboard] = useRoute("/dashboard");
-  const [isProject, projectParams] = useRoute("/project/:id");
-  const [isSettings] = useRoute("/settings");
-  const [isTeams] = useRoute("/teams");
-  const [isAdmin] = useRoute("/admin");
-  const [isPricing] = useRoute("/pricing");
-  const [isDemo] = useRoute("/demo");
-  const [isShared] = useRoute("/shared/:id");
-  const [isForgot] = useRoute("/forgot-password");
-  const [isReset] = useRoute("/reset-password");
-  const [isTerms] = useRoute("/terms");
-  const [isPrivacy] = useRoute("/privacy");
-
-  if (isHome) return <Auth />;
-  if (isDashboard) return <ProtectedDashboard key="dashboard" />;
-  if (isProject) return <ProtectedProject key={`project-${projectParams?.id}`} />;
-  if (isSettings) return <ProtectedSettings key="settings" />;
-  if (isTeams) return <ProtectedTeams key="teams" />;
-  if (isAdmin) return <ProtectedAdmin key="admin" />;
-  if (isPricing) return <Pricing />;
-  if (isDemo) return <DemoProject />;
-  if (isShared) return <SharedProject />;
-  if (isForgot) return <ForgotPassword />;
-  if (isReset) return <ResetPassword />;
-  if (isTerms) return <Terms />;
-  if (isPrivacy) return <Privacy />;
-  return <NotFound />;
+  return <Component key={Component.displayName || Component.name} />;
 }
 
 function App() {
+  const [location] = useLocation();
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
-            <AppRoutes />
+          <div className="h-screen w-screen overflow-hidden bg-[#0E1525]" key={location}>
+            <Switch>
+              <Route path="/" component={Auth} />
+              <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
+              <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
+              <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+              <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
+              <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
+              <Route path="/pricing" component={Pricing} />
+              <Route path="/demo" component={DemoProject} />
+              <Route path="/shared/:id" component={SharedProject} />
+              <Route path="/forgot-password" component={ForgotPassword} />
+              <Route path="/reset-password" component={ResetPassword} />
+              <Route path="/terms" component={Terms} />
+              <Route path="/privacy" component={Privacy} />
+              <Route component={NotFound} />
+            </Switch>
           </div>
           <Toaster />
         </TooltipProvider>
