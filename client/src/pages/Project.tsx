@@ -17,7 +17,7 @@ import PackagesPanel from "@/components/PackagesPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -144,7 +144,6 @@ function _projectPage() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__" } as const;
