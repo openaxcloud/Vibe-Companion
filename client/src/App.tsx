@@ -17,9 +17,8 @@ import Admin from "@/pages/Admin";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import { useAuth } from "@/hooks/use-auth";
-import { Component, Suspense, lazy, type ReactNode } from "react";
-
-const Project = lazy(() => import("@/pages/Project"));
+import { Component, type ReactNode } from "react";
+import Project from "@/pages/Project";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -85,15 +84,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 }
 
 function ProjectRoute() {
-  return (
-    <Suspense fallback={
-      <div className="h-screen flex items-center justify-center bg-[#0E1525]">
-        <div className="w-8 h-8 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full animate-spin" />
-      </div>
-    }>
-      <Project />
-    </Suspense>
-  );
+  return <Project />;
 }
 
 function App() {
