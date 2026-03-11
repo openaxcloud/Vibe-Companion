@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
-import Project from "@/pages/Project";
 import Settings from "@/pages/Settings";
 import DemoProject from "@/pages/DemoProject";
 import SharedProject from "@/pages/SharedProject";
@@ -18,7 +17,9 @@ import Admin from "@/pages/Admin";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import { useAuth } from "@/hooks/use-auth";
-import { Component, type ReactNode } from "react";
+import { Component, Suspense, lazy, type ReactNode } from "react";
+
+const Project = lazy(() => import("@/pages/Project"));
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -80,20 +81,31 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     );
   }
   if (!isAuthenticated) return <Redirect to="/" />;
-  return <Component key={Component.displayName || Component.name} />;
+  return <Component />;
+}
+
+function ProjectRoute() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen flex items-center justify-center bg-[#0E1525]">
+        <div className="w-8 h-8 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full animate-spin" />
+      </div>
+    }>
+      <Project />
+    </Suspense>
+  );
 }
 
 function App() {
-  const [location] = useLocation();
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <div className="h-screen w-screen overflow-hidden bg-[#0E1525]" key={location}>
+          <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
             <Switch>
               <Route path="/" component={Auth} />
               <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
-              <Route path="/project/:id">{() => <ProtectedRoute component={Project} />}</Route>
+              <Route path="/project/:id">{() => <ProtectedRoute component={ProjectRoute} />}</Route>
               <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
               <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
               <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
