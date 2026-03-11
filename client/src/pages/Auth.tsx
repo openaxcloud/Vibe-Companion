@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,9 +36,11 @@ function GoogleIcon() {
 
 export default function Auth() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { login, register, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [isLogin, setIsLogin] = useState(true);
+  const params = new URLSearchParams(search);
+  const [isLogin, setIsLogin] = useState(!params.get("signup"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");

@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import Settings from "@/pages/Settings";
@@ -80,7 +81,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
       </div>
     );
   }
-  if (!isAuthenticated) return <Redirect to="/" />;
+  if (!isAuthenticated) return <Redirect to="/login" />;
   return <Component />;
 }
 
@@ -93,9 +94,10 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <div className="h-screen w-screen overflow-hidden bg-[#0E1525]">
+          <div className="h-screen w-screen bg-[#0E1525]">
             <Switch>
-              <Route path="/" component={Auth} />
+              <Route path="/" component={Landing} />
+              <Route path="/login" component={Auth} />
               <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
               <Route path="/project/:id">{() => <ProtectedRoute component={ProjectRoute} />}</Route>
               <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>

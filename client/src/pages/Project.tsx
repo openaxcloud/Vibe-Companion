@@ -221,7 +221,11 @@ function _projectPage() {
   useEffect(() => { if (wsStatus !== "running") setMobileShellMode("console"); }, [wsStatus]);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [replaceTerm, setReplaceTerm] = useState("");
+  const [showReplace, setShowReplace] = useState(false);
   const [searchResults, setSearchResults] = useState<{ fileId: string; filename: string; line: number; text: string }[]>([]);
+  const [terminalTabs, setTerminalTabs] = useState<string[]>(["Terminal 1"]);
+  const [activeTerminalTab, setActiveTerminalTab] = useState(0);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
@@ -504,6 +508,31 @@ function _projectPage() {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         if (!isRunning && !runMutation.isPending) handleRun();
+      }
+      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.getAttribute?.("contenteditable") === "true";
+      if ((e.metaKey || e.ctrlKey) && e.key === "h" && !isInput) {
+        e.preventDefault();
+        setSearchPanelOpen(true);
+        setShowReplace(true);
+        if (aiPanelOpen) setAiPanelOpen(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "p" && !e.shiftKey) {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "w" && !isInput) {
+        e.preventDefault();
+        if (activeFileId && !activeFileId.startsWith("__")) {
+          const idx = openTabs.indexOf(activeFileId);
+          setOpenTabs(prev => prev.filter(id => id !== activeFileId));
+          if (idx > 0) setActiveFileId(openTabs[idx - 1]);
+          else if (openTabs.length > 1) setActiveFileId(openTabs[1]);
+          else setActiveFileId(null);
+        }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "n" && !isInput) {
+        e.preventDefault();
+        setNewFileDialogOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
@@ -1320,7 +1349,8 @@ function _projectPage() {
     const results: { fileId: string; filename: string; line: number; text: string }[] = [];
     const lowerTerm = term.toLowerCase();
     for (const file of filesQuery.data) {
-      const lines = file.content.split("\n");
+      const content = fileContents[file.id] ?? file.content;
+      const lines = content.split("\n");
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].toLowerCase().includes(lowerTerm)) {
           results.push({ fileId: file.id, filename: file.filename, line: i + 1, text: lines[i].trim() });
@@ -1330,7 +1360,7 @@ function _projectPage() {
       if (results.length >= 100) break;
     }
     setSearchResults(results);
-  }, [filesQuery.data]);
+  }, [filesQuery.data, fileContents]);
 
   useEffect(() => {
     const timer = setTimeout(() => performSearch(searchTerm), 200);
@@ -1773,6 +1803,22 @@ function _projectPage() {
                             className={`group flex items-center gap-1 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40`}
                             style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
                             onClick={() => toggleFolder(node.path)}
+                            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("bg-[#0079F2]/20"); }}
+                            onDragLeave={(e) => { e.currentTarget.classList.remove("bg-[#0079F2]/20"); }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.currentTarget.classList.remove("bg-[#0079F2]/20");
+                              try {
+                                const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+                                if (data.fileId && data.filename) {
+                                  const baseName = data.filename.split("/").pop() || data.filename;
+                                  const newFilename = node.path === "/" ? baseName : `${node.path}/${baseName}`;
+                                  if (newFilename !== data.filename) {
+                                    renameFileMutation.mutate({ fileId: data.fileId, filename: newFilename });
+                                  }
+                                }
+                              } catch {}
+                            }}
                             data-testid={`folder-item-${node.path}`}
                           >
                             {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0 text-[#676D7E]" /> : <ChevronRight className="w-3 h-3 shrink-0 text-[#676D7E]" />}
@@ -1820,6 +1866,8 @@ function _projectPage() {
                         className={`group flex items-center gap-2 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
                         style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
                         onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", JSON.stringify({ fileId: file.id, filename: file.filename })); e.dataTransfer.effectAllowed = "move"; }}
                         data-testid={`file-item-${file.id}`}
                       >
                         <FileTypeIcon filename={node.name} />
@@ -2417,15 +2465,44 @@ function _projectPage() {
         <div className="w-8 h-[2px] rounded-full bg-[#2B3245]" />
       </div>
       <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-        <div className="flex items-center h-full">
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
+        <div className="flex items-center h-full overflow-x-auto">
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
             <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
           </button>
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 ${bottomTab === "shell" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("shell")} data-testid="tab-shell">
-            <Hash className="w-3 h-3" /> Shell {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+          {terminalTabs.map((tab, idx) => (
+            <button
+              key={idx}
+              className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 group ${bottomTab === "shell" && activeTerminalTab === idx ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+              onClick={() => { setBottomTab("shell"); setActiveTerminalTab(idx); }}
+              data-testid={`tab-shell-${idx}`}
+            >
+              <Hash className="w-3 h-3" /> {tab}
+              {terminalTabs.length > 1 && (
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 hover:text-[#FF6166]" onClick={(e) => {
+                  e.stopPropagation();
+                  const newTabs = terminalTabs.filter((_, i) => i !== idx);
+                  setTerminalTabs(newTabs);
+                  if (activeTerminalTab === idx) {
+                    if (newTabs.length > 0) { setActiveTerminalTab(Math.min(idx, newTabs.length - 1)); } else { setBottomTab("terminal"); }
+                  } else if (activeTerminalTab > idx) {
+                    setActiveTerminalTab(activeTerminalTab - 1);
+                  }
+                }}>
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+            </button>
+          ))}
+          <button
+            className="flex items-center justify-center w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors ml-1 shrink-0"
+            onClick={() => { setTerminalTabs(prev => [...prev, `Terminal ${prev.length + 1}`]); setActiveTerminalTab(terminalTabs.length); setBottomTab("shell"); }}
+            title="New Terminal"
+            data-testid="button-new-terminal"
+          >
+            <Plus className="w-3 h-3" />
           </button>
         </div>
-        <div className="flex items-center gap-0.5 pr-1">
+        <div className="flex items-center gap-0.5 pr-1 shrink-0">
           {wsStatusBadge}
           {workspaceButton}
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console"><Trash2 className="w-3 h-3" /></Button>
@@ -2890,11 +2967,16 @@ function _projectPage() {
               <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="search-panel">
                 <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
                   <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Search</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setSearchPanelOpen(false)} data-testid="button-close-search">
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-0.5">
+                    <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors ${showReplace ? "text-[#0079F2] bg-[#0079F2]/10" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => setShowReplace(!showReplace)} title="Toggle Replace" data-testid="button-toggle-replace">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.293 5.293l-4-4a1 1 0 00-1.414 0l-4 4a1 1 0 001.414 1.414L5 4.414V12a3 3 0 003 3h4a1 1 0 100-2H8a1 1 0 01-1-1V4.414l1.707 1.293a1 1 0 001.414-1.414z" /></svg>
+                    </Button>
+                    <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setSearchPanelOpen(false)} data-testid="button-close-search">
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="px-3 py-2 border-b border-[#2B3245]">
+                <div className="px-3 py-2 border-b border-[#2B3245] space-y-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
                     <Input
@@ -2906,6 +2988,53 @@ function _projectPage() {
                       data-testid="input-search-files"
                     />
                   </div>
+                  {showReplace && (
+                    <div className="flex items-center gap-1">
+                      <div className="relative flex-1">
+                        <Input
+                          value={replaceTerm}
+                          onChange={(e) => setReplaceTerm(e.target.value)}
+                          placeholder="Replace..."
+                          className="bg-[#0E1525] border-[#2B3245] h-8 text-xs text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md pl-3"
+                          data-testid="input-replace-files"
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-7 shrink-0 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+                        title="Replace All"
+                        data-testid="button-replace-all"
+                        onClick={() => {
+                          if (!searchTerm.trim() || !filesQuery.data) return;
+                          let count = 0;
+                          const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                          const regex = new RegExp(escaped, "gi");
+                          filesQuery.data.forEach((file) => {
+                            const content = fileContents[file.id] ?? file.content ?? "";
+                            const matches = content.match(regex);
+                            if (matches && matches.length > 0) {
+                              const newContent = content.replace(regex, replaceTerm);
+                              setFileContents((prev) => ({ ...prev, [file.id]: newContent }));
+                              saveMutation.mutate({ fileId: file.id, content: newContent });
+                              count += matches.length;
+                            }
+                          });
+                          if (count > 0) {
+                            toast({ title: "Replace All", description: `Replaced ${count} occurrence${count === 1 ? "" : "s"} across files.` });
+                            setSearchTerm(searchTerm);
+                          } else {
+                            toast({ title: "Replace All", description: "No matches found.", variant: "destructive" });
+                          }
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h10a2 2 0 012 2v4a1 1 0 01-2 0V3H3v10h4a1 1 0 010 2H3a2 2 0 01-2-2V3a2 2 0 012-2zm7 8l2 2-2 2m4-2H10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </Button>
+                    </div>
+                  )}
+                  {searchTerm.trim() && searchResults.length > 0 && (
+                    <div className="text-[10px] text-[#676D7E]">{searchResults.length} result{searchResults.length === 1 ? "" : "s"} in {new Set(searchResults.map(r => r.fileId)).size} file{new Set(searchResults.map(r => r.fileId)).size === 1 ? "" : "s"}</div>
+                  )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   {searchTerm.trim() && searchResults.length === 0 && (

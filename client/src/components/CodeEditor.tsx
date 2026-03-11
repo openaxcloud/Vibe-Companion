@@ -10,9 +10,10 @@ import { go } from "@codemirror/lang-go";
 import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
 import { rust } from "@codemirror/lang-rust";
-import { EditorView, gutter, GutterMarker } from "@codemirror/view";
+import { EditorView, gutter, GutterMarker, keymap } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { search, searchKeymap, openSearchPanel } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
 import { useRef, useEffect } from "react";
 import { StateField, StateEffect, RangeSetBuilder, RangeSet } from "@codemirror/state";
@@ -137,15 +138,58 @@ const replitTheme = EditorView.theme({
   ".cm-panels.cm-panels-top": {
     borderBottom: "1px solid #2B3245",
   },
-  ".cm-panels.cm-panels-bottom": {
-    borderTop: "1px solid #2B3245",
+  ".cm-search": {
+    padding: "8px 12px",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+    alignItems: "center",
+    background: "#0E1525",
+    fontSize: "12px",
+  },
+  ".cm-search input, .cm-search select": {
+    background: "#1C2333",
+    border: "1px solid #2B3245",
+    color: "#F5F9FC",
+    borderRadius: "6px",
+    padding: "4px 8px",
+    fontSize: "12px",
+    outline: "none",
+  },
+  ".cm-search input:focus": {
+    borderColor: "#0079F2",
+    boxShadow: "0 0 0 2px rgba(0,121,242,0.15)",
+  },
+  ".cm-search button": {
+    background: "#1C2333",
+    border: "1px solid #2B3245",
+    color: "#9DA2B0",
+    borderRadius: "6px",
+    padding: "4px 10px",
+    cursor: "pointer",
+    fontSize: "11px",
+  },
+  ".cm-search button:hover": {
+    background: "#2B3245",
+    color: "#F5F9FC",
+  },
+  ".cm-search label": {
+    color: "#9DA2B0",
+    fontSize: "11px",
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
   },
   ".cm-searchMatch": {
-    background: "rgba(229, 192, 123, 0.3)",
-    outline: "1px solid rgba(229, 192, 123, 0.5)",
+    background: "rgba(255,200,0,0.2)",
+    outline: "1px solid rgba(255,200,0,0.4)",
   },
-  ".cm-searchMatch.cm-searchMatch-selected": {
-    background: "rgba(0, 121, 242, 0.3)",
+  ".cm-searchMatch-selected": {
+    background: "rgba(0,121,242,0.3)",
+    outline: "1px solid rgba(0,121,242,0.6)",
+  },
+  ".cm-panels.cm-panels-bottom": {
+    borderTop: "1px solid #2B3245",
   },
   ".cm-foldPlaceholder": {
     background: "#2B3245",
@@ -923,6 +967,8 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       indentUnit.of(" ".repeat(tabSize)),
       cursorTracker,
       blameField,
+      search({ top: true }),
+      keymap.of(searchKeymap),
     ];
     if (showBlame) ext.push(blameGutter);
     if (wordWrap) ext.push(EditorView.lineWrapping);
