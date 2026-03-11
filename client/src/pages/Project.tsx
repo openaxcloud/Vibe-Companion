@@ -1423,6 +1423,35 @@ function _projectPage() {
     return c[ext || ""] || "text-[#9DA2B0]";
   };
 
+  const parseAnsi = useCallback((text: string) => {
+    const parts: { text: string; color?: string }[] = [];
+    const regex = /\x1b\[([\d;]+)m/g;
+    let lastIndex = 0;
+    let currentColor: string | undefined;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ text: text.slice(lastIndex, match.index), color: currentColor });
+      }
+      const colorMap: Record<number, string | undefined> = {
+        0: undefined, 31: "#EF4444", 32: "#22C55E", 33: "#EAB308", 34: "#3B82F6",
+        35: "#A855F7", 36: "#06B6D4", 37: "#D1D5DB", 39: undefined,
+        90: "#6B7280", 91: "#F87171", 92: "#4ADE80", 93: "#FACC15", 94: "#60A5FA",
+        95: "#C084FC", 96: "#22D3EE", 97: "#F3F4F6",
+      };
+      const codes = match[1].split(";").map(Number);
+      for (const code of codes) {
+        if (code in colorMap) currentColor = colorMap[code];
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      parts.push({ text: text.slice(lastIndex), color: currentColor });
+    }
+    if (parts.length === 0) return <span>{text}</span>;
+    return <>{parts.map((p, i) => <span key={i} style={p.color ? { color: p.color } : undefined}>{p.text}</span>)}</>;
+  }, []);
+
   if (projectQuery.isLoading) {
     return (
       <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
@@ -2290,35 +2319,6 @@ function _projectPage() {
       )}
     </div>
   );
-
-  const parseAnsi = useCallback((text: string) => {
-    const parts: { text: string; color?: string }[] = [];
-    const regex = /\x1b\[([\d;]+)m/g;
-    let lastIndex = 0;
-    let currentColor: string | undefined;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push({ text: text.slice(lastIndex, match.index), color: currentColor });
-      }
-      const colorMap: Record<number, string | undefined> = {
-        0: undefined, 31: "#EF4444", 32: "#22C55E", 33: "#EAB308", 34: "#3B82F6",
-        35: "#A855F7", 36: "#06B6D4", 37: "#D1D5DB", 39: undefined,
-        90: "#6B7280", 91: "#F87171", 92: "#4ADE80", 93: "#FACC15", 94: "#60A5FA",
-        95: "#C084FC", 96: "#22D3EE", 97: "#F3F4F6",
-      };
-      const codes = match[1].split(";").map(Number);
-      for (const code of codes) {
-        if (code in colorMap) currentColor = colorMap[code];
-      }
-      lastIndex = regex.lastIndex;
-    }
-    if (lastIndex < text.length) {
-      parts.push({ text: text.slice(lastIndex), color: currentColor });
-    }
-    if (parts.length === 0) return <span>{text}</span>;
-    return <>{parts.map((p, i) => <span key={i} style={p.color ? { color: p.color } : undefined}>{p.text}</span>)}</>;
-  }, []);
 
   const terminalContent = (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "12px", lineHeight: "1.6" }} data-testid="terminal-output">
