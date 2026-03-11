@@ -9,7 +9,13 @@ export interface AuthUser {
 export async function login(email: string, password: string): Promise<AuthUser> {
   await fetchCsrfToken();
   const res = await apiRequest("POST", "/api/auth/login", { email, password });
-  const data = await res.json();
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Login failed: unexpected server response");
+  }
   if (data.csrfToken) {
     setCsrfToken(data.csrfToken);
   }
@@ -19,7 +25,13 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 export async function register(email: string, password: string, displayName?: string): Promise<AuthUser> {
   await fetchCsrfToken();
   const res = await apiRequest("POST", "/api/auth/register", { email, password, displayName });
-  const data = await res.json();
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Registration failed: unexpected server response");
+  }
   if (data.csrfToken) {
     setCsrfToken(data.csrfToken);
   }
