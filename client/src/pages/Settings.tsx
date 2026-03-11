@@ -435,7 +435,7 @@ export default function Settings() {
           </div>
 
           <div className="text-center pt-4 pb-8">
-            <p className="text-[11px] text-[#676D7E]" data-testid="text-version">Replit v1.0.0</p>
+            <p className="text-[11px] text-[#676D7E]" data-testid="text-version">E-Code v1.0.0</p>
           </div>
         </div>
       </div>

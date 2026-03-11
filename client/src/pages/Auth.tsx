@@ -89,7 +89,7 @@ export default function Auth() {
             {isLogin ? "Welcome back" : "Create your account"}
           </h1>
           <p className="text-[#9DA2B0] text-[13px]">
-            {isLogin ? "Sign in to continue to Replit" : "Start building on Replit"}
+            {isLogin ? "Sign in to continue to E-Code" : "Start building on E-Code"}
           </p>
         </div>
 

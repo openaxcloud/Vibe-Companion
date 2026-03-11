@@ -24,7 +24,7 @@ export default function NotFound() {
             data-testid="link-go-home"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Replit
+            Back to E-Code
           </Button>
         </Link>
       </div>

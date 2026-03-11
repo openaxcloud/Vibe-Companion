@@ -1,17 +1,18 @@
-# Replit IDE Clone - Full-Screen IDE SaaS
+# E-Code IDE - Full-Screen IDE SaaS
 
 ## Overview
-A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a dark-themed interface matching Replit's visual identity, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect Replit design language.
+A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a dark-themed interface, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect design language.
 
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
 - **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, OS-level isolation (ulimit, nice, unshare --net), `--disallow-code-generation-from-strings`, `--no-addons`, minimal env vars, 10s timeout, 64MB memory limit
-- **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled for Replit
+- **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
-- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom Replit syntax theme, language-aware autocomplete, and basic lint integration
+- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
+- **Email**: Nodemailer with SMTP support (env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, APP_URL). Falls back to console logging when SMTP not configured.
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id
@@ -53,7 +54,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
 - **Breadcrumbs**: Path segments above editor (src > components > App.tsx) with clickable segments
 - **Command Palette** (Cmd+K): Searchable command overlay with file switching and action shortcuts
-- CodeMirror 6 editor with Replit-accurate syntax theme (red keywords, green strings, teal functions, orange numbers)
+- CodeMirror 6 editor with syntax theme (red keywords, green strings, teal functions, orange numbers)
 - **Code Intelligence**: Language-aware autocomplete (JS/TS globals, DOM APIs, Python builtins/stdlib), bracket auto-close, auto-indent, syntax error highlighting (linter)
 - **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
 - **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
@@ -70,8 +71,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Welcome/Onboarding states**: New project shows welcome with quick-start actions; no-files-open shows recent file list
 - **Mobile dashboard navigation**: Hamburger menu slides in sidebar; mobile search expands from icon
 - **GitHub OAuth login**: Login/register with GitHub via Replit connector
-- **Password reset flow**: Token-based forgot/reset password pages
-- **Email verification**: Send verification emails, status shown in settings
+- **Password reset flow**: Token-based forgot/reset password with email sending (nodemailer)
+- **Email verification**: Send verification emails with clickable links, dedicated verify-email page
+- **Team invites**: Email notifications for team invitations
 - **Teams & Organizations**: Create teams, invite members, role-based access (owner/admin/member)
 - **Admin Dashboard**: Platform metrics, user management, analytics (admin-only)
 - **Package Management**: Detect package.json/requirements.txt, add/remove packages, activity bar icon
@@ -89,7 +91,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Project settings dialog (rename, change language)
 - Publish/share projects with toggle and shareable URL
 - Public shared project view (read-only with code execution)
-- Dark mode with Replit-accurate design tokens
+- Dark mode with accurate design tokens
 - Public demo project (read-only)
 - **Skeleton loading states**: Full IDE skeleton, file tree skeletons, dashboard card skeletons
 - **HTML Preview**: Local HTML preview via srcdoc iframe when runner is offline — auto-combines HTML + linked CSS/JS from project files, auto-refreshes on save, live preview auto-refresh on file save
@@ -103,7 +105,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Real Terminal**: node-pty PTY management with WebSocket terminal connections
 - **Run UX**: Run button auto-opens terminal, shows run separator with timestamp, displays exit code on completion
 - **File creation flow**: New files from AI agent or manual creation auto-open in tab, expand parent folders, and show file explorer
-- **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Repl" card, improved empty states with CTAs
+- **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Project" card, improved empty states with CTAs
 - **Error boundary**: React error boundary with reload button and styled error display
 - **Security**: Multi-layered sandbox (AST analysis + runtime wrappers + OS-level isolation via ulimit/nice/unshare + process isolation + resource limits + FS isolation), CSRF protection with token validation, Helmet.js security headers (CSP, HSTS, X-Frame-Options), path traversal prevention, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
 - **Rate Limiting**: Per-user + per-IP execution rate limiting (10 runs/min), global execution pool (5 max concurrent, 20 max queue with priority), concurrent execution queue (3 max per user), AI rate limiting (20 req/min chat, 5 req/min generate), express-rate-limit on all API endpoints
@@ -124,9 +126,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Cmd+Enter / F5: Run project
 
 ## Design System
-- **Replit orange logo**: SVG three-block mark (#F26522) used throughout (header, auth, empty state, footer, status bar)
+- **E-Code orange logo**: SVG three-block mark (#F26522) used throughout (header, auth, empty state, footer, status bar)
 - **Syntax theme**: Keywords #FF6166 (red), Strings #0CCE6B (green), Functions #56B6C2 (teal), Numbers #FF9940 (orange), Types #FFCB6B (yellow), Comments #676D7E (muted italic), Default text #CFD7E6
-- **Color tokens**: #0E1525 (bars/nav), #1C2333 (panels/editor), #2B3245 (borders/surface), #323B4F (hover), #0079F2 (accent blue), #0CCE6B (green run), #7C65CB (AI purple), #F26522 (Replit orange), #F5F9FC (text primary), #9DA2B0 (text secondary), #676D7E (text muted)
+- **Color tokens**: #0E1525 (bars/nav), #1C2333 (panels/editor), #2B3245 (borders/surface), #323B4F (hover), #0079F2 (accent blue), #0CCE6B (green run), #7C65CB (AI purple), #F26522 (E-Code orange), #F5F9FC (text primary), #9DA2B0 (text secondary), #676D7E (text muted)
 - **Fonts**: IBM Plex Sans (UI), IBM Plex Mono / JetBrains Mono (code/terminal)
 
 ## API Routes
@@ -184,7 +186,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/auth/forgot-password` - Send password reset email
 - `POST /api/auth/reset-password` - Reset password with token
 - `POST /api/auth/send-verification` - Send email verification
-- `GET /api/auth/verify-email` - Verify email token
+- `POST /api/auth/verify-email` - Verify email token
 - `PUT /api/user/profile` - Update display name/avatar
 - `PUT /api/user/password` - Change password
 - `DELETE /api/user/account` - Delete account (GDPR)
@@ -225,6 +227,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 ## Important Files
 - `shared/schema.ts` - Drizzle schema + Zod insert schemas (indexed columns), PLAN_LIMITS config
 - `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo, health, metrics, usage)
+- `server/email.ts` - Email sending module (nodemailer, SMTP with console fallback)
 - `server/runnerClient.ts` - Runner VPS HTTP client
 - `server/storage.ts` - IStorage interface + DatabaseStorage implementation (includes quota methods)
 - `server/executor.ts` - Multi-layered sandboxed code execution (AST analysis, runtime wrappers, OS-level ulimit/nice/unshare isolation)
@@ -234,9 +237,10 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel, connection quality indicator)
 - `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation, live usage quotas display
 - `client/src/pages/Auth.tsx` - Login/register page
+- `client/src/pages/VerifyEmail.tsx` - Email verification page (handles token from URL)
 - `client/src/pages/Settings.tsx` - Account settings (profile, password, danger zone)
 - `client/src/pages/SharedProject.tsx` - Public shared project view
-- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with Replit syntax theme, autocomplete, lint, cursor tracking
+- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with syntax theme, autocomplete, lint, cursor tracking
 - `client/src/components/AIPanel.tsx` - AI agent panel with markdown rendering, model selection, chat/agent modes
 - `client/src/components/CommandPalette.tsx` - Cmd+K command palette with file switching and actions
 - `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
@@ -255,19 +259,19 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `client/src/pages/Pricing.tsx` - Pricing page with tier comparison
 - `client/src/hooks/use-websocket.ts` - WebSocket hook with polling fallback, reconnection, connection quality tracking
 
-## IDE Layout (Desktop -- Replit Clone)
+## IDE Layout (Desktop)
 - **Activity Bar** (48px, far left): Explorer, Search, AI Agent, Git (with dirty badge), Deployments, Preview, Settings -- active icon has left-2 border indicator (blue #0079F2, purple for AI)
 - **AI Agent Panel** (45% width, toggleable): Chat/agent mode toggle, model selection (Claude/GPT), rich markdown rendering, file operation indicators, apply-to-file code blocks
 - **File Explorer** (240px, toggleable): Nested folder tree with expand/collapse, colored file type icons, create/rename/delete
-- **Header Bar** (h-11/44px): Left (Replit orange logo > chevron > project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
+- **Header Bar** (h-11/44px): Left (E-Code orange logo > chevron > project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
 - **Breadcrumbs**: Path segments between tab bar and editor (src > components > App.tsx)
 - **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files
-- **Editor** (center): CodeMirror 6 with tabs + Replit syntax theme + autocomplete + lint + cursor position tracking
+- **Editor** (center): CodeMirror 6 with tabs + syntax theme + autocomplete + lint + cursor position tracking
 - **Deployments Panel**: Publish status, URL, history, custom domain placeholder
 - **Settings Panel**: Theme toggle, editor font size/tab size/word wrap controls, about section
 - **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab
 - **Bottom Panel** (resizable): Console + Shell tabs with xterm.js terminal
-- **Status Bar** (h-6, bottom): git branch "main", workspace status, WS connection quality indicator, problems count, language picker, cursor Ln/Col, tab size, encoding, Prettier, Replit logo
+- **Status Bar** (h-6, bottom): git branch "main", workspace status, WS connection quality indicator, problems count, language picker, cursor Ln/Col, tab size, encoding, Prettier, E-Code logo
 - **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) -- single-pane navigation
 
 ## Tech Stack
@@ -275,9 +279,23 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - Express 5, express-session, connect-pg-simple, bcrypt, express-rate-limit
 - Drizzle ORM, PostgreSQL
 - Anthropic SDK + OpenAI SDK + Google GenAI SDK (via Replit AI Integrations)
-- CodeMirror 6 (@uiw/react-codemirror + language packages + custom Replit theme)
+- CodeMirror 6 (@uiw/react-codemirror + language packages + custom theme)
 - WebSocket (ws library)
 - Helmet.js (security headers)
+- Nodemailer (email sending)
 - Acorn + Acorn-Walk (JS AST analysis)
 - esbuild (TypeScript transpilation)
 - IBM Plex Sans / IBM Plex Mono / JetBrains Mono fonts
+
+## Environment Variables (for production)
+- `DATABASE_URL` - PostgreSQL connection string (auto-provided by Replit)
+- `SMTP_HOST` - SMTP server hostname (e.g., smtp.sendgrid.net)
+- `SMTP_PORT` - SMTP port (default: 587)
+- `SMTP_USER` - SMTP username
+- `SMTP_PASS` - SMTP password/API key
+- `EMAIL_FROM` - From address for emails (default: noreply@e-code.ai)
+- `APP_URL` - Public URL for email links (default: auto-detected from REPL_SLUG)
+- `STRIPE_SECRET_KEY` - Stripe API secret key
+- `STRIPE_PRO_PRICE_ID` - Stripe price ID for Pro plan
+- `STRIPE_TEAM_PRICE_ID` - Stripe price ID for Team plan
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret

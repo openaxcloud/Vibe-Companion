@@ -40,7 +40,7 @@ const LANG_ICONS: Record<string, { color: string; bg: string; label: string; bor
   python: { color: "text-green-400", bg: "bg-green-500/10 border-green-500/20", label: "PY", borderAccent: "border-l-green-400" },
 };
 
-function ReplitLogo({ size = 22 }: { size?: number }) {
+function ECodeLogo({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
       <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
@@ -200,8 +200,8 @@ export default function Dashboard() {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSidebarNav("home")}>
-            <ReplitLogo />
-            <span className="text-[15px] font-bold text-[#F5F9FC] tracking-tight hidden sm:block">Replit</span>
+            <ECodeLogo />
+            <span className="text-[15px] font-bold text-[#F5F9FC] tracking-tight hidden sm:block">E-Code</span>
           </div>
         </div>
         <div className="hidden sm:flex items-center flex-1 max-w-[400px] mx-4">

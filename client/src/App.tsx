@@ -16,6 +16,7 @@ import Teams from "@/pages/Teams";
 import Admin from "@/pages/Admin";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
+import VerifyEmail from "@/pages/VerifyEmail";
 import { useAuth } from "@/hooks/use-auth";
 import { Component, type ReactNode } from "react";
 import Project from "@/pages/Project";
@@ -107,6 +108,7 @@ function App() {
               <Route path="/reset-password" component={ResetPassword} />
               <Route path="/terms" component={Terms} />
               <Route path="/privacy" component={Privacy} />
+              <Route path="/verify-email" component={VerifyEmail} />
               <Route component={NotFound} />
             </Switch>
           </div>

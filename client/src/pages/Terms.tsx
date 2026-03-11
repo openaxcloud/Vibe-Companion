@@ -15,12 +15,12 @@ export default function Terms() {
         <div className="prose prose-invert max-w-none space-y-6 text-[#9DA2B0] text-sm leading-relaxed">
           <section>
             <h2 className="text-lg font-semibold text-[#F5F9FC] mb-3">1. Acceptance of Terms</h2>
-            <p>By accessing and using Replit ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.</p>
+            <p>By accessing and using E-Code ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-[#F5F9FC] mb-3">2. Description of Service</h2>
-            <p>Replit provides an online integrated development environment (IDE) that allows users to write, execute, and deploy code. The Service includes features such as code editing, project management, AI-assisted coding, team collaboration, and project deployment.</p>
+            <p>E-Code provides an online integrated development environment (IDE) that allows users to write, execute, and deploy code. The Service includes features such as code editing, project management, AI-assisted coding, team collaboration, and project deployment.</p>
           </section>
 
           <section>
@@ -44,7 +44,7 @@ export default function Terms() {
 
           <section>
             <h2 className="text-lg font-semibold text-[#F5F9FC] mb-3">5. Intellectual Property</h2>
-            <p>You retain all rights to the code and content you create using the Service. Replit does not claim ownership of your projects. However, you grant Replit a limited license to host, store, and process your content as necessary to provide the Service.</p>
+            <p>You retain all rights to the code and content you create using the Service. E-Code does not claim ownership of your projects. However, you grant E-Code a limited license to host, store, and process your content as necessary to provide the Service.</p>
           </section>
 
           <section>
@@ -59,7 +59,7 @@ export default function Terms() {
 
           <section>
             <h2 className="text-lg font-semibold text-[#F5F9FC] mb-3">8. Limitation of Liability</h2>
-            <p>The Service is provided "as is" without warranties of any kind. Replit shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service.</p>
+            <p>The Service is provided "as is" without warranties of any kind. E-Code shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service.</p>
           </section>
 
           <section>
@@ -74,7 +74,7 @@ export default function Terms() {
 
           <section>
             <h2 className="text-lg font-semibold text-[#F5F9FC] mb-3">11. Contact</h2>
-            <p>For questions about these Terms, please contact us at support@replit.com.</p>
+            <p>For questions about these Terms, please contact us at support@e-code.ai.</p>
           </section>
         </div>
       </div>

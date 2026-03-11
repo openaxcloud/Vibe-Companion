@@ -85,7 +85,7 @@ export default function Privacy() {
 
           <section>
             <h2 className="text-lg font-semibold text-[#F5F9FC] mb-3">10. Contact</h2>
-            <p>For privacy-related questions, contact our Data Protection Officer at privacy@replit.com.</p>
+            <p>For privacy-related questions, contact our Data Protection Officer at privacy@e-code.ai.</p>
           </section>
         </div>
       </div>

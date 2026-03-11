@@ -3325,7 +3325,7 @@ function _projectPage() {
                           <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
                           <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
                         </svg>
-                        <span className="text-[10px] text-[#676D7E]">Powered by Replit</span>
+                        <span className="text-[10px] text-[#676D7E]">Powered by E-Code</span>
                       </div>
                     </div>
                   </div>
@@ -3522,7 +3522,7 @@ function _projectPage() {
                   <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="currentColor"/>
                   <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="currentColor"/>
                 </svg>
-                Replit
+                E-Code
               </span>
             </div>
           </div>

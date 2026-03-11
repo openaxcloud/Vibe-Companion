@@ -12,6 +12,7 @@ import { z } from "zod";
 import { executeCode } from "./executor";
 import { getOrCreateTerminal, resizeTerminal } from "./terminal";
 import { log } from "./index";
+import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail } from "./email";
 import {
   checkUserRateLimit,
   checkIpRateLimit,
@@ -637,6 +638,7 @@ export async function registerRoutes(
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
       await storage.createPasswordResetToken(user.id, token, expiresAt);
+      await sendPasswordResetEmail(email, token);
       log(`[auth] Password reset requested for ${email}`, "info");
       return res.json({ message: "If an account exists with that email, a reset link has been sent." });
     } catch (err: any) {
@@ -671,6 +673,7 @@ export async function registerRoutes(
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await storage.createEmailVerification(user.id, token, expiresAt);
+      await sendVerificationEmail(user.email, token);
       log(`[auth] Email verification requested for ${user.email}`, "info");
       return res.json({ message: "Verification email sent" });
     } catch {
@@ -829,6 +832,8 @@ export async function registerRoutes(
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const invite = await storage.createTeamInvite(team.id, email, role, req.session.userId!, token, expiresAt);
+      const inviter = await storage.getUser(req.session.userId!);
+      await sendTeamInviteEmail(email, team.name, inviter?.displayName || inviter?.email || "Someone", token);
       log(`[teams] Invite for ${email} to team ${team.name}: /invite/${token}`, "info");
       return res.status(201).json(invite);
     } catch (err: any) {
