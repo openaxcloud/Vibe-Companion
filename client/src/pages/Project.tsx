@@ -139,7 +139,7 @@ function buildFileTree(files: File[]): TreeNode[] {
   return sortNodes(root);
 }
 
-export default function Project() {
+function _projectPage() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
@@ -3776,4 +3776,6 @@ export default function Project() {
     </div>
   );
 }
+
+export default _projectPage;
 
