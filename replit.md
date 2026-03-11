@@ -49,8 +49,14 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Smooth panel transitions**: Sidebar, terminal, and preview panels animate open/close with CSS transitions
 - **Nested file tree**: Files with paths like `src/components/App.tsx` display in proper folder hierarchy with expand/collapse
 - **File tree context menu**: Right-click for Open, Rename, Duplicate, Delete, Copy Path; folders get New File/New Folder
-- **Tab context menu**: Right-click tabs for Close, Close Others, Close All, Close to Right, Copy Path
+- **Tab context menu**: Right-click tabs for Close, Close Others, Close All, Close to Right, Copy Path, Split Right
 - **Tab drag reorder**: Drag and drop tabs to reorder; scroll arrows when tabs overflow
+- **Split editor panes**: Right-click tab > "Split Right" or use command palette to open a second editor side-by-side with resizable divider
+- **Code minimap**: Scaled-down preview of the file on the right side of the editor (toggleable via command palette)
+- **Multiple terminal tabs**: Add/close terminal tabs with "+" button in bottom panel
+- **Drag-and-drop file tree**: Drag files onto folders to move them
+- **Project forking**: Fork any published/shared project (or your own) to create a copy. Fork button on shared project pages.
+- **User onboarding**: First-time users see a 4-step welcome walkthrough on the dashboard
 - Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
 - **Breadcrumbs**: Path segments above editor (src > components > App.tsx) with clickable segments
 - **Command Palette** (Cmd+K): Searchable command overlay with file switching and action shortcuts

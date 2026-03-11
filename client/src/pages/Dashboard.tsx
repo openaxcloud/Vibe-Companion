@@ -75,6 +75,8 @@ export default function Dashboard() {
   const [generationError, setGenerationError] = useState<string | null>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pullStartY = useRef(0);
@@ -109,6 +111,13 @@ export default function Dashboard() {
 
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
   const usageQuery = useQuery<UsageData>({ queryKey: ["/api/user/usage"], staleTime: 60000 });
+
+  useEffect(() => {
+    if (projectsQuery.data && projectsQuery.data.length === 0) {
+      const seen = localStorage.getItem("ecode_onboarding_seen");
+      if (!seen) setShowOnboarding(true);
+    }
+  }, [projectsQuery.data]);
 
   const createProject = useMutation({
     mutationFn: async (data: { name: string; language: string }) => {
@@ -1061,6 +1070,122 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {showOnboarding && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4 animate-fade-in" data-testid="onboarding-overlay">
+          <div className="bg-[#1C2333] border border-[#2B3245] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            {onboardingStep === 0 && (
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#F26522]/20 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
+                    <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
+                    <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-[#F5F9FC] mb-2" data-testid="text-onboarding-welcome">Welcome to E-Code!</h2>
+                <p className="text-sm text-[#9DA2B0] mb-6 leading-relaxed">Your cloud IDE for building, running, and deploying code from anywhere. Let's get you started in 30 seconds.</p>
+                <Button className="h-10 px-6 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-sm font-medium" onClick={() => setOnboardingStep(1)} data-testid="button-onboarding-start">
+                  Get Started
+                </Button>
+              </div>
+            )}
+            {onboardingStep === 1 && (
+              <div className="p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 rounded-lg bg-[#0CCE6B]/10 flex items-center justify-center shrink-0">
+                    <Code2 className="w-4 h-4 text-[#0CCE6B]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#F5F9FC]">Create Your First Project</h3>
+                    <p className="text-xs text-[#676D7E]">Step 1 of 3</p>
+                  </div>
+                </div>
+                <p className="text-sm text-[#9DA2B0] mb-4">Click the <strong className="text-[#F5F9FC]">"+ Create"</strong> button in the top right to start a new project. Choose a language and give it a name.</p>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#0E1525] border border-[#2B3245] mb-6">
+                  <div className="flex gap-2">
+                    {["JavaScript", "TypeScript", "Python"].map(lang => (
+                      <span key={lang} className="text-[10px] px-2 py-1 rounded bg-[#2B3245] text-[#9DA2B0]">{lang}</span>
+                    ))}
+                    <span className="text-[10px] px-2 py-1 rounded bg-[#2B3245] text-[#676D7E]">+5 more</span>
+                  </div>
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="ghost" className="text-xs text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => setOnboardingStep(0)}>Back</Button>
+                  <Button className="h-9 px-5 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" onClick={() => setOnboardingStep(2)}>Next</Button>
+                </div>
+              </div>
+            )}
+            {onboardingStep === 2 && (
+              <div className="p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 rounded-lg bg-[#7C65CB]/10 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-[#7C65CB]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#F5F9FC]">AI-Powered Coding</h3>
+                    <p className="text-xs text-[#676D7E]">Step 2 of 3</p>
+                  </div>
+                </div>
+                <p className="text-sm text-[#9DA2B0] mb-4">Use the <strong className="text-[#F5F9FC]">AI panel</strong> (Ctrl+I) to generate code, fix bugs, or ask questions. Choose from Claude, GPT, or Gemini.</p>
+                <div className="grid grid-cols-3 gap-2 mb-6">
+                  {[
+                    { name: "Generate", desc: "Create files from a prompt" },
+                    { name: "Fix", desc: "Debug errors automatically" },
+                    { name: "Explain", desc: "Understand any code" },
+                  ].map(item => (
+                    <div key={item.name} className="p-3 rounded-xl bg-[#0E1525] border border-[#2B3245] text-center">
+                      <p className="text-[11px] font-medium text-[#F5F9FC] mb-0.5">{item.name}</p>
+                      <p className="text-[9px] text-[#676D7E]">{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="ghost" className="text-xs text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => setOnboardingStep(1)}>Back</Button>
+                  <Button className="h-9 px-5 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" onClick={() => setOnboardingStep(3)}>Next</Button>
+                </div>
+              </div>
+            )}
+            {onboardingStep === 3 && (
+              <div className="p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 rounded-lg bg-[#0079F2]/10 flex items-center justify-center shrink-0">
+                    <Globe className="w-4 h-4 text-[#0079F2]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#F5F9FC]">Deploy & Share</h3>
+                    <p className="text-xs text-[#676D7E]">Step 3 of 3</p>
+                  </div>
+                </div>
+                <p className="text-sm text-[#9DA2B0] mb-4">When your project is ready, hit <strong className="text-[#F5F9FC]">Deploy</strong> to make it live. Share the link with anyone or collaborate with your team.</p>
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-[#0E1525] border border-[#2B3245] mb-6">
+                  <Terminal className="w-4 h-4 text-[#0CCE6B]" />
+                  <span className="text-[11px] text-[#9DA2B0] font-mono">your-app.e-code.dev</span>
+                  <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] font-medium">LIVE</span>
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="ghost" className="text-xs text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => setOnboardingStep(2)}>Back</Button>
+                  <Button className="h-9 px-5 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-lg text-xs font-bold" onClick={() => { setShowOnboarding(false); localStorage.setItem("ecode_onboarding_seen", "true"); }} data-testid="button-onboarding-finish">
+                    Start Coding
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-center gap-1.5 pb-4">
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === onboardingStep ? "bg-[#0079F2]" : "bg-[#2B3245]"}`} />
+              ))}
+            </div>
+            <button
+              className="absolute top-4 right-4 text-[#676D7E] hover:text-[#F5F9FC] transition-colors"
+              onClick={() => { setShowOnboarding(false); localStorage.setItem("ecode_onboarding_seen", "true"); }}
+              data-testid="button-close-onboarding"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

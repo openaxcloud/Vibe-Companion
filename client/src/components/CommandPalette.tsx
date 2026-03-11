@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Play, Square, Terminal, Plus, FolderPlus, Settings, Sparkles,
   Rocket, Monitor, FileCode2, ArrowLeft, Search,
-  PanelLeft, Eye, Command,
+  PanelLeft, Eye, Command, Columns, Map, GitFork,
 } from "lucide-react";
 import type { File } from "@shared/schema";
 
@@ -31,6 +31,9 @@ interface CommandPaletteProps {
   onPublish: () => void;
   onGoToDashboard: () => void;
   onOpenFile: (file: File) => void;
+  onSplitEditor?: () => void;
+  onToggleMinimap?: () => void;
+  onForkProject?: () => void;
 }
 
 function fuzzyMatch(query: string, text: string): boolean {
@@ -103,6 +106,9 @@ export default function CommandPalette({
   onPublish,
   onGoToDashboard,
   onOpenFile,
+  onSplitEditor,
+  onToggleMinimap,
+  onForkProject,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -120,7 +126,10 @@ export default function CommandPalette({
     { id: "project-settings", label: "Project Settings", icon: <Settings className="w-4 h-4" />, category: "action", action: () => { onProjectSettings(); onClose(); } },
     { id: "publish", label: "Publish", icon: <Rocket className="w-4 h-4" />, category: "action", action: () => { onPublish(); onClose(); } },
     { id: "go-dashboard", label: "Go to Dashboard", icon: <ArrowLeft className="w-4 h-4" />, category: "action", action: () => { onGoToDashboard(); onClose(); } },
-  ], [isRunning, onRun, onNewFile, onNewFolder, onToggleTerminal, onToggleAI, onTogglePreview, onToggleSidebar, onProjectSettings, onPublish, onGoToDashboard, onClose]);
+    ...(onSplitEditor ? [{ id: "split-editor", label: "Split Editor Right", icon: <Columns className="w-4 h-4" />, category: "action" as const, action: () => { onSplitEditor(); onClose(); } }] : []),
+    ...(onToggleMinimap ? [{ id: "toggle-minimap", label: "Toggle Minimap", icon: <Map className="w-4 h-4" />, category: "action" as const, action: () => { onToggleMinimap(); onClose(); } }] : []),
+    ...(onForkProject ? [{ id: "fork-project", label: "Fork Project", icon: <GitFork className="w-4 h-4" />, category: "action" as const, action: () => { onForkProject(); onClose(); } }] : []),
+  ], [isRunning, onRun, onNewFile, onNewFolder, onToggleTerminal, onToggleAI, onTogglePreview, onToggleSidebar, onProjectSettings, onPublish, onGoToDashboard, onClose, onSplitEditor, onToggleMinimap, onForkProject]);
 
   const fileCommands: CommandItem[] = useMemo(() => {
     if (!files) return [];

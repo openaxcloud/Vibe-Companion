@@ -1098,6 +1098,38 @@ export async function registerRoutes(
     }
   });
 
+  // --- FORK PROJECT ---
+  app.post("/api/projects/:id/fork", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sourceProject = await storage.getProject(req.params.id);
+      if (!sourceProject) return res.status(404).json({ message: "Project not found" });
+      const isOwner = sourceProject.userId === req.session.userId;
+      const isPublished = sourceProject.isPublished;
+      if (!isOwner && !isPublished) return res.status(403).json({ message: "Cannot fork a private project" });
+      const sourceFiles = await storage.getFiles(sourceProject.id);
+      const userProjects = await storage.getUserProjects(req.session.userId!);
+      const currentUser = await storage.getUser(req.session.userId!);
+      const limits = PLAN_LIMITS[(currentUser?.plan as keyof typeof PLAN_LIMITS) || "free"];
+      if (userProjects.length >= limits.maxProjects) return res.status(403).json({ message: "Project limit reached" });
+      const rawName = req.body.name || `${sourceProject.name} (fork)`;
+      const forkName = sanitizeInput(rawName, 100);
+      const newProject = await storage.createProject(req.session.userId!, {
+        name: forkName,
+        language: sourceProject.language,
+      });
+      for (const file of sourceFiles) {
+        await storage.createFile(newProject.id, {
+          filename: file.filename,
+          content: file.content,
+        });
+      }
+      await storage.trackEvent(req.session.userId!, "project_forked", { sourceProjectId: sourceProject.id, newProjectId: newProject.id });
+      return res.json(newProject);
+    } catch {
+      return res.status(500).json({ message: "Failed to fork project" });
+    }
+  });
+
   // --- DEPLOYMENTS ---
   app.post("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
     try {

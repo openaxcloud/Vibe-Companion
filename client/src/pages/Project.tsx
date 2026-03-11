@@ -282,6 +282,11 @@ function _projectPage() {
   const [editorTabSize, setEditorTabSize] = useState(2);
   const [editorWordWrap, setEditorWordWrap] = useState(false);
   const [packagesPanelOpen, setPackagesPanelOpen] = useState(false);
+  const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
+  const [splitEditorWidth, setSplitEditorWidth] = useState(50);
+  const [showMinimap, setShowMinimap] = useState(true);
+  const splitDragStartX = useRef<number | null>(null);
+  const splitDragStartW = useRef<number>(50);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -1169,6 +1174,21 @@ function _projectPage() {
     },
     onError: (err: any) => {
       toast({ title: "Checkout failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const forkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project forked!", description: `Created "${data.name}"` });
+      setLocation(`/project/${data.id}`);
+    },
+    onError: (err: any) => {
+      toast({ title: "Fork failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -2078,9 +2098,12 @@ function _projectPage() {
                 <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeTabsToRight(tabId)} data-testid={`context-close-right-${tabId}`}>
                   Close to the Right
                 </ContextMenuItem>
-                {!specialInfo && (
+                {!specialInfo && !tabId.startsWith("runner:") && (
                   <>
                     <ContextMenuSeparator className="bg-[#2B3245]" />
+                    <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setSplitEditorFileId(tabId)} data-testid={`context-split-${tabId}`}>
+                      <Code2 className="w-3.5 h-3.5" /> Split Right
+                    </ContextMenuItem>
                     <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
                       <Copy className="w-3.5 h-3.5" /> Copy Path
                     </ContextMenuItem>
@@ -2296,8 +2319,72 @@ function _projectPage() {
         <>
           {breadcrumbBar}
           {activeFileId ? (
-            <div className="flex-1 overflow-hidden">
-              <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={true} />
+            <div className="flex-1 overflow-hidden flex">
+              <div className={splitEditorFileId ? "overflow-hidden" : "flex-1 overflow-hidden"} style={splitEditorFileId ? { width: `${splitEditorWidth}%` } : undefined}>
+                <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={true} />
+              </div>
+              {splitEditorFileId && (
+                <>
+                  <div
+                    className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[#2B3245]/50"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      splitDragStartX.current = e.clientX;
+                      splitDragStartW.current = splitEditorWidth;
+                      const onMove = (ev: MouseEvent) => {
+                        if (splitDragStartX.current === null) return;
+                        const container = editorPreviewContainerRef.current;
+                        if (!container) return;
+                        const dx = ev.clientX - splitDragStartX.current;
+                        const pct = (dx / container.clientWidth) * 100;
+                        setSplitEditorWidth(Math.max(20, Math.min(80, splitDragStartW.current + pct)));
+                      };
+                      const onUp = () => { splitDragStartX.current = null; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+                      document.addEventListener("mousemove", onMove);
+                      document.addEventListener("mouseup", onUp);
+                    }}
+                  >
+                    <div className="w-[2px] h-8 rounded-full bg-[#2B3245]" />
+                  </div>
+                  <div className="overflow-hidden flex flex-col" style={{ width: `${100 - splitEditorWidth}%` }}>
+                    <div className="flex items-center justify-between h-7 px-2 bg-[#0E1525] border-b border-[#2B3245] shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <FileTypeIcon filename={(() => { const f = filesQuery.data?.find(f => f.id === splitEditorFileId); return f?.filename || ""; })()} />
+                        <span className="text-[10px] text-[#9DA2B0] truncate">{filesQuery.data?.find(f => f.id === splitEditorFileId)?.filename || ""}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setSplitEditorFileId(null)} data-testid="button-close-split">
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <CodeEditor
+                        value={fileContents[splitEditorFileId] ?? filesQuery.data?.find(f => f.id === splitEditorFileId)?.content ?? ""}
+                        onChange={(val) => {
+                          setFileContents(prev => ({ ...prev, [splitEditorFileId]: val }));
+                          setDirtyFiles(prev => new Set(prev).add(splitEditorFileId));
+                          if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                          saveTimerRef.current = setTimeout(() => {
+                            saveMutation.mutate({ fileId: splitEditorFileId, content: val });
+                          }, 1500);
+                        }}
+                        language={detectLanguage(filesQuery.data?.find(f => f.id === splitEditorFileId)?.filename || "")}
+                        fontSize={editorFontSize}
+                        tabSize={editorTabSize}
+                        wordWrap={editorWordWrap}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              {showMinimap && !splitEditorFileId && (
+                <div className="w-[60px] shrink-0 bg-[#0E1525] border-l border-[#2B3245]/50 overflow-hidden relative select-none" data-testid="minimap">
+                  <pre className="text-[2px] leading-[3px] text-[#676D7E]/40 font-mono p-1 whitespace-pre overflow-hidden pointer-events-none" style={{ transform: "scaleX(0.8)", transformOrigin: "left top" }}>
+                    {currentCode.split("\n").slice(0, 200).map((line, i) => (
+                      <div key={i} className={i + 1 === cursorLine ? "bg-[#0079F2]/20" : ""}>{line || " "}</div>
+                    ))}
+                  </pre>
+                </div>
+              )}
             </div>
           ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
         <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in overflow-y-auto">
@@ -3921,6 +4008,9 @@ function _projectPage() {
         onPublish={() => setPublishDialogOpen(true)}
         onGoToDashboard={() => setLocation("/dashboard")}
         onOpenFile={(file) => { openFile(file); if (isMobile) setMobileTab("editor"); }}
+        onSplitEditor={() => { if (activeFileId && !activeFileId.startsWith("__")) setSplitEditorFileId(activeFileId); }}
+        onToggleMinimap={() => setShowMinimap(prev => !prev)}
+        onForkProject={() => forkMutation.mutate()}
       />
 
       {showDiffModal && diffFile && (

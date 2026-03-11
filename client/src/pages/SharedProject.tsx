@@ -3,9 +3,11 @@ import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeft, Play, Terminal, Loader2, Globe,
-  File as FileIcon, X, RefreshCw, Share2
+  File as FileIcon, X, RefreshCw, Share2, GitFork
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
 import type { Project, File } from "@shared/schema";
 
@@ -18,6 +20,8 @@ export default function SharedProject() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -95,6 +99,21 @@ export default function SharedProject() {
     setIsRunning(false);
   };
 
+  const forkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`);
+      return res.json();
+    },
+    onSuccess: (newProject: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project forked!", description: `Created "${newProject.name}"` });
+      setLocation(`/project/${newProject.id}`);
+    },
+    onError: (err: any) => {
+      toast({ title: "Fork failed", description: err.message || "Please log in to fork projects", variant: "destructive" });
+    },
+  });
+
   const getFileColor = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
     const c: Record<string, string> = { js: "text-yellow-400", jsx: "text-yellow-400", ts: "text-blue-400", tsx: "text-blue-400", py: "text-green-400", json: "text-orange-400", css: "text-pink-400", html: "text-red-400", md: "text-gray-400" };
@@ -135,15 +154,27 @@ export default function SharedProject() {
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2B3245] text-[#9DA2B0] shrink-0">{data?.project.language}</span>
           <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 border border-blue-600/30 font-medium shrink-0">SHARED</span>
         </div>
-        <Button
-          size="sm"
-          className="h-7 px-3 text-xs font-medium rounded-md gap-1.5 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] font-medium"
-          onClick={handleRun}
-          disabled={isRunning || !activeFile}
-          data-testid="button-run-shared"
-        >
-          {isRunning ? <><Loader2 className="w-3 h-3 animate-spin" /> Running</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-3 text-xs font-medium rounded-md gap-1.5 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-[#2B3245]"
+            onClick={() => forkMutation.mutate()}
+            disabled={forkMutation.isPending}
+            data-testid="button-fork-shared"
+          >
+            {forkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitFork className="w-3 h-3" />} Fork
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 px-3 text-xs font-medium rounded-md gap-1.5 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] font-medium"
+            onClick={handleRun}
+            disabled={isRunning || !activeFile}
+            data-testid="button-run-shared"
+          >
+            {isRunning ? <><Loader2 className="w-3 h-3 animate-spin" /> Running</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
