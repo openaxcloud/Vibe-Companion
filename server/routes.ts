@@ -1452,10 +1452,10 @@ export async function registerRoutes(
 
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 2 * 1024 * 1024, files: 5 },
+    limits: { fileSize: 2 * 1024 * 1024, files: 10 },
   });
 
-  app.post("/api/projects/:projectId/upload", requireAuth, upload.array("files", 5), async (req: Request, res: Response) => {
+  app.post("/api/projects/:projectId/upload", requireAuth, upload.array("files", 10), async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project || project.userId !== req.session.userId) {
       return res.status(403).json({ message: "Access denied" });

@@ -42,6 +42,13 @@ const LANG_ICONS: Record<string, { color: string; bg: string; label: string; bor
   javascript: { color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", label: "JS", borderAccent: "border-l-yellow-400" },
   typescript: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", label: "TS", borderAccent: "border-l-blue-400" },
   python: { color: "text-green-400", bg: "bg-green-500/10 border-green-500/20", label: "PY", borderAccent: "border-l-green-400" },
+  go: { color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20", label: "GO", borderAccent: "border-l-cyan-400" },
+  ruby: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "RB", borderAccent: "border-l-red-400" },
+  cpp: { color: "text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/20", label: "C++", borderAccent: "border-l-indigo-400" },
+  java: { color: "text-red-500", bg: "bg-red-600/10 border-red-600/20", label: "JV", borderAccent: "border-l-red-500" },
+  rust: { color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", label: "RS", borderAccent: "border-l-orange-400" },
+  bash: { color: "text-slate-400", bg: "bg-slate-500/10 border-slate-500/20", label: "SH", borderAccent: "border-l-slate-400" },
+  html: { color: "text-orange-500", bg: "bg-orange-500/10 border-orange-500/20", label: "HT", borderAccent: "border-l-orange-500" },
 };
 
 function ECodeLogo({ size = 22 }: { size?: number }) {
@@ -194,11 +201,17 @@ export default function Dashboard() {
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
   const TEMPLATES = [
-    { id: "react-app", name: "React App", desc: "React frontend with components and hooks", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60", lang: "JavaScript", snippet: "export default function App() {" },
+    { id: "react-app", name: "React App", desc: "React frontend with components and hooks", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60", lang: "TypeScript", snippet: "export default function App() {" },
     { id: "express-api", name: "Express API", desc: "REST API with Express and routing", icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60", lang: "JavaScript", snippet: "app.get('/api', (req, res) =>" },
     { id: "python-flask", name: "Python Flask", desc: "Flask web server with routing", icon: Terminal, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60", lang: "Python", snippet: "@app.route('/')" },
     { id: "node-cli", name: "Node CLI", desc: "Command-line tool with Node.js", icon: FileCode, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60", lang: "JavaScript", snippet: "process.argv.slice(2)" },
     { id: "html-css-js", name: "HTML/CSS/JS", desc: "Static website with vanilla web tech", icon: FileText, gradient: "from-[#E34F26] to-[#F06529]", iconColor: "text-[#E34F26]", borderColor: "border-[#E34F26]/30 hover:border-[#E34F26]/60", lang: "HTML", snippet: "<!DOCTYPE html>" },
+    { id: "go-server", name: "Go Server", desc: "HTTP server with Go and net/http", icon: Globe, gradient: "from-[#00ADD8] to-[#00758D]", iconColor: "text-cyan-400", borderColor: "border-cyan-400/30 hover:border-cyan-400/60", lang: "Go", snippet: "http.HandleFunc(\"/\", handler)" },
+    { id: "cpp-app", name: "C++ App", desc: "C++ program with classes and STL", icon: Code2, gradient: "from-[#6366F1] to-[#4338CA]", iconColor: "text-indigo-400", borderColor: "border-indigo-400/30 hover:border-indigo-400/60", lang: "C++", snippet: "#include <iostream>" },
+    { id: "java-app", name: "Java App", desc: "Java application with OOP patterns", icon: Code2, gradient: "from-[#EF4444] to-[#B91C1C]", iconColor: "text-red-500", borderColor: "border-red-500/30 hover:border-red-500/60", lang: "Java", snippet: "public static void main(String[])" },
+    { id: "rust-app", name: "Rust App", desc: "Rust program with structs and enums", icon: Code2, gradient: "from-[#F97316] to-[#C2410C]", iconColor: "text-orange-400", borderColor: "border-orange-400/30 hover:border-orange-400/60", lang: "Rust", snippet: "fn main() {" },
+    { id: "ruby-script", name: "Ruby Script", desc: "Ruby script with classes and modules", icon: Code2, gradient: "from-[#EF4444] to-[#DC2626]", iconColor: "text-red-400", borderColor: "border-red-400/30 hover:border-red-400/60", lang: "Ruby", snippet: "class TaskManager" },
+    { id: "bash-script", name: "Bash Script", desc: "Shell script with functions", icon: Terminal, gradient: "from-[#64748B] to-[#475569]", iconColor: "text-slate-400", borderColor: "border-slate-400/30 hover:border-slate-400/60", lang: "Bash", snippet: "#!/bin/bash" },
   ];
 
   const GENERATION_STEPS = [
@@ -665,8 +678,8 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-[#9DA2B0]">Language</Label>
-                    <div className="flex gap-2">
-                      {(["javascript", "typescript", "python"] as const).map((lang) => {
+                    <div className="flex flex-wrap gap-2">
+                      {(Object.keys(LANG_ICONS) as string[]).map((lang) => {
                         const info = LANG_ICONS[lang];
                         return (
                           <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}`}>
@@ -1285,8 +1298,8 @@ export default function Dashboard() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-[#9DA2B0]">Language</Label>
-              <div className="flex gap-2">
-                {(["javascript", "typescript", "python"] as const).map((lang) => {
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(LANG_ICONS) as string[]).map((lang) => {
                   const info = LANG_ICONS[lang];
                   return (
                     <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}-mobile`}>

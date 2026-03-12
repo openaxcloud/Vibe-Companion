@@ -690,6 +690,369 @@ console.log("Website loaded successfully!");
       },
     ],
   },
+  {
+    id: "go-server",
+    name: "Go Server",
+    description: "HTTP server with Go and net/http",
+    language: "go",
+    files: [
+      {
+        filename: "main.go",
+        content: `package main
+
+import (
+        "encoding/json"
+        "fmt"
+        "log"
+        "net/http"
+)
+
+type Item struct {
+        ID   int    \`json:"id"\`
+        Name string \`json:"name"\`
+}
+
+var items = []Item{
+        {ID: 1, Name: "First Item"},
+        {ID: 2, Name: "Second Item"},
+}
+
+func main() {
+        http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+                w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(map[string]string{
+                        "message": "Welcome to Go Server!",
+                })
+        })
+
+        http.HandleFunc("/api/items", func(w http.ResponseWriter, r *http.Request) {
+                w.Header().Set("Content-Type", "application/json")
+                json.NewEncoder(w).Encode(items)
+        })
+
+        port := ":8080"
+        fmt.Printf("Go server running on http://localhost%s\\n", port)
+        log.Fatal(http.ListenAndServe(port, nil))
+}
+`,
+      },
+    ],
+  },
+  {
+    id: "cpp-app",
+    name: "C++ App",
+    description: "C++ program with classes and STL",
+    language: "cpp",
+    files: [
+      {
+        filename: "main.cpp",
+        content: `#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+
+struct Task {
+    int id;
+    std::string title;
+    bool completed;
+};
+
+class TaskManager {
+    std::vector<Task> tasks;
+    int nextId = 1;
+
+public:
+    void addTask(const std::string& title) {
+        tasks.push_back({nextId++, title, false});
+        std::cout << "Added: " << title << std::endl;
+    }
+
+    void completeTask(int id) {
+        auto it = std::find_if(tasks.begin(), tasks.end(),
+            [id](const Task& t) { return t.id == id; });
+        if (it != tasks.end()) {
+            it->completed = true;
+            std::cout << "Completed: " << it->title << std::endl;
+        }
+    }
+
+    void listTasks() const {
+        std::cout << "\\n=== Tasks ===" << std::endl;
+        for (const auto& task : tasks) {
+            std::cout << (task.completed ? "[x] " : "[ ] ")
+                      << task.id << ". " << task.title << std::endl;
+        }
+        std::cout << "Total: " << tasks.size() << std::endl;
+    }
+};
+
+int main() {
+    TaskManager manager;
+    manager.addTask("Learn C++");
+    manager.addTask("Build a project");
+    manager.addTask("Deploy to production");
+    manager.completeTask(1);
+    manager.listTasks();
+    return 0;
+}
+`,
+      },
+    ],
+  },
+  {
+    id: "java-app",
+    name: "Java App",
+    description: "Java application with OOP patterns",
+    language: "java",
+    files: [
+      {
+        filename: "Main.java",
+        content: `import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+    static class Task {
+        int id;
+        String title;
+        boolean done;
+
+        Task(int id, String title) {
+            this.id = id;
+            this.title = title;
+            this.done = false;
+        }
+
+        @Override
+        public String toString() {
+            return (done ? "[x] " : "[ ] ") + id + ". " + title;
+        }
+    }
+
+    static class TaskManager {
+        private List<Task> tasks = new ArrayList<>();
+        private int nextId = 1;
+
+        void add(String title) {
+            tasks.add(new Task(nextId++, title));
+            System.out.println("Added: " + title);
+        }
+
+        void complete(int id) {
+            tasks.stream()
+                .filter(t -> t.id == id)
+                .findFirst()
+                .ifPresent(t -> {
+                    t.done = true;
+                    System.out.println("Completed: " + t.title);
+                });
+        }
+
+        void list() {
+            System.out.println("\\n=== Tasks ===");
+            tasks.forEach(System.out::println);
+            long doneCount = tasks.stream().filter(t -> t.done).count();
+            System.out.println(doneCount + "/" + tasks.size() + " completed");
+        }
+    }
+
+    public static void main(String[] args) {
+        TaskManager manager = new TaskManager();
+        manager.add("Learn Java");
+        manager.add("Build an application");
+        manager.add("Deploy to production");
+        manager.complete(1);
+        manager.list();
+    }
+}
+`,
+      },
+    ],
+  },
+  {
+    id: "rust-app",
+    name: "Rust App",
+    description: "Rust program with structs and enums",
+    language: "rust",
+    files: [
+      {
+        filename: "main.rs",
+        content: `use std::fmt;
+
+struct Task {
+    id: u32,
+    title: String,
+    completed: bool,
+}
+
+impl fmt::Display for Task {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let status = if self.completed { "x" } else { " " };
+        write!(f, "[{}] {}. {}", status, self.id, self.title)
+    }
+}
+
+struct TaskManager {
+    tasks: Vec<Task>,
+    next_id: u32,
+}
+
+impl TaskManager {
+    fn new() -> Self {
+        TaskManager { tasks: Vec::new(), next_id: 1 }
+    }
+
+    fn add(&mut self, title: &str) {
+        self.tasks.push(Task {
+            id: self.next_id,
+            title: title.to_string(),
+            completed: false,
+        });
+        println!("Added: {}", title);
+        self.next_id += 1;
+    }
+
+    fn complete(&mut self, id: u32) {
+        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) {
+            task.completed = true;
+            println!("Completed: {}", task.title);
+        }
+    }
+
+    fn list(&self) {
+        println!("\\n=== Tasks ===");
+        for task in &self.tasks {
+            println!("{}", task);
+        }
+        let done = self.tasks.iter().filter(|t| t.completed).count();
+        println!("{}/{} completed", done, self.tasks.len());
+    }
+}
+
+fn main() {
+    let mut manager = TaskManager::new();
+    manager.add("Learn Rust");
+    manager.add("Build a project");
+    manager.add("Deploy to production");
+    manager.complete(1);
+    manager.list();
+}
+`,
+      },
+    ],
+  },
+  {
+    id: "ruby-script",
+    name: "Ruby Script",
+    description: "Ruby script with classes and modules",
+    language: "ruby",
+    files: [
+      {
+        filename: "main.rb",
+        content: `class Task
+  attr_accessor :id, :title, :completed
+
+  def initialize(id, title)
+    @id = id
+    @title = title
+    @completed = false
+  end
+
+  def to_s
+    status = @completed ? "x" : " "
+    "[#{status}] #{@id}. #{@title}"
+  end
+end
+
+class TaskManager
+  def initialize
+    @tasks = []
+    @next_id = 1
+  end
+
+  def add(title)
+    task = Task.new(@next_id, title)
+    @tasks << task
+    @next_id += 1
+    puts "Added: #{title}"
+  end
+
+  def complete(id)
+    task = @tasks.find { |t| t.id == id }
+    if task
+      task.completed = true
+      puts "Completed: #{task.title}"
+    end
+  end
+
+  def list
+    puts "\\n=== Tasks ==="
+    @tasks.each { |t| puts t }
+    done = @tasks.count(&:completed)
+    puts "#{done}/#{@tasks.length} completed"
+  end
+end
+
+manager = TaskManager.new
+manager.add("Learn Ruby")
+manager.add("Build a project")
+manager.add("Deploy to production")
+manager.complete(1)
+manager.list
+`,
+      },
+    ],
+  },
+  {
+    id: "bash-script",
+    name: "Bash Script",
+    description: "Shell script with functions and utilities",
+    language: "bash",
+    files: [
+      {
+        filename: "main.sh",
+        content: `#!/bin/bash
+
+# Colors
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+BLUE='\\033[0;34m'
+YELLOW='\\033[1;33m'
+NC='\\033[0m'
+
+echo -e "\${BLUE}================================\${NC}"
+echo -e "\${BLUE}   System Information Script    \${NC}"
+echo -e "\${BLUE}================================\${NC}"
+echo ""
+
+echo -e "\${GREEN}>> OS Information:\${NC}"
+echo "   Hostname: $(hostname)"
+echo "   Kernel: $(uname -r)"
+echo "   Architecture: $(uname -m)"
+echo ""
+
+echo -e "\${GREEN}>> Date & Time:\${NC}"
+echo "   $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo ""
+
+echo -e "\${GREEN}>> Disk Usage:\${NC}"
+df -h / 2>/dev/null | tail -1 | awk '{print "   Used: "$3" / "$2" ("$5" full)"}'
+echo ""
+
+echo -e "\${GREEN}>> Memory:\${NC}"
+free -h 2>/dev/null | grep Mem | awk '{print "   Used: "$3" / "$2}' || echo "   Memory info not available"
+echo ""
+
+echo -e "\${GREEN}>> Environment:\${NC}"
+echo "   Shell: $SHELL"
+echo "   User: $(whoami)"
+echo "   Home: $HOME"
+echo ""
+
+echo -e "\${YELLOW}Script completed successfully!\${NC}"
+`,
+      },
+    ],
+  },
 ];
 
 export function getTemplateById(id: string): ProjectTemplate | undefined {

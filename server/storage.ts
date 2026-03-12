@@ -208,11 +208,21 @@ export class DatabaseStorage implements IStorage {
 
   async createProject(userId: string, data: InsertProject): Promise<Project> {
     const [project] = await db.insert(projects).values({ ...data, userId }).returning();
-    const defaultFilename = data.language === "python" ? "main.py" : "index.ts";
-    const defaultContent = data.language === "python"
-      ? `print("Hello from Replit!")\n`
-      : `console.log("Hello from Replit!");\n`;
-    await db.insert(files).values({ projectId: project.id, filename: defaultFilename, content: defaultContent });
+    const langDefaults: Record<string, { filename: string; content: string }> = {
+      python: { filename: "main.py", content: `print("Hello from E-Code!")\n` },
+      javascript: { filename: "index.js", content: `console.log("Hello from E-Code!");\n` },
+      typescript: { filename: "index.ts", content: `console.log("Hello from E-Code!");\n` },
+      go: { filename: "main.go", content: `package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello from E-Code!")\n}\n` },
+      ruby: { filename: "main.rb", content: `puts "Hello from E-Code!"\n` },
+      cpp: { filename: "main.cpp", content: `#include <iostream>\n\nint main() {\n    std::cout << "Hello from E-Code!" << std::endl;\n    return 0;\n}\n` },
+      c: { filename: "main.c", content: `#include <stdio.h>\n\nint main() {\n    printf("Hello from E-Code!\\n");\n    return 0;\n}\n` },
+      java: { filename: "Main.java", content: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from E-Code!");\n    }\n}\n` },
+      rust: { filename: "main.rs", content: `fn main() {\n    println!("Hello from E-Code!");\n}\n` },
+      bash: { filename: "main.sh", content: `#!/bin/bash\necho "Hello from E-Code!"\n` },
+      html: { filename: "index.html", content: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>My App</title>\n</head>\n<body>\n  <h1>Hello from E-Code!</h1>\n</body>\n</html>\n` },
+    };
+    const defaults = langDefaults[data.language || "javascript"] || langDefaults.javascript;
+    await db.insert(files).values({ projectId: project.id, filename: defaults.filename, content: defaults.content });
     return project;
   }
 

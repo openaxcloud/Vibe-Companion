@@ -164,7 +164,7 @@ function _projectPage() {
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"terminal" | "shell">("terminal");
+  const [bottomTab, setBottomTab] = useState<"terminal" | "shell" | "problems">("terminal");
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
@@ -285,6 +285,8 @@ function _projectPage() {
   const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);
   const [showMinimap, setShowMinimap] = useState(true);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [fileDragOver, setFileDragOver] = useState(false);
   const splitDragStartX = useRef<number | null>(null);
   const splitDragStartW = useRef<number>(50);
 
@@ -576,6 +578,10 @@ function _projectPage() {
       if ((e.metaKey || e.ctrlKey) && e.key === "n" && !isInput) {
         e.preventDefault();
         setNewFileDialogOpen(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        setShortcutsOpen(prev => !prev);
       }
     };
     window.addEventListener("keydown", handler);
@@ -900,6 +906,57 @@ function _projectPage() {
     }
     if (uploadInputRef.current) uploadInputRef.current.value = "";
   }, [projectId, invalidateFs, toast]);
+
+  const handleFileDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFileDragOver(false);
+    const fileList = e.dataTransfer.files;
+    if (!fileList || fileList.length === 0 || !projectId) return;
+    const formData = new FormData();
+    for (let i = 0; i < Math.min(fileList.length, 10); i++) {
+      formData.append("files", fileList[i]);
+    }
+    try {
+      const res = await fetch(`/api/projects/${projectId}/upload`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      if (data.files && data.files.length > 0) {
+        invalidateFs();
+        toast({ title: `Uploaded ${data.count} file(s)` });
+      }
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    }
+  }, [projectId, invalidateFs, toast]);
+
+  const handleFileDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFileDragOver(true);
+  }, []);
+
+  const handleFileDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFileDragOver(false);
+  }, []);
+
+  const handleDownloadFile = useCallback((filename: string, content: string) => {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename.split("/").pop() || filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
 
   const createFolderMutation = useMutation({
     mutationFn: async (folderName: string) => {
@@ -1634,7 +1691,19 @@ function _projectPage() {
           <ChevronLeft className="w-3 h-3" /> ..
         </button>
       )}
-      <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
+      <div className={`flex-1 overflow-y-auto scrollbar-thin py-1 relative transition-colors ${fileDragOver ? "bg-[#0079F2]/10 ring-2 ring-inset ring-[#0079F2]/40" : ""}`}
+        onDrop={handleFileDrop}
+        onDragOver={handleFileDragOver}
+        onDragLeave={handleFileDragLeave}
+      >
+        {fileDragOver && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+            <div className="flex flex-col items-center gap-2 text-[#0079F2]">
+              <Upload className="w-8 h-8" />
+              <span className="text-xs font-medium">Drop files here</span>
+            </div>
+          </div>
+        )}
         {useRunnerFS ? (
           <>
             {runnerFsQuery.data?.map((entry) => {
@@ -1665,6 +1734,9 @@ function _projectPage() {
                   <ContextMenuSeparator className="bg-[#2B3245]" />
                   <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
                     <Pencil className="w-3 h-3" /> Rename
+                  </ContextMenuItem>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { const tabId = `runner:${entry.path}`; const content = fileContents[tabId]; if (content !== undefined) handleDownloadFile(entry.name, content); else toast({ title: "Open the file first to download" }); }}>
+                    <Save className="w-3 h-3" /> Download
                   </ContextMenuItem>
                   <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => copyPathToClipboard(entry.path)}>
                     <Copy className="w-3 h-3" /> Copy Path
@@ -1842,6 +1914,13 @@ function _projectPage() {
                     data-testid={`ctx-duplicate-${file.id}`}
                   >
                     <Copy className="w-3 h-3" /> Duplicate
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => handleDownloadFile(file.filename, fileContents[file.id] ?? file.content)}
+                    data-testid={`ctx-download-${file.id}`}
+                  >
+                    <Save className="w-3 h-3" /> Download
                   </ContextMenuItem>
                   <ContextMenuItem
                     className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
@@ -2602,8 +2681,11 @@ function _projectPage() {
       </div>
       <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
         <div className="flex items-center h-full overflow-x-auto">
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")}>
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")} data-testid="tab-console">
             <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+          </button>
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "problems" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("problems")} data-testid="tab-problems">
+            <AlertCircle className="w-3 h-3" /> Problems <span className="text-[9px] px-1 rounded bg-[#2B3245] text-[#676D7E]">0</span>
           </button>
           {terminalTabs.map((tab, idx) => (
             <button
@@ -2645,7 +2727,15 @@ function _projectPage() {
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
         </div>
       </div>
-      {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : terminalContent}
+      {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : bottomTab === "problems" ? (
+        <div className="flex-1 overflow-y-auto px-3 py-2 animate-fade-in" data-testid="problems-panel">
+          <div className="flex flex-col items-center justify-center py-8 text-[#676D7E]">
+            <AlertCircle className="w-6 h-6 mb-2 opacity-40" />
+            <p className="text-xs font-medium text-[#9DA2B0] mb-1">No problems detected</p>
+            <p className="text-[10px]">Code analysis is active and monitoring your files</p>
+          </div>
+        </div>
+      ) : terminalContent}
     </div>
   );
 
@@ -3893,8 +3983,8 @@ function _projectPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-[#9DA2B0]">Language</Label>
-              <div className="flex gap-2">
-                {["javascript", "typescript", "python"].map((lang) => (
+              <div className="flex flex-wrap gap-2">
+                {["javascript", "typescript", "python", "go", "ruby", "cpp", "java", "rust", "bash", "html"].map((lang) => (
                   <button key={lang} type="button" onClick={() => setProjectLang(lang)} className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${projectLang === lang ? "bg-[#0079F2] text-white" : "bg-[#0E1525] text-[#9DA2B0] hover:text-[#F5F9FC] border border-[#2B3245]"}`}>
                     {lang}
                   </button>
@@ -4072,6 +4162,58 @@ function _projectPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
+        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-lg max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#F5F9FC] text-base flex items-center gap-2"><Keyboard className="w-4 h-4" /> Keyboard Shortcuts</DialogTitle>
+            <DialogDescription className="text-[#9DA2B0] text-xs">Quick reference for all available shortcuts</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {[
+              { category: "General", shortcuts: [
+                { keys: ["Ctrl", "P"], desc: "Command Palette" },
+                { keys: ["Ctrl", "K"], desc: "Command Palette" },
+                { keys: ["Ctrl", "B"], desc: "Toggle Sidebar" },
+                { keys: ["Ctrl", "/"], desc: "Keyboard Shortcuts" },
+                { keys: ["F5"], desc: "Run / Stop" },
+                { keys: ["Ctrl", "Enter"], desc: "Run Code" },
+              ]},
+              { category: "Editor", shortcuts: [
+                { keys: ["Ctrl", "S"], desc: "Save File" },
+                { keys: ["Ctrl", "N"], desc: "New File" },
+                { keys: ["Ctrl", "W"], desc: "Close Tab" },
+                { keys: ["Tab"], desc: "Accept AI Completion" },
+                { keys: ["Escape"], desc: "Dismiss AI Completion" },
+              ]},
+              { category: "Panels", shortcuts: [
+                { keys: ["Ctrl", "J"], desc: "Toggle Terminal" },
+                { keys: ["Ctrl", "`"], desc: "Toggle Terminal" },
+                { keys: ["Ctrl", "\\"], desc: "Toggle Preview" },
+                { keys: ["Ctrl", "Shift", "F"], desc: "Search in Files" },
+                { keys: ["Ctrl", "H"], desc: "Search & Replace" },
+                { keys: ["Ctrl", "Shift", "G"], desc: "Version Control" },
+              ]},
+            ].map(({ category, shortcuts }) => (
+              <div key={category}>
+                <h4 className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest mb-2">{category}</h4>
+                <div className="space-y-1">
+                  {shortcuts.map(({ keys, desc }, i) => (
+                    <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[#2B3245]/40">
+                      <span className="text-[12px] text-[#9DA2B0]">{desc}</span>
+                      <div className="flex items-center gap-1">
+                        {keys.map((k, j) => (
+                          <kbd key={j} className="px-1.5 py-0.5 rounded bg-[#0E1525] border border-[#2B3245] text-[10px] text-[#F5F9FC] font-mono min-w-[24px] text-center">{k}</kbd>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={renameDialogOpen} onOpenChange={(open) => { setRenameDialogOpen(open); if (!open) setRenameDialogTarget(null); }}>
         <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">

@@ -721,6 +721,26 @@ export async function executeCode(
       command = "java";
       args = ["-cp", sandboxDir, "Main"];
       filename = "";
+    } else if (language === "rust") {
+      filename = "main.rs";
+      wrappedCode = code;
+      await writeFile(join(sandboxDir, filename), wrappedCode, "utf-8");
+      onLog?.("Compiling Rust code...", "info");
+      const rustCompile = await new Promise<{ success: boolean; stderr: string }>((res) => {
+        const cp = spawn("rustc", [join(sandboxDir, filename), "-o", join(sandboxDir, "main")], {
+          cwd: sandboxDir, timeout: 30000, stdio: ["ignore", "pipe", "pipe"],
+        });
+        let err = "";
+        cp.stderr?.on("data", (d: Buffer) => { err += d.toString(); });
+        cp.on("close", (exitCode) => { res({ success: exitCode === 0, stderr: err }); });
+        cp.on("error", () => { res({ success: false, stderr: "rustc not found" }); });
+      });
+      if (!rustCompile.success) {
+        return { output: "", error: rustCompile.stderr || "Rust compilation failed", exitCode: 1 };
+      }
+      command = join(sandboxDir, "main");
+      args = [];
+      filename = "";
     } else if (language === "bash") {
       filename = "script.sh";
       command = "bash";
