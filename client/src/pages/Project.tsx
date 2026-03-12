@@ -2989,6 +2989,39 @@ function _projectPage() {
                   {previewContent}
                 </div>
               )}
+              {mobileTab === "ai" && (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <AIPanel
+                    key={`ai-mobile-fullscreen-${projectId}`}
+                    context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
+                    onClose={() => setMobileTab("editor")}
+                    projectId={projectId}
+                    files={filesQuery.data}
+                    onFileCreated={(file) => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                      setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
+                      setActiveFileId(file.id);
+                      setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                      expandParentFolders(file.filename);
+                      setMobileTab("editor");
+                    }}
+                    onFileUpdated={(file) => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                      setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                    }}
+                    onApplyCode={(filename, code) => {
+                      const file = filesQuery.data?.find((f) => f.filename === filename);
+                      if (file) {
+                        setFileContents((prev) => ({ ...prev, [file.id]: code }));
+                        setDirtyFiles((prev) => new Set(prev).add(file.id));
+                        if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
+                        setActiveFileId(file.id);
+                        setMobileTab("editor");
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {mobileTab === "editor" && (
@@ -3032,39 +3065,6 @@ function _projectPage() {
                 </button>
               </div>
             )}
-              {mobileTab === "ai" && (
-                <div className="flex-1 flex flex-col overflow-hidden bg-white">
-                  <AIPanel
-                    key={`ai-mobile-fullscreen-${projectId}`}
-                    context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
-                    onClose={() => setMobileTab("editor")}
-                    projectId={projectId}
-                    files={filesQuery.data}
-                    onFileCreated={(file) => {
-                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-                      setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
-                      setActiveFileId(file.id);
-                      setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
-                      expandParentFolders(file.filename);
-                      setMobileTab("editor");
-                    }}
-                    onFileUpdated={(file) => {
-                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-                      setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
-                    }}
-                    onApplyCode={(filename, code) => {
-                      const file = filesQuery.data?.find((f) => f.filename === filename);
-                      if (file) {
-                        setFileContents((prev) => ({ ...prev, [file.id]: code }));
-                        setDirtyFiles((prev) => new Set(prev).add(file.id));
-                        if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
-                        setActiveFileId(file.id);
-                        setMobileTab("editor");
-                      }
-                    }}
-                  />
-                </div>
-              )}
           </div>
 
           {/* MOBILE BOTTOM NAV */}
