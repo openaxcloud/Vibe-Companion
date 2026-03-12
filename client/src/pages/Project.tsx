@@ -175,7 +175,7 @@ function _projectPage() {
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -234,7 +234,7 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
+  const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("ai");
   const [prevMobileTab, setPrevMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
@@ -3290,7 +3290,7 @@ function _projectPage() {
 
             {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
             {aiPanelOpen && (
-              <div className={`${isTablet ? "w-[320px]" : "w-[45%] max-w-[600px] min-w-[340px]"} shrink-0 border-r border-[#2B3245]`} data-testid="ai-agent-panel">
+              <div className={`${isTablet ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[#2B3245]`} data-testid="ai-agent-panel">
                 <AIPanel
                   key={`ai-desktop-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}

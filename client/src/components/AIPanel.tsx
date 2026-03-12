@@ -643,7 +643,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-semibold text-[#F5F9FC] tracking-tight">AI</span>
+            <span className="text-[13px] font-semibold text-[#F5F9FC] tracking-tight">Agent</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
@@ -738,19 +738,19 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-[fade-in_0.4s_ease-out]">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7C65CB]/20 to-[#7C65CB]/5 flex items-center justify-center mb-4 ring-1 ring-[#7C65CB]/15">
-              {mode === "agent" ? <Bot className="w-7 h-7 text-[#7C65CB]/70" /> : <Sparkles className="w-7 h-7 text-[#7C65CB]/70" />}
+          <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7C65CB]/25 to-[#7C65CB]/5 flex items-center justify-center mb-5 ring-1 ring-[#7C65CB]/20 shadow-lg shadow-[#7C65CB]/10">
+              {mode === "agent" ? <Bot className="w-8 h-8 text-[#7C65CB]" /> : <Sparkles className="w-8 h-8 text-[#7C65CB]" />}
             </div>
-            <p className="text-[15px] font-semibold text-[#F5F9FC] mb-1.5 tracking-tight" data-testid="text-ai-title">
-              {mode === "agent" ? "AI Coding Agent" : "AI Assistant"}
+            <p className="text-[17px] font-bold text-[#F5F9FC] mb-1.5 tracking-tight" data-testid="text-ai-title">
+              {mode === "agent" ? "What do you want to build?" : "AI Assistant"}
             </p>
-            <p className="text-[11px] text-[#676D7E] max-w-[260px] leading-relaxed mb-5">
+            <p className="text-[12px] text-[#9DA2B0] max-w-[320px] leading-relaxed mb-6">
               {mode === "agent"
-                ? "I can build features, create files, and edit your code directly. Describe what you want to build."
+                ? "Describe your idea and I'll build it — creating files, writing code, and setting up your project automatically."
                 : "I can help you write code, debug issues, explain concepts, and suggest improvements."}
             </p>
-            <div className="w-full max-w-[300px] grid grid-cols-2 gap-2">
+            <div className="w-full max-w-[360px] grid grid-cols-2 gap-2.5">
               {(mode === "agent" ? agentSuggestions : chatSuggestions).map((item) => {
                 const Icon = item.icon;
                 return (
