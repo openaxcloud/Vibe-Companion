@@ -29,7 +29,7 @@ const plans = [
     ],
     cta: "Current Plan",
     popular: false,
-    color: "#676D7E",
+    color: "var(--ide-text-muted)",
   },
   {
     id: "pro",
@@ -115,13 +115,13 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0E1525] text-[#F5F9FC]">
+    <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)]">
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="flex items-center gap-4 mb-12">
           <Button
             variant="ghost"
             size="icon"
-            className="text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"
+            className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
             onClick={() => setLocation("/")}
             data-testid="button-back-pricing"
           >
@@ -129,13 +129,13 @@ export default function Pricing() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold" data-testid="text-pricing-title">Choose your plan</h1>
-            <p className="text-[#9DA2B0] mt-1">Scale your development with the right tools</p>
+            <p className="text-[var(--ide-text-secondary)] mt-1">Scale your development with the right tools</p>
           </div>
         </div>
 
         <div className="max-w-lg mx-auto mb-12" data-testid="progress-bar-container">
           <div className="flex items-center justify-between relative">
-            <div className="absolute top-5 left-[calc(16.67%)] right-[calc(16.67%)] h-[2px] bg-[#2B3245]" />
+            <div className="absolute top-5 left-[calc(16.67%)] right-[calc(16.67%)] h-[2px] bg-[var(--ide-surface)]" />
             <div
               className="absolute top-5 left-[calc(16.67%)] h-[2px] bg-[#0079F2] transition-all duration-500 ease-out"
               style={{ width: currentStep === 1 ? "0%" : currentStep === 2 ? "calc(50% - 0px)" : "calc(100% - 0px)", maxWidth: "66.66%" }}
@@ -152,13 +152,13 @@ export default function Pricing() {
                       isComplete
                         ? "bg-[#0079F2] border-[#0079F2] text-white"
                         : isActive
-                        ? "bg-[#0E1525] border-[#0079F2] text-[#0079F2]"
-                        : "bg-[#0E1525] border-[#2B3245] text-[#676D7E]"
+                        ? "bg-[var(--ide-bg)] border-[#0079F2] text-[#0079F2]"
+                        : "bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text-muted)]"
                     }`}
                   >
                     {isComplete ? <Check className="w-4 h-4" /> : <StepIcon className="w-4 h-4" />}
                   </div>
-                  <span className={`mt-2 text-xs font-medium transition-colors duration-300 ${isComplete || isActive ? "text-[#F5F9FC]" : "text-[#676D7E]"}`}>
+                  <span className={`mt-2 text-xs font-medium transition-colors duration-300 ${isComplete || isActive ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)]"}`}>
                     {step.label}
                   </span>
                 </div>
@@ -173,7 +173,7 @@ export default function Pricing() {
               <CheckCircle2 className="w-8 h-8 text-[#0CCE6B]" />
             </div>
             <h2 className="text-2xl font-bold mb-2">You're all set!</h2>
-            <p className="text-[#9DA2B0] mb-8">Your plan has been upgraded successfully. Enjoy your new features.</p>
+            <p className="text-[var(--ide-text-secondary)] mb-8">Your plan has been upgraded successfully. Enjoy your new features.</p>
             <Button
               className="bg-[#0079F2] hover:bg-[#006AD8] text-white px-8 h-11 rounded-lg"
               onClick={() => setLocation("/dashboard")}
@@ -188,7 +188,7 @@ export default function Pricing() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`relative rounded-xl border ${plan.popular ? "border-[#0079F2] shadow-lg shadow-[#0079F2]/10" : "border-[#2B3245]"} bg-[#1C2333] p-6 flex flex-col`}
+              className={`relative rounded-xl border ${plan.popular ? "border-[#0079F2] shadow-lg shadow-[#0079F2]/10" : "border-[var(--ide-border)]"} bg-[var(--ide-panel)] p-6 flex flex-col`}
               data-testid={`card-plan-${plan.id}`}
             >
               {plan.popular && (
@@ -204,9 +204,9 @@ export default function Pricing() {
               </div>
               <div className="flex items-baseline gap-1 mb-2">
                 <span className="text-4xl font-bold">{plan.price}</span>
-                <span className="text-[#676D7E] text-sm">{plan.period}</span>
+                <span className="text-[var(--ide-text-muted)] text-sm">{plan.period}</span>
               </div>
-              <p className="text-[#9DA2B0] text-sm mb-6">{plan.description}</p>
+              <p className="text-[var(--ide-text-secondary)] text-sm mb-6">{plan.description}</p>
               <ul className="space-y-3 mb-8 flex-1">
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm">
@@ -221,7 +221,7 @@ export default function Pricing() {
                     ? "bg-[#0079F2] hover:bg-[#006AD8] text-white"
                     : plan.id === "team"
                     ? "bg-[#7C65CB] hover:bg-[#6B56B5] text-white"
-                    : "bg-[#2B3245] hover:bg-[#3B4255] text-[#F5F9FC]"
+                    : "bg-[var(--ide-surface)] hover:bg-[#3B4255] text-[var(--ide-text)]"
                 }`}
                 onClick={() => handleUpgrade(plan.id)}
                 disabled={plan.id === "free" || loading === plan.id}
@@ -242,9 +242,9 @@ export default function Pricing() {
               { q: "Is there a student discount?", a: "Yes! Students get 50% off Pro with a valid .edu email. Contact support to apply." },
               { q: "Can I cancel my subscription?", a: "Absolutely. Cancel anytime from your account settings. No questions asked." },
             ].map((faq, i) => (
-              <div key={i} className="border border-[#2B3245] rounded-lg p-4 bg-[#1C2333]">
-                <h4 className="font-medium text-sm text-[#F5F9FC] mb-1">{faq.q}</h4>
-                <p className="text-sm text-[#9DA2B0]">{faq.a}</p>
+              <div key={i} className="border border-[var(--ide-border)] rounded-lg p-4 bg-[var(--ide-panel)]">
+                <h4 className="font-medium text-sm text-[var(--ide-text)] mb-1">{faq.q}</h4>
+                <p className="text-sm text-[var(--ide-text-secondary)]">{faq.a}</p>
               </div>
             ))}
           </div>

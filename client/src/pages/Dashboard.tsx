@@ -248,20 +248,20 @@ export default function Dashboard() {
   ];
 
   const mobileHomeContent = (
-    <div className="flex-1 overflow-y-auto bg-[#0E1525]">
+    <div className="flex-1 overflow-y-auto bg-[var(--ide-bg)]">
       <div className="max-w-[680px] mx-auto px-4">
         <div className="pt-8 pb-4 text-center relative">
-          <h1 className="relative text-[28px] font-bold text-[#F5F9FC] mb-2 tracking-tight leading-tight" data-testid="text-mobile-hero">What will you create?</h1>
-          <p className="relative text-[12px] text-[#9DA2B0] max-w-xs mx-auto leading-relaxed">Describe your idea and AI will build it</p>
+          <h1 className="relative text-[28px] font-bold text-[var(--ide-text)] mb-2 tracking-tight leading-tight" data-testid="text-mobile-hero">What will you create?</h1>
+          <p className="relative text-[12px] text-[var(--ide-text-secondary)] max-w-xs mx-auto leading-relaxed">Describe your idea and AI will build it</p>
         </div>
         <form onSubmit={handleGenerateSubmit} className="mb-6">
-          <div className="relative rounded-xl border border-[#2B3245] bg-[#1C2333] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-sm transition-all">
+          <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-sm transition-all">
             <textarea
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
               placeholder="Build me a todo app with dark mode..."
               rows={3}
-              className="w-full bg-transparent text-[14px] text-[#F5F9FC] placeholder:text-[#676D7E] px-4 pt-4 pb-2 resize-none focus:outline-none leading-relaxed"
+              className="w-full bg-transparent text-[14px] text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] px-4 pt-4 pb-2 resize-none focus:outline-none leading-relaxed"
               disabled={generateProject.isPending}
               data-testid="input-ai-prompt-mobile"
               onKeyDown={(e) => {
@@ -276,7 +276,7 @@ export default function Dashboard() {
                 {(["claude", "gpt", "gemini"] as const).map(m => {
                   const cfg = { claude: { label: "Claude", active: "bg-[#7C65CB]/10 text-[#7C65CB] border-[#7C65CB]/25" }, gpt: { label: "GPT-4o", active: "bg-[#0CCE6B]/10 text-[#059669] border-[#0CCE6B]/25" }, gemini: { label: "Gemini", active: "bg-[#4285F4]/10 text-[#4285F4] border-[#4285F4]/25" } }[m];
                   return (
-                    <button key={m} type="button" onClick={() => setAiModel(m)} className={`text-[11px] px-2.5 py-1.5 rounded-md transition-all font-medium border ${aiModel === m ? cfg.active : "text-[#9CA3AF] border-transparent hover:bg-[#2B3245]"}`} data-testid={`button-model-${m}-mobile`}>
+                    <button key={m} type="button" onClick={() => setAiModel(m)} className={`text-[11px] px-2.5 py-1.5 rounded-md transition-all font-medium border ${aiModel === m ? cfg.active : "text-[#9CA3AF] border-transparent hover:bg-[var(--ide-surface)]"}`} data-testid={`button-model-${m}-mobile`}>
                       {cfg.label}
                     </button>
                   );
@@ -295,26 +295,26 @@ export default function Dashboard() {
                 <Sparkles className="w-4 h-4 text-white animate-pulse" />
               </div>
               <div>
-                <p className="text-[13px] font-semibold text-[#F5F9FC]">Building your app...</p>
-                <p className="text-[10px] text-[#9DA2B0] mt-0.5">~15-30 seconds</p>
+                <p className="text-[13px] font-semibold text-[var(--ide-text)]">Building your app...</p>
+                <p className="text-[10px] text-[var(--ide-text-secondary)] mt-0.5">~15-30 seconds</p>
               </div>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-[#2B3245] overflow-hidden">
+            <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
               <div className="h-full rounded-full bg-gradient-to-r from-[#7C65CB] to-[#0079F2] transition-all duration-700 ease-out" style={{ width: `${((generationStep + 1) / GENERATION_STEPS.length) * 100}%` }} />
             </div>
           </div>
         )}
         <div className="mb-6">
-          <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2.5">Templates</h3>
+          <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2.5">Templates</h3>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4" ref={templatesRef}>
             {TEMPLATES.map((tmpl) => (
-              <button key={tmpl.name} className={`flex items-center gap-2.5 p-3 rounded-xl border border-[#2B3245] bg-[#1C2333] transition-all active:scale-[0.97] min-w-[160px] shrink-0`} onClick={() => createFromTemplate.mutate(tmpl.id)} disabled={createFromTemplate.isPending} data-testid={`template-${tmpl.id}-mobile`}>
-                <div className="w-9 h-9 rounded-lg bg-[#2B3245] flex items-center justify-center border border-[#323B4F] shrink-0">
+              <button key={tmpl.name} className={`flex items-center gap-2.5 p-3 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] transition-all active:scale-[0.97] min-w-[160px] shrink-0`} onClick={() => createFromTemplate.mutate(tmpl.id)} disabled={createFromTemplate.isPending} data-testid={`template-${tmpl.id}-mobile`}>
+                <div className="w-9 h-9 rounded-lg bg-[var(--ide-surface)] flex items-center justify-center border border-[var(--ide-hover)] shrink-0">
                   <tmpl.icon className={`w-4 h-4 ${tmpl.iconColor}`} />
                 </div>
                 <div className="text-left min-w-0">
-                  <p className="text-[12px] font-semibold text-[#F5F9FC] truncate">{tmpl.name}</p>
-                  <p className="text-[9px] text-[#9DA2B0]">{tmpl.lang}</p>
+                  <p className="text-[12px] font-semibold text-[var(--ide-text)] truncate">{tmpl.name}</p>
+                  <p className="text-[9px] text-[var(--ide-text-secondary)]">{tmpl.lang}</p>
                 </div>
               </button>
             ))}
@@ -323,7 +323,7 @@ export default function Dashboard() {
         {!projectsQuery.isLoading && projects.length > 0 && (
           <div className="pb-24">
             <div className="flex items-center justify-between mb-2.5">
-              <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider">Recent</h3>
+              <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Recent</h3>
               <button className="text-[11px] text-[#0079F2] font-medium" onClick={() => setMobileTab("repls")} data-testid="button-view-all-mobile">
                 View all <ChevronRight className="w-3 h-3 inline" />
               </button>
@@ -332,19 +332,19 @@ export default function Dashboard() {
               {projects.slice(0, 5).map((project) => {
                 const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
                 return (
-                  <div key={project.id} className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-[#1C2333] border border-[#2B3245] active:scale-[0.98] transition-all cursor-pointer" onClick={() => setLocation(`/project/${project.id}`)} data-testid={`card-project-${project.id}-mobile`}>
+                  <div key={project.id} className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] active:scale-[0.98] transition-all cursor-pointer" onClick={() => setLocation(`/project/${project.id}`)} data-testid={`card-project-${project.id}-mobile`}>
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
                       {langInfo.label}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-[14px] text-[#F5F9FC] truncate">{project.name}</h3>
+                      <h3 className="font-medium text-[14px] text-[var(--ide-text)] truncate">{project.name}</h3>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[11px] text-[#9DA2B0] capitalize">{project.language}</span>
-                        <span className="text-[8px] text-[#D1D5DB]">&middot;</span>
-                        <span className="text-[11px] text-[#9DA2B0] flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}</span>
+                        <span className="text-[11px] text-[var(--ide-text-secondary)] capitalize">{project.language}</span>
+                        <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                        <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}</span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[#D1D5DB] shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[var(--ide-text-muted)] shrink-0" />
                   </div>
                 );
               })}
@@ -356,8 +356,8 @@ export default function Dashboard() {
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0079F2]/10 to-[#7C65CB]/10 border border-[#0079F2]/15 flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-7 h-7 text-[#0079F2]" />
             </div>
-            <p className="text-[15px] text-[#F5F9FC] mb-1.5 font-semibold">No projects yet</p>
-            <p className="text-[12px] text-[#9DA2B0] max-w-xs mx-auto mb-5 leading-relaxed">Describe your idea above or tap + to create one</p>
+            <p className="text-[15px] text-[var(--ide-text)] mb-1.5 font-semibold">No projects yet</p>
+            <p className="text-[12px] text-[var(--ide-text-secondary)] max-w-xs mx-auto mb-5 leading-relaxed">Describe your idea above or tap + to create one</p>
           </div>
         )}
       </div>
@@ -367,73 +367,73 @@ export default function Dashboard() {
   const mobileReplsContent = (
     <div
       ref={projectListRef}
-      className="flex-1 overflow-y-auto bg-[#F5F6F8]"
+      className="flex-1 overflow-y-auto bg-[var(--ide-panel)]"
       onTouchStart={handlePullStart}
       onTouchMove={handlePullMove}
       onTouchEnd={handlePullEnd}
     >
       {(pullDistance > 0 || isRefreshing) && (
         <div className="flex items-center justify-center overflow-hidden transition-all" style={{ height: pullDistance > 0 ? pullDistance : 40 }}>
-          <div className={`w-6 h-6 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full ${isRefreshing || pullDistance > 50 ? "animate-spin" : ""}`} style={{ opacity: Math.min(1, pullDistance / 50) }} />
+          <div className={`w-6 h-6 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full ${isRefreshing || pullDistance > 50 ? "animate-spin" : ""}`} style={{ opacity: Math.min(1, pullDistance / 50) }} />
         </div>
       )}
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-[#F5F9FC]" data-testid="text-my-repls-mobile">My Repls</h2>
+          <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-my-repls-mobile">My Repls</h2>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#9CA3AF]" />
-              <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-7.5 bg-[#1C2333] border-[#2B3245] h-9 w-36 text-[12px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-search-repls-mobile" />
+              <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-7.5 bg-[var(--ide-panel)] border-[var(--ide-border)] h-9 w-36 text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-search-repls-mobile" />
             </div>
           </div>
         </div>
         {projectsQuery.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl bg-[#1C2333] border border-[#2B3245]">
-                <Skeleton className="w-10 h-10 rounded-lg bg-[#2B3245] shrink-0" />
+              <div key={i} className="flex items-center gap-3 p-3.5 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)]">
+                <Skeleton className="w-10 h-10 rounded-lg bg-[var(--ide-surface)] shrink-0" />
                 <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-4 w-32 rounded bg-[#2B3245]" />
-                  <Skeleton className="h-3 w-20 rounded bg-[#2B3245]" />
+                  <Skeleton className="h-4 w-32 rounded bg-[var(--ide-surface)]" />
+                  <Skeleton className="h-3 w-20 rounded bg-[var(--ide-surface)]" />
                 </div>
               </div>
             ))}
           </div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-16 rounded-xl border border-[#2B3245] bg-[#1C2333]">
-            <Code2 className="w-8 h-8 text-[#D1D5DB] mx-auto mb-3" />
-            <p className="text-[14px] text-[#F5F9FC] mb-1 font-medium">{searchQuery ? "No matching repls" : "No repls yet"}</p>
-            <p className="text-[12px] text-[#9DA2B0]">{searchQuery ? "Try a different search" : "Tap + to create your first project"}</p>
+          <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
+            <Code2 className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
+            <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium">{searchQuery ? "No matching repls" : "No repls yet"}</p>
+            <p className="text-[12px] text-[var(--ide-text-secondary)]">{searchQuery ? "Try a different search" : "Tap + to create your first project"}</p>
           </div>
         ) : (
           <div className="space-y-1.5 pb-24">
             {projects.map((project) => {
               const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
               return (
-                <div key={project.id} className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-[#1C2333] border border-[#2B3245] active:scale-[0.98] transition-all cursor-pointer" onClick={() => setLocation(`/project/${project.id}`)} data-testid={`card-repl-${project.id}`}>
+                <div key={project.id} className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] active:scale-[0.98] transition-all cursor-pointer" onClick={() => setLocation(`/project/${project.id}`)} data-testid={`card-repl-${project.id}`}>
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
                     {langInfo.label}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-[14px] text-[#F5F9FC] truncate">{project.name}</h3>
+                    <h3 className="font-medium text-[14px] text-[var(--ide-text)] truncate">{project.name}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-[#9DA2B0] capitalize">{project.language}</span>
-                      <span className="text-[8px] text-[#D1D5DB]">&middot;</span>
-                      <span className="text-[11px] text-[#9DA2B0] flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}</span>
+                      <span className="text-[11px] text-[var(--ide-text-secondary)] capitalize">{project.language}</span>
+                      <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                      <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}</span>
                       {project.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#059669] border border-[#0CCE6B]/20 font-medium ml-auto">Live</span>}
                     </div>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="w-9 h-9 rounded-md text-[#9CA3AF] hover:text-[#F5F9FC] hover:bg-[#2B3245] shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="w-9 h-9 rounded-md text-[#9CA3AF] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] shrink-0" onClick={(e) => e.stopPropagation()}>
                         <MoreVertical className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-                      <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
+                    <DropdownMenuContent align="end" className="w-40 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+                      <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
                         <Copy className="w-3 h-3" /> Duplicate
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="bg-[#2B3245]" />
+                      <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
                       <DropdownMenuItem className="gap-2 text-[11px] text-red-500 focus:bg-red-500/10 focus:text-red-500 cursor-pointer mx-1 rounded-md" onClick={() => { setDeleteTargetProject({ id: project.id, name: project.name }); setDeleteConfirmDialogOpen(true); }}>
                         <Trash className="w-3 h-3" /> Delete
                       </DropdownMenuItem>
@@ -449,61 +449,61 @@ export default function Dashboard() {
   );
 
   const mobileNotificationsContent = (
-    <div className="flex-1 overflow-y-auto bg-[#0E1525] px-4 py-4">
-      <h2 className="text-lg font-semibold text-[#F5F9FC] mb-4">Notifications</h2>
-      <div className="text-center py-16 rounded-xl border border-[#2B3245] bg-[#1C2333]">
-        <Bell className="w-8 h-8 text-[#D1D5DB] mx-auto mb-3" />
-        <p className="text-[14px] text-[#F5F9FC] mb-1 font-medium" data-testid="text-no-notifications-mobile">No notifications</p>
-        <p className="text-[12px] text-[#9DA2B0]">You're all caught up</p>
+    <div className="flex-1 overflow-y-auto bg-[var(--ide-bg)] px-4 py-4">
+      <h2 className="text-lg font-semibold text-[var(--ide-text)] mb-4">Notifications</h2>
+      <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
+        <Bell className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
+        <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium" data-testid="text-no-notifications-mobile">No notifications</p>
+        <p className="text-[12px] text-[var(--ide-text-secondary)]">You're all caught up</p>
       </div>
     </div>
   );
 
   const mobileProfileContent = (
-    <div className="flex-1 overflow-y-auto bg-[#0E1525] px-4 py-4">
+    <div className="flex-1 overflow-y-auto bg-[var(--ide-bg)] px-4 py-4">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center shrink-0">
           <span className="text-lg font-bold text-white">{initials}</span>
         </div>
         <div className="min-w-0">
-          <p className="text-[16px] font-semibold text-[#F5F9FC] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
-          <p className="text-[12px] text-[#9DA2B0] truncate">{user?.email}</p>
+          <p className="text-[16px] font-semibold text-[var(--ide-text)] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
+          <p className="text-[12px] text-[var(--ide-text-secondary)] truncate">{user?.email}</p>
         </div>
       </div>
-      <div className="rounded-xl border border-[#2B3245] bg-[#1C2333] overflow-hidden mb-4 shadow-sm">
-        <div className="px-4 py-3 border-b border-[#2B3245]">
+      <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden mb-4 shadow-sm">
+        <div className="px-4 py-3 border-b border-[var(--ide-border)]">
           <div className="flex items-center justify-between">
-            <span className="text-[12px] text-[#9DA2B0]">Plan</span>
+            <span className="text-[12px] text-[var(--ide-text-secondary)]">Plan</span>
             <span className="text-[12px] font-medium text-[#0079F2] capitalize">{usageQuery.data?.plan || "free"}</span>
           </div>
         </div>
         {usageQuery.data && (
           <>
-            <div className="px-4 py-3 border-b border-[#2B3245] space-y-2.5">
+            <div className="px-4 py-3 border-b border-[var(--ide-border)] space-y-2.5">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-[#9DA2B0] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
-                  <span className="text-[11px] text-[#9DA2B0]">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-[#2B3245] overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
                   <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.executions.used / usageQuery.data.daily.executions.limit) * 100)}%` }} />
                 </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-[#9DA2B0] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
-                  <span className="text-[11px] text-[#9DA2B0]">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-[#2B3245] overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
                   <div className="h-full rounded-full bg-[#7C65CB] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.aiCalls.used / usageQuery.data.daily.aiCalls.limit) * 100)}%` }} />
                 </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-[#9DA2B0] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
-                  <span className="text-[11px] text-[#9DA2B0]">{usageQuery.data.storage.usedMb}/{usageQuery.data.storage.limitMb} MB</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.storage.usedMb}/{usageQuery.data.storage.limitMb} MB</span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-[#2B3245] overflow-hidden">
+                <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
                   <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.storage.usedMb / usageQuery.data.storage.limitMb) * 100)}%` }} />
                 </div>
               </div>
@@ -512,20 +512,20 @@ export default function Dashboard() {
         )}
       </div>
       <div className="space-y-1.5 pb-24">
-        <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#1C2333] border border-[#2B3245] text-left active:scale-[0.98] transition-all" onClick={() => setLocation("/settings")} data-testid="mobile-profile-settings">
-          <SettingsIcon className="w-5 h-5 text-[#676D7E]" />
-          <span className="text-[14px] text-[#F5F9FC]">Account Settings</span>
-          <ChevronRight className="w-4 h-4 text-[#D1D5DB] ml-auto" />
+        <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] text-left active:scale-[0.98] transition-all" onClick={() => setLocation("/settings")} data-testid="mobile-profile-settings">
+          <SettingsIcon className="w-5 h-5 text-[var(--ide-text-muted)]" />
+          <span className="text-[14px] text-[var(--ide-text)]">Account Settings</span>
+          <ChevronRight className="w-4 h-4 text-[var(--ide-text-muted)] ml-auto" />
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#1C2333] border border-[#2B3245] text-left active:scale-[0.98] transition-all" onClick={() => setLocation("/teams")} data-testid="mobile-profile-teams">
-          <Users className="w-5 h-5 text-[#676D7E]" />
-          <span className="text-[14px] text-[#F5F9FC]">Teams</span>
-          <ChevronRight className="w-4 h-4 text-[#D1D5DB] ml-auto" />
+        <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] text-left active:scale-[0.98] transition-all" onClick={() => setLocation("/teams")} data-testid="mobile-profile-teams">
+          <Users className="w-5 h-5 text-[var(--ide-text-muted)]" />
+          <span className="text-[14px] text-[var(--ide-text)]">Teams</span>
+          <ChevronRight className="w-4 h-4 text-[var(--ide-text-muted)] ml-auto" />
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#1C2333] border border-[#2B3245] text-left active:scale-[0.98] transition-all" onClick={() => setLocation("/pricing")} data-testid="mobile-profile-pricing">
-          <CreditCard className="w-5 h-5 text-[#676D7E]" />
-          <span className="text-[14px] text-[#F5F9FC]">Upgrade Plan</span>
-          <ChevronRight className="w-4 h-4 text-[#D1D5DB] ml-auto" />
+        <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] text-left active:scale-[0.98] transition-all" onClick={() => setLocation("/pricing")} data-testid="mobile-profile-pricing">
+          <CreditCard className="w-5 h-5 text-[var(--ide-text-muted)]" />
+          <span className="text-[14px] text-[var(--ide-text)]">Upgrade Plan</span>
+          <ChevronRight className="w-4 h-4 text-[var(--ide-text-muted)] ml-auto" />
         </button>
         <div className="pt-3">
           <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-red-500/20 bg-red-500/10 text-left active:scale-[0.98] transition-all" onClick={() => logout.mutate()} data-testid="mobile-profile-logout">
@@ -538,26 +538,26 @@ export default function Dashboard() {
   );
 
   return (
-    <div className={`h-screen flex flex-col ${"bg-[#0E1525] text-[#F5F9FC]"}`}>
+    <div className={`h-screen flex flex-col ${"bg-[var(--ide-bg)] text-[var(--ide-text)]"}`}>
       {isMobile ? (
         <>
-          <header className="flex items-center justify-between px-4 h-12 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-10">
+          <header className="flex items-center justify-between px-4 h-12 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 z-10">
             <div className="flex items-center gap-2">
               <ECodeLogo />
-              <span className="text-[15px] font-bold text-[#F5F9FC] tracking-tight">E-Code</span>
+              <span className="text-[15px] font-bold text-[var(--ide-text)] tracking-tight">E-Code</span>
             </div>
             {mobileSearchOpen ? (
               <div className="flex items-center flex-1 ml-3">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF]" />
-                  <Input placeholder="Search Repls..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-8 bg-[#1C2333] border border-[#2B3245] h-9 w-full text-[12px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-mobile-search" autoFocus />
-                  <button className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#F5F9FC]" onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); }} data-testid="button-close-mobile-search">
+                  <Input placeholder="Search Repls..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-8 bg-[var(--ide-panel)] border border-[var(--ide-border)] h-9 w-full text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-mobile-search" autoFocus />
+                  <button className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[var(--ide-text)]" onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); }} data-testid="button-close-mobile-search">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             ) : (
-              <button className="w-8 h-8 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileSearchOpen(true)} data-testid="button-mobile-search">
+              <button className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileSearchOpen(true)} data-testid="button-mobile-search">
                 <Search className="w-4 h-4" />
               </button>
             )}
@@ -568,7 +568,7 @@ export default function Dashboard() {
           {mobileTab === "notifications" && mobileNotificationsContent}
           {mobileTab === "profile" && mobileProfileContent}
 
-          <div className="flex items-stretch h-[56px] bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-dashboard-nav">
+          <div className="flex items-stretch h-[56px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-dashboard-nav">
             {([
               { id: "home" as const, icon: Home, label: "Home" },
               { id: "repls" as const, icon: FileCode, label: "My Repls" },
@@ -599,21 +599,21 @@ export default function Dashboard() {
         </>
       ) : (
       <>
-      <header className="flex items-center justify-between px-4 h-12 bg-[#0E1525] border-b border-[#2B3245]/60 shrink-0 z-10">
+      <header className="flex items-center justify-between px-4 h-12 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]/60 shrink-0 z-10">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSidebarNav("home")}>
             <ECodeLogo />
-            <span className="text-[15px] font-bold text-[#F5F9FC] tracking-tight">E-Code</span>
+            <span className="text-[15px] font-bold text-[var(--ide-text)] tracking-tight">E-Code</span>
           </div>
         </div>
         <div className="flex items-center flex-1 max-w-[400px] mx-4">
           <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
             <Input
               placeholder="Search your Repls..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-[#1C2333] border border-[#2B3245] h-9 w-full text-[12px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
+              className="pl-9 bg-[var(--ide-panel)] border border-[var(--ide-border)] h-9 w-full text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
               data-testid="input-header-search"
             />
           </div>
@@ -625,63 +625,63 @@ export default function Dashboard() {
                 <Plus className="w-3.5 h-3.5" /> Create Repl
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-              <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" onClick={() => setDialogOpen(true)} data-testid="button-create-repl">
+            <DropdownMenuContent align="end" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setDialogOpen(true)} data-testid="button-create-repl">
                 <Plus className="w-3.5 h-3.5" /> New Repl
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" data-testid="button-import-github">
+              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" data-testid="button-import-github">
                 <GitBranch className="w-3.5 h-3.5" /> Import from GitHub
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" data-testid="button-notifications">
+              <button className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="button-notifications">
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[#2B3245] text-[7px] font-bold text-[#676D7E] flex items-center justify-center" data-testid="badge-notification-count">0</span>
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[var(--ide-surface)] text-[7px] font-bold text-[var(--ide-text-muted)] flex items-center justify-center" data-testid="badge-notification-count">0</span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-              <div className="px-3 py-2 border-b border-[#2B3245]">
-                <p className="text-xs font-medium text-[#F5F9FC]">Notifications</p>
+            <DropdownMenuContent align="end" className="w-64 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+              <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+                <p className="text-xs font-medium text-[var(--ide-text)]">Notifications</p>
               </div>
               <div className="px-3 py-6 text-center">
-                <Bell className="w-5 h-5 text-[#323B4F] mx-auto mb-2" />
-                <p className="text-[11px] text-[#676D7E]" data-testid="text-no-notifications">No notifications</p>
+                <Bell className="w-5 h-5 text-[var(--ide-text-muted)] mx-auto mb-2" />
+                <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-no-notifications">No notifications</p>
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1C2333] border border-[#2B3245]/50 cursor-pointer" data-testid="badge-cycles" onClick={() => setLocation("/pricing")}>
-                  <CreditCard className="w-3.5 h-3.5 text-[#676D7E]" />
-                  <span className="text-[11px] font-medium text-[#9DA2B0]">Free</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)]/50 cursor-pointer" data-testid="badge-cycles" onClick={() => setLocation("/pricing")}>
+                  <CreditCard className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                  <span className="text-[11px] font-medium text-[var(--ide-text-secondary)]">Free</span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1C2333] border-[#2B3245] text-[#F5F9FC] text-[11px]">
+              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] border-[var(--ide-border)] text-[var(--ide-text)] text-[11px]">
                 Click to view plans
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <Dialog open={!isMobile && dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
+              <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-sm">
                 <DialogHeader>
-                  <DialogTitle className="text-[#F5F9FC] text-base">Create Repl</DialogTitle>
-                  <DialogDescription className="text-[#9DA2B0] text-xs">Start with an empty project</DialogDescription>
+                  <DialogTitle className="text-[var(--ide-text)] text-base">Create Repl</DialogTitle>
+                  <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Start with an empty project</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 mt-2">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#9DA2B0]">Title</Label>
-                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[#0E1525] border-[#2B3245] h-10 rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-[#0079F2]/40" required data-testid="input-project-name" />
+                    <Label className="text-xs text-[var(--ide-text-secondary)]">Title</Label>
+                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-10 rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-[#0079F2]/40" required data-testid="input-project-name" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#9DA2B0]">Language</Label>
+                    <Label className="text-xs text-[var(--ide-text-secondary)]">Language</Label>
                     <div className="flex flex-wrap gap-2">
                       {(Object.keys(LANG_ICONS) as string[]).map((lang) => {
                         const info = LANG_ICONS[lang];
                         return (
-                          <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}`}>
+                          <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[var(--ide-surface)]/50 text-[var(--ide-text-secondary)] border-transparent hover:border-[var(--ide-hover)]"}`} data-testid={`button-lang-${lang}`}>
                             <Code2 className="w-3 h-3" /> {info.label}
                           </button>
                         );
@@ -700,15 +700,15 @@ export default function Dashboard() {
                 <span className="text-[10px] font-bold text-white">{initials}</span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-              <div className="px-3 py-2.5 border-b border-[#2B3245]">
-                <p className="text-xs font-medium text-[#F5F9FC] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
-                <p className="text-[10px] text-[#676D7E] truncate mt-0.5">{user?.email}</p>
+            <DropdownMenuContent align="end" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+              <div className="px-3 py-2.5 border-b border-[var(--ide-border)]">
+                <p className="text-xs font-medium text-[var(--ide-text)] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
+                <p className="text-[10px] text-[var(--ide-text-muted)] truncate mt-0.5">{user?.email}</p>
               </div>
-              <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" onClick={() => setLocation("/settings")}>
+              <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setLocation("/settings")}>
                 <SettingsIcon className="w-3.5 h-3.5" /> Account
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#2B3245]" />
+              <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
               <DropdownMenuItem className="gap-2 text-xs text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => logout.mutate()}>
                 <LogOut className="w-3.5 h-3.5" /> Sign out
               </DropdownMenuItem>
@@ -718,12 +718,12 @@ export default function Dashboard() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden sm:flex w-[220px] bg-[#0E1525] border-r border-[#2B3245]/40 flex-col shrink-0">
+        <aside className="hidden sm:flex w-[220px] bg-[var(--ide-bg)] border-r border-[var(--ide-border)]/40 flex-col shrink-0">
           <nav className="flex-1 py-2 px-2 space-y-0.5">
             {sidebarLinks.map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${sidebarNav === id ? "bg-[#1C2333] text-[#F5F9FC] font-medium" : "text-[#9DA2B0] hover:bg-[#1C2333]/50 hover:text-[#F5F9FC]"}`}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${sidebarNav === id ? "bg-[var(--ide-panel)] text-[var(--ide-text)] font-medium" : "text-[var(--ide-text-secondary)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text)]"}`}
                 onClick={() => setSidebarNav(id)}
                 data-testid={`nav-${id}`}
               >
@@ -732,67 +732,67 @@ export default function Dashboard() {
               </button>
             ))}
             <Link href="/demo">
-              <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-[#9DA2B0] hover:bg-[#1C2333]/50 hover:text-[#F5F9FC] transition-colors" data-testid="nav-demo">
+              <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text)] transition-colors" data-testid="nav-demo">
                 <Eye className="w-4 h-4" />
                 Demo
               </button>
             </Link>
-            <div className="!mt-4 pt-3 border-t border-[#2B3245]/40">
-              <p className="px-3 text-[10px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2">Resources</p>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => window.open("https://docs.replit.com", "_blank")} data-testid="nav-docs">
+            <div className="!mt-4 pt-3 border-t border-[var(--ide-border)]/40">
+              <p className="px-3 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2">Resources</p>
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => window.open("https://docs.replit.com", "_blank")} data-testid="nav-docs">
                 <BookOpen className="w-3.5 h-3.5" /> Docs
               </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => window.open("https://ask.replit.com", "_blank")} data-testid="nav-community">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => window.open("https://ask.replit.com", "_blank")} data-testid="nav-community">
                 <MessageSquare className="w-3.5 h-3.5" /> Community
               </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" onClick={() => toast({ title: "Help", description: "Help center coming soon." })} data-testid="nav-help">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => toast({ title: "Help", description: "Help center coming soon." })} data-testid="nav-help">
                 <HelpCircle className="w-3.5 h-3.5" /> Help
               </button>
             </div>
-            <div className="!mt-4 pt-3 border-t border-[#2B3245]/40">
-              <p className="px-3 text-[10px] font-semibold text-[#676D7E] uppercase tracking-wider mb-2">Teams</p>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[#676D7E] hover:bg-[#1C2333]/50 hover:text-[#9DA2B0] transition-colors" data-testid="nav-teams">
+            <div className="!mt-4 pt-3 border-t border-[var(--ide-border)]/40">
+              <p className="px-3 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2">Teams</p>
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" data-testid="nav-teams">
                 <Users className="w-3.5 h-3.5" /> Create a Team
               </button>
             </div>
           </nav>
 
-          <div className="p-3 border-t border-[#2B3245]/40 space-y-3">
+          <div className="p-3 border-t border-[var(--ide-border)]/40 space-y-3">
             {usageQuery.data && (
               <div className="px-2 space-y-2.5" data-testid="sidebar-usage">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
-                    <span className="text-[10px] text-[#676D7E]" data-testid="text-runs-usage">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-runs-usage">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
                   </div>
-                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                  <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
                     <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.executions.used / usageQuery.data.daily.executions.limit) * 100)}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
-                    <span className="text-[10px] text-[#676D7E]" data-testid="text-ai-usage">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-ai-usage">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
                   </div>
-                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                  <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
                     <div className="h-full rounded-full bg-[#7C65CB] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.aiCalls.used / usageQuery.data.daily.aiCalls.limit) * 100)}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
-                    <span className="text-[10px] text-[#676D7E]" data-testid="text-storage-usage">{usageQuery.data.storage.usedMb} / {usageQuery.data.storage.limitMb} MB</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-storage-usage">{usageQuery.data.storage.usedMb} / {usageQuery.data.storage.limitMb} MB</span>
                   </div>
-                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                  <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
                     <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.storage.usedMb / usageQuery.data.storage.limitMb) * 100)}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-[#676D7E] flex items-center gap-1"><Folder className="w-3 h-3" /> Projects</span>
-                    <span className="text-[10px] text-[#676D7E]" data-testid="text-projects-usage">{usageQuery.data.projects.count}/{usageQuery.data.projects.limit}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Folder className="w-3 h-3" /> Projects</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-projects-usage">{usageQuery.data.projects.count}/{usageQuery.data.projects.limit}</span>
                   </div>
-                  <div className="w-full h-1 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                  <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
                     <div className="h-full rounded-full bg-[#F26522] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.projects.count / usageQuery.data.projects.limit) * 100)}%` }} />
                   </div>
                 </div>
@@ -803,30 +803,30 @@ export default function Dashboard() {
                 <span className="text-[9px] font-bold text-white">{initials}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-medium text-[#F5F9FC] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
-                <p className="text-[9px] text-[#676D7E] truncate">{user?.email}</p>
+                <p className="text-[11px] font-medium text-[var(--ide-text)] truncate">{user?.displayName || user?.email?.split("@")[0]}</p>
+                <p className="text-[9px] text-[var(--ide-text-muted)] truncate">{user?.email}</p>
               </div>
             </div>
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto bg-[#0E1525]">
+        <main className="flex-1 overflow-y-auto bg-[var(--ide-bg)]">
           {sidebarNav === "home" ? (
             <div className="max-w-[680px] mx-auto px-4 sm:px-6">
               <div className="pt-12 sm:pt-20 pb-6 text-center relative">
                 <div className="absolute inset-0 -top-12 -left-20 -right-20 bg-[radial-gradient(ellipse_at_center,_rgba(0,121,242,0.08)_0%,_rgba(124,101,203,0.04)_40%,_transparent_70%)] animate-gradient-shift pointer-events-none" />
-                <h1 className="relative text-[32px] sm:text-[40px] font-bold text-[#F5F9FC] mb-3 tracking-tight leading-tight" data-testid="text-hero-title">What do you want to create?</h1>
-                <p className="relative text-[13px] text-[#676D7E] max-w-md mx-auto leading-relaxed">Describe your idea and AI will build it, or start from a template below</p>
+                <h1 className="relative text-[32px] sm:text-[40px] font-bold text-[var(--ide-text)] mb-3 tracking-tight leading-tight" data-testid="text-hero-title">What do you want to create?</h1>
+                <p className="relative text-[13px] text-[var(--ide-text-muted)] max-w-md mx-auto leading-relaxed">Describe your idea and AI will build it, or start from a template below</p>
               </div>
 
               <form onSubmit={handleGenerateSubmit} className="mb-10">
-                <div className="relative rounded-xl border border-[#2B3245] bg-[#1C2333] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-lg focus-within:shadow-[#0079F2]/5 transition-all">
+                <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-lg focus-within:shadow-[#0079F2]/5 transition-all">
                   <textarea
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     placeholder="Build me a todo app with drag-and-drop, dark mode, and local storage..."
                     rows={4}
-                    className="w-full bg-transparent text-[13px] text-[#F5F9FC] placeholder:text-[#676D7E] px-4 pt-4 pb-2 resize-none focus:outline-none leading-relaxed"
+                    className="w-full bg-transparent text-[13px] text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] px-4 pt-4 pb-2 resize-none focus:outline-none leading-relaxed"
                     disabled={generateProject.isPending}
                     data-testid="input-ai-prompt"
                     onKeyDown={(e) => {
@@ -841,7 +841,7 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => setAiModel("claude")}
-                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "claude" ? "bg-[#7C65CB]/15 text-[#A78BFA] border border-[#7C65CB]/30" : "text-[#676D7E] border border-transparent hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
+                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "claude" ? "bg-[#7C65CB]/15 text-[#A78BFA] border border-[#7C65CB]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-claude"
                       >
                         <Sparkles className="w-3 h-3" /> Claude
@@ -849,7 +849,7 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => setAiModel("gpt")}
-                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gpt" ? "bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30" : "text-[#676D7E] border border-transparent hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
+                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gpt" ? "bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-gpt"
                       >
                         <Zap className="w-3 h-3" /> GPT-4o
@@ -857,7 +857,7 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => setAiModel("gemini")}
-                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gemini" ? "bg-[#4285F4]/15 text-[#4285F4] border border-[#4285F4]/30" : "text-[#676D7E] border border-transparent hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
+                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gemini" ? "bg-[#4285F4]/15 text-[#4285F4] border border-[#4285F4]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-gemini"
                       >
                         <Star className="w-3 h-3" /> Gemini
@@ -885,8 +885,8 @@ export default function Dashboard() {
                         <Sparkles className="w-5 h-5 text-white animate-pulse" />
                       </div>
                       <div>
-                        <p className="text-[13px] font-semibold text-[#F5F9FC]" data-testid="text-generation-title">Building your app...</p>
-                        <p className="text-[11px] text-[#9DA2B0] mt-0.5">This usually takes 15-30 seconds</p>
+                        <p className="text-[13px] font-semibold text-[var(--ide-text)]" data-testid="text-generation-title">Building your app...</p>
+                        <p className="text-[11px] text-[var(--ide-text-secondary)] mt-0.5">This usually takes 15-30 seconds</p>
                       </div>
                     </div>
                     <div className="space-y-2.5">
@@ -899,13 +899,13 @@ export default function Dashboard() {
                           ) : i === generationStep ? (
                             <Loader2 className="w-4 h-4 text-[#7C65CB] animate-spin shrink-0" />
                           ) : (
-                            <div className="w-4 h-4 rounded-full border border-[#2B3245] shrink-0" />
+                            <div className="w-4 h-4 rounded-full border border-[var(--ide-border)] shrink-0" />
                           )}
-                          <span className={`text-[11px] transition-colors ${i < generationStep ? "text-[#0CCE6B]" : i === generationStep ? "text-[#F5F9FC] font-medium" : "text-[#676D7E]"}`}>{step}</span>
+                          <span className={`text-[11px] transition-colors ${i < generationStep ? "text-[#0CCE6B]" : i === generationStep ? "text-[var(--ide-text)] font-medium" : "text-[var(--ide-text-muted)]"}`}>{step}</span>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-4 w-full h-1.5 rounded-full bg-[#2B3245]/50 overflow-hidden">
+                    <div className="mt-4 w-full h-1.5 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
                       <div className="h-full rounded-full bg-gradient-to-r from-[#7C65CB] to-[#0079F2] transition-all duration-700 ease-out" style={{ width: `${((generationStep + 1) / GENERATION_STEPS.length) * 100}%` }} />
                     </div>
                   </div>
@@ -917,7 +917,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-medium text-red-400 mb-1" data-testid="text-generation-error">Generation failed</p>
-                        <p className="text-[11px] text-[#9DA2B0] mb-3 leading-relaxed">{generationError}</p>
+                        <p className="text-[11px] text-[var(--ide-text-secondary)] mb-3 leading-relaxed">{generationError}</p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <Button
                             size="sm"
@@ -930,19 +930,19 @@ export default function Dashboard() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-3 text-[#9DA2B0] hover:text-[#F5F9FC] text-[11px] rounded-lg"
+                            className="h-7 px-3 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] text-[11px] rounded-lg"
                             onClick={() => setGenerationError(null)}
                             data-testid="button-dismiss-error"
                           >
                             Dismiss
                           </Button>
                         </div>
-                        <p className="text-[10px] text-[#676D7E] mt-2.5">Tip: Try simplifying your prompt or choosing a different AI model</p>
+                        <p className="text-[10px] text-[var(--ide-text-muted)] mt-2.5">Tip: Try simplifying your prompt or choosing a different AI model</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[10px] text-[#676D7E]">
+                  <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[10px] text-[var(--ide-text-muted)]">
                     <Sparkles className="w-3 h-3 text-[#7C65CB]" />
                     Powered by AI
                   </div>
@@ -951,12 +951,12 @@ export default function Dashboard() {
 
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider">Templates</h3>
+                  <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Templates</h3>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => scrollTemplates("left")} className="w-6 h-6 rounded-md flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 transition-colors" data-testid="button-templates-left">
+                    <button onClick={() => scrollTemplates("left")} className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 transition-colors" data-testid="button-templates-left">
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => scrollTemplates("right")} className="w-6 h-6 rounded-md flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 transition-colors" data-testid="button-templates-right">
+                    <button onClick={() => scrollTemplates("right")} className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 transition-colors" data-testid="button-templates-right">
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -965,25 +965,25 @@ export default function Dashboard() {
                   {TEMPLATES.map((tmpl) => (
                     <button
                       key={tmpl.name}
-                      className={`relative flex flex-col items-start gap-2 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[#1C2333] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[180px] shrink-0`}
+                      className={`relative flex flex-col items-start gap-2 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[var(--ide-panel)] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[180px] shrink-0`}
                       onClick={() => createFromTemplate.mutate(tmpl.id)}
                       disabled={createFromTemplate.isPending}
                       data-testid={`template-${tmpl.id}`}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${tmpl.gradient} opacity-[0.06] group-hover:opacity-[0.12] transition-opacity`} />
                       <div className="relative flex items-center gap-2.5 w-full">
-                        <div className="w-8 h-8 rounded-lg bg-[#0E1525]/80 flex items-center justify-center border border-[#2B3245]/50 shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-[var(--ide-bg)]/80 flex items-center justify-center border border-[var(--ide-border)]/50 shrink-0">
                           <tmpl.icon className={`w-4 h-4 ${tmpl.iconColor}`} />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[12px] font-semibold text-[#F5F9FC] group-hover:text-white transition-colors">{tmpl.name}</p>
-                          <p className="text-[9px] text-[#676D7E]">{tmpl.lang}</p>
+                          <p className="text-[12px] font-semibold text-[var(--ide-text)] group-hover:text-white transition-colors">{tmpl.name}</p>
+                          <p className="text-[9px] text-[var(--ide-text-muted)]">{tmpl.lang}</p>
                         </div>
                       </div>
-                      <div className="relative w-full mt-1 px-2 py-1.5 rounded-md bg-[#0E1525]/60 border border-[#2B3245]/30">
-                        <code className="text-[9px] text-[#676D7E] font-mono group-hover:text-[#9DA2B0] transition-colors">{tmpl.snippet}</code>
+                      <div className="relative w-full mt-1 px-2 py-1.5 rounded-md bg-[var(--ide-bg)]/60 border border-[var(--ide-border)]/30">
+                        <code className="text-[9px] text-[var(--ide-text-muted)] font-mono group-hover:text-[var(--ide-text-secondary)] transition-colors">{tmpl.snippet}</code>
                       </div>
-                      <p className="relative text-[10px] text-[#676D7E] leading-relaxed">{tmpl.desc}</p>
+                      <p className="relative text-[10px] text-[var(--ide-text-muted)] leading-relaxed">{tmpl.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -992,18 +992,18 @@ export default function Dashboard() {
               {projectsQuery.isLoading && (
                 <div className="pb-8" data-testid="skeleton-recent-repls">
                   <div className="flex items-center justify-between mb-3">
-                    <Skeleton className="h-3 w-20 rounded bg-[#2B3245]" />
-                    <Skeleton className="h-3 w-16 rounded bg-[#2B3245]" />
+                    <Skeleton className="h-3 w-20 rounded bg-[var(--ide-surface)]" />
+                    <Skeleton className="h-3 w-16 rounded bg-[var(--ide-surface)]" />
                   </div>
-                  <div className="border border-[#2B3245]/50 rounded-xl overflow-hidden bg-[#1C2333]/20">
+                  <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20">
                     {Array.from({ length: 4 }).map((_, idx) => (
-                      <div key={idx} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx !== 0 ? "border-t border-[#2B3245]/30" : ""}`}>
-                        <Skeleton className="w-8 h-8 rounded-lg bg-[#2B3245] shrink-0" />
+                      <div key={idx} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx !== 0 ? "border-t border-[var(--ide-border)]/30" : ""}`}>
+                        <Skeleton className="w-8 h-8 rounded-lg bg-[var(--ide-surface)] shrink-0" />
                         <div className="flex-1 min-w-0 space-y-1.5">
-                          <Skeleton className="h-3.5 w-32 rounded bg-[#2B3245]" />
+                          <Skeleton className="h-3.5 w-32 rounded bg-[var(--ide-surface)]" />
                           <div className="flex items-center gap-2">
-                            <Skeleton className="h-2.5 w-16 rounded bg-[#2B3245]" />
-                            <Skeleton className="h-2.5 w-12 rounded bg-[#2B3245]" />
+                            <Skeleton className="h-2.5 w-16 rounded bg-[var(--ide-surface)]" />
+                            <Skeleton className="h-2.5 w-12 rounded bg-[var(--ide-surface)]" />
                           </div>
                         </div>
                       </div>
@@ -1013,14 +1013,14 @@ export default function Dashboard() {
               )}
               {!projectsQuery.isLoading && projects.length === 0 && (
                 <div className="pb-8 animate-fade-in">
-                  <div className="text-center py-14 px-6 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/20 relative overflow-hidden">
+                  <div className="text-center py-14 px-6 border border-[var(--ide-border)]/50 rounded-xl bg-[var(--ide-panel)]/20 relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,121,242,0.04)_0%,_transparent_70%)] pointer-events-none" />
                     <div className="relative">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0079F2]/20 to-[#7C65CB]/20 border border-[#0079F2]/20 flex items-center justify-center mx-auto mb-4">
                         <Sparkles className="w-7 h-7 text-[#0079F2]" />
                       </div>
-                      <p className="text-[15px] text-[#F5F9FC] mb-1.5 font-semibold" data-testid="text-empty-home">Start building something amazing</p>
-                      <p className="text-[12px] text-[#676D7E] max-w-xs mx-auto mb-5 leading-relaxed">Describe your idea above and let AI build it, or create an empty project to start coding from scratch</p>
+                      <p className="text-[15px] text-[var(--ide-text)] mb-1.5 font-semibold" data-testid="text-empty-home">Start building something amazing</p>
+                      <p className="text-[12px] text-[var(--ide-text-muted)] max-w-xs mx-auto mb-5 leading-relaxed">Describe your idea above and let AI build it, or create an empty project to start coding from scratch</p>
                       <div className="flex items-center justify-center gap-3">
                         <Button
                           size="sm"
@@ -1033,7 +1033,7 @@ export default function Dashboard() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-9 px-4 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 text-[12px] rounded-lg gap-1.5"
+                          className="h-9 px-4 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 text-[12px] rounded-lg gap-1.5"
                           onClick={() => {
                             const el = document.querySelector('[data-testid="input-ai-prompt"]') as HTMLTextAreaElement;
                             el?.focus();
@@ -1050,20 +1050,20 @@ export default function Dashboard() {
               {!projectsQuery.isLoading && projects.length > 0 && (
                 <div className="pb-8 animate-fade-in">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-[11px] font-semibold text-[#676D7E] uppercase tracking-wider" data-testid="text-my-repls">Recent Repls</h3>
+                    <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider" data-testid="text-my-repls">Recent Repls</h3>
                     <div className="flex items-center gap-3">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="flex items-center gap-1 text-[10px] text-[#676D7E] hover:text-[#9DA2B0] transition-colors" data-testid="button-sort-by">
+                          <button className="flex items-center gap-1 text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] transition-colors" data-testid="button-sort-by">
                             <ArrowUpDown className="w-3 h-3" />
                             {sortBy === "modified" ? "Last modified" : "Name"}
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-                          <DropdownMenuItem className={`text-[11px] cursor-pointer mx-1 rounded-md ${sortBy === "modified" ? "text-[#0079F2]" : "text-[#9DA2B0]"} focus:bg-[#2B3245] focus:text-[#F5F9FC]`} onClick={() => setSortBy("modified")} data-testid="sort-modified">
+                        <DropdownMenuContent align="end" className="w-36 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+                          <DropdownMenuItem className={`text-[11px] cursor-pointer mx-1 rounded-md ${sortBy === "modified" ? "text-[#0079F2]" : "text-[var(--ide-text-secondary)]"} focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)]`} onClick={() => setSortBy("modified")} data-testid="sort-modified">
                             Last modified
                           </DropdownMenuItem>
-                          <DropdownMenuItem className={`text-[11px] cursor-pointer mx-1 rounded-md ${sortBy === "name" ? "text-[#0079F2]" : "text-[#9DA2B0]"} focus:bg-[#2B3245] focus:text-[#F5F9FC]`} onClick={() => setSortBy("name")} data-testid="sort-name">
+                          <DropdownMenuItem className={`text-[11px] cursor-pointer mx-1 rounded-md ${sortBy === "name" ? "text-[#0079F2]" : "text-[var(--ide-text-secondary)]"} focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)]`} onClick={() => setSortBy("name")} data-testid="sort-name">
                             Name
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -1073,13 +1073,13 @@ export default function Dashboard() {
                       </button>
                     </div>
                   </div>
-                  <div className="border border-[#2B3245]/50 rounded-xl overflow-hidden bg-[#1C2333]/20">
+                  <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20">
                     {projects.slice(0, 5).map((project, idx) => {
                       const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
                       return (
                         <div
                           key={project.id}
-                          className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-[#1C2333]/80 cursor-pointer transition-all group even:bg-[#1C2333]/30 ${idx !== 0 ? "border-t border-[#2B3245]/30" : ""}`}
+                          className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-[var(--ide-panel)]/80 cursor-pointer transition-all group even:bg-[var(--ide-panel)]/30 ${idx !== 0 ? "border-t border-[var(--ide-border)]/30" : ""}`}
                           onClick={() => setLocation(`/project/${project.id}`)}
                           data-testid={`card-project-${project.id}`}
                         >
@@ -1087,11 +1087,11 @@ export default function Dashboard() {
                             {langInfo.label}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-[13px] text-[#F5F9FC] truncate group-hover:text-white transition-colors">{project.name}</h3>
+                            <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate group-hover:text-white transition-colors">{project.name}</h3>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-[#676D7E] capitalize">{project.language}</span>
-                              <span className="text-[8px] text-[#323B4F]">&middot;</span>
-                              <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
+                              <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{project.language}</span>
+                              <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                              <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
                                 <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
                               </span>
                               {project.isPublished && (
@@ -1102,15 +1102,15 @@ export default function Dashboard() {
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="w-7 h-7 rounded-md text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]">
+                                <Button variant="ghost" size="icon" className="w-7 h-7 rounded-md text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]">
                                   <MoreVertical className="w-3.5 h-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-40 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-                                <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
+                              <DropdownMenuContent align="end" className="w-40 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+                                <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
                                   <Copy className="w-3 h-3" /> Duplicate
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-[#2B3245]/50" />
+                                <DropdownMenuSeparator className="bg-[var(--ide-surface)]/50" />
                                 <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => { setDeleteTargetProject({ id: project.id, name: project.name }); setDeleteConfirmDialogOpen(true); }}>
                                   <Trash className="w-3 h-3" /> Delete
                                 </DropdownMenuItem>
@@ -1134,18 +1134,18 @@ export default function Dashboard() {
             >
               {(pullDistance > 0 || isRefreshing) && (
                 <div className="flex items-center justify-center overflow-hidden transition-all" style={{ height: pullDistance > 0 ? pullDistance : 40 }}>
-                  <div className={`w-6 h-6 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full ${isRefreshing || pullDistance > 50 ? "animate-spin" : ""}`} style={{ opacity: Math.min(1, pullDistance / 50) }} />
+                  <div className={`w-6 h-6 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full ${isRefreshing || pullDistance > 50 ? "animate-spin" : ""}`} style={{ opacity: Math.min(1, pullDistance / 50) }} />
                 </div>
               )}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-[#F5F9FC]" data-testid="text-my-repls">My Repls</h2>
+                <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-my-repls">My Repls</h2>
                 <div className="flex items-center gap-2">
                   <div className="relative sm:hidden">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#676D7E]" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--ide-text-muted)]" />
                     <Input
                       placeholder="Search..."
                       value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-7.5 bg-[#1C2333] border-[#2B3245] h-8 w-40 text-[11px] rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
+                      className="pl-7.5 bg-[var(--ide-panel)] border-[var(--ide-border)] h-8 w-40 text-[11px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
                       data-testid="input-search-repls"
                     />
                   </div>
@@ -1158,38 +1158,38 @@ export default function Dashboard() {
               {projectsQuery.isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="skeleton-projects-grid">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex flex-col p-4 rounded-xl border border-[#2B3245]/50 bg-[#1C2333]/40">
+                    <div key={i} className="flex flex-col p-4 rounded-xl border border-[var(--ide-border)]/50 bg-[var(--ide-panel)]/40">
                       <div className="flex items-start justify-between mb-3">
-                        <Skeleton className="w-9 h-9 rounded-lg bg-[#2B3245]" />
-                        <Skeleton className="w-6 h-6 rounded-md bg-[#2B3245]" />
+                        <Skeleton className="w-9 h-9 rounded-lg bg-[var(--ide-surface)]" />
+                        <Skeleton className="w-6 h-6 rounded-md bg-[var(--ide-surface)]" />
                       </div>
-                      <Skeleton className="h-4 w-28 rounded bg-[#2B3245] mb-2" />
+                      <Skeleton className="h-4 w-28 rounded bg-[var(--ide-surface)] mb-2" />
                       <div className="flex items-center gap-2 mt-auto">
-                        <Skeleton className="h-3 w-16 rounded bg-[#2B3245]" />
-                        <Skeleton className="h-3 w-12 rounded bg-[#2B3245]" />
+                        <Skeleton className="h-3 w-16 rounded bg-[var(--ide-surface)]" />
+                        <Skeleton className="h-3 w-12 rounded bg-[var(--ide-surface)]" />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : projects.length === 0 ? (
-                <div className="text-center py-16 px-6 border border-[#2B3245]/50 rounded-xl bg-[#1C2333]/30 animate-fade-in relative overflow-hidden">
+                <div className="text-center py-16 px-6 border border-[var(--ide-border)]/50 rounded-xl bg-[var(--ide-panel)]/30 animate-fade-in relative overflow-hidden">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,121,242,0.04)_0%,_transparent_70%)] pointer-events-none" />
                   <div className="relative">
                     {searchQuery ? (
                       <>
-                        <div className="w-14 h-14 rounded-2xl bg-[#1C2333] border border-[#2B3245] flex items-center justify-center mx-auto mb-4">
-                          <Search className="w-6 h-6 text-[#323B4F]" />
+                        <div className="w-14 h-14 rounded-2xl bg-[var(--ide-panel)] border border-[var(--ide-border)] flex items-center justify-center mx-auto mb-4">
+                          <Search className="w-6 h-6 text-[var(--ide-text-muted)]" />
                         </div>
-                        <p className="text-[13px] text-[#9DA2B0] mb-1 font-medium" data-testid="text-empty-state">No repls match your search</p>
-                        <p className="text-[11px] text-[#676D7E]">Try a different search term</p>
+                        <p className="text-[13px] text-[var(--ide-text-secondary)] mb-1 font-medium" data-testid="text-empty-state">No repls match your search</p>
+                        <p className="text-[11px] text-[var(--ide-text-muted)]">Try a different search term</p>
                       </>
                     ) : (
                       <>
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0079F2]/20 to-[#7C65CB]/20 border border-[#0079F2]/20 flex items-center justify-center mx-auto mb-4">
                           <Code2 className="w-7 h-7 text-[#0079F2]" />
                         </div>
-                        <p className="text-[15px] text-[#F5F9FC] mb-1.5 font-semibold" data-testid="text-empty-state">No repls yet</p>
-                        <p className="text-[12px] text-[#676D7E] max-w-sm mx-auto mb-5 leading-relaxed">Create your first project to start coding. Use AI to generate one or start from scratch.</p>
+                        <p className="text-[15px] text-[var(--ide-text)] mb-1.5 font-semibold" data-testid="text-empty-state">No repls yet</p>
+                        <p className="text-[12px] text-[var(--ide-text-muted)] max-w-sm mx-auto mb-5 leading-relaxed">Create your first project to start coding. Use AI to generate one or start from scratch.</p>
                         <div className="flex items-center justify-center gap-3">
                           <Button
                             size="sm"
@@ -1202,7 +1202,7 @@ export default function Dashboard() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-9 px-4 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/50 text-[12px] rounded-lg gap-1.5"
+                            className="h-9 px-4 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 text-[12px] rounded-lg gap-1.5"
                             onClick={() => setSidebarNav("home")}
                             data-testid="button-empty-repls-ai"
                           >
@@ -1216,21 +1216,21 @@ export default function Dashboard() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
                   <button
-                    className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[#2B3245] bg-[#1C2333]/20 hover:bg-[#1C2333]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
+                    className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[var(--ide-border)] bg-[var(--ide-panel)]/20 hover:bg-[var(--ide-panel)]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
                     onClick={() => setDialogOpen(true)}
                     data-testid="card-create-new-repl"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[#0079F2]/10 border border-[#0079F2]/20 flex items-center justify-center mb-2.5 group-hover:bg-[#0079F2]/20 transition-colors">
                       <Plus className="w-5 h-5 text-[#0079F2]" />
                     </div>
-                    <p className="text-[12px] font-medium text-[#9DA2B0] group-hover:text-[#F5F9FC] transition-colors">Create New Repl</p>
+                    <p className="text-[12px] font-medium text-[var(--ide-text-secondary)] group-hover:text-[var(--ide-text)] transition-colors">Create New Repl</p>
                   </button>
                   {projects.map((project) => {
                     const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
                     return (
                       <div
                         key={project.id}
-                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border border-[#2B3245]/50 border-l-2 ${langInfo.borderAccent} bg-[#1C2333]/40 hover:bg-[#1C2333]/80 hover:border-[#2B3245] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
+                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border border-[var(--ide-border)]/50 border-l-2 ${langInfo.borderAccent} bg-[var(--ide-panel)]/40 hover:bg-[var(--ide-panel)]/80 hover:border-[var(--ide-border)] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
                         onClick={() => setLocation(`/project/${project.id}`)}
                         data-testid={`card-project-${project.id}`}
                       >
@@ -1241,15 +1241,15 @@ export default function Dashboard() {
                           <div className={`${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`} onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className={`${isMobile ? "w-10 h-10" : "w-6 h-6"} rounded-md text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]`}>
+                                <Button variant="ghost" size="icon" className={`${isMobile ? "w-10 h-10" : "w-6 h-6"} rounded-md text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]`}>
                                   <MoreVertical className={`${isMobile ? "w-4 h-4" : "w-3 h-3"}`} />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-40 bg-[#1C2333] border-[#2B3245] rounded-xl shadow-xl shadow-black/30">
-                                <DropdownMenuItem className="gap-2 text-[11px] text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
+                              <DropdownMenuContent align="end" className="w-40 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+                                <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
                                   <Copy className="w-3 h-3" /> Duplicate
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-[#2B3245]/50" />
+                                <DropdownMenuSeparator className="bg-[var(--ide-surface)]/50" />
                                 <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => { setDeleteTargetProject({ id: project.id, name: project.name }); setDeleteConfirmDialogOpen(true); }}>
                                   <Trash className="w-3 h-3" /> Delete
                                 </DropdownMenuItem>
@@ -1257,15 +1257,15 @@ export default function Dashboard() {
                             </DropdownMenu>
                           </div>
                         </div>
-                        <h3 className="font-medium text-[13px] text-[#F5F9FC] truncate group-hover:text-white transition-colors mb-1">{project.name}</h3>
+                        <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate group-hover:text-white transition-colors mb-1">{project.name}</h3>
                         <div className="flex items-center gap-2 mt-auto">
-                          <span className="text-[10px] text-[#676D7E] capitalize">{project.language}</span>
-                          <span className="text-[8px] text-[#323B4F]">&middot;</span>
-                          <span className="text-[10px] text-[#676D7E] flex items-center gap-1">
+                          <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{project.language}</span>
+                          <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                          <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
                             <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
                           </span>
-                          <span className="text-[8px] text-[#323B4F]">&middot;</span>
-                          <span className="text-[10px] text-[#676D7E] flex items-center gap-1" data-testid={`text-file-count-${project.id}`}>
+                          <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                          <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1" data-testid={`text-file-count-${project.id}`}>
                             <FileCode className="w-2.5 h-2.5" /> {(project.name.length % 5) + 1} files
                           </span>
                           {project.isPublished && (
@@ -1285,23 +1285,23 @@ export default function Dashboard() {
       )}
 
       <Drawer open={isMobile && dialogOpen} onOpenChange={setDialogOpen}>
-        <DrawerContent className="bg-[#1C2333] border-[#2B3245]">
+        <DrawerContent className="bg-[var(--ide-panel)] border-[var(--ide-border)]">
           <DrawerHeader className="text-left">
-            <DrawerTitle className="text-[#F5F9FC] text-base">Create Repl</DrawerTitle>
-            <DrawerDescription className="text-[#6B7280] text-xs">Start with an empty project</DrawerDescription>
+            <DrawerTitle className="text-[var(--ide-text)] text-base">Create Repl</DrawerTitle>
+            <DrawerDescription className="text-[var(--ide-text-muted)] text-xs">Start with an empty project</DrawerDescription>
           </DrawerHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 px-4 pb-8">
             <div className="space-y-1.5">
-              <Label className="text-xs text-[#6B7280]">Title</Label>
-              <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[#0E1525] border-[#2B3245] h-12 rounded-lg text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-[#0079F2]/40 text-base" required data-testid="input-project-name-mobile" />
+              <Label className="text-xs text-[var(--ide-text-muted)]">Title</Label>
+              <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-12 rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-[#0079F2]/40 text-base" required data-testid="input-project-name-mobile" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-[#6B7280]">Language</Label>
+              <Label className="text-xs text-[var(--ide-text-muted)]">Language</Label>
               <div className="flex flex-wrap gap-2">
                 {(Object.keys(LANG_ICONS) as string[]).map((lang) => {
                   const info = LANG_ICONS[lang];
                   return (
-                    <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[#2B3245]/50 text-[#9DA2B0] border-transparent hover:border-[#323B4F]"}`} data-testid={`button-lang-${lang}-mobile`}>
+                    <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[var(--ide-surface)]/50 text-[var(--ide-text-secondary)] border-transparent hover:border-[var(--ide-hover)]"}`} data-testid={`button-lang-${lang}-mobile`}>
                       <Code2 className="w-4 h-4" /> {info.label}
                     </button>
                   );
@@ -1316,15 +1316,15 @@ export default function Dashboard() {
       </Drawer>
 
       <Dialog open={deleteConfirmDialogOpen} onOpenChange={(open) => { setDeleteConfirmDialogOpen(open); if (!open) setDeleteTargetProject(null); }}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-sm">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base">Delete Project</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">
-              Are you sure you want to delete <span className="text-[#F5F9FC] font-medium">{deleteTargetProject?.name}</span>? This action cannot be undone and all files will be permanently removed.
+            <DialogTitle className="text-[var(--ide-text)] text-base">Delete Project</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">
+              Are you sure you want to delete <span className="text-[var(--ide-text)] font-medium">{deleteTargetProject?.name}</span>? This action cannot be undone and all files will be permanently removed.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mt-3">
-            <Button variant="ghost" className="flex-1 h-9 text-xs text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-lg" onClick={() => { setDeleteConfirmDialogOpen(false); setDeleteTargetProject(null); }} data-testid="button-cancel-delete-project">
+            <Button variant="ghost" className="flex-1 h-9 text-xs text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-lg" onClick={() => { setDeleteConfirmDialogOpen(false); setDeleteTargetProject(null); }} data-testid="button-cancel-delete-project">
               Cancel
             </Button>
             <Button
@@ -1347,7 +1347,7 @@ export default function Dashboard() {
 
       {showOnboarding && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4 animate-fade-in" data-testid="onboarding-overlay">
-          <div className="bg-[#1C2333] border border-[#2B3245] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+          <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             {onboardingStep === 0 && (
               <div className="p-8 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#F26522]/20 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
@@ -1357,8 +1357,8 @@ export default function Dashboard() {
                     <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold text-[#F5F9FC] mb-2" data-testid="text-onboarding-welcome">Welcome to E-Code!</h2>
-                <p className="text-sm text-[#9DA2B0] mb-6 leading-relaxed">Your cloud IDE for building, running, and deploying code from anywhere. Let's get you started in 30 seconds.</p>
+                <h2 className="text-xl font-bold text-[var(--ide-text)] mb-2" data-testid="text-onboarding-welcome">Welcome to E-Code!</h2>
+                <p className="text-sm text-[var(--ide-text-secondary)] mb-6 leading-relaxed">Your cloud IDE for building, running, and deploying code from anywhere. Let's get you started in 30 seconds.</p>
                 <Button className="h-10 px-6 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-sm font-medium" onClick={() => setOnboardingStep(1)} data-testid="button-onboarding-start">
                   Get Started
                 </Button>
@@ -1371,21 +1371,21 @@ export default function Dashboard() {
                     <Code2 className="w-4 h-4 text-[#0CCE6B]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#F5F9FC]">Create Your First Project</h3>
-                    <p className="text-xs text-[#676D7E]">Step 1 of 3</p>
+                    <h3 className="text-sm font-semibold text-[var(--ide-text)]">Create Your First Project</h3>
+                    <p className="text-xs text-[var(--ide-text-muted)]">Step 1 of 3</p>
                   </div>
                 </div>
-                <p className="text-sm text-[#9DA2B0] mb-4">Click the <strong className="text-[#F5F9FC]">"+ Create"</strong> button in the top right to start a new project. Choose a language and give it a name.</p>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#0E1525] border border-[#2B3245] mb-6">
+                <p className="text-sm text-[var(--ide-text-secondary)] mb-4">Click the <strong className="text-[var(--ide-text)]">"+ Create"</strong> button in the top right to start a new project. Choose a language and give it a name.</p>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] mb-6">
                   <div className="flex gap-2">
                     {["JavaScript", "TypeScript", "Python"].map(lang => (
-                      <span key={lang} className="text-[10px] px-2 py-1 rounded bg-[#2B3245] text-[#9DA2B0]">{lang}</span>
+                      <span key={lang} className="text-[10px] px-2 py-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text-secondary)]">{lang}</span>
                     ))}
-                    <span className="text-[10px] px-2 py-1 rounded bg-[#2B3245] text-[#676D7E]">+5 more</span>
+                    <span className="text-[10px] px-2 py-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">+5 more</span>
                   </div>
                 </div>
                 <div className="flex justify-between">
-                  <Button variant="ghost" className="text-xs text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => setOnboardingStep(0)}>Back</Button>
+                  <Button variant="ghost" className="text-xs text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setOnboardingStep(0)}>Back</Button>
                   <Button className="h-9 px-5 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" onClick={() => setOnboardingStep(2)}>Next</Button>
                 </div>
               </div>
@@ -1397,25 +1397,25 @@ export default function Dashboard() {
                     <Sparkles className="w-4 h-4 text-[#7C65CB]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#F5F9FC]">AI-Powered Coding</h3>
-                    <p className="text-xs text-[#676D7E]">Step 2 of 3</p>
+                    <h3 className="text-sm font-semibold text-[var(--ide-text)]">AI-Powered Coding</h3>
+                    <p className="text-xs text-[var(--ide-text-muted)]">Step 2 of 3</p>
                   </div>
                 </div>
-                <p className="text-sm text-[#9DA2B0] mb-4">Use the <strong className="text-[#F5F9FC]">AI panel</strong> (Ctrl+I) to generate code, fix bugs, or ask questions. Choose from Claude, GPT, or Gemini.</p>
+                <p className="text-sm text-[var(--ide-text-secondary)] mb-4">Use the <strong className="text-[var(--ide-text)]">AI panel</strong> (Ctrl+I) to generate code, fix bugs, or ask questions. Choose from Claude, GPT, or Gemini.</p>
                 <div className="grid grid-cols-3 gap-2 mb-6">
                   {[
                     { name: "Generate", desc: "Create files from a prompt" },
                     { name: "Fix", desc: "Debug errors automatically" },
                     { name: "Explain", desc: "Understand any code" },
                   ].map(item => (
-                    <div key={item.name} className="p-3 rounded-xl bg-[#0E1525] border border-[#2B3245] text-center">
-                      <p className="text-[11px] font-medium text-[#F5F9FC] mb-0.5">{item.name}</p>
-                      <p className="text-[9px] text-[#676D7E]">{item.desc}</p>
+                    <div key={item.name} className="p-3 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] text-center">
+                      <p className="text-[11px] font-medium text-[var(--ide-text)] mb-0.5">{item.name}</p>
+                      <p className="text-[9px] text-[var(--ide-text-muted)]">{item.desc}</p>
                     </div>
                   ))}
                 </div>
                 <div className="flex justify-between">
-                  <Button variant="ghost" className="text-xs text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => setOnboardingStep(1)}>Back</Button>
+                  <Button variant="ghost" className="text-xs text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setOnboardingStep(1)}>Back</Button>
                   <Button className="h-9 px-5 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" onClick={() => setOnboardingStep(3)}>Next</Button>
                 </div>
               </div>
@@ -1427,18 +1427,18 @@ export default function Dashboard() {
                     <Globe className="w-4 h-4 text-[#0079F2]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#F5F9FC]">Deploy & Share</h3>
-                    <p className="text-xs text-[#676D7E]">Step 3 of 3</p>
+                    <h3 className="text-sm font-semibold text-[var(--ide-text)]">Deploy & Share</h3>
+                    <p className="text-xs text-[var(--ide-text-muted)]">Step 3 of 3</p>
                   </div>
                 </div>
-                <p className="text-sm text-[#9DA2B0] mb-4">When your project is ready, hit <strong className="text-[#F5F9FC]">Deploy</strong> to make it live. Share the link with anyone or collaborate with your team.</p>
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-[#0E1525] border border-[#2B3245] mb-6">
+                <p className="text-sm text-[var(--ide-text-secondary)] mb-4">When your project is ready, hit <strong className="text-[var(--ide-text)]">Deploy</strong> to make it live. Share the link with anyone or collaborate with your team.</p>
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] mb-6">
                   <Terminal className="w-4 h-4 text-[#0CCE6B]" />
-                  <span className="text-[11px] text-[#9DA2B0] font-mono">your-app.e-code.dev</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)] font-mono">your-app.e-code.dev</span>
                   <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] font-medium">LIVE</span>
                 </div>
                 <div className="flex justify-between">
-                  <Button variant="ghost" className="text-xs text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => setOnboardingStep(2)}>Back</Button>
+                  <Button variant="ghost" className="text-xs text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setOnboardingStep(2)}>Back</Button>
                   <Button className="h-9 px-5 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-lg text-xs font-bold" onClick={() => { setShowOnboarding(false); localStorage.setItem("ecode_onboarding_seen", "true"); }} data-testid="button-onboarding-finish">
                     Start Coding
                   </Button>
@@ -1447,11 +1447,11 @@ export default function Dashboard() {
             )}
             <div className="flex justify-center gap-1.5 pb-4">
               {[0, 1, 2, 3].map(i => (
-                <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === onboardingStep ? "bg-[#0079F2]" : "bg-[#2B3245]"}`} />
+                <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === onboardingStep ? "bg-[#0079F2]" : "bg-[var(--ide-surface)]"}`} />
               ))}
             </div>
             <button
-              className="absolute top-4 right-4 text-[#676D7E] hover:text-[#F5F9FC] transition-colors"
+              className="absolute top-4 right-4 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
               onClick={() => { setShowOnboarding(false); localStorage.setItem("ecode_onboarding_seen", "true"); }}
               data-testid="button-close-onboarding"
             >

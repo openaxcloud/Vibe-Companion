@@ -51,8 +51,8 @@ export default function Auth() {
 
   if (authLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0E1525]">
-        <div className="w-8 h-8 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full animate-spin" />
+      <div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]">
+        <div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" />
       </div>
     );
   }
@@ -75,32 +75,32 @@ export default function Auth() {
   const isSubmitting = login.isPending || register.isPending;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0E1525] relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--ide-bg)] relative overflow-hidden">
       <AnimatedGrid />
 
       <div className="w-full max-w-[400px] px-6 z-10">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-[#1C2333] border border-[#2B3245]/80 shadow-[0_0_60px_rgba(242,101,34,0.15)]">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-[var(--ide-panel)] border border-[var(--ide-border)]/80 shadow-[0_0_60px_rgba(242,101,34,0.15)]">
             <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
               <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
               <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
               <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
             </svg>
           </div>
-          <h1 className="text-[26px] font-bold text-[#F5F9FC] tracking-tight mb-1.5">
+          <h1 className="text-[26px] font-bold text-[var(--ide-text)] tracking-tight mb-1.5">
             {isLogin ? "Welcome back" : "Create your account"}
           </h1>
-          <p className="text-[#9DA2B0] text-[13px]">
+          <p className="text-[var(--ide-text-secondary)] text-[13px]">
             {isLogin ? "Sign in to continue to E-Code" : "Start building on E-Code"}
           </p>
         </div>
 
-        <div className="bg-[#1C2333]/80 backdrop-blur-md border border-[#2B3245] rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="bg-[var(--ide-panel)]/80 backdrop-blur-md border border-[var(--ide-border)] rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           <div className="space-y-3 mb-6">
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
+              className="w-full h-11 rounded-xl font-medium bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-hover)] transition-all duration-200 gap-3"
               data-testid="button-github-login"
               onClick={async () => {
                 try {
@@ -123,7 +123,7 @@ export default function Auth() {
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 rounded-xl font-medium bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] hover:bg-[#323B4F] hover:border-[#323B4F] transition-all duration-200 gap-3"
+              className="w-full h-11 rounded-xl font-medium bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-hover)] transition-all duration-200 gap-3"
               data-testid="button-google-login"
               onClick={() => toast({ title: "Google Sign-In", description: "Configure Google OAuth to enable this option." })}
             >
@@ -134,30 +134,30 @@ export default function Auth() {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#2B3245]" />
+              <div className="w-full border-t border-[var(--ide-border)]" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#1C2333] px-3 text-[#676D7E] uppercase tracking-wider font-medium">or continue with email</span>
+              <span className="bg-[var(--ide-panel)] px-3 text-[var(--ide-text-muted)] uppercase tracking-wider font-medium">or continue with email</span>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="displayName" className="text-xs font-medium text-[#9DA2B0]">Display Name</Label>
+                <Label htmlFor="displayName" className="text-xs font-medium text-[var(--ide-text-secondary)]">Display Name</Label>
                 <Input
                   id="displayName"
                   type="text"
                   placeholder="How should we call you?"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="bg-[#0E1525] border-[#2B3245] h-11 rounded-xl text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
+                  className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-11 rounded-xl text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                   data-testid="input-display-name"
                 />
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-medium text-[#9DA2B0]">Email address</Label>
+              <Label htmlFor="email" className="text-xs font-medium text-[var(--ide-text-secondary)]">Email address</Label>
               <Input
                 id="email"
                 type="email"
@@ -165,13 +165,13 @@ export default function Auth() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-[#0E1525] border-[#2B3245] h-11 rounded-xl text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
+                className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-11 rounded-xl text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                 data-testid="input-email"
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-xs font-medium text-[#9DA2B0]">Password</Label>
+                <Label htmlFor="password" className="text-xs font-medium text-[var(--ide-text-secondary)]">Password</Label>
                 {isLogin && (
                   <Link href="/forgot-password" className="text-xs text-[#0079F2] hover:text-[#0079F2]/80 cursor-pointer transition-colors" data-testid="link-forgot-password">
                     Forgot password?
@@ -186,7 +186,7 @@ export default function Auth() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={isLogin ? "Enter your password" : "Min. 6 characters"}
-                className="bg-[#0E1525] border-[#2B3245] h-11 rounded-xl text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
+                className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-11 rounded-xl text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                 data-testid="input-password"
               />
             </div>
@@ -207,7 +207,7 @@ export default function Auth() {
             </Button>
           </form>
 
-          <p className="text-center text-sm text-[#9DA2B0] mt-6 pt-5 border-t border-[#2B3245]">
+          <p className="text-center text-sm text-[var(--ide-text-secondary)] mt-6 pt-5 border-t border-[var(--ide-border)]">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <span
               className="text-[#0079F2] font-medium cursor-pointer hover:text-[#0079F2]/80 transition-colors"
@@ -222,16 +222,16 @@ export default function Auth() {
         <div className="mt-8 flex items-center justify-center gap-6">
           <Link
             href="/demo"
-            className="flex items-center gap-2 text-xs text-[#676D7E] hover:text-[#0079F2] transition-colors duration-200"
+            className="flex items-center gap-2 text-xs text-[var(--ide-text-muted)] hover:text-[#0079F2] transition-colors duration-200"
             data-testid="link-demo"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Try the demo</span>
           </Link>
-          <span className="text-[#2B3245]">·</span>
-          <Link href="/terms" className="text-xs text-[#676D7E] hover:text-[#0079F2] transition-colors" data-testid="link-terms">Terms</Link>
-          <span className="text-[#2B3245]">·</span>
-          <Link href="/privacy" className="text-xs text-[#676D7E] hover:text-[#0079F2] transition-colors" data-testid="link-privacy">Privacy</Link>
+          <span className="text-[var(--ide-border)]">·</span>
+          <Link href="/terms" className="text-xs text-[var(--ide-text-muted)] hover:text-[#0079F2] transition-colors" data-testid="link-terms">Terms</Link>
+          <span className="text-[var(--ide-border)]">·</span>
+          <Link href="/privacy" className="text-xs text-[var(--ide-text-muted)] hover:text-[#0079F2] transition-colors" data-testid="link-privacy">Privacy</Link>
         </div>
       </div>
     </div>

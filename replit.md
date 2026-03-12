@@ -1,7 +1,16 @@
 # E-Code IDE - Full-Screen IDE SaaS
 
 ## Overview
-A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with a dark-themed interface, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect design language.
+A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with light/dark themed interface, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect design language.
+
+## Theme System
+- **CSS Variables**: All IDE colors use `--ide-*` CSS custom properties defined in `:root` (light) and `.dark` (dark) blocks in `client/src/index.css`
+- **ThemeProvider**: React context in `client/src/components/ThemeProvider.tsx` manages theme state, persists to localStorage
+- **Toggle**: Settings page uses `useTheme()` hook for dark/light toggle
+- **Flash prevention**: Inline script in `<head>` of `index.html` applies saved theme before first paint
+- **Color tokens**: `--ide-bg`, `--ide-panel`, `--ide-surface`, `--ide-hover`, `--ide-border`, `--ide-separator`, `--ide-input`, `--ide-text`, `--ide-text-secondary`, `--ide-text-muted`
+- **Accent colors**: Fixed across themes: `#0079F2` (blue), `#0CCE6B` (green), `#7C65CB` (purple), `#F26522` (orange)
+- **Usage**: All pages use `bg-[var(--ide-bg)]`, `text-[var(--ide-text)]`, etc. instead of hardcoded hex values
 
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)

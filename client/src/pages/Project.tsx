@@ -97,7 +97,7 @@ function FileTypeIcon({ filename, className = "" }: { filename: string; classNam
       </span>
     );
   }
-  return <FileIcon className={`w-3.5 h-3.5 shrink-0 text-[#9DA2B0] ${className}`} />;
+  return <FileIcon className={`w-3.5 h-3.5 shrink-0 text-[var(--ide-text-secondary)] ${className}`} />;
 }
 
 interface LogEntry {
@@ -1622,7 +1622,7 @@ function _projectPage() {
   const getFileColor = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
     const c: Record<string, string> = { js: "text-yellow-400", jsx: "text-yellow-400", ts: "text-blue-400", tsx: "text-blue-400", py: "text-green-400", json: "text-orange-400", css: "text-pink-400", html: "text-red-400", md: "text-gray-400" };
-    return c[ext || ""] || "text-[#9DA2B0]";
+    return c[ext || ""] || "text-[var(--ide-text-secondary)]";
   };
 
   const parseAnsi = useCallback((text: string) => {
@@ -1656,57 +1656,57 @@ function _projectPage() {
 
   if (projectQuery.isLoading) {
     return (
-      <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
-        <div className="flex items-center px-3 h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 gap-2">
-          <Skeleton className="w-7 h-7 rounded-lg bg-[#2B3245]" />
-          <Skeleton className="w-3 h-3 rounded bg-[#2B3245]" />
-          <Skeleton className="w-32 h-4 rounded bg-[#2B3245]" />
+      <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden">
+        <div className="flex items-center px-3 h-11 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 gap-2">
+          <Skeleton className="w-7 h-7 rounded-lg bg-[var(--ide-surface)]" />
+          <Skeleton className="w-3 h-3 rounded bg-[var(--ide-surface)]" />
+          <Skeleton className="w-32 h-4 rounded bg-[var(--ide-surface)]" />
           <div className="flex-1" />
-          <Skeleton className="w-16 h-7 rounded-full bg-[#2B3245]" />
+          <Skeleton className="w-16 h-7 rounded-full bg-[var(--ide-surface)]" />
         </div>
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-2 gap-2 shrink-0">
+          <div className="w-12 bg-[var(--ide-bg)] border-r border-[var(--ide-border)] flex flex-col items-center py-2 gap-2 shrink-0">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="w-6 h-6 rounded bg-[#2B3245]" />
+              <Skeleton key={i} className="w-6 h-6 rounded bg-[var(--ide-surface)]" />
             ))}
           </div>
-          <div className="w-[240px] bg-[#1C2333] border-r border-[#2B3245] flex flex-col shrink-0">
-            <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245]">
-              <Skeleton className="w-12 h-3 rounded bg-[#2B3245]" />
+          <div className="w-[240px] bg-[var(--ide-panel)] border-r border-[var(--ide-border)] flex flex-col shrink-0">
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)]">
+              <Skeleton className="w-12 h-3 rounded bg-[var(--ide-surface)]" />
               <div className="flex gap-1">
-                <Skeleton className="w-5 h-5 rounded bg-[#2B3245]" />
-                <Skeleton className="w-5 h-5 rounded bg-[#2B3245]" />
+                <Skeleton className="w-5 h-5 rounded bg-[var(--ide-surface)]" />
+                <Skeleton className="w-5 h-5 rounded bg-[var(--ide-surface)]" />
               </div>
             </div>
             <div className="flex-1 py-2 px-2 space-y-1">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
-                  <Skeleton className="w-4 h-4 rounded-[3px] bg-[#2B3245]" />
-                  <Skeleton className={`h-3 rounded bg-[#2B3245] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                  <Skeleton className="w-4 h-4 rounded-[3px] bg-[var(--ide-surface)]" />
+                  <Skeleton className={`h-3 rounded bg-[var(--ide-surface)] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
                 </div>
               ))}
             </div>
           </div>
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] h-9 px-1 gap-1">
+            <div className="flex items-center bg-[var(--ide-bg)] border-b border-[var(--ide-border)] h-9 px-1 gap-1">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="w-24 h-6 rounded bg-[#2B3245]" />
+                <Skeleton key={i} className="w-24 h-6 rounded bg-[var(--ide-surface)]" />
               ))}
             </div>
-            <div className="flex-1 bg-[#1C2333] p-4 space-y-2">
+            <div className="flex-1 bg-[var(--ide-panel)] p-4 space-y-2">
               {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} className={`h-3 rounded bg-[#2B3245] ${i % 4 === 0 ? "w-3/4" : i % 4 === 1 ? "w-1/2" : i % 4 === 2 ? "w-5/6" : "w-2/3"}`} />
+                <Skeleton key={i} className={`h-3 rounded bg-[var(--ide-surface)] ${i % 4 === 0 ? "w-3/4" : i % 4 === 1 ? "w-1/2" : i % 4 === 2 ? "w-5/6" : "w-2/3"}`} />
               ))}
             </div>
-            <div className="h-[220px] border-t border-[#2B3245] bg-[#1C2333] p-3 space-y-2">
-              <Skeleton className="w-16 h-3 rounded bg-[#2B3245]" />
-              <Skeleton className="w-full h-3 rounded bg-[#2B3245]" />
-              <Skeleton className="w-3/4 h-3 rounded bg-[#2B3245]" />
+            <div className="h-[220px] border-t border-[var(--ide-border)] bg-[var(--ide-panel)] p-3 space-y-2">
+              <Skeleton className="w-16 h-3 rounded bg-[var(--ide-surface)]" />
+              <Skeleton className="w-full h-3 rounded bg-[var(--ide-surface)]" />
+              <Skeleton className="w-3/4 h-3 rounded bg-[var(--ide-surface)]" />
             </div>
           </div>
         </div>
-        <div className="flex items-center px-3 h-6 bg-[#0E1525] border-t border-[#2B3245]/60 shrink-0">
-          <Skeleton className="w-16 h-2.5 rounded bg-[#2B3245]" />
+        <div className="flex items-center px-3 h-6 bg-[var(--ide-bg)] border-t border-[var(--ide-border)]/60 shrink-0">
+          <Skeleton className="w-16 h-2.5 rounded bg-[var(--ide-surface)]" />
         </div>
       </div>
     );
@@ -1716,32 +1716,32 @@ function _projectPage() {
   const isTablet = viewMode === "tablet";
 
   const sidebarContent = (
-    <div className={`${isMobile ? "flex-1 bg-[#1C2333]" : "h-full bg-[#1C2333]"} flex flex-col ${isMobile ? "" : "border-r border-[#2B3245]"} overflow-hidden`}>
-      <div className={`flex items-center justify-between px-3 h-9 shrink-0 ${"border-b border-[#2B3245]"}`}>
+    <div className={`${isMobile ? "flex-1 bg-[var(--ide-panel)]" : "h-full bg-[var(--ide-panel)]"} flex flex-col ${isMobile ? "" : "border-r border-[var(--ide-border)]"} overflow-hidden`}>
+      <div className={`flex items-center justify-between px-3 h-9 shrink-0 ${"border-b border-[var(--ide-border)]"}`}>
         <div className="flex items-center gap-1.5">
-          <span className={`text-[11px] font-semibold uppercase tracking-wider ${"text-[#9DA2B0]"}`}>Files</span>
+          <span className={`text-[11px] font-semibold uppercase tracking-wider ${"text-[var(--ide-text-secondary)]"}`}>Files</span>
           {useRunnerFS && <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 font-medium">LIVE</span>}
         </div>
         <div className="flex items-center gap-0.5">
           {useRunnerFS && (
-            <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+            <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
               <FolderPlus className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
+          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
             <Plus className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => uploadInputRef.current?.click()} data-testid="button-upload-file" title="Upload File">
+          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => uploadInputRef.current?.click()} data-testid="button-upload-file" title="Upload File">
             <Upload className="w-3.5 h-3.5" />
           </Button>
           <input ref={uploadInputRef} type="file" multiple className="hidden" onChange={handleFileUpload} accept="*/*" />
-          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => invalidateFs()} title="Refresh">
+          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => invalidateFs()} title="Refresh">
             <RefreshCw className="w-3 h-3" />
           </Button>
         </div>
       </div>
       {useRunnerFS && currentFsPath !== "/" && (
-        <button className={`flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] shrink-0 transition-colors duration-150 ${"hover:bg-[#2B3245] border-b border-[#2B3245]"}`} onClick={() => {
+        <button className={`flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] shrink-0 transition-colors duration-150 ${"hover:bg-[var(--ide-surface)] border-b border-[var(--ide-border)]"}`} onClick={() => {
           const parent = currentFsPath.substring(0, currentFsPath.lastIndexOf("/")) || "/";
           setCurrentFsPath(parent);
         }}>
@@ -1768,38 +1768,38 @@ function _projectPage() {
               const isDir = entry.type === "dir";
               const runnerCtxItems = isDir ? (
                 <>
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setNewFileDialogOpen(true)}>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setNewFileDialogOpen(true)}>
                     <Plus className="w-3 h-3" /> New File
                   </ContextMenuItem>
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setNewFolderDialogOpen(true)}>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setNewFolderDialogOpen(true)}>
                     <FolderPlus className="w-3 h-3" /> New Folder
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
                     <Pencil className="w-3 h-3" /> Rename
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
                     <Trash2 className="w-3 h-3" /> Delete
                   </ContextMenuItem>
                 </>
               ) : (
                 <>
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRunnerFile(entry)}>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRunnerFile(entry)}>
                     <FileCode2 className="w-3 h-3" /> Open
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
                     <Pencil className="w-3 h-3" /> Rename
                   </ContextMenuItem>
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { const tabId = `runner:${entry.path}`; const content = fileContents[tabId]; if (content !== undefined) handleDownloadFile(entry.name, content); else toast({ title: "Open the file first to download" }); }}>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { const tabId = `runner:${entry.path}`; const content = fileContents[tabId]; if (content !== undefined) handleDownloadFile(entry.name, content); else toast({ title: "Open the file first to download" }); }}>
                     <Save className="w-3 h-3" /> Download
                   </ContextMenuItem>
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => copyPathToClipboard(entry.path)}>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => copyPathToClipboard(entry.path)}>
                     <Copy className="w-3 h-3" /> Copy Path
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
-                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
                     <Trash2 className="w-3 h-3" /> Delete
                   </ContextMenuItem>
                 </>
@@ -1808,7 +1808,7 @@ function _projectPage() {
                 <ContextMenu key={entry.path}>
                   <ContextMenuTrigger asChild>
                     <div
-                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? ("bg-[#2B3245]/70 text-[#F5F9FC]") : ("text-[#9DA2B0] hover:text-[#F5F9FC]")} relative overflow-hidden`}
+                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? ("bg-[var(--ide-surface)]/70 text-[var(--ide-text)]") : ("text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)]")} relative overflow-hidden`}
                       onClick={() => { if (swipedFileId === entryId) { setSwipedFileId(null); return; } isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                       onTouchStart={(e) => { if (isMobile) { swipeStartX.current = e.touches[0].clientX; swipingFileId.current = entryId; setSwipeOffset(0); } }}
                       onTouchMove={(e) => { if (isMobile && swipeStartX.current > 0 && swipingFileId.current === entryId) { const diff = swipeStartX.current - e.touches[0].clientX; if (diff > 10) setSwipeOffset(Math.min(diff, 120)); else if (diff < -10) { setSwipedFileId(null); setSwipeOffset(0); } } }}
@@ -1816,7 +1816,7 @@ function _projectPage() {
                       data-testid={`fs-entry-${entry.name}`}
                     >
                       <div className={`flex items-center gap-2 flex-1 min-w-0 transition-transform duration-200 ${swipedFileId === entryId ? "-translate-x-[120px]" : ""}`} style={swipeOffset > 0 && swipingFileId.current === entryId && swipedFileId !== entryId ? { transform: `translateX(-${swipeOffset}px)` } : undefined}>
-                        {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <FileTypeIcon filename={entry.name} />}
+                        {isDir ? <Folder className="w-3.5 h-3.5 shrink-0 text-[var(--ide-text-secondary)]" /> : <FileTypeIcon filename={entry.name} />}
                         <span className="flex-1 text-[12px] truncate">{entry.name}{isDir ? "/" : ""}</span>
                         {!isDir && dirtyFiles.has(entryId) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                       </div>
@@ -1828,42 +1828,42 @@ function _projectPage() {
                       )}
                       {!isMobile && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${entry.name}`}>
+                          <button className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${entry.name}`}>
                             <MoreHorizontal className="w-3 h-3" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]" align="start">
+                        <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[160px]" align="start">
                           {isDir ? (
                             <>
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => setNewFileDialogOpen(true)}>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => setNewFileDialogOpen(true)}>
                                 <Plus className="w-3 h-3" /> New File
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => setNewFolderDialogOpen(true)}>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => setNewFolderDialogOpen(true)}>
                                 <FolderPlus className="w-3 h-3" /> New Folder
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-[#2B3245]" />
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRenameDialog(entryId, entry.name)}>
+                              <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => openRenameDialog(entryId, entry.name)}>
                                 <Pencil className="w-3 h-3" /> Rename
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-[#2B3245]" />
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                              <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
                                 <Trash2 className="w-3 h-3" /> Delete
                               </DropdownMenuItem>
                             </>
                           ) : (
                             <>
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRunnerFile(entry)}>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => openRunnerFile(entry)}>
                                 <FileCode2 className="w-3 h-3" /> Open
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-[#2B3245]" />
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRenameDialog(entryId, entry.name)}>
+                              <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => openRenameDialog(entryId, entry.name)}>
                                 <Pencil className="w-3 h-3" /> Rename
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(entry.path)}>
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(entry.path)}>
                                 <Copy className="w-3 h-3" /> Copy Path
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-[#2B3245]" />
-                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
+                              <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                              <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => handleDelete(entry.path, entry.name, entry.type)}>
                                 <Trash2 className="w-3 h-3" /> Delete
                               </DropdownMenuItem>
                             </>
@@ -1872,7 +1872,7 @@ function _projectPage() {
                       </DropdownMenu>}
                     </div>
                   </ContextMenuTrigger>
-                  <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
+                  <ContextMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[160px]">
                     {runnerCtxItems}
                   </ContextMenuContent>
                 </ContextMenu>
@@ -1882,15 +1882,15 @@ function _projectPage() {
               <div className="py-2 px-2 space-y-1" data-testid="skeleton-runner-files">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
-                    <Skeleton className="w-3.5 h-3.5 rounded-[3px] bg-[#2B3245]" />
-                    <Skeleton className={`h-3 rounded bg-[#2B3245] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                    <Skeleton className="w-3.5 h-3.5 rounded-[3px] bg-[var(--ide-surface)]" />
+                    <Skeleton className={`h-3 rounded bg-[var(--ide-surface)] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
                   </div>
                 ))}
               </div>
             )}
             {runnerFsQuery.data?.length === 0 && !runnerFsQuery.isLoading && (
               <div className="px-3 py-6 text-center animate-fade-in">
-                <p className="text-xs text-[#676D7E] mb-2">Empty directory</p>
+                <p className="text-xs text-[var(--ide-text-muted)] mb-2">Empty directory</p>
                 <div className="flex gap-2 justify-center">
                   <Button size="sm" variant="ghost" className="text-xs text-[#0079F2] transition-colors duration-150" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> File</Button>
                   <Button size="sm" variant="ghost" className="text-xs text-[#0079F2] transition-colors duration-150" onClick={() => setNewFolderDialogOpen(true)}><FolderPlus className="w-3 h-3 mr-1" /> Folder</Button>
@@ -1901,10 +1901,10 @@ function _projectPage() {
         ) : (
           <>
             {(wsStatus === "stopped" || wsStatus === "none" || wsStatus === "offline") && (
-              <div className="px-2 py-2 border-b border-[#2B3245]">
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#1C2333] border border-[#2B3245]">
-                  <Server className="w-3 h-3 text-[#676D7E] shrink-0" />
-                  <span className="text-[10px] text-[#9DA2B0] flex-1">{wsStatus === "offline" ? "Runner offline" : "Start workspace"}</span>
+              <div className="px-2 py-2 border-b border-[var(--ide-border)]">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--ide-panel)] border border-[var(--ide-border)]">
+                  <Server className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />
+                  <span className="text-[10px] text-[var(--ide-text-secondary)] flex-1">{wsStatus === "offline" ? "Runner offline" : "Start workspace"}</span>
                   <Button size="sm" variant="ghost" className="h-5 px-2 text-[9px] text-green-400 hover:text-green-300 hover:bg-green-600/10 shrink-0" onClick={handleStartWorkspace} disabled={wsLoading || initWorkspaceMutation.isPending || startWorkspaceMutation.isPending} data-testid="button-sidebar-start-workspace">
                     {(wsLoading || initWorkspaceMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
                   </Button>
@@ -1916,30 +1916,30 @@ function _projectPage() {
               const folderContextMenuItems = (folderPath: string) => (
                 <>
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => { setNewFileParentFolder(folderPath); setNewFileDialogOpen(true); }}
                     data-testid={`ctx-new-file-${folderPath}`}
                   >
                     <Plus className="w-3 h-3" /> New File
                   </ContextMenuItem>
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => { setNewFileParentFolder(folderPath); setNewFolderDialogOpen(true); }}
                     data-testid={`ctx-new-folder-${folderPath}`}
                   >
                     <FolderPlus className="w-3 h-3" /> New Folder
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => copyPathToClipboard(folderPath)}
                     data-testid={`ctx-copy-path-${folderPath}`}
                   >
                     <Copy className="w-3 h-3" /> Copy Path
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => handleDelete(folderPath, folderPath.split("/").pop() || folderPath, "dir")}
                     data-testid={`ctx-delete-${folderPath}`}
                   >
@@ -1951,44 +1951,44 @@ function _projectPage() {
               const fileContextMenuItems = (file: File, nodeName: string) => (
                 <>
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                     data-testid={`ctx-open-${file.id}`}
                   >
                     <FileCode2 className="w-3 h-3" /> Open
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => openRenameDialog(file.id, file.filename)}
                     data-testid={`ctx-rename-${file.id}`}
                   >
                     <Pencil className="w-3 h-3" /> Rename
                   </ContextMenuItem>
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => duplicateFileMutation.mutate({ fileId: file.id, filename: file.filename, content: file.content })}
                     data-testid={`ctx-duplicate-${file.id}`}
                   >
                     <Copy className="w-3 h-3" /> Duplicate
                   </ContextMenuItem>
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => handleDownloadFile(file.filename, fileContents[file.id] ?? file.content)}
                     data-testid={`ctx-download-${file.id}`}
                   >
                     <Save className="w-3 h-3" /> Download
                   </ContextMenuItem>
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => copyPathToClipboard(file.filename)}
                     data-testid={`ctx-copy-path-${file.id}`}
                   >
                     <Copy className="w-3 h-3" /> Copy Path
                   </ContextMenuItem>
-                  <ContextMenuSeparator className="bg-[#2B3245]" />
+                  <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
                   <ContextMenuItem
-                    className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md px-2 py-1.5"
+                    className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => handleDelete(file.id, file.filename, "file")}
                     data-testid={`ctx-delete-${file.id}`}
                   >
@@ -2005,7 +2005,7 @@ function _projectPage() {
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
                           <div
-                            className={`group flex items-center gap-1 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${"text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40"}`}
+                            className={`group flex items-center gap-1 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${"text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/40"}`}
                             style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
                             onClick={() => toggleFolder(node.path)}
                             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("bg-[#0079F2]/20"); }}
@@ -2026,35 +2026,35 @@ function _projectPage() {
                             }}
                             data-testid={`folder-item-${node.path}`}
                           >
-                            {isExpanded ? <ChevronDown className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#9CA3AF]" : "text-[#676D7E]"}`} /> : <ChevronRight className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#9CA3AF]" : "text-[#676D7E]"}`} />}
-                            {isExpanded ? <FolderOpen className={`w-3.5 h-3.5 shrink-0 ${"text-[#9DA2B0]"}`} /> : <Folder className={`w-3.5 h-3.5 shrink-0 ${"text-[#9DA2B0]"}`} />}
+                            {isExpanded ? <ChevronDown className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#9CA3AF]" : "text-[var(--ide-text-muted)]"}`} /> : <ChevronRight className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#9CA3AF]" : "text-[var(--ide-text-muted)]"}`} />}
+                            {isExpanded ? <FolderOpen className={`w-3.5 h-3.5 shrink-0 ${"text-[var(--ide-text-secondary)]"}`} /> : <Folder className={`w-3.5 h-3.5 shrink-0 ${"text-[var(--ide-text-secondary)]"}`} />}
                             <span className="flex-1 text-[12px] truncate ml-0.5">{node.name}</span>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${node.path}`}>
+                                <button className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${node.path}`}>
                                   <MoreHorizontal className="w-3 h-3" />
                                 </button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl min-w-[160px]" align="start">
-                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => { setNewFileParentFolder(node.path); setNewFileDialogOpen(true); }}>
+                              <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl min-w-[160px]" align="start">
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => { setNewFileParentFolder(node.path); setNewFileDialogOpen(true); }}>
                                   <Plus className="w-3 h-3" /> New File
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => { setNewFileParentFolder(node.path); setNewFolderDialogOpen(true); }}>
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => { setNewFileParentFolder(node.path); setNewFolderDialogOpen(true); }}>
                                   <FolderPlus className="w-3 h-3" /> New Folder
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-[#2B3245]" />
-                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(node.path)}>
+                                <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(node.path)}>
                                   <Copy className="w-3 h-3" /> Copy Path
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-[#2B3245]" />
-                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(node.path, node.name, "dir")}>
+                                <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                                <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => handleDelete(node.path, node.name, "dir")}>
                                   <Trash2 className="w-3 h-3" /> Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
                         </ContextMenuTrigger>
-                        <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
+                        <ContextMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[160px]">
                           {folderContextMenuItems(node.path)}
                         </ContextMenuContent>
                       </ContextMenu>
@@ -2068,7 +2068,7 @@ function _projectPage() {
                   <ContextMenu key={node.fileId}>
                     <ContextMenuTrigger asChild>
                       <div
-                        className={`group flex items-center gap-2 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${file.id === activeFileId ? ("bg-[#2B3245]/70 text-[#F5F9FC]") : ("text-[#9DA2B0] hover:text-[#F5F9FC]")}`}
+                        className={`group flex items-center gap-2 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${file.id === activeFileId ? ("bg-[var(--ide-surface)]/70 text-[var(--ide-text)]") : ("text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)]")}`}
                         style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
                         onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                         draggable
@@ -2080,33 +2080,33 @@ function _projectPage() {
                         {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button className="p-0.5 rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${file.id}`}>
+                            <button className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${file.id}`}>
                               <MoreHorizontal className="w-3 h-3" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl min-w-[160px]" align="start">
-                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}>
+                          <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl min-w-[160px]" align="start">
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}>
                               <FileCode2 className="w-3 h-3" /> Open
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[#2B3245]" />
-                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => openRenameDialog(file.id, file.filename)}>
+                            <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => openRenameDialog(file.id, file.filename)}>
                               <Pencil className="w-3 h-3" /> Rename
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => duplicateFileMutation.mutate({ fileId: file.id, filename: file.filename, content: file.content })}>
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => duplicateFileMutation.mutate({ fileId: file.id, filename: file.filename, content: file.content })}>
                               <Copy className="w-3 h-3" /> Duplicate
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(file.filename)}>
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => copyPathToClipboard(file.filename)}>
                               <Copy className="w-3 h-3" /> Copy Path
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[#2B3245]" />
-                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[#2B3245] cursor-pointer rounded-md" onClick={() => handleDelete(file.id, file.filename, "file")}>
+                            <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => handleDelete(file.id, file.filename, "file")}>
                               <Trash2 className="w-3 h-3" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
                     </ContextMenuTrigger>
-                    <ContextMenuContent className="bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl min-w-[160px]">
+                    <ContextMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[160px]">
                       {fileContextMenuItems(file, node.name)}
                     </ContextMenuContent>
                   </ContextMenu>
@@ -2118,19 +2118,19 @@ function _projectPage() {
               <div className="py-2 px-2 space-y-1" data-testid="skeleton-file-tree">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
-                    <Skeleton className="w-4 h-4 rounded-[3px] bg-[#2B3245]" />
-                    <Skeleton className={`h-3 rounded bg-[#2B3245] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                    <Skeleton className="w-4 h-4 rounded-[3px] bg-[var(--ide-surface)]" />
+                    <Skeleton className={`h-3 rounded bg-[var(--ide-surface)] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
                   </div>
                 ))}
               </div>
             )}
             {!filesQuery.isLoading && filesQuery.data?.length === 0 && (
               <div className="px-3 py-6 text-center animate-fade-in" data-testid="empty-file-tree">
-                <div className="w-10 h-10 rounded-xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-3">
-                  <FileIcon className="w-5 h-5 text-[#323B4F]" />
+                <div className="w-10 h-10 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center mx-auto mb-3">
+                  <FileIcon className="w-5 h-5 text-[var(--ide-text-muted)]" />
                 </div>
-                <p className="text-xs text-[#9DA2B0] mb-1 font-medium">No files yet</p>
-                <p className="text-[10px] text-[#676D7E] mb-3">Create your first file to get started</p>
+                <p className="text-xs text-[var(--ide-text-secondary)] mb-1 font-medium">No files yet</p>
+                <p className="text-[10px] text-[var(--ide-text-muted)] mb-3">Create your first file to get started</p>
                 <Button size="sm" variant="ghost" className="text-xs text-[#0079F2]" onClick={() => setNewFileDialogOpen(true)}><Plus className="w-3 h-3 mr-1" /> Create File</Button>
               </div>
             )}
@@ -2148,10 +2148,10 @@ function _projectPage() {
   };
 
   const editorTabBar = openTabs.length > 0 ? (
-    <div className={`flex items-center shrink-0 h-9 overflow-hidden relative ${"bg-[#0E1525] border-b border-[#2B3245]"}`}>
+    <div className={`flex items-center shrink-0 h-9 overflow-hidden relative ${"bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"}`}>
       {tabBarOverflow && !isMobile && (
         <button
-          className="absolute left-0 z-10 h-full px-1.5 bg-[#0E1525] border-r border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
+          className="absolute left-0 z-10 h-full px-1.5 bg-[var(--ide-bg)] border-r border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150"
           onClick={() => scrollTabBar("left")}
           data-testid="button-tab-scroll-left"
         >
@@ -2177,7 +2177,7 @@ function _projectPage() {
             <ContextMenu key={tabId}>
               <ContextMenuTrigger asChild>
                 <div
-                  className={`group relative flex items-center gap-1.5 ${isMobile ? "px-2.5" : "px-3"} h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? ("bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]") : (isMobile ? "text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] border-b-transparent" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent")} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
+                  className={`group relative flex items-center gap-1.5 ${isMobile ? "px-2.5" : "px-3"} h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? ("bg-[var(--ide-panel)] text-[var(--ide-text)] border-b-[#0079F2]") : (isMobile ? "text-[#9CA3AF] hover:text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)] border-b-transparent" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-panel)]/40 border-b-transparent")} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
                   onClick={() => {
                     setActiveFileId(tabId);
                     if (specialInfo) {
@@ -2212,7 +2212,7 @@ function _projectPage() {
                   )}
                   {(isMobile || !(!specialInfo && dirtyFiles.has(tabId))) && (
                     <button
-                      className={`${isMobile ? "p-1" : "p-0.5"} rounded hover:bg-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] transition-opacity duration-100 shrink-0 ${!specialInfo && dirtyFiles.has(tabId) ? "" : "ml-0.5"} ${isMobile ? "opacity-100" : isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                      className={`${isMobile ? "p-1" : "p-0.5"} rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-opacity duration-100 shrink-0 ${!specialInfo && dirtyFiles.has(tabId) ? "" : "ml-0.5"} ${isMobile ? "opacity-100" : isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                       onClick={(e) => closeTab(tabId, e)}
                       data-testid={`button-close-tab-${tabId}`}
                     >
@@ -2221,14 +2221,14 @@ function _projectPage() {
                   )}
                 </div>
               </ContextMenuTrigger>
-              <ContextMenuContent className="w-52 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
-                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeTab(tabId)} data-testid={`context-close-${tabId}`}>
+              <ContextMenuContent className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
+                <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => closeTab(tabId)} data-testid={`context-close-${tabId}`}>
                   <X className="w-3.5 h-3.5" /> Close
                 </ContextMenuItem>
-                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeOtherTabs(tabId)} data-testid={`context-close-others-${tabId}`}>
+                <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => closeOtherTabs(tabId)} data-testid={`context-close-others-${tabId}`}>
                   Close Others
                 </ContextMenuItem>
-                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => {
+                <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => {
                   const remaining = openTabs.filter(id => isSpecialTab(id) || dirtyFiles.has(id));
                   setOpenTabs(remaining);
                   if (activeFileId && !remaining.includes(activeFileId)) {
@@ -2239,19 +2239,19 @@ function _projectPage() {
                 }} data-testid={`context-close-saved-${tabId}`}>
                   Close Saved
                 </ContextMenuItem>
-                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeAllTabs()} data-testid={`context-close-all-${tabId}`}>
+                <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => closeAllTabs()} data-testid={`context-close-all-${tabId}`}>
                   Close All
                 </ContextMenuItem>
-                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeTabsToRight(tabId)} data-testid={`context-close-right-${tabId}`}>
+                <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => closeTabsToRight(tabId)} data-testid={`context-close-right-${tabId}`}>
                   Close to the Right
                 </ContextMenuItem>
                 {!specialInfo && !tabId.startsWith("runner:") && (
                   <>
-                    <ContextMenuSeparator className="bg-[#2B3245]" />
-                    <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setSplitEditorFileId(tabId)} data-testid={`context-split-${tabId}`}>
+                    <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
+                    <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setSplitEditorFileId(tabId)} data-testid={`context-split-${tabId}`}>
                       <Code2 className="w-3.5 h-3.5" /> Split Right
                     </ContextMenuItem>
-                    <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
+                    <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
                       <Copy className="w-3.5 h-3.5" /> Copy Path
                     </ContextMenuItem>
                   </>
@@ -2263,7 +2263,7 @@ function _projectPage() {
       </div>
       {isMobile && (
         <button
-          className="h-full px-2.5 border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150 shrink-0"
+          className="h-full px-2.5 border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150 shrink-0"
           onClick={() => setNewFileDialogOpen(true)}
           data-testid="button-mobile-new-tab"
         >
@@ -2272,7 +2272,7 @@ function _projectPage() {
       )}
       {tabBarOverflow && !isMobile && (
         <button
-          className="absolute right-0 z-10 h-full px-1.5 bg-[#0E1525] border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
+          className="absolute right-0 z-10 h-full px-1.5 bg-[var(--ide-bg)] border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150"
           onClick={() => scrollTabBar("right")}
           data-testid="button-tab-scroll-right"
         >
@@ -2281,13 +2281,13 @@ function _projectPage() {
       )}
     </div>
   ) : isMobile ? (
-    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 overflow-hidden">
-      <div className="flex items-center gap-2 px-3 flex-1 text-[#676D7E]">
+    <div className="flex items-center bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 h-9 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 flex-1 text-[var(--ide-text-muted)]">
         <Code2 className="w-3.5 h-3.5" />
         <span className="text-[11px]">No files open</span>
       </div>
       <button
-        className="h-full px-2.5 border-l border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150 shrink-0"
+        className="h-full px-2.5 border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150 shrink-0"
         onClick={() => setNewFileDialogOpen(true)}
         data-testid="button-mobile-new-tab-empty"
       >
@@ -2302,14 +2302,14 @@ function _projectPage() {
   const breadcrumbSegments = activeFilePath ? activeFilePath.split("/").filter(Boolean) : [];
 
   const breadcrumbBar = activeFileId && breadcrumbSegments.length > 0 ? (
-    <div className="flex items-center gap-0.5 px-3 h-7 bg-[#1C2333] border-b border-[#2B3245] shrink-0 overflow-x-auto scrollbar-hide" data-testid="breadcrumb-bar">
+    <div className="flex items-center gap-0.5 px-3 h-7 bg-[var(--ide-panel)] border-b border-[var(--ide-border)] shrink-0 overflow-x-auto scrollbar-hide" data-testid="breadcrumb-bar">
       {breadcrumbSegments.map((segment, i) => {
         const isLast = i === breadcrumbSegments.length - 1;
         return (
           <span key={i} className="flex items-center gap-0.5 shrink-0">
-            {i > 0 && <ChevronRight className="w-3 h-3 text-[#676D7E] shrink-0" />}
+            {i > 0 && <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />}
             <span
-              className={`text-[11px] px-1 py-0.5 rounded ${isLast ? "text-[#F5F9FC] font-medium" : "text-[#676D7E] hover:text-[#9DA2B0] cursor-default"}`}
+              className={`text-[11px] px-1 py-0.5 rounded ${isLast ? "text-[var(--ide-text)] font-medium" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] cursor-default"}`}
               data-testid={`breadcrumb-segment-${i}`}
             >
               {segment}
@@ -2320,7 +2320,7 @@ function _projectPage() {
       <div className="flex-1" />
       {activeFileId && !isSpecialTab(activeFileId) && (
         <button
-          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all ${blameEnabled ? "bg-[#7C65CB]/20 text-[#7C65CB] border border-[#7C65CB]/30" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#2B3245]/50"}`}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all ${blameEnabled ? "bg-[#7C65CB]/20 text-[#7C65CB] border border-[#7C65CB]/30" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
           onClick={() => setBlameEnabled(!blameEnabled)}
           title={blameEnabled ? "Hide Git blame annotations" : "Show Git blame annotations"}
           data-testid="button-toggle-blame"
@@ -2334,9 +2334,9 @@ function _projectPage() {
   ) : null;
 
   const webviewTabContent = (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
-      <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
+    <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
+      <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
           onClick={() => {
             if (wsStatus === "running" && livePreviewUrl) {
               const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement;
@@ -2348,14 +2348,14 @@ function _projectPage() {
           }}
           title="Refresh" data-testid="button-webview-tab-refresh"><RefreshCw className="w-3 h-3" /></Button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
+          <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
             <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
-            <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
+            <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {livePreviewUrl && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+            <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
               onClick={() => window.open(livePreviewUrl, "_blank")}
               title="Open in new tab" data-testid="button-webview-tab-newtab"><ExternalLink className="w-3 h-3" /></Button>
           )}
@@ -2367,12 +2367,12 @@ function _projectPage() {
         ) : previewHtml ? (
           <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center">
-              <Monitor className="w-7 h-7 text-[#676D7E]" />
+          <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
+              <Monitor className="w-7 h-7 text-[var(--ide-text-muted)]" />
             </div>
-            <p className="text-sm font-medium text-[#F5F9FC]">Webview</p>
-            <p className="text-xs text-center max-w-[220px] text-[#676D7E] leading-relaxed">
+            <p className="text-sm font-medium text-[var(--ide-text)]">Webview</p>
+            <p className="text-xs text-center max-w-[220px] text-[var(--ide-text-muted)] leading-relaxed">
               {hasHtmlFile ? "Click Refresh to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
             </p>
             {hasHtmlFile && wsStatus !== "running" && (
@@ -2390,12 +2390,12 @@ function _projectPage() {
     <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
       wsStatus === "running" ? "bg-green-600/20 text-green-400 border border-green-600/30" :
       wsStatus === "starting" ? "bg-yellow-600/20 text-yellow-400 border border-yellow-600/30" :
-      wsStatus === "stopped" ? "bg-[#2B3245] text-[#9DA2B0] border border-[#676D7E]/30" :
+      wsStatus === "stopped" ? "bg-[var(--ide-surface)] text-[var(--ide-text-secondary)] border border-[var(--ide-text-muted)]/30" :
       wsStatus === "error" ? "bg-red-600/20 text-red-400 border border-red-600/30" :
       wsStatus === "offline" ? "bg-orange-600/20 text-orange-400 border border-orange-600/30" :
-      "bg-[#2B3245] text-[#676D7E] border border-[#2B3245]"
+      "bg-[var(--ide-surface)] text-[var(--ide-text-muted)] border border-[var(--ide-border)]"
     }`} data-testid="text-workspace-status">
-      <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400 animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "stopped" ? "bg-[#9DA2B0]" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === "running" ? "bg-green-400 animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "stopped" ? "bg-[var(--ide-text-secondary)]" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[var(--ide-text-muted)]"}`} />
       {wsStatus === "running" ? "Running" : wsStatus === "starting" ? "Starting..." : wsStatus === "stopped" ? "Stopped" : wsStatus === "error" ? "Error" : wsStatus === "offline" ? "Offline" : "Init"}
     </span>
   );
@@ -2411,11 +2411,11 @@ function _projectPage() {
   );
 
   const shellTabContent = (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
-      <div className="flex items-center justify-between px-2 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
+      <div className="flex items-center justify-between px-2 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         <div className="flex items-center gap-2">
           <Hash className="w-3 h-3 text-[#0CCE6B]" />
-          <span className="text-[11px] text-[#9DA2B0] font-medium">Shell</span>
+          <span className="text-[11px] text-[var(--ide-text-secondary)] font-medium">Shell</span>
           {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
         </div>
         <div className="flex items-center gap-1">
@@ -2430,25 +2430,25 @@ function _projectPage() {
   );
 
   const consoleTabContent = (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
-      <div className="flex items-center justify-between px-2 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
+      <div className="flex items-center justify-between px-2 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         <div className="flex items-center gap-2">
           <Terminal className="w-3 h-3 text-[#F5A623]" />
-          <span className="text-[11px] text-[#9DA2B0] font-medium">Console</span>
+          <span className="text-[11px] text-[var(--ide-text-secondary)] font-medium">Console</span>
           {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
         </div>
-        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-console-tab-clear"><Trash2 className="w-3 h-3" /></Button>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-console-tab-clear"><Trash2 className="w-3 h-3" /></Button>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }} data-testid="console-tab-output">
-        {logs.length === 0 && !isRunning && !runMutation.isPending && <p className="text-[#676D7E] text-center py-4 text-xs">Press Run to execute your code</p>}
+        {logs.length === 0 && !isRunning && !runMutation.isPending && <p className="text-[var(--ide-text-muted)] text-center py-4 text-xs">Press Run to execute your code</p>}
         {(isRunning || runMutation.isPending) && logs.length === 0 && (
-          <div className="flex items-center gap-2 py-1 text-[#0079F2] border-b border-[#2B3245]/50 mb-1">
+          <div className="flex items-center gap-2 py-1 text-[#0079F2] border-b border-[var(--ide-border)]/50 mb-1">
             <Loader2 className="w-3 h-3 animate-spin" />
             <span className="text-[11px]">Running {activeFileName || "code"}...</span>
           </div>
         )}
         {logs.map((log) => (
-          <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[#9DA2B0]"}`}>
+          <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[var(--ide-text-secondary)]"}`}>
             <span className="whitespace-pre-wrap break-all">{log.text}</span>
           </div>
         ))}
@@ -2473,7 +2473,7 @@ function _projectPage() {
               {splitEditorFileId && (
                 <>
                   <div
-                    className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[#2B3245]/50"
+                    className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[var(--ide-surface)]/50"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       splitDragStartX.current = e.clientX;
@@ -2491,15 +2491,15 @@ function _projectPage() {
                       document.addEventListener("mouseup", onUp);
                     }}
                   >
-                    <div className="w-[2px] h-8 rounded-full bg-[#2B3245]" />
+                    <div className="w-[2px] h-8 rounded-full bg-[var(--ide-surface)]" />
                   </div>
                   <div className="overflow-hidden flex flex-col" style={{ width: `${100 - splitEditorWidth}%` }}>
-                    <div className="flex items-center justify-between h-7 px-2 bg-[#0E1525] border-b border-[#2B3245] shrink-0">
+                    <div className="flex items-center justify-between h-7 px-2 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0">
                       <div className="flex items-center gap-1.5">
                         <FileTypeIcon filename={(() => { const f = filesQuery.data?.find(f => f.id === splitEditorFileId); return f?.filename || ""; })()} />
-                        <span className="text-[10px] text-[#9DA2B0] truncate">{filesQuery.data?.find(f => f.id === splitEditorFileId)?.filename || ""}</span>
+                        <span className="text-[10px] text-[var(--ide-text-secondary)] truncate">{filesQuery.data?.find(f => f.id === splitEditorFileId)?.filename || ""}</span>
                       </div>
-                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setSplitEditorFileId(null)} data-testid="button-close-split">
+                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setSplitEditorFileId(null)} data-testid="button-close-split">
                         <X className="w-3 h-3" />
                       </Button>
                     </div>
@@ -2524,8 +2524,8 @@ function _projectPage() {
                 </>
               )}
               {showMinimap && !splitEditorFileId && (
-                <div className="w-[60px] shrink-0 bg-[#0E1525] border-l border-[#2B3245]/50 overflow-hidden relative select-none" data-testid="minimap">
-                  <pre className="text-[2px] leading-[3px] text-[#676D7E]/40 font-mono p-1 whitespace-pre overflow-hidden pointer-events-none" style={{ transform: "scaleX(0.8)", transformOrigin: "left top" }}>
+                <div className="w-[60px] shrink-0 bg-[var(--ide-bg)] border-l border-[var(--ide-border)]/50 overflow-hidden relative select-none" data-testid="minimap">
+                  <pre className="text-[2px] leading-[3px] text-[var(--ide-text-muted)]/40 font-mono p-1 whitespace-pre overflow-hidden pointer-events-none" style={{ transform: "scaleX(0.8)", transformOrigin: "left top" }}>
                     {currentCode.split("\n").slice(0, 200).map((line, i) => (
                       <div key={i} className={i + 1 === cursorLine ? "bg-[#0079F2]/20" : ""}>{line || " "}</div>
                     ))}
@@ -2534,7 +2534,7 @@ function _projectPage() {
               )}
             </div>
           ) : (!filesQuery.data || filesQuery.data.length === 0) ? (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in overflow-y-auto">
+        <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] animate-fade-in overflow-y-auto">
           <div className="max-w-md text-center px-6 py-8">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F26522]/10 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
               <svg width="40" height="40" viewBox="0 0 32 32" fill="none" data-testid="img-replit-logo">
@@ -2543,69 +2543,69 @@ function _projectPage() {
                 <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-[#F5F9FC] mb-2" data-testid="text-welcome-heading">Welcome to your project</h3>
-            <p className="text-sm text-[#676D7E] mb-8 leading-relaxed">Get started by creating your first file or asking AI for help</p>
+            <h3 className="text-xl font-semibold text-[var(--ide-text)] mb-2" data-testid="text-welcome-heading">Welcome to your project</h3>
+            <p className="text-sm text-[var(--ide-text-muted)] mb-8 leading-relaxed">Get started by creating your first file or asking AI for help</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
               <button
-                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#0CCE6B]/40 hover:bg-[#0CCE6B]/5 transition-all text-center group"
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] hover:border-[#0CCE6B]/40 hover:bg-[#0CCE6B]/5 transition-all text-center group"
                 onClick={() => setNewFileDialogOpen(true)}
                 data-testid="button-quickstart-create-file"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#0CCE6B]/10 flex items-center justify-center group-hover:bg-[#0CCE6B]/20 transition-colors">
                   <Plus className="w-5 h-5 text-[#0CCE6B]" />
                 </div>
-                <span className="text-xs font-medium text-[#F5F9FC]">Create a file</span>
-                <span className="text-[10px] text-[#676D7E]">Start from scratch</span>
+                <span className="text-xs font-medium text-[var(--ide-text)]">Create a file</span>
+                <span className="text-[10px] text-[var(--ide-text-muted)]">Start from scratch</span>
               </button>
               <button
-                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#7C65CB]/40 hover:bg-[#7C65CB]/5 transition-all text-center group"
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] hover:border-[#7C65CB]/40 hover:bg-[#7C65CB]/5 transition-all text-center group"
                 onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }}
                 data-testid="button-quickstart-ask-ai"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#7C65CB]/10 flex items-center justify-center group-hover:bg-[#7C65CB]/20 transition-colors">
                   <Sparkles className="w-5 h-5 text-[#7C65CB]" />
                 </div>
-                <span className="text-xs font-medium text-[#F5F9FC]">Ask AI</span>
-                <span className="text-[10px] text-[#676D7E]">Generate code with AI</span>
+                <span className="text-xs font-medium text-[var(--ide-text)]">Ask AI</span>
+                <span className="text-[10px] text-[var(--ide-text-muted)]">Generate code with AI</span>
               </button>
               <button
-                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#0079F2]/40 hover:bg-[#0079F2]/5 transition-all text-center group"
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] hover:border-[#0079F2]/40 hover:bg-[#0079F2]/5 transition-all text-center group"
                 onClick={() => uploadInputRef.current?.click()}
                 data-testid="button-quickstart-import"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#0079F2]/10 flex items-center justify-center">
                   <FolderOpen className="w-5 h-5 text-[#0079F2]" />
                 </div>
-                <span className="text-xs font-medium text-[#F5F9FC]">Import files</span>
-                <span className="text-[10px] text-[#676D7E]">Upload from your device</span>
+                <span className="text-xs font-medium text-[var(--ide-text)]">Import files</span>
+                <span className="text-[10px] text-[var(--ide-text-muted)]">Upload from your device</span>
               </button>
             </div>
-            <div className="flex items-center justify-center gap-4 mb-8 text-[10px] text-[#676D7E] font-mono" data-testid="text-keyboard-hints">
-              <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-[#0E1525] border border-[#2B3245] text-[#9DA2B0]">⌘K</kbd> Commands</span>
-              <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-[#0E1525] border border-[#2B3245] text-[#9DA2B0]">⌘B</kbd> Sidebar</span>
+            <div className="flex items-center justify-center gap-4 mb-8 text-[10px] text-[var(--ide-text-muted)] font-mono" data-testid="text-keyboard-hints">
+              <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-secondary)]">⌘K</kbd> Commands</span>
+              <span className="flex items-center gap-1.5"><kbd className="px-1.5 py-0.5 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-secondary)]">⌘B</kbd> Sidebar</span>
             </div>
-            <div className="text-left bg-[#0E1525] border border-[#2B3245] rounded-xl p-4" data-testid="section-getting-started">
-              <h4 className="text-[11px] font-bold text-[#9DA2B0] uppercase tracking-widest mb-3">Getting Started</h4>
+            <div className="text-left bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded-xl p-4" data-testid="section-getting-started">
+              <h4 className="text-[11px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest mb-3">Getting Started</h4>
               <ul className="space-y-2.5">
                 <li className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5">1</span>
                   <div>
-                    <p className="text-[11px] text-[#F5F9FC] font-medium">Create your first file</p>
-                    <p className="text-[10px] text-[#676D7E] mt-0.5">Click "Create a file" above or use the + button in the sidebar</p>
+                    <p className="text-[11px] text-[var(--ide-text)] font-medium">Create your first file</p>
+                    <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5">Click "Create a file" above or use the + button in the sidebar</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-[#0079F2]/10 text-[#0079F2] flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5">2</span>
                   <div>
-                    <p className="text-[11px] text-[#F5F9FC] font-medium">Write your code</p>
-                    <p className="text-[10px] text-[#676D7E] mt-0.5">Use the editor with syntax highlighting and auto-save</p>
+                    <p className="text-[11px] text-[var(--ide-text)] font-medium">Write your code</p>
+                    <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5">Use the editor with syntax highlighting and auto-save</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-[#F26522]/10 text-[#F26522] flex items-center justify-center shrink-0 text-[10px] font-bold mt-0.5">3</span>
                   <div>
-                    <p className="text-[11px] text-[#F5F9FC] font-medium">Run and preview</p>
-                    <p className="text-[10px] text-[#676D7E] mt-0.5">Hit the Run button or press F5 to execute your code</p>
+                    <p className="text-[11px] text-[var(--ide-text)] font-medium">Run and preview</p>
+                    <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5">Hit the Run button or press F5 to execute your code</p>
                   </div>
                 </li>
               </ul>
@@ -2613,33 +2613,33 @@ function _projectPage() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] animate-fade-in">
+        <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] animate-fade-in">
           <div className="max-w-sm text-center px-6">
-            <div className="w-16 h-16 rounded-2xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-6">
-              <FileCode2 className="w-7 h-7 text-[#676D7E]" />
+            <div className="w-16 h-16 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center mx-auto mb-6">
+              <FileCode2 className="w-7 h-7 text-[var(--ide-text-muted)]" />
             </div>
-            <h3 className="text-lg font-semibold text-[#F5F9FC] mb-2" data-testid="text-open-file-heading">Open a file to start editing</h3>
-            <p className="text-sm text-[#676D7E] mb-6 leading-relaxed">Select a file from the sidebar or from the list below</p>
+            <h3 className="text-lg font-semibold text-[var(--ide-text)] mb-2" data-testid="text-open-file-heading">Open a file to start editing</h3>
+            <p className="text-sm text-[var(--ide-text-muted)] mb-6 leading-relaxed">Select a file from the sidebar or from the list below</p>
             <div className="flex flex-col gap-0.5 max-w-[280px] mx-auto mb-6" data-testid="list-recent-files">
               {filesQuery.data?.slice(0, 8).map((file) => (
                 <button
                   key={file.id}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left hover:bg-[#2B3245] transition-colors group"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left hover:bg-[var(--ide-surface)] transition-colors group"
                   onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                   data-testid={`button-recent-file-${file.id}`}
                 >
                   <FileTypeIcon filename={file.filename} />
-                  <span className="text-[12px] text-[#9DA2B0] group-hover:text-[#F5F9FC] truncate flex-1">{file.filename}</span>
+                  <span className="text-[12px] text-[var(--ide-text-secondary)] group-hover:text-[var(--ide-text)] truncate flex-1">{file.filename}</span>
                   <ChevronRight className="w-3 h-3 text-[#4A5068] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                 </button>
               ))}
             </div>
             <div className="flex flex-col gap-1 max-w-[220px] mx-auto">
-              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
+              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { if (isMobile) setMobileTab("files"); else { setSidebarOpen(true); setAiPanelOpen(false); } }} data-testid="button-open-explorer">
                 <FolderOpen className="w-4 h-4 text-[#0079F2]" /> Explorer
-                <span className="ml-auto text-[10px] text-[#676D7E] font-mono">⌘B</span>
+                <span className="ml-auto text-[10px] text-[var(--ide-text-muted)] font-mono">⌘B</span>
               </button>
-              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors text-left" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
+              <button className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file-empty">
                 <Plus className="w-4 h-4 text-[#0CCE6B]" /> New File
               </button>
             </div>
@@ -2654,13 +2654,13 @@ function _projectPage() {
   const terminalContent = (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "12px", lineHeight: "1.6" }} data-testid="terminal-output">
       {logs.length === 0 && !isRunning && !runMutation.isPending && (
-        <div className="flex flex-col items-center justify-center py-8 text-[#676D7E]" data-testid="text-terminal-empty">
+        <div className="flex flex-col items-center justify-center py-8 text-[var(--ide-text-muted)]" data-testid="text-terminal-empty">
           <Terminal className="w-6 h-6 mb-2 opacity-40" />
-          <p className="text-xs">Press <kbd className="px-1.5 py-0.5 mx-1 rounded bg-[#0E1525] border border-[#2B3245] text-[#9DA2B0] text-[10px]">F5</kbd> or click <span className="text-[#0CCE6B] font-medium">Run</span> to execute your code</p>
+          <p className="text-xs">Press <kbd className="px-1.5 py-0.5 mx-1 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-secondary)] text-[10px]">F5</kbd> or click <span className="text-[#0CCE6B] font-medium">Run</span> to execute your code</p>
         </div>
       )}
       {(isRunning || runMutation.isPending) && logs.length === 0 && (
-        <div className="flex items-center gap-2 py-1.5 text-[#0079F2] border-b border-[#2B3245]/50 mb-1" data-testid="text-run-header">
+        <div className="flex items-center gap-2 py-1.5 text-[#0079F2] border-b border-[var(--ide-border)]/50 mb-1" data-testid="text-run-header">
           <Loader2 className="w-3 h-3 animate-spin" />
           <span className="text-[11px]">Running {activeFileName || "code"}...</span>
         </div>
@@ -2675,19 +2675,19 @@ function _projectPage() {
   );
 
   const previewContent = (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#1C2333] animate-fade-in">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
       {wsStatus === "running" && livePreviewUrl ? (
         <>
-          <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Globe className="w-3 h-3 text-[#9DA2B0] shrink-0" />
-              <span className="text-[11px] text-[#9DA2B0] truncate">{livePreviewUrl}</span>
+              <Globe className="w-3 h-3 text-[var(--ide-text-secondary)] shrink-0" />
+              <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">{livePreviewUrl}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <Button variant="ghost" size="icon" className="w-5 h-5 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245]"
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
                 onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }}
                 title="Refresh" data-testid="button-preview-refresh"><RefreshCw className="w-3 h-3" /></Button>
-              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] gap-1"
+              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] gap-1"
                 onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
             </div>
           </div>
@@ -2695,13 +2695,13 @@ function _projectPage() {
         </>
       ) : previewHtml ? (
         <>
-          <div className="flex items-center justify-between px-2 py-1 border-b border-[#2B3245] bg-[#1C2333] shrink-0">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Globe className="w-3 h-3 text-[#9DA2B0] shrink-0" />
-              <span className="text-[11px] text-[#9DA2B0] truncate">HTML Preview</span>
+              <Globe className="w-3 h-3 text-[var(--ide-text-secondary)] shrink-0" />
+              <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">HTML Preview</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <Button variant="ghost" size="icon" className="w-5 h-5 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245]"
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
                 onClick={() => { const html = generateHtmlPreview(); if (html) setPreviewHtml(html); }}
                 title="Refresh" data-testid="button-preview-refresh-html"><RefreshCw className="w-3 h-3" /></Button>
             </div>
@@ -2709,9 +2709,9 @@ function _projectPage() {
           <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
         </>
       ) : (
-        <div className="flex flex-col items-center justify-center h-full text-[#676D7E] gap-3">
+        <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
           <Globe className="w-10 h-10" />
-          <p className="text-sm font-medium text-[#F5F9FC]">{hasHtmlFile ? "HTML Preview" : "Live Preview"}</p>
+          <p className="text-sm font-medium text-[var(--ide-text)]">{hasHtmlFile ? "HTML Preview" : "Live Preview"}</p>
           {hasHtmlFile ? (
             <>
               <p className="text-xs text-center max-w-[280px]">Preview your HTML project directly in the browser</p>
@@ -2726,7 +2726,7 @@ function _projectPage() {
           ) : wsStatus === "none" || wsStatus === "stopped" ? (
             <>
               <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#0079F2] font-mono">:3000</span> in the workspace to see the preview here.</p>
-              <p className="text-[10px] text-[#2B3245]">Start the workspace then run your app</p>
+              <p className="text-[10px] text-[var(--ide-border)]">Start the workspace then run your app</p>
             </>
           ) : (
             <p className="text-xs">Workspace starting up...</p>
@@ -2743,22 +2743,22 @@ function _projectPage() {
   );
 
   const bottomPanel = (
-    <div className="flex flex-col bg-[#1C2333] h-full">
+    <div className="flex flex-col bg-[var(--ide-panel)] h-full">
       <div className="h-1 cursor-ns-resize resize-handle flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
-        <div className="w-8 h-[2px] rounded-full bg-[#2B3245]" />
+        <div className="w-8 h-[2px] rounded-full bg-[var(--ide-surface)]" />
       </div>
-      <div className="flex items-center justify-between px-1 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+      <div className="flex items-center justify-between px-1 h-9 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         <div className="flex items-center h-full overflow-x-auto">
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "terminal" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("terminal")} data-testid="tab-console">
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "terminal" ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`} onClick={() => setBottomTab("terminal")} data-testid="tab-console">
             <Terminal className="w-3 h-3" /> Console {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
           </button>
-          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "problems" ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`} onClick={() => setBottomTab("problems")} data-testid="tab-problems">
-            <AlertCircle className="w-3 h-3" /> Problems <span className="text-[9px] px-1 rounded bg-[#2B3245] text-[#676D7E]">0</span>
+          <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "problems" ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`} onClick={() => setBottomTab("problems")} data-testid="tab-problems">
+            <AlertCircle className="w-3 h-3" /> Problems <span className="text-[9px] px-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">0</span>
           </button>
           {terminalTabs.map((tab, idx) => (
             <button
               key={idx}
-              className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 group ${bottomTab === "shell" && activeTerminalTab === idx ? "text-[#F5F9FC] border-[#0079F2]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+              className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 group ${bottomTab === "shell" && activeTerminalTab === idx ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`}
               onClick={() => { setBottomTab("shell"); setActiveTerminalTab(idx); }}
               data-testid={`tab-shell-${idx}`}
             >
@@ -2780,7 +2780,7 @@ function _projectPage() {
             </button>
           ))}
           <button
-            className="flex items-center justify-center w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors ml-1 shrink-0"
+            className="flex items-center justify-center w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors ml-1 shrink-0"
             onClick={() => { setTerminalTabs(prev => [...prev, `Terminal ${prev.length + 1}`]); setActiveTerminalTab(terminalTabs.length); setBottomTab("shell"); }}
             title="New Terminal"
             data-testid="button-new-terminal"
@@ -2791,15 +2791,15 @@ function _projectPage() {
         <div className="flex items-center gap-0.5 pr-1 shrink-0">
           {wsStatusBadge}
           {workspaceButton}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console"><Trash2 className="w-3 h-3" /></Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console"><Trash2 className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
         </div>
       </div>
       {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : bottomTab === "problems" ? (
         <div className="flex-1 overflow-y-auto px-3 py-2 animate-fade-in" data-testid="problems-panel">
-          <div className="flex flex-col items-center justify-center py-8 text-[#676D7E]">
+          <div className="flex flex-col items-center justify-center py-8 text-[var(--ide-text-muted)]">
             <AlertCircle className="w-6 h-6 mb-2 opacity-40" />
-            <p className="text-xs font-medium text-[#9DA2B0] mb-1">No problems detected</p>
+            <p className="text-xs font-medium text-[var(--ide-text-secondary)] mb-1">No problems detected</p>
             <p className="text-[10px]">Code analysis is active and monitoring your files</p>
           </div>
         </div>
@@ -2808,19 +2808,19 @@ function _projectPage() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-[#0E1525] border-b border-[#2B3245]" : "grid-cols-3 px-3 bg-[#0E1525] border-b border-[#2B3245]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
+      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]" : "grid-cols-3 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
-          <button className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-150 group ${"hover:bg-[#1C2333]"}`} onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+          <button className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-150 group ${"hover:bg-[var(--ide-panel)]"}`} onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
               <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
               <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
               <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
             </svg>
           </button>
-          <ChevronRight className={`w-3 h-3 shrink-0 ${"text-[#323B4F]"}`} />
-          <span className={`text-[13px] font-medium truncate ${isMobile ? "text-[#F5F9FC] max-w-[120px]" : "text-[#F5F9FC] max-w-[180px]"}`} data-testid="text-project-name">{project?.name}</span>
+          <ChevronRight className={`w-3 h-3 shrink-0 ${"text-[var(--ide-text-muted)]"}`} />
+          <span className={`text-[13px] font-medium truncate ${isMobile ? "text-[var(--ide-text)] max-w-[120px]" : "text-[var(--ide-text)] max-w-[180px]"}`} data-testid="text-project-name">{project?.name}</span>
           {project?.isPublished && <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${"bg-green-500/10 text-green-400 border border-green-500/20"}`}>Live</span>}
         </div>
         <div className="flex items-center justify-center gap-1.5">
@@ -2837,7 +2837,7 @@ function _projectPage() {
                   {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">{isRunning ? "Stop (F5)" : "Run (F5)"}</TooltipContent>
+              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">{isRunning ? "Stop (F5)" : "Run (F5)"}</TooltipContent>
             </Tooltip>
             {hasHtmlFile && wsStatus !== "running" && !isMobile && (
               <Tooltip>
@@ -2845,14 +2845,14 @@ function _projectPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-3 text-[11px] font-medium rounded-full gap-1.5 text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-[#2B3245] transition-all duration-150"
+                    className="h-7 px-3 text-[11px] font-medium rounded-full gap-1.5 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-[var(--ide-border)] transition-all duration-150"
                     onClick={handlePreview}
                     data-testid="button-preview"
                   >
                     <Eye className="w-3 h-3" /> Preview
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Preview HTML (⌘\)</TooltipContent>
+                <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Preview HTML (⌘\)</TooltipContent>
               </Tooltip>
             )}
           </TooltipProvider>
@@ -2860,26 +2860,26 @@ function _projectPage() {
         <div className="flex items-center justify-end gap-1">
           {isMobile ? (
             <>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded-md transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish-mobile">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish-mobile">
                 <Rocket className="w-3.5 h-3.5" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
+                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-xl shadow-black/10">
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
+                <DropdownMenuContent align="end" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl shadow-black/10">
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
                     <Settings className="w-3.5 h-3.5" /> Project Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
                     <Rocket className="w-3.5 h-3.5" /> Publish
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
                     <Users className="w-3.5 h-3.5" /> Invite
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setGitPanelOpen(true)}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setGitPanelOpen(true)}>
                     <GitBranch className="w-3.5 h-3.5" /> Version Control
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2890,32 +2890,32 @@ function _projectPage() {
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
                       <Users className="w-3.5 h-3.5" /> Invite
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Invite collaborators</TooltipContent>
+                  <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Invite collaborators</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish">
                       <Rocket className="w-3.5 h-3.5" /> Publish
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Publish your project</TooltipContent>
+                  <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Publish your project</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
+                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
+                <DropdownMenuContent align="end" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
                     <Settings className="w-3.5 h-3.5" /> Project Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setTerminalVisible(!terminalVisible)}>
                     <Terminal className="w-3.5 h-3.5" /> Toggle Terminal
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2940,11 +2940,11 @@ function _projectPage() {
                 </div>
               )}
               {mobileTab === "terminal" && (
-                <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
-                  <div className="flex items-center justify-between px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]">
+                  <div className="flex items-center justify-between px-2 h-9 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
                     <div className="flex items-center gap-0">
                       <button
-                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#9CA3AF] border-transparent hover:text-[#6B7280]"}`}
+                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#9CA3AF] border-transparent hover:text-[var(--ide-text-muted)]"}`}
                         onClick={() => setMobileShellMode("console")}
                         data-testid="mobile-shell-tab-console"
                       >
@@ -2953,7 +2953,7 @@ function _projectPage() {
                       </button>
                       {wsStatus === "running" && (
                         <button
-                          className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#9CA3AF] border-transparent hover:text-[#6B7280]"}`}
+                          className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#9CA3AF] border-transparent hover:text-[var(--ide-text-muted)]"}`}
                           onClick={() => setMobileShellMode("shell")}
                           data-testid="mobile-shell-tab-shell"
                         >
@@ -2963,7 +2963,7 @@ function _projectPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       {mobileShellMode === "console" && (
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
                       )}
                       {wsStatusBadge}
                       {workspaceButton}
@@ -2973,17 +2973,17 @@ function _projectPage() {
                 </div>
               )}
               {mobileTab === "preview" && (
-                <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]">
                   {wsStatus === "running" && livePreviewUrl && (
-                    <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.back(); } catch {} }} data-testid="button-webview-back"><ArrowLeft className="w-3.5 h-3.5" /></button>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
-                      <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[#1C2333] border border-[#2B3245] text-[11px] text-[#676D7E] truncate font-mono" data-testid="text-webview-url">
+                    <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.back(); } catch {} }} data-testid="button-webview-back"><ArrowLeft className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
+                      <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] truncate font-mono" data-testid="text-webview-url">
                         <Globe className="w-3 h-3 text-[#9CA3AF] mr-1.5 shrink-0" />
                         <span className="truncate">{livePreviewUrl}</span>
                       </div>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
                     </div>
                   )}
                   {previewContent}
@@ -3068,7 +3068,7 @@ function _projectPage() {
           </div>
 
           {/* MOBILE BOTTOM NAV */}
-          <div className="flex items-stretch h-[56px] bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
+          <div className="flex items-stretch h-[56px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
             {([
               { id: "files" as const, icon: FolderOpen, label: "Files", color: "#6B7280" },
               { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
@@ -3091,7 +3091,7 @@ function _projectPage() {
                   <Icon className={`w-5 h-5 transition-transform duration-150 ${isActive ? "scale-110" : ""}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "opacity-100" : "opacity-70"}`}>{label}</span>
                   {id === "terminal" && isRunning && (
-                    <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2 h-2 rounded-full bg-[#0CCE6B] border-2 border-[#0E1525]" />
+                    <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2 h-2 rounded-full bg-[#0CCE6B] border-2 border-[var(--ide-bg)]" />
                   )}
                 </button>
               );
@@ -3104,11 +3104,11 @@ function _projectPage() {
           <div className="flex flex-1 overflow-hidden">
             {/* ACTIVITY BAR */}
             <TooltipProvider delayDuration={200}>
-            <div className="w-12 bg-[#0E1525] border-r border-[#2B3245] flex flex-col items-center py-1 shrink-0" data-testid="activity-bar">
+            <div className="w-12 bg-[var(--ide-bg)] border-r border-[var(--ide-border)] flex flex-col items-center py-1 shrink-0" data-testid="activity-bar">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { const shouldOpen = !sidebarOpen || aiPanelOpen || searchPanelOpen || deploymentsPanelOpen || settingsPanelOpen; setSidebarOpen(shouldOpen); setAiPanelOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }}
                     data-testid="activity-explorer"
                   >
@@ -3116,12 +3116,12 @@ function _projectPage() {
                     <PanelLeft className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Files</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Files</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-search"
                   >
@@ -3129,12 +3129,12 @@ function _projectPage() {
                     <Search className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Search</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Search</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-ai"
                   >
@@ -3142,12 +3142,12 @@ function _projectPage() {
                     <Sparkles className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">AI Agent</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">AI Agent</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${gitPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${gitPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { setGitPanelOpen(!gitPanelOpen); if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-git"
                   >
@@ -3156,12 +3156,12 @@ function _projectPage() {
                     {(gitDiffQuery.data?.changes?.length || 0) > 0 && <span className="absolute top-1.5 right-2 min-w-[16px] h-4 rounded-full bg-[#0079F2] flex items-center justify-center px-1"><span className="text-[9px] font-bold text-white">{gitDiffQuery.data?.changes?.length}</span></span>}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Source Control</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Source Control</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); } }}
                     data-testid="activity-deployments"
                   >
@@ -3169,12 +3169,12 @@ function _projectPage() {
                     <Rocket className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Deployments</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Deployments</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${packagesPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${packagesPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { setPackagesPanelOpen(!packagesPanelOpen); if (!packagesPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); } }}
                     data-testid="activity-packages"
                   >
@@ -3182,12 +3182,12 @@ function _projectPage() {
                     <Package className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Packages</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Packages</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => openSpecialTab(SPECIAL_TABS.WEBVIEW)}
                     data-testid="activity-webview"
                   >
@@ -3195,50 +3195,50 @@ function _projectPage() {
                     <Monitor className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Webview</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Webview</TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL ? "text-[#0CCE6B]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL ? "text-[#0CCE6B]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => openSpecialTab(SPECIAL_TABS.SHELL)}
                     data-testid="activity-shell"
                   >
                     {openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
                     <Hash className="w-5 h-5" />
-                    {wsStatus === "running" && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] border border-[#0E1525]" />}
+                    {wsStatus === "running" && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] border border-[var(--ide-bg)]" />}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Shell</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Shell</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE ? "text-[#F5A623]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE ? "text-[#F5A623]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => openSpecialTab(SPECIAL_TABS.CONSOLE)}
                     data-testid="activity-console"
                   >
                     {openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
                     <Terminal className="w-5 h-5" />
-                    {isRunning && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] animate-pulse border border-[#0E1525]" />}
+                    {isRunning && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] animate-pulse border border-[var(--ide-bg)]" />}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Console</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Console</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[#F5F9FC]" : "text-[#676D7E] hover:text-[#F5F9FC]"}`}
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
                     onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
                     data-testid="activity-settings"
                   >
                     {settingsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
                     <Settings className="w-5 h-5" />
-                    <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[#0E1525] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[#676D7E]"}`} />
+                    <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[var(--ide-bg)] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[var(--ide-text-muted)]"}`} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[#1C2333] text-[#F5F9FC] border-[#2B3245] text-xs">Settings</TooltipContent>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Settings</TooltipContent>
               </Tooltip>
 
               <div className="flex-1" />
@@ -3259,15 +3259,15 @@ function _projectPage() {
                       })()}
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right" align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
-                    <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setLocation("/settings")} data-testid="menu-account-settings">
+                  <DropdownMenuContent side="right" align="end" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
+                    <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setLocation("/settings")} data-testid="menu-account-settings">
                       <Settings className="w-3.5 h-3.5" /> Account Settings
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setCommandPaletteOpen(true)} data-testid="menu-keyboard-shortcuts">
+                    <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setCommandPaletteOpen(true)} data-testid="menu-keyboard-shortcuts">
                       <Keyboard className="w-3.5 h-3.5" /> Keyboard Shortcuts
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-[#2B3245]" />
-                    <DropdownMenuItem className="gap-2 text-xs text-red-400 focus:bg-[#2B3245] focus:text-red-300 cursor-pointer" onClick={() => logoutMutation.mutate()} data-testid="menu-sign-out">
+                    <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
+                    <DropdownMenuItem className="gap-2 text-xs text-red-400 focus:bg-[var(--ide-surface)] focus:text-red-300 cursor-pointer" onClick={() => logoutMutation.mutate()} data-testid="menu-sign-out">
                       <LogOut className="w-3.5 h-3.5" /> Sign Out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -3278,7 +3278,7 @@ function _projectPage() {
 
             {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
             {aiPanelOpen && (
-              <div className={`${isTablet ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[#2B3245]`} data-testid="ai-agent-panel">
+              <div className={`${isTablet ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[var(--ide-border)]`} data-testid="ai-agent-panel">
                 <AIPanel
                   key={`ai-desktop-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
@@ -3315,33 +3315,33 @@ function _projectPage() {
 
             {/* SEARCH PANEL */}
             {searchPanelOpen && !aiPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="search-panel">
-                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
-                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Search</span>
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="search-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                  <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Search</span>
                   <div className="flex items-center gap-0.5">
-                    <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors ${showReplace ? "text-[#0079F2] bg-[#0079F2]/10" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => setShowReplace(!showReplace)} title="Toggle Replace" data-testid="button-toggle-replace">
+                    <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors ${showReplace ? "text-[#0079F2] bg-[#0079F2]/10" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => setShowReplace(!showReplace)} title="Toggle Replace" data-testid="button-toggle-replace">
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.293 5.293l-4-4a1 1 0 00-1.414 0l-4 4a1 1 0 001.414 1.414L5 4.414V12a3 3 0 003 3h4a1 1 0 100-2H8a1 1 0 01-1-1V4.414l1.707 1.293a1 1 0 001.414-1.414z" /></svg>
                     </Button>
-                    <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setSearchPanelOpen(false)} data-testid="button-close-search">
+                    <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setSearchPanelOpen(false)} data-testid="button-close-search">
                       <X className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
-                <div className="px-3 py-2 border-b border-[#2B3245] space-y-2">
+                <div className="px-3 py-2 border-b border-[var(--ide-border)] space-y-2">
                   <div className="flex items-center gap-1">
                     <div className="relative flex-1">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
                       <Input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search in files..."
-                        className="pl-8 bg-[#0E1525] border-[#2B3245] h-8 text-xs text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md"
+                        className="pl-8 bg-[var(--ide-bg)] border-[var(--ide-border)] h-8 text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md"
                         autoFocus
                         data-testid="input-search-files"
                       />
                     </div>
                     <button
-                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchCaseSensitive ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-transparent"}`}
+                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchCaseSensitive ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-transparent"}`}
                       onClick={() => setSearchCaseSensitive(!searchCaseSensitive)}
                       title="Match Case"
                       data-testid="button-search-case"
@@ -3349,7 +3349,7 @@ function _projectPage() {
                       Aa
                     </button>
                     <button
-                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchWholeWord ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-transparent"}`}
+                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchWholeWord ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-transparent"}`}
                       onClick={() => setSearchWholeWord(!searchWholeWord)}
                       title="Match Whole Word"
                       data-testid="button-search-whole-word"
@@ -3357,7 +3357,7 @@ function _projectPage() {
                       <span className="border-b border-current px-0.5">ab</span>
                     </button>
                     <button
-                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] shrink-0 transition-colors font-mono ${searchRegex ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-transparent"}`}
+                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] shrink-0 transition-colors font-mono ${searchRegex ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-transparent"}`}
                       onClick={() => setSearchRegex(!searchRegex)}
                       title="Use Regular Expression"
                       data-testid="button-search-regex"
@@ -3372,14 +3372,14 @@ function _projectPage() {
                           value={replaceTerm}
                           onChange={(e) => setReplaceTerm(e.target.value)}
                           placeholder="Replace..."
-                          className="bg-[#0E1525] border-[#2B3245] h-8 text-xs text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md pl-3"
+                          className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-8 text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md pl-3"
                           data-testid="input-replace-files"
                         />
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="w-7 h-7 shrink-0 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+                        className="w-7 h-7 shrink-0 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
                         title="Replace All"
                         data-testid="button-replace-all"
                         onClick={() => {
@@ -3419,19 +3419,19 @@ function _projectPage() {
                     </div>
                   )}
                   {searchTerm.trim() && searchResults.length > 0 && (
-                    <div className="text-[10px] text-[#676D7E]">{searchResults.length} result{searchResults.length === 1 ? "" : "s"} in {new Set(searchResults.map(r => r.fileId)).size} file{new Set(searchResults.map(r => r.fileId)).size === 1 ? "" : "s"}</div>
+                    <div className="text-[10px] text-[var(--ide-text-muted)]">{searchResults.length} result{searchResults.length === 1 ? "" : "s"} in {new Set(searchResults.map(r => r.fileId)).size} file{new Set(searchResults.map(r => r.fileId)).size === 1 ? "" : "s"}</div>
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   {searchTerm.trim() && searchResults.length === 0 && (
                     <div className="px-3 py-6 text-center">
-                      <p className="text-xs text-[#676D7E]">No results found</p>
+                      <p className="text-xs text-[var(--ide-text-muted)]">No results found</p>
                     </div>
                   )}
                   {searchResults.map((result, i) => (
                     <button
                       key={`${result.fileId}-${result.line}-${i}`}
-                      className="w-full text-left px-3 py-1.5 hover:bg-[#2B3245] transition-colors border-b border-[#2B3245]/50"
+                      className="w-full text-left px-3 py-1.5 hover:bg-[var(--ide-surface)] transition-colors border-b border-[var(--ide-border)]/50"
                       onClick={() => {
                         const file = filesQuery.data?.find((f) => f.id === result.fileId);
                         if (file) { openFile(file); }
@@ -3441,17 +3441,17 @@ function _projectPage() {
                     >
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <FileTypeIcon filename={result.filename} />
-                        <span className="text-[10px] font-medium text-[#F5F9FC] truncate">{result.filename}</span>
-                        <span className="text-[9px] text-[#676D7E] ml-auto shrink-0">:{result.line}</span>
+                        <span className="text-[10px] font-medium text-[var(--ide-text)] truncate">{result.filename}</span>
+                        <span className="text-[9px] text-[var(--ide-text-muted)] ml-auto shrink-0">:{result.line}</span>
                       </div>
-                      <p className="text-[10px] text-[#9DA2B0] truncate font-mono pl-4">{result.text}</p>
+                      <p className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono pl-4">{result.text}</p>
                     </button>
                   ))}
                   {!searchTerm.trim() && (
                     <div className="px-3 py-8 text-center">
-                      <Search className="w-8 h-8 text-[#2B3245] mx-auto mb-3" />
-                      <p className="text-xs text-[#676D7E]">Type to search across all files</p>
-                      <p className="text-[10px] text-[#2B3245] mt-1">Ctrl+Shift+F</p>
+                      <Search className="w-8 h-8 text-[var(--ide-border)] mx-auto mb-3" />
+                      <p className="text-xs text-[var(--ide-text-muted)]">Type to search across all files</p>
+                      <p className="text-[10px] text-[var(--ide-border)] mt-1">Ctrl+Shift+F</p>
                     </div>
                   )}
                 </div>
@@ -3460,37 +3460,37 @@ function _projectPage() {
 
             {/* DEPLOYMENTS PANEL */}
             {deploymentsPanelOpen && !aiPanelOpen && !searchPanelOpen && !settingsPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="deployments-panel">
-                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
-                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Deployments</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setDeploymentsPanelOpen(false)} data-testid="button-close-deployments">
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="deployments-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                  <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Deployments</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setDeploymentsPanelOpen(false)} data-testid="button-close-deployments">
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <div className="px-3 py-3 border-b border-[#2B3245]">
+                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[#676D7E]"}`} />
-                      <span className="text-xs font-medium text-[#F5F9FC]">{project?.isPublished ? "Published" : "Not published"}</span>
+                      <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[var(--ide-text-muted)]"}`} />
+                      <span className="text-xs font-medium text-[var(--ide-text)]">{project?.isPublished ? "Published" : "Not published"}</span>
                     </div>
                     {project?.isPublished && (
                       <div className="mb-3">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#0E1525] border border-[#2B3245]">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
                           <Globe className="w-3 h-3 text-[#0079F2] shrink-0" />
-                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono flex-1">{`${window.location.origin}/shared/${projectId}`}</span>
-                          <button className="p-0.5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={copyShareUrl} data-testid="button-copy-deploy-url">
+                          <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono flex-1">{`${window.location.origin}/shared/${projectId}`}</span>
+                          <button className="p-0.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={copyShareUrl} data-testid="button-copy-deploy-url">
                             {copiedUrl ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                           </button>
-                          <button className="p-0.5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => window.open(`/shared/${projectId}`, "_blank")} data-testid="button-open-deploy-url">
+                          <button className="p-0.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => window.open(`/shared/${projectId}`, "_blank")} data-testid="button-open-deploy-url">
                             <ExternalLink className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0E1525] border border-[#2B3245]">
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
                       <div className="flex items-center gap-2">
                         <Rocket className="w-3.5 h-3.5 text-[#0CCE6B]" />
-                        <span className="text-[11px] text-[#F5F9FC]">Publish</span>
+                        <span className="text-[11px] text-[var(--ide-text)]">Publish</span>
                       </div>
                       <Switch
                         checked={project?.isPublished || false}
@@ -3500,35 +3500,35 @@ function _projectPage() {
                       />
                     </div>
                   </div>
-                  <div className="px-3 py-3 border-b border-[#2B3245]">
-                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Deployment History</span>
+                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Deployment History</span>
                     <div className="mt-2 space-y-1.5">
                       {project?.isPublished ? (
-                        <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#0E1525] border border-[#2B3245]">
+                        <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-[10px] text-[#F5F9FC] font-medium">Production</p>
-                            <p className="text-[9px] text-[#676D7E]">{new Date().toLocaleDateString()} · Live</p>
+                            <p className="text-[10px] text-[var(--ide-text)] font-medium">Production</p>
+                            <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date().toLocaleDateString()} · Live</p>
                           </div>
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Active</span>
                         </div>
                       ) : (
                         <div className="py-4 text-center">
-                          <p className="text-[10px] text-[#676D7E]">No deployments yet</p>
+                          <p className="text-[10px] text-[var(--ide-text-muted)]">No deployments yet</p>
                           <p className="text-[9px] text-[#4A5068] mt-1">Publish your project to create a deployment</p>
                         </div>
                       )}
                     </div>
                   </div>
                   <div className="px-3 py-3">
-                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Custom Domain</span>
+                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Custom Domain</span>
                     {customDomains.length > 0 ? (
                       <div className="mt-2 space-y-2">
                         {customDomains.map((d: any) => (
-                          <div key={d.id} className="p-2.5 rounded-lg bg-[#0E1525] border border-[#2B3245]">
+                          <div key={d.id} className="p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-[11px] text-[#F5F9FC] font-mono truncate flex-1">{d.domain}</span>
-                              <button className="text-[#676D7E] hover:text-red-400 transition-colors ml-2" onClick={() => {
+                              <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{d.domain}</span>
+                              <button className="text-[var(--ide-text-muted)] hover:text-red-400 transition-colors ml-2" onClick={() => {
                                 apiRequest("DELETE", `/api/projects/${projectId}/domains/${d.id}`)
                                   .then(() => { setCustomDomains((prev: any[]) => prev.filter((x: any) => x.id !== d.id)); toast({ title: "Domain removed" }); });
                               }} data-testid={`button-remove-domain-${d.id}`}><X className="w-3 h-3" /></button>
@@ -3544,7 +3544,7 @@ function _projectPage() {
                               ) : d.sslStatus === "provisioning" ? (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">SSL Provisioning</span>
                               ) : (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#2B3245] text-[#676D7E]">No SSL</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">No SSL</span>
                               )}
                             </div>
                             {!d.verified && (
@@ -3572,16 +3572,16 @@ function _projectPage() {
                             value={domainInput}
                             onChange={(e) => setDomainInput(e.target.value)}
                             placeholder="example.com"
-                            className="flex-1 text-[11px] bg-[#0E1525] border border-[#2B3245] rounded px-2.5 py-1.5 text-[#F5F9FC] placeholder-[#4A5068] outline-none focus:border-[#0079F2] font-mono"
+                            className="flex-1 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-1.5 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] font-mono"
                             onKeyDown={(e) => { if (e.key === "Enter" && domainInput.trim()) handleAddDomain(); if (e.key === "Escape") setShowDomainInput(false); }}
                             autoFocus
                             data-testid="input-custom-domain"
                           />
                           <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-[#0CCE6B] hover:bg-[#0CCE6B]/10 rounded shrink-0" onClick={handleAddDomain} data-testid="button-confirm-domain">Add</Button>
-                          <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0" onClick={() => setShowDomainInput(false)}><X className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0" onClick={() => setShowDomainInput(false)}><X className="w-3 h-3" /></Button>
                         </div>
                       ) : (
-                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] text-[#9DA2B0] border border-[#2B3245] border-dashed hover:text-[#F5F9FC] hover:bg-[#2B3245] hover:border-[#0079F2]/40 rounded-md w-full" onClick={() => setShowDomainInput(true)} data-testid="button-add-domain">
+                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] text-[var(--ide-text-secondary)] border border-[var(--ide-border)] border-dashed hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] hover:border-[#0079F2]/40 rounded-md w-full" onClick={() => setShowDomainInput(true)} data-testid="button-add-domain">
                           <Plus className="w-3 h-3 mr-1" /> Add Domain
                         </Button>
                       )}
@@ -3593,16 +3593,16 @@ function _projectPage() {
 
             {/* GIT PANEL */}
             {gitPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="git-panel">
-                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
-                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Source Control</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setGitPanelOpen(false)} data-testid="button-close-git">
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="git-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                  <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Source Control</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setGitPanelOpen(false)} data-testid="button-close-git">
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   {/* Branch selector */}
-                  <div className="px-3 py-2.5 border-b border-[#2B3245]">
+                  <div className="px-3 py-2.5 border-b border-[var(--ide-border)]">
                     <div className="flex items-center gap-2">
                       <GitBranch className="w-3.5 h-3.5 text-[#F26522] shrink-0" />
                       <select
@@ -3615,7 +3615,7 @@ function _projectPage() {
                             checkoutMutation.mutate({ branchName: newBranch });
                           }
                         }}
-                        className="flex-1 text-[11px] text-[#F5F9FC] bg-[#0E1525] border border-[#2B3245] rounded px-2 py-1 outline-none focus:border-[#0079F2] cursor-pointer"
+                        className="flex-1 text-[11px] text-[var(--ide-text)] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1 outline-none focus:border-[#0079F2] cursor-pointer"
                         data-testid="select-git-branch"
                       >
                         {(gitBranchesQuery.data?.length || 0) > 0 ? (
@@ -3626,7 +3626,7 @@ function _projectPage() {
                           <option value="main">main</option>
                         )}
                       </select>
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] shrink-0" onClick={() => setShowBranchDialog(true)} title="Create branch" data-testid="button-create-branch">
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] shrink-0" onClick={() => setShowBranchDialog(true)} title="Create branch" data-testid="button-create-branch">
                         <Plus className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -3637,7 +3637,7 @@ function _projectPage() {
                           value={newBranchName}
                           onChange={(e) => setNewBranchName(e.target.value)}
                           placeholder="New branch name..."
-                          className="flex-1 text-[11px] bg-[#0E1525] border border-[#2B3245] rounded px-2 py-1 text-[#F5F9FC] placeholder-[#4A5068] outline-none focus:border-[#0079F2]"
+                          className="flex-1 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2]"
                           onKeyDown={(e) => { if (e.key === "Enter" && newBranchName.trim()) createBranchMutation.mutate(newBranchName.trim()); if (e.key === "Escape") setShowBranchDialog(false); }}
                           autoFocus
                           data-testid="input-new-branch"
@@ -3645,7 +3645,7 @@ function _projectPage() {
                         <Button variant="ghost" size="icon" className="w-6 h-6 text-[#0CCE6B] hover:bg-[#0CCE6B]/10 shrink-0" onClick={() => { if (newBranchName.trim()) createBranchMutation.mutate(newBranchName.trim()); }} disabled={createBranchMutation.isPending} data-testid="button-confirm-branch">
                           <Check className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] shrink-0" onClick={() => { setShowBranchDialog(false); setNewBranchName(""); }} data-testid="button-cancel-branch">
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] shrink-0" onClick={() => { setShowBranchDialog(false); setNewBranchName(""); }} data-testid="button-cancel-branch">
                           <X className="w-3 h-3" />
                         </Button>
                       </div>
@@ -3653,12 +3653,12 @@ function _projectPage() {
                   </div>
 
                   {/* Commit section */}
-                  <div className="px-3 py-2.5 border-b border-[#2B3245]">
+                  <div className="px-3 py-2.5 border-b border-[var(--ide-border)]">
                     <textarea
                       value={commitMessage}
                       onChange={(e) => setCommitMessage(e.target.value)}
                       placeholder="Commit message..."
-                      className="w-full text-[11px] bg-[#0E1525] border border-[#2B3245] rounded px-2.5 py-2 text-[#F5F9FC] placeholder-[#4A5068] outline-none focus:border-[#0079F2] resize-none min-h-[60px]"
+                      className="w-full text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-2 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] resize-none min-h-[60px]"
                       onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && commitMessage.trim()) { e.preventDefault(); commitMutation.mutate(); } }}
                       data-testid="textarea-commit-message"
                     />
@@ -3674,13 +3674,13 @@ function _projectPage() {
                   </div>
 
                   {/* Changes section */}
-                  <div className="border-b border-[#2B3245]">
+                  <div className="border-b border-[var(--ide-border)]">
                     <div className="flex items-center justify-between px-3 py-2">
-                      <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Changes</span>
-                      <span className="text-[10px] text-[#9DA2B0] font-mono">{gitDiffQuery.data?.changes?.length || 0}</span>
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Changes</span>
+                      <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">{gitDiffQuery.data?.changes?.length || 0}</span>
                     </div>
                     {gitDiffQuery.isLoading ? (
-                      <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[#676D7E]" /></div>
+                      <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" /></div>
                     ) : !gitDiffQuery.data?.hasCommits ? (
                       <div className="px-3 pb-3">
                         <p className="text-[10px] text-[#4A5068] text-center py-2">No commits yet. Make your first commit to start tracking changes.</p>
@@ -3694,14 +3694,14 @@ function _projectPage() {
                         {gitDiffQuery.data!.changes.map((change: any) => (
                           <button
                             key={change.filename}
-                            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#2B3245]/50 text-left transition-colors group"
+                            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--ide-surface)]/50 text-left transition-colors group"
                             onClick={() => { setDiffFile(change); setShowDiffModal(true); }}
                             data-testid={`git-change-${change.filename}`}
                           >
                             <span className={`text-[10px] font-bold w-4 text-center shrink-0 ${change.status === "added" ? "text-[#0CCE6B]" : change.status === "deleted" ? "text-red-400" : "text-[#F5A623]"}`}>
                               {change.status === "added" ? "A" : change.status === "deleted" ? "D" : "M"}
                             </span>
-                            <span className="text-[11px] text-[#9DA2B0] truncate flex-1 group-hover:text-[#F5F9FC]">{change.filename}</span>
+                            <span className="text-[11px] text-[var(--ide-text-secondary)] truncate flex-1 group-hover:text-[var(--ide-text)]">{change.filename}</span>
                           </button>
                         ))}
                       </div>
@@ -3711,34 +3711,34 @@ function _projectPage() {
                   {/* Commit history */}
                   <div>
                     <div className="flex items-center justify-between px-3 py-2">
-                      <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">History</span>
-                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => { gitCommitsQuery.refetch(); gitDiffQuery.refetch(); }} data-testid="button-refresh-git">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">History</span>
+                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => { gitCommitsQuery.refetch(); gitDiffQuery.refetch(); }} data-testid="button-refresh-git">
                         <RefreshCw className="w-3 h-3" />
                       </Button>
                     </div>
                     {gitCommitsQuery.isLoading ? (
-                      <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[#676D7E]" /></div>
+                      <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" /></div>
                     ) : (gitCommitsQuery.data?.length || 0) === 0 ? (
                       <div className="px-3 pb-3 text-center">
-                        <div className="w-10 h-10 rounded-xl bg-[#0E1525] border border-[#2B3245] flex items-center justify-center mx-auto mb-2">
-                          <GitBranch className="w-5 h-5 text-[#676D7E]" />
+                        <div className="w-10 h-10 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center mx-auto mb-2">
+                          <GitBranch className="w-5 h-5 text-[var(--ide-text-muted)]" />
                         </div>
-                        <p className="text-[11px] text-[#9DA2B0] font-medium">No commits yet</p>
+                        <p className="text-[11px] text-[var(--ide-text-secondary)] font-medium">No commits yet</p>
                         <p className="text-[10px] text-[#4A5068] mt-1">Create your first commit to start version tracking</p>
                       </div>
                     ) : (
                       <div className="pb-2">
                         {gitCommitsQuery.data!.map((commit: any, i: number) => (
-                          <div key={commit.id} className="px-3 py-2 hover:bg-[#2B3245]/30 transition-colors group" data-testid={`git-commit-${commit.id}`}>
+                          <div key={commit.id} className="px-3 py-2 hover:bg-[var(--ide-surface)]/30 transition-colors group" data-testid={`git-commit-${commit.id}`}>
                             <div className="flex items-start gap-2">
                               <div className="flex flex-col items-center shrink-0 mt-0.5">
-                                <div className={`w-2 h-2 rounded-full ${i === 0 ? "bg-[#0079F2]" : "bg-[#2B3245]"} shrink-0`} />
-                                {i < (gitCommitsQuery.data!.length - 1) && <div className="w-px flex-1 bg-[#2B3245] min-h-[24px]" />}
+                                <div className={`w-2 h-2 rounded-full ${i === 0 ? "bg-[#0079F2]" : "bg-[var(--ide-surface)]"} shrink-0`} />
+                                {i < (gitCommitsQuery.data!.length - 1) && <div className="w-px flex-1 bg-[var(--ide-surface)] min-h-[24px]" />}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] text-[#F5F9FC] leading-snug truncate">{commit.message}</p>
+                                <p className="text-[11px] text-[var(--ide-text)] leading-snug truncate">{commit.message}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[9px] text-[#676D7E] font-mono">{commit.id?.slice(0, 7)}</span>
+                                  <span className="text-[9px] text-[var(--ide-text-muted)] font-mono">{commit.id?.slice(0, 7)}</span>
                                   <span className="text-[9px] text-[#4A5068]">·</span>
                                   <span className="text-[9px] text-[#4A5068]">{new Date(commit.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
                                   <span className="text-[9px] text-[#4A5068]">{new Date(commit.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
@@ -3761,17 +3761,17 @@ function _projectPage() {
 
                   {/* Branch list */}
                   {(gitBranchesQuery.data?.length || 0) > 1 && (
-                    <div className="border-t border-[#2B3245]">
+                    <div className="border-t border-[var(--ide-border)]">
                       <div className="px-3 py-2">
-                        <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Branches</span>
+                        <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Branches</span>
                       </div>
                       {gitBranchesQuery.data!.map((branch: any) => (
-                        <div key={branch.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#2B3245]/30 group" data-testid={`git-branch-${branch.name}`}>
-                          <GitBranch className={`w-3 h-3 shrink-0 ${branch.name === currentBranch ? "text-[#F26522]" : "text-[#676D7E]"}`} />
-                          <span className={`text-[11px] flex-1 truncate ${branch.name === currentBranch ? "text-[#F5F9FC] font-medium" : "text-[#9DA2B0]"}`}>{branch.name}</span>
+                        <div key={branch.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--ide-surface)]/30 group" data-testid={`git-branch-${branch.name}`}>
+                          <GitBranch className={`w-3 h-3 shrink-0 ${branch.name === currentBranch ? "text-[#F26522]" : "text-[var(--ide-text-muted)]"}`} />
+                          <span className={`text-[11px] flex-1 truncate ${branch.name === currentBranch ? "text-[var(--ide-text)] font-medium" : "text-[var(--ide-text-secondary)]"}`}>{branch.name}</span>
                           {branch.name === currentBranch && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#F26522]/10 text-[#F26522] border border-[#F26522]/20">current</span>}
                           {!branch.isDefault && branch.name !== currentBranch && (
-                            <button className="text-[#676D7E] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteBranchMutation.mutate(branch.id)} data-testid={`button-delete-branch-${branch.name}`}>
+                            <button className="text-[var(--ide-text-muted)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteBranchMutation.mutate(branch.id)} data-testid={`button-delete-branch-${branch.name}`}>
                               <Trash2 className="w-3 h-3" />
                             </button>
                           )}
@@ -3780,9 +3780,9 @@ function _projectPage() {
                     </div>
                   )}
 
-                  <div className="border-t border-[#2B3245]">
+                  <div className="border-t border-[var(--ide-border)]">
                     <div className="px-3 py-2">
-                      <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">GitHub</span>
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">GitHub</span>
                     </div>
                     <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={(newProjectId) => { if (newProjectId) { setLocation(`/project/${newProjectId}`); } else { filesQuery.refetch(); } }} />
                   </div>
@@ -3792,109 +3792,109 @@ function _projectPage() {
 
             {/* PACKAGES PANEL */}
             {packagesPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`}>
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`}>
                 <PackagesPanel projectId={projectId} onClose={() => setPackagesPanelOpen(false)} />
               </div>
             )}
 
             {/* ENV VARS PANEL */}
             {envVarsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="env-vars-sidebar">
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="env-vars-sidebar">
                 <EnvVarsPanel projectId={projectId} onClose={() => setEnvVarsPanelOpen(false)} />
               </div>
             )}
 
             {/* SETTINGS PANEL */}
             {settingsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[#2B3245] bg-[#1C2333] flex flex-col`} data-testid="settings-panel">
-                <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
-                  <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest">Settings</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setSettingsPanelOpen(false)} data-testid="button-close-settings">
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="settings-panel">
+                <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                  <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Settings</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setSettingsPanelOpen(false)} data-testid="button-close-settings">
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <div className="px-3 py-3 border-b border-[#2B3245]">
-                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Theme</span>
+                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Theme</span>
                     <div className="mt-2 flex gap-2">
-                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0079F2]/10 border border-[#0079F2]/30 text-[11px] text-[#F5F9FC]" data-testid="button-theme-dark">
-                        <span className="w-4 h-4 rounded-full bg-[#0E1525] border border-[#2B3245]" />
+                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0079F2]/10 border border-[#0079F2]/30 text-[11px] text-[var(--ide-text)]" data-testid="button-theme-dark">
+                        <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] border border-[var(--ide-border)]" />
                         Dark
                       </button>
-                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0E1525] border border-[#2B3245] text-[11px] text-[#676D7E] opacity-50 cursor-not-allowed" disabled data-testid="button-theme-light">
+                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] opacity-50 cursor-not-allowed" disabled data-testid="button-theme-light">
                         <span className="w-4 h-4 rounded-full bg-white border border-gray-300" />
                         Light
                       </button>
                     </div>
                   </div>
-                  <div className="px-3 py-3 border-b border-[#2B3245]">
-                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Editor</span>
+                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Editor</span>
                     <div className="mt-2 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[#9DA2B0]">Font Size</span>
+                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Font Size</span>
                         <div className="flex items-center gap-1.5">
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setEditorFontSize(Math.max(10, editorFontSize - 1))} data-testid="button-font-size-decrease">
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.max(10, editorFontSize - 1))} data-testid="button-font-size-decrease">
                             <span className="text-xs font-bold">−</span>
                           </Button>
-                          <span className="text-[11px] text-[#F5F9FC] w-6 text-center font-mono" data-testid="text-font-size">{editorFontSize}</span>
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded" onClick={() => setEditorFontSize(Math.min(24, editorFontSize + 1))} data-testid="button-font-size-increase">
+                          <span className="text-[11px] text-[var(--ide-text)] w-6 text-center font-mono" data-testid="text-font-size">{editorFontSize}</span>
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.min(24, editorFontSize + 1))} data-testid="button-font-size-increase">
                             <span className="text-xs font-bold">+</span>
                           </Button>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[#9DA2B0]">Tab Size</span>
+                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Tab Size</span>
                         <div className="flex items-center gap-1">
                           {[2, 4].map((size) => (
-                            <button key={size} onClick={() => setEditorTabSize(size)} className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${editorTabSize === size ? "bg-[#0079F2] text-white" : "bg-[#0E1525] text-[#676D7E] hover:text-[#9DA2B0] border border-[#2B3245]"}`} data-testid={`button-tab-size-${size}`}>
+                            <button key={size} onClick={() => setEditorTabSize(size)} className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${editorTabSize === size ? "bg-[#0079F2] text-white" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] border border-[var(--ide-border)]"}`} data-testid={`button-tab-size-${size}`}>
                               {size}
                             </button>
                           ))}
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[#9DA2B0]">Word Wrap</span>
+                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Word Wrap</span>
                         <Switch checked={editorWordWrap} onCheckedChange={setEditorWordWrap} data-testid="switch-word-wrap" />
                       </div>
                     </div>
                   </div>
-                  <div className="px-3 py-3 border-b border-[#2B3245]">
-                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Project</span>
+                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Project</span>
                     <div className="mt-2 space-y-0.5">
-                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[#2B3245] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setProjectSettingsOpen(true); }} data-testid="button-open-project-settings">
-                        <Settings className="w-3.5 h-3.5 text-[#676D7E]" />
-                        <span className="text-[11px] text-[#9DA2B0]">Project Settings</span>
+                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setProjectSettingsOpen(true); }} data-testid="button-open-project-settings">
+                        <Settings className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Project Settings</span>
                         <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
                       </button>
-                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[#2B3245] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setEnvVarsPanelOpen(true); }} data-testid="button-open-env-vars">
+                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { setSettingsPanelOpen(false); setEnvVarsPanelOpen(true); }} data-testid="button-open-env-vars">
                         <Key className="w-3.5 h-3.5 text-[#F5A623]" />
-                        <span className="text-[11px] text-[#9DA2B0]">Secrets</span>
+                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Secrets</span>
                         <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
                       </button>
                     </div>
                   </div>
                   <div className="px-3 py-3">
-                    <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">About</span>
+                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">About</span>
                     <div className="mt-2 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#676D7E]">Version</span>
-                        <span className="text-[10px] text-[#9DA2B0] font-mono">1.0.0</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Version</span>
+                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">1.0.0</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#676D7E]">Runtime</span>
-                        <span className="text-[10px] text-[#9DA2B0] font-mono">Node.js</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Runtime</span>
+                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">Node.js</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#676D7E]">Editor</span>
-                        <span className="text-[10px] text-[#9DA2B0] font-mono">CodeMirror 6</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Editor</span>
+                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">CodeMirror 6</span>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[#2B3245]">
+                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--ide-border)]">
                         <svg width="10" height="10" viewBox="0 0 32 32" fill="none">
                           <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
                           <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
                           <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
                         </svg>
-                        <span className="text-[10px] text-[#676D7E]">Powered by E-Code</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Powered by E-Code</span>
                       </div>
                     </div>
                   </div>
@@ -3917,19 +3917,19 @@ function _projectPage() {
                   {editorContent}
                 </div>
                 {terminalVisible && (
-                  <div className="shrink-0 border-t border-[#2B3245]" style={{ height: `${terminalHeight}px` }}>
+                  <div className="shrink-0 border-t border-[var(--ide-border)]" style={{ height: `${terminalHeight}px` }}>
                     {bottomPanel}
                   </div>
                 )}
               </div>
               {previewPanelOpen && (
                 <>
-                  <div className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[#2B3245]/50" onMouseDown={handlePreviewDragStart}>
-                    <div className="w-[2px] h-8 rounded-full bg-[#2B3245]" />
+                  <div className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[var(--ide-surface)]/50" onMouseDown={handlePreviewDragStart}>
+                    <div className="w-[2px] h-8 rounded-full bg-[var(--ide-surface)]" />
                   </div>
                   <div className="overflow-hidden flex flex-col" style={{ width: `${previewPanelWidth}%` }}>
-                    <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0"
+                    <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
                         onClick={() => {
                           if (wsStatus === "running" && livePreviewUrl) {
                             const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
@@ -3941,18 +3941,18 @@ function _projectPage() {
                         }}
                         title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[#1C2333] border border-[#2B3245]/70">
+                        <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
                           <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
-                          <span className="text-[10px] text-[#9DA2B0] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
+                          <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
                         {(livePreviewUrl || previewHtml) && (
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
                             onClick={() => { if (livePreviewUrl) window.open(livePreviewUrl, "_blank"); else if (previewHtml) { const blob = new Blob([previewHtml], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); } }}
                             title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
                         )}
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded"
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
                           onClick={() => setPreviewPanelOpen(false)}
                           title="Close preview" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
                       </div>
@@ -3963,7 +3963,7 @@ function _projectPage() {
                       ) : previewHtml ? (
                         <iframe srcDoc={previewHtml} className="w-full h-full border-0" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-preview-panel-html" />
                       ) : (
-                        <div className="flex flex-col items-center justify-center h-full bg-[#1C2333] text-[#676D7E] gap-3">
+                        <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] text-[var(--ide-text-muted)] gap-3">
                           <Globe className="w-8 h-8" />
                           <p className="text-xs text-center max-w-[200px]">{hasHtmlFile ? "Click Run to preview your HTML" : "Run your app to see the preview"}</p>
                           {hasHtmlFile && (
@@ -3983,26 +3983,26 @@ function _projectPage() {
 
           {/* STATUS BAR */}
           <TooltipProvider delayDuration={200}>
-          <div className="flex items-center justify-between px-2 h-6 bg-[#0E1525] border-t border-[#2B3245]/60 shrink-0">
+          <div className="flex items-center justify-between px-2 h-6 bg-[var(--ide-bg)] border-t border-[var(--ide-border)]/60 shrink-0">
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#9DA2B0] hover:bg-[#2B3245]/60 hover:text-[#F5F9FC] transition-colors" onClick={() => { setGitPanelOpen(true); setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }} data-testid="button-git-branch">
+                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)] transition-colors" onClick={() => { setGitPanelOpen(true); setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); }} data-testid="button-git-branch">
                     <GitBranch className="w-3 h-3" />
                     <span className="font-medium">{currentBranch}</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
+                <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
                   Current branch: {currentBranch}
                 </TooltipContent>
               </Tooltip>
 
-              <span className="w-px h-3 bg-[#2B3245]" />
+              <span className="w-px h-3 bg-[var(--ide-surface)]" />
 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#676D7E] hover:bg-[#2B3245]/60 hover:text-[#F5F9FC] transition-colors"
+                    className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)] transition-colors"
                     onClick={() => toast({ title: "Problems", description: "No problems detected in workspace." })}
                     data-testid="button-problems"
                   >
@@ -4012,14 +4012,14 @@ function _projectPage() {
                     <span>0</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
+                <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
                   No Problems
                 </TooltipContent>
               </Tooltip>
 
-              <span className="w-px h-3 bg-[#2B3245]" />
+              <span className="w-px h-3 bg-[var(--ide-surface)]" />
 
-              <span className="flex items-center gap-1.5 text-[10px] text-[#676D7E]">
+              <span className="flex items-center gap-1.5 text-[10px] text-[var(--ide-text-muted)]">
                 <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B] shadow-[0_0_6px_rgba(12,206,107,0.6)] animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.5)] animate-pulse" : wsStatus === "error" ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)] animate-pulse" : "bg-[#4A5068]"}`} />
                 {wsStatus === "running" ? "Workspace Running" : wsStatus === "starting" ? "Starting Workspace..." : wsStatus === "none" ? "Ready" : wsStatus === "stopped" ? "Workspace Stopped" : wsStatus === "error" ? "Workspace Error" : wsStatus === "offline" ? "Offline" : wsStatus}
               </span>
@@ -4048,20 +4048,20 @@ function _projectPage() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
-              {activeFileName && <span className="text-[10px] text-[#9DA2B0]" data-testid="text-tab-size">Spaces: {editorTabSize}</span>}
+              {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
+              {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-tab-size">Spaces: {editorTabSize}</span>}
               {activeFileName && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="text-[10px] text-[#9DA2B0] capitalize hover:text-[#F5F9FC] hover:bg-[#2B3245]/60 px-1.5 h-5 rounded transition-colors cursor-pointer" data-testid="button-language-selector">
+                    <button className="text-[10px] text-[var(--ide-text-secondary)] capitalize hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/60 px-1.5 h-5 rounded transition-colors cursor-pointer" data-testid="button-language-selector">
                       {editorLanguage}
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent side="top" align="end" className="w-40 p-1 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
+                  <PopoverContent side="top" align="end" className="w-40 p-1 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
                     {["javascript", "typescript", "python", "go", "rust", "cpp", "java", "ruby", "bash", "html", "css", "json", "markdown"].map((lang) => (
                       <button
                         key={lang}
-                        className={`w-full text-left px-2.5 py-1.5 text-[11px] rounded capitalize transition-colors ${lang === editorLanguage ? "bg-[#0079F2]/20 text-[#0079F2]" : "text-[#9DA2B0] hover:bg-[#2B3245] hover:text-[#F5F9FC]"}`}
+                        className={`w-full text-left px-2.5 py-1.5 text-[11px] rounded capitalize transition-colors ${lang === editorLanguage ? "bg-[#0079F2]/20 text-[#0079F2]" : "text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text)]"}`}
                         data-testid={`lang-option-${lang}`}
                       >
                         {lang}
@@ -4075,12 +4075,12 @@ function _projectPage() {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#4A5068] hover:bg-[#2B3245]/60 hover:text-[#9DA2B0] transition-colors" data-testid="button-prettier">
+                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#4A5068] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text-secondary)] transition-colors" data-testid="button-prettier">
                     <Wand2 className="w-3 h-3" />
                     <span>Prettier</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[#1C2333] text-[#F5F9FC] border-[#2B3245]">
+                <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
                   Format Document
                 </TooltipContent>
               </Tooltip>
@@ -4101,19 +4101,19 @@ function _projectPage() {
 
       {/* DIALOGS */}
       <Dialog open={newFileDialogOpen} onOpenChange={setNewFileDialogOpen}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base">New File</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">
+            <DialogTitle className="text-[var(--ide-text)] text-base">New File</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">
               {useRunnerFS
-                ? <>Create a new file in <span className="text-[#F5F9FC] font-mono">{currentFsPath === "/" ? "/" : currentFsPath}</span> (Runner FS)</>
+                ? <>Create a new file in <span className="text-[var(--ide-text)] font-mono">{currentFsPath === "/" ? "/" : currentFsPath}</span> (Runner FS)</>
                 : "Create a new file in your project"}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newFileName.trim()) createFileMutation.mutate(newFileName.trim()); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#9DA2B0]">Filename</Label>
-              <Input value={newFileName} onChange={(e) => setNewFileName(e.target.value)} placeholder={project?.language === "python" ? "script.py" : "index.ts"} className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]" autoFocus data-testid="input-new-filename" />
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Filename</Label>
+              <Input value={newFileName} onChange={(e) => setNewFileName(e.target.value)} placeholder={project?.language === "python" ? "script.py" : "index.ts"} className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]" autoFocus data-testid="input-new-filename" />
             </div>
             <Button type="submit" className="w-full h-9 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-lg text-xs font-medium" disabled={createFileMutation.isPending}>
               {createFileMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create File"}
@@ -4123,21 +4123,21 @@ function _projectPage() {
       </Dialog>
 
       <Dialog open={projectSettingsOpen} onOpenChange={setProjectSettingsOpen}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base">Project Settings</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">Configure your project</DialogDescription>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Project Settings</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Configure your project</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); updateProjectMutation.mutate({ name: projectName, language: projectLang }); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#9DA2B0]">Name</Label>
-              <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]" data-testid="input-project-name-settings" />
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Name</Label>
+              <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]" data-testid="input-project-name-settings" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#9DA2B0]">Language</Label>
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Language</Label>
               <div className="flex flex-wrap gap-2">
                 {["javascript", "typescript", "python", "go", "ruby", "cpp", "java", "rust", "bash", "html"].map((lang) => (
-                  <button key={lang} type="button" onClick={() => setProjectLang(lang)} className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${projectLang === lang ? "bg-[#0079F2] text-white" : "bg-[#0E1525] text-[#9DA2B0] hover:text-[#F5F9FC] border border-[#2B3245]"}`}>
+                  <button key={lang} type="button" onClick={() => setProjectLang(lang)} className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${projectLang === lang ? "bg-[#0079F2] text-white" : "bg-[var(--ide-bg)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] border border-[var(--ide-border)]"}`}>
                     {lang}
                   </button>
                 ))}
@@ -4151,21 +4151,21 @@ function _projectPage() {
       </Dialog>
 
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base flex items-center gap-2">
+            <DialogTitle className="text-[var(--ide-text)] text-base flex items-center gap-2">
               <Rocket className="w-4 h-4 text-[#0CCE6B]" /> Publish Project
             </DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">Make your project publicly accessible via a shareable link</DialogDescription>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Make your project publicly accessible via a shareable link</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[#1C2333] border border-[#2B3245]">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)]">
               <div>
-                <p className="text-sm font-medium text-[#F5F9FC]">{project?.name}</p>
-                <p className="text-[11px] text-[#9DA2B0] mt-0.5">{project?.language} · {filesQuery.data?.length || 0} files</p>
+                <p className="text-sm font-medium text-[var(--ide-text)]">{project?.name}</p>
+                <p className="text-[11px] text-[var(--ide-text-secondary)] mt-0.5">{project?.language} · {filesQuery.data?.length || 0} files</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-[#9DA2B0]">{project?.isPublished ? "Published" : "Draft"}</span>
+                <span className="text-[11px] text-[var(--ide-text-secondary)]">{project?.isPublished ? "Published" : "Draft"}</span>
                 <Switch
                   checked={project?.isPublished || false}
                   onCheckedChange={() => publishMutation.mutate()}
@@ -4177,18 +4177,18 @@ function _projectPage() {
 
             {project?.isPublished && (
               <div className="space-y-2">
-                <Label className="text-[11px] text-[#9DA2B0]">Shareable URL</Label>
+                <Label className="text-[11px] text-[var(--ide-text-secondary)]">Shareable URL</Label>
                 <div className="flex gap-2">
                   <Input
                     readOnly
                     value={`${window.location.origin}/shared/${projectId}`}
-                    className="bg-[#1C2333] border-[#2B3245] h-9 text-xs text-[#F5F9FC] rounded-lg flex-1"
+                    className="bg-[var(--ide-panel)] border-[var(--ide-border)] h-9 text-xs text-[var(--ide-text)] rounded-lg flex-1"
                     data-testid="input-share-url"
                   />
-                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] shrink-0" onClick={copyShareUrl}>
+                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] shrink-0" onClick={copyShareUrl}>
                     {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] shrink-0" onClick={() => window.open(`/shared/${projectId}`, "_blank")}>
+                  <Button size="sm" variant="ghost" className="h-9 px-3 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] shrink-0" onClick={() => window.open(`/shared/${projectId}`, "_blank")}>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -4198,15 +4198,15 @@ function _projectPage() {
         </DialogContent>
       </Dialog>
       <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base">New Folder</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">Create a new folder in {currentFsPath === "/" ? "root" : currentFsPath}</DialogDescription>
+            <DialogTitle className="text-[var(--ide-text)] text-base">New Folder</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Create a new folder in {currentFsPath === "/" ? "root" : currentFsPath}</DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newFolderName.trim()) createFolderMutation.mutate(newFolderName.trim()); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#9DA2B0]">Folder name</Label>
-              <Input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="src" className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]" autoFocus data-testid="input-new-foldername" />
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Folder name</Label>
+              <Input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="src" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]" autoFocus data-testid="input-new-foldername" />
             </div>
             <Button type="submit" className="w-full h-9 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-lg text-xs font-medium" disabled={createFolderMutation.isPending}>
               {createFolderMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create Folder"}
@@ -4216,15 +4216,15 @@ function _projectPage() {
       </Dialog>
 
       <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { setDeleteConfirmOpen(open); if (!open) setDeleteTarget(null); }}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base">Delete {deleteTarget?.type === "dir" ? "Folder" : "File"}</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">
-              Are you sure you want to delete <span className="text-[#F5F9FC] font-medium">{deleteTarget?.name}</span>? This action cannot be undone.
+            <DialogTitle className="text-[var(--ide-text)] text-base">Delete {deleteTarget?.type === "dir" ? "Folder" : "File"}</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">
+              Are you sure you want to delete <span className="text-[var(--ide-text)] font-medium">{deleteTarget?.name}</span>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mt-3">
-            <Button variant="ghost" className="flex-1 h-9 text-xs text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-lg" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}>
+            <Button variant="ghost" className="flex-1 h-9 text-xs text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-lg" onClick={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}>
               Cancel
             </Button>
             <Button className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs" onClick={confirmDelete} disabled={deleteRunnerEntryMutation.isPending || deleteFileMutation.isPending} data-testid="button-confirm-delete">
@@ -4257,15 +4257,15 @@ function _projectPage() {
 
       {showDiffModal && diffFile && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowDiffModal(false)}>
-          <div className="bg-[#1C2333] border border-[#2B3245] rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()} data-testid="diff-modal">
-            <div className="flex items-center justify-between px-4 h-10 border-b border-[#2B3245] shrink-0">
+          <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()} data-testid="diff-modal">
+            <div className="flex items-center justify-between px-4 h-10 border-b border-[var(--ide-border)] shrink-0">
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${diffFile.status === "added" ? "bg-[#0CCE6B]/10 text-[#0CCE6B]" : diffFile.status === "deleted" ? "bg-red-500/10 text-red-400" : "bg-[#F5A623]/10 text-[#F5A623]"}`}>
                   {diffFile.status === "added" ? "ADDED" : diffFile.status === "deleted" ? "DELETED" : "MODIFIED"}
                 </span>
-                <span className="text-[12px] text-[#F5F9FC] font-medium font-mono">{diffFile.filename}</span>
+                <span className="text-[12px] text-[var(--ide-text)] font-medium font-mono">{diffFile.filename}</span>
               </div>
-              <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]" onClick={() => setShowDiffModal(false)} data-testid="button-close-diff">
+              <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setShowDiffModal(false)} data-testid="button-close-diff">
                 <X className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -4302,9 +4302,9 @@ function _projectPage() {
                   }
                 }
                 return diffLines.map((d, i) => (
-                  <div key={i} className={`flex ${d.type === "add" ? "bg-[#0CCE6B]/8 hover:bg-[#0CCE6B]/12" : d.type === "remove" ? "bg-red-500/8 hover:bg-red-500/12" : "hover:bg-[#2B3245]/30"}`}>
+                  <div key={i} className={`flex ${d.type === "add" ? "bg-[#0CCE6B]/8 hover:bg-[#0CCE6B]/12" : d.type === "remove" ? "bg-red-500/8 hover:bg-red-500/12" : "hover:bg-[var(--ide-surface)]/30"}`}>
                     <span className={`w-10 text-right pr-2 select-none shrink-0 ${d.type === "add" ? "text-[#0CCE6B]/60 bg-[#0CCE6B]/5" : d.type === "remove" ? "text-red-400/60 bg-red-500/5" : "text-[#4A5068]"}`}>{d.lineNum}</span>
-                    <span className={`px-2 ${d.type === "add" ? "text-[#0CCE6B]" : d.type === "remove" ? "text-red-400" : "text-[#9DA2B0]"}`}>
+                    <span className={`px-2 ${d.type === "add" ? "text-[#0CCE6B]" : d.type === "remove" ? "text-red-400" : "text-[var(--ide-text-secondary)]"}`}>
                       {d.type === "add" ? "+" : d.type === "remove" ? "-" : " "} {d.text}
                     </span>
                   </div>
@@ -4316,10 +4316,10 @@ function _projectPage() {
       )}
 
       <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-lg max-h-[70vh] overflow-y-auto">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-lg max-h-[70vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base flex items-center gap-2"><Keyboard className="w-4 h-4" /> Keyboard Shortcuts</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">Quick reference for all available shortcuts</DialogDescription>
+            <DialogTitle className="text-[var(--ide-text)] text-base flex items-center gap-2"><Keyboard className="w-4 h-4" /> Keyboard Shortcuts</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Quick reference for all available shortcuts</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             {[
@@ -4348,14 +4348,14 @@ function _projectPage() {
               ]},
             ].map(({ category, shortcuts }) => (
               <div key={category}>
-                <h4 className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest mb-2">{category}</h4>
+                <h4 className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest mb-2">{category}</h4>
                 <div className="space-y-1">
                   {shortcuts.map(({ keys, desc }, i) => (
-                    <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[#2B3245]/40">
-                      <span className="text-[12px] text-[#9DA2B0]">{desc}</span>
+                    <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[var(--ide-surface)]/40">
+                      <span className="text-[12px] text-[var(--ide-text-secondary)]">{desc}</span>
                       <div className="flex items-center gap-1">
                         {keys.map((k, j) => (
-                          <kbd key={j} className="px-1.5 py-0.5 rounded bg-[#0E1525] border border-[#2B3245] text-[10px] text-[#F5F9FC] font-mono min-w-[24px] text-center">{k}</kbd>
+                          <kbd key={j} className="px-1.5 py-0.5 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[10px] text-[var(--ide-text)] font-mono min-w-[24px] text-center">{k}</kbd>
                         ))}
                       </div>
                     </div>
@@ -4368,26 +4368,26 @@ function _projectPage() {
       </Dialog>
 
       <Dialog open={renameDialogOpen} onOpenChange={(open) => { setRenameDialogOpen(open); if (!open) setRenameDialogTarget(null); }}>
-        <DialogContent className="bg-[#1C2333] border-[#2B3245] rounded-xl sm:max-w-md">
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#F5F9FC] text-base">Rename</DialogTitle>
-            <DialogDescription className="text-[#9DA2B0] text-xs">
-              Rename <span className="text-[#F5F9FC] font-medium">{renameDialogTarget?.oldName}</span>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Rename</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">
+              Rename <span className="text-[var(--ide-text)] font-medium">{renameDialogTarget?.oldName}</span>
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); submitRenameDialog(); }} className="space-y-3 mt-1">
             <div className="space-y-1">
-              <Label className="text-[11px] text-[#9DA2B0]">New name</Label>
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">New name</Label>
               <Input
                 value={renameDialogValue}
                 onChange={(e) => setRenameDialogValue(e.target.value)}
-                className="bg-[#0E1525] border-[#2B3245] h-9 text-sm text-[#F5F9FC] rounded-lg focus:border-[#0079F2]"
+                className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]"
                 autoFocus
                 data-testid="input-rename"
               />
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-lg" onClick={() => { setRenameDialogOpen(false); setRenameDialogTarget(null); }}>
+              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-lg" onClick={() => { setRenameDialogOpen(false); setRenameDialogTarget(null); }}>
                 Cancel
               </Button>
               <Button type="submit" className="flex-1 h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" disabled={!renameDialogValue.trim() || renameDialogValue === renameDialogTarget?.oldName || renameFileMutation.isPending || renameRunnerEntryMutation.isPending} data-testid="button-confirm-rename">

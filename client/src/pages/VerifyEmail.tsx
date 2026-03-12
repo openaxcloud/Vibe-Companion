@@ -43,7 +43,7 @@ export default function VerifyEmail() {
       data-testid="verify-email-page"
       style={{
         minHeight: "100vh",
-        background: "#0E1525",
+        background: "var(--ide-bg)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -52,9 +52,9 @@ export default function VerifyEmail() {
     >
       <div
         style={{
-          background: "#1C2333",
+          background: "var(--ide-panel)",
           borderRadius: 16,
-          border: "1px solid #2B3245",
+          border: "1px solid var(--ide-border)",
           padding: "48px 40px",
           maxWidth: 420,
           width: "100%",
@@ -64,15 +64,15 @@ export default function VerifyEmail() {
         {status === "loading" && (
           <>
             <Loader2 size={48} color="#0079F2" style={{ animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
-            <h2 style={{ color: "#fff", fontSize: 20, margin: "0 0 8px" }}>Verifying your email...</h2>
-            <p style={{ color: "#8899A6", fontSize: 14 }}>Please wait a moment.</p>
+            <h2 style={{ color: "var(--ide-text)", fontSize: 20, margin: "0 0 8px" }}>Verifying your email...</h2>
+            <p style={{ color: "var(--ide-text-secondary)", fontSize: 14 }}>Please wait a moment.</p>
           </>
         )}
         {status === "success" && (
           <>
             <CheckCircle size={48} color="#0CCE6B" style={{ margin: "0 auto 16px" }} />
-            <h2 style={{ color: "#fff", fontSize: 20, margin: "0 0 8px" }}>Email Verified!</h2>
-            <p style={{ color: "#8899A6", fontSize: 14, marginBottom: 24 }}>{message}</p>
+            <h2 style={{ color: "var(--ide-text)", fontSize: 20, margin: "0 0 8px" }}>Email Verified!</h2>
+            <p style={{ color: "var(--ide-text-secondary)", fontSize: 14, marginBottom: 24 }}>{message}</p>
             <button
               data-testid="button-go-dashboard"
               onClick={() => setLocation("/dashboard")}
@@ -94,15 +94,15 @@ export default function VerifyEmail() {
         {status === "error" && (
           <>
             <XCircle size={48} color="#EF4444" style={{ margin: "0 auto 16px" }} />
-            <h2 style={{ color: "#fff", fontSize: 20, margin: "0 0 8px" }}>Verification Failed</h2>
-            <p style={{ color: "#8899A6", fontSize: 14, marginBottom: 24 }}>{message}</p>
+            <h2 style={{ color: "var(--ide-text)", fontSize: 20, margin: "0 0 8px" }}>Verification Failed</h2>
+            <p style={{ color: "var(--ide-text-secondary)", fontSize: 14, marginBottom: 24 }}>{message}</p>
             <button
               data-testid="button-go-login"
               onClick={() => setLocation("/")}
               style={{
-                background: "#2B3245",
-                color: "#fff",
-                border: "1px solid #3B4559",
+                background: "var(--ide-surface)",
+                color: "var(--ide-text)",
+                border: "1px solid var(--ide-border)",
                 borderRadius: 8,
                 padding: "10px 24px",
                 fontSize: 14,

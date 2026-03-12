@@ -44,15 +44,15 @@ function CodeDemo() {
   }, []);
 
   return (
-    <div className="w-full max-w-[560px] rounded-xl border border-[#2B3245] bg-[#1C2333] shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 h-9 bg-[#0E1525] border-b border-[#2B3245]">
+    <div className="w-full max-w-[560px] rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="flex items-center gap-2 px-4 h-9 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
           <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
           <div className="w-3 h-3 rounded-full bg-[#28CA41]" />
         </div>
         <div className="flex-1 text-center">
-          <span className="text-[10px] text-[#676D7E] font-medium">index.js</span>
+          <span className="text-[10px] text-[var(--ide-text-muted)] font-medium">index.js</span>
         </div>
       </div>
       <div className="p-4 font-mono text-[13px] leading-[22px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -63,7 +63,7 @@ function CodeDemo() {
           </div>
         ))}
       </div>
-      <div className="border-t border-[#2B3245] bg-[#0E1525] px-4 py-2.5 flex items-center gap-2">
+      <div className="border-t border-[var(--ide-border)] bg-[var(--ide-bg)] px-4 py-2.5 flex items-center gap-2">
         <Terminal className="w-3.5 h-3.5 text-[#0CCE6B]" />
         <span className="text-[11px] font-mono text-[#0CCE6B]">$ Server running on port 3000</span>
         <span className="w-2 h-4 bg-[#0079F2] animate-pulse ml-0.5" />
@@ -106,8 +106,8 @@ export default function Landing() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0E1525]">
-        <div className="w-8 h-8 border-2 border-[#2B3245] border-t-[#0079F2] rounded-full animate-spin" />
+      <div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]">
+        <div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" />
       </div>
     );
   }
@@ -115,28 +115,28 @@ export default function Landing() {
   if (isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-[#0E1525] text-[#F5F9FC] overflow-x-hidden" data-testid="landing-page">
+    <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)] overflow-x-hidden" data-testid="landing-page">
       <AnimatedGrid />
 
-      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[#2B3245]/50 bg-[#0E1525]/80 backdrop-blur-md">
+      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]/80 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <ECodeLogo size={28} />
           <span className="text-lg font-bold tracking-tight">E-Code</span>
         </div>
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/pricing" className="text-sm text-[#9DA2B0] hover:text-[#F5F9FC] transition-colors" data-testid="nav-pricing">Pricing</Link>
-          <Link href="/demo" className="text-sm text-[#9DA2B0] hover:text-[#F5F9FC] transition-colors" data-testid="nav-demo">Demo</Link>
-          <a href="https://docs.e-code.ai" className="text-sm text-[#9DA2B0] hover:text-[#F5F9FC] transition-colors" data-testid="nav-docs">Docs</a>
+          <Link href="/pricing" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-pricing">Pricing</Link>
+          <Link href="/demo" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-demo">Demo</Link>
+          <a href="https://docs.e-code.ai" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-docs">Docs</a>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login">
-            <Button variant="ghost" className="hidden md:inline-flex text-sm text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333]" data-testid="nav-login">Log in</Button>
+            <Button variant="ghost" className="hidden md:inline-flex text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)]" data-testid="nav-login">Log in</Button>
           </Link>
           <Link href="/login?signup=true">
             <Button className="hidden md:inline-flex h-9 px-5 text-sm font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="nav-signup">Sign up</Button>
           </Link>
           <button
-            className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors"
+            className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             data-testid="button-mobile-hamburger"
           >
@@ -149,13 +149,13 @@ export default function Landing() {
         className={`md:hidden fixed inset-0 top-16 z-50 transition-all duration-300 ${mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-        <div className={`absolute top-0 right-0 w-[280px] h-full bg-[#0E1525] border-l border-[#2B3245]/50 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}>
+        <div className={`absolute top-0 right-0 w-[280px] h-full bg-[var(--ide-bg)] border-l border-[var(--ide-border)]/50 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}>
           <nav className="flex flex-col p-6 gap-2">
-            <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-pricing">Pricing</Link>
-            <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-demo">Demo</Link>
-            <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" data-testid="mobile-nav-docs">Docs</a>
-            <div className="my-3 border-t border-[#2B3245]/50" />
-            <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[#F5F9FC] hover:bg-[#1C2333] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-login">Log in</Link>
+            <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-pricing">Pricing</Link>
+            <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-demo">Demo</Link>
+            <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="mobile-nav-docs">Docs</a>
+            <div className="my-3 border-t border-[var(--ide-border)]/50" />
+            <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-login">Log in</Link>
             <Link href="/login?signup=true" onClick={() => setMobileMenuOpen(false)}>
               <Button className="w-full h-11 text-[15px] font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl" data-testid="mobile-nav-signup">Sign up</Button>
             </Link>
@@ -175,7 +175,7 @@ export default function Landing() {
           <span className="bg-gradient-to-r from-[#0079F2] via-[#7C65CB] to-[#F26522] bg-clip-text text-transparent">faster with AI</span>
         </h1>
 
-        <p className="text-lg md:text-xl text-[#9DA2B0] text-center max-w-2xl mb-10 leading-relaxed" data-testid="hero-subtitle">
+        <p className="text-lg md:text-xl text-[var(--ide-text-secondary)] text-center max-w-2xl mb-10 leading-relaxed" data-testid="hero-subtitle">
           A cloud IDE with a powerful editor, AI coding agent, live terminal, instant deployment, and team collaboration. Write, run, and ship code from anywhere.
         </p>
 
@@ -186,23 +186,23 @@ export default function Landing() {
             </Button>
           </Link>
           <Link href="/demo">
-            <Button variant="outline" className="h-12 px-8 text-base font-medium bg-transparent border-[#2B3245] text-[#F5F9FC] hover:bg-[#1C2333] hover:border-[#3B4B5F] rounded-xl gap-2" data-testid="cta-demo">
+            <Button variant="outline" className="h-12 px-8 text-base font-medium bg-transparent border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] rounded-xl gap-2" data-testid="cta-demo">
               <Play className="w-4 h-4" /> Try the demo
             </Button>
           </Link>
         </div>
 
-        <p className="text-xs text-[#676D7E] mb-16">No credit card required. Free tier included.</p>
+        <p className="text-xs text-[var(--ide-text-muted)] mb-16">No credit card required. Free tier included.</p>
 
         <CodeDemo />
       </section>
 
-      <section className="relative z-10 py-16 border-t border-[#2B3245]/50">
+      <section className="relative z-10 py-16 border-t border-[var(--ide-border)]/50">
         <div className="flex flex-wrap items-center justify-center gap-12 md:gap-20 px-6">
           {stats.map((s) => (
             <div key={s.label} className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-[#F5F9FC]" data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, "-")}`}>{s.value}</div>
-              <div className="text-sm text-[#676D7E] mt-1">{s.label}</div>
+              <div className="text-3xl md:text-4xl font-bold text-[var(--ide-text)]" data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, "-")}`}>{s.value}</div>
+              <div className="text-sm text-[var(--ide-text-muted)] mt-1">{s.label}</div>
             </div>
           ))}
         </div>
@@ -211,25 +211,25 @@ export default function Landing() {
       <section className="relative z-10 py-20 lg:py-28 px-6" data-testid="features-section">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything you need to build</h2>
-          <p className="text-[#9DA2B0] text-lg max-w-xl mx-auto">From idea to production in minutes. No setup, no configuration, just code.</p>
+          <p className="text-[var(--ide-text-secondary)] text-lg max-w-xl mx-auto">From idea to production in minutes. No setup, no configuration, just code.</p>
         </div>
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f) => (
-            <div key={f.title} className="group p-6 rounded-2xl border border-[#2B3245] bg-[#1C2333]/50 hover:bg-[#1C2333] hover:border-[#3B4B5F] transition-all duration-300" data-testid={`feature-${f.title.toLowerCase().replace(/\s/g, "-")}`}>
+            <div key={f.title} className="group p-6 rounded-2xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] transition-all duration-300" data-testid={`feature-${f.title.toLowerCase().replace(/\s/g, "-")}`}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: `${f.color}15`, border: `1px solid ${f.color}30` }}>
                 <f.icon className="w-5 h-5" style={{ color: f.color }} />
               </div>
               <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
-              <p className="text-sm text-[#9DA2B0] leading-relaxed">{f.desc}</p>
+              <p className="text-sm text-[var(--ide-text-secondary)] leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="relative z-10 py-20 lg:py-28 px-6 border-t border-[#2B3245]/50" data-testid="languages-section">
+      <section className="relative z-10 py-20 lg:py-28 px-6 border-t border-[var(--ide-border)]/50" data-testid="languages-section">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">All your favorite languages</h2>
-          <p className="text-[#9DA2B0] text-lg mb-12">First-class support for JavaScript, TypeScript, Python, Go, Ruby, Java, C++, Rust, and more.</p>
+          <p className="text-[var(--ide-text-secondary)] text-lg mb-12">First-class support for JavaScript, TypeScript, Python, Go, Ruby, Java, C++, Rust, and more.</p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             {[
               { label: "JavaScript", color: "#F0DB4F", bg: "rgba(240,219,79,0.1)" },
@@ -243,7 +243,7 @@ export default function Landing() {
               { label: "HTML", color: "#E34F26", bg: "rgba(227,79,38,0.1)" },
               { label: "CSS", color: "#1572B6", bg: "rgba(21,114,182,0.1)" },
             ].map((lang) => (
-              <div key={lang.label} className="px-4 py-2 rounded-lg border border-[#2B3245] text-sm font-medium" style={{ background: lang.bg, color: lang.color, borderColor: `${lang.color}30` }}>
+              <div key={lang.label} className="px-4 py-2 rounded-lg border border-[var(--ide-border)] text-sm font-medium" style={{ background: lang.bg, color: lang.color, borderColor: `${lang.color}30` }}>
                 {lang.label}
               </div>
             ))}
@@ -251,10 +251,10 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="relative z-10 py-20 lg:py-28 px-6 border-t border-[#2B3245]/50" data-testid="cta-section">
+      <section className="relative z-10 py-20 lg:py-28 px-6 border-t border-[var(--ide-border)]/50" data-testid="cta-section">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-5xl font-bold mb-6">Ready to start building?</h2>
-          <p className="text-[#9DA2B0] text-lg mb-10">Join thousands of developers building and deploying on E-Code.</p>
+          <p className="text-[var(--ide-text-secondary)] text-lg mb-10">Join thousands of developers building and deploying on E-Code.</p>
           <Link href="/login?signup=true">
             <Button className="h-14 px-10 text-lg font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl shadow-[0_0_20px_rgba(0,121,242,0.3)] hover:shadow-[0_0_30px_rgba(0,121,242,0.4)] transition-all gap-2" data-testid="cta-bottom-signup">
               Get started for free <ChevronRight className="w-5 h-5" />
@@ -263,44 +263,44 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-[#2B3245]/50 px-6 lg:px-12 py-12">
+      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 px-6 lg:px-12 py-12">
         <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <ECodeLogo size={20} />
               <span className="font-bold text-sm">E-Code</span>
             </div>
-            <p className="text-xs text-[#676D7E] leading-relaxed">Build, run, and deploy code from anywhere. The cloud IDE for modern developers.</p>
+            <p className="text-xs text-[var(--ide-text-muted)] leading-relaxed">Build, run, and deploy code from anywhere. The cloud IDE for modern developers.</p>
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#9DA2B0] uppercase tracking-wider mb-3">Product</h4>
+            <h4 className="text-xs font-bold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-3">Product</h4>
             <div className="space-y-2">
-              <Link href="/pricing" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Pricing</Link>
-              <Link href="/demo" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Demo</Link>
-              <a href="#" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Changelog</a>
+              <Link href="/pricing" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
+              <Link href="/demo" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Demo</Link>
+              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Changelog</a>
             </div>
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#9DA2B0] uppercase tracking-wider mb-3">Resources</h4>
+            <h4 className="text-xs font-bold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-3">Resources</h4>
             <div className="space-y-2">
-              <a href="#" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Documentation</a>
-              <a href="#" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Blog</a>
-              <a href="#" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Community</a>
+              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Documentation</a>
+              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Blog</a>
+              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Community</a>
             </div>
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#9DA2B0] uppercase tracking-wider mb-3">Legal</h4>
+            <h4 className="text-xs font-bold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-3">Legal</h4>
             <div className="space-y-2">
-              <Link href="/terms" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Terms of Service</Link>
-              <Link href="/privacy" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Privacy Policy</Link>
-              <a href="mailto:support@e-code.ai" className="block text-sm text-[#676D7E] hover:text-[#F5F9FC] transition-colors">Contact</a>
+              <Link href="/terms" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Terms of Service</Link>
+              <Link href="/privacy" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Privacy Policy</Link>
+              <a href="mailto:support@e-code.ai" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Contact</a>
             </div>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-[#2B3245]/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-[#676D7E]">&copy; {new Date().getFullYear()} E-Code. All rights reserved.</p>
+        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-[var(--ide-border)]/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-[var(--ide-text-muted)]">&copy; {new Date().getFullYear()} E-Code. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <a href="#" className="text-[#676D7E] hover:text-[#F5F9FC] transition-colors"><Github className="w-4 h-4" /></a>
+            <a href="#" className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"><Github className="w-4 h-4" /></a>
           </div>
         </div>
       </footer>
