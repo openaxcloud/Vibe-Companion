@@ -97,6 +97,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Database Viewer**: Activity bar panel to browse database tables, view columns/types, run SQL queries (read-only SELECT/WITH/EXPLAIN/SHOW), results table display. Component: `DatabasePanel.tsx`, API: `POST /api/projects/:id/database/query`
 - **Test Runner**: Activity bar panel to detect test files (Jest/Vitest/Mocha/pytest patterns), run all or single tests, display pass/fail/skip results with duration. Component: `TestRunnerPanel.tsx`, API: `GET /api/projects/:id/tests/detect`, `POST /api/projects/:id/tests/run`
 - **AI Commit Messages**: "AI" button in git commit textarea that generates a commit message by analyzing file changes since last commit using Claude Sonnet. API: `POST /api/projects/:id/git/generate-commit-message`
+- **AI Voice Input (Audio Transcription)**: Microphone button in AI chat input to record audio and transcribe via OpenAI Whisper. Records WebM audio, sends to `POST /api/ai/transcribe`, inserts transcribed text into input. Visual recording/transcribing states with animated indicators.
+- **AI File Attachments**: Paperclip button in AI chat to attach files (images, code, text). Image attachments show thumbnails; text/code files are included inline in the message. Supports drag-and-drop style multi-file attachment with remove buttons. Attachment previews shown above input area and in sent messages.
 - **Profile Settings**: Display name, connected accounts (GitHub), GDPR data export, email verification, billing portal, account deletion
 - **Legal Pages**: Terms of Service, Privacy Policy with proper routing
 - **Stripe Billing**: Checkout sessions, subscription management, webhook handling, billing portal (when Stripe configured)

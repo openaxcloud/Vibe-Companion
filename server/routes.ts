@@ -2718,6 +2718,32 @@ Rules:
     }
   });
 
+  const audioUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  });
+
+  app.post("/api/ai/transcribe", requireAuth, audioUpload.single("audio"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No audio file provided" });
+
+      const file = new File([req.file.buffer], req.file.originalname || "recording.webm", {
+        type: req.file.mimetype || "audio/webm",
+      });
+
+      const transcription = await openai.audio.transcriptions.create({
+        file,
+        model: "whisper-1",
+        language: "en",
+      });
+
+      res.json({ text: transcription.text });
+    } catch (err: any) {
+      log(`Transcription error: ${err.message}`, "ai");
+      res.status(500).json({ error: "Transcription failed: " + (err.message || "unknown error") });
+    }
+  });
+
   app.get("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {

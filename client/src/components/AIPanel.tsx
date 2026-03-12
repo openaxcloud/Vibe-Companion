@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
   FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
-  FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield
+  FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield,
+  Mic, MicOff, Paperclip, Image, FileText, XCircle
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -12,12 +13,22 @@ import { getCsrfToken } from "@/lib/queryClient";
 
 type FileInfo = { id: string; filename: string; content: string };
 
+interface Attachment {
+  id: string;
+  name: string;
+  type: "image" | "text" | "file";
+  content: string;
+  mimeType: string;
+  size: number;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   model?: AIModel;
   fileOps?: { type: "created" | "updated"; filename: string }[];
+  attachments?: Attachment[];
 }
 
 interface AIPanelProps {
@@ -153,9 +164,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const [conversationLoaded, setConversationLoaded] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!projectId) { setConversationLoaded(true); return; }
@@ -281,11 +298,28 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   }, [onFileCreated, onFileUpdated]);
 
   const sendMessage = async () => {
-    if (!input.trim() || isStreaming) return;
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: input.trim() };
+    if ((!input.trim() && attachments.length === 0) || isStreaming) return;
+
+    let fullContent = input.trim();
+    const currentAttachments = [...attachments];
+
+    if (currentAttachments.length > 0) {
+      const attachmentDescriptions = currentAttachments.map((a) => {
+        if (a.type === "image") {
+          return `[Attached image: ${a.name} (${formatFileSize(a.size)})]`;
+        } else if (a.type === "text") {
+          return `[Attached file: ${a.name}]\n\`\`\`\n${a.content.slice(0, 8000)}\n\`\`\``;
+        }
+        return `[Attached file: ${a.name} (${formatFileSize(a.size)})]`;
+      });
+      fullContent = (fullContent ? fullContent + "\n\n" : "") + attachmentDescriptions.join("\n\n");
+    }
+
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: fullContent, attachments: currentAttachments.length > 0 ? currentAttachments : undefined };
     const allMessages = [...messages, userMsg];
     setMessages(allMessages);
     setInput("");
+    setAttachments([]);
     setIsStreaming(true);
 
     persistMessage("user", userMsg.content);
@@ -402,6 +436,97 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (audioBlob.size < 1000) return;
+        setIsTranscribing(true);
+        try {
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.webm");
+          const csrfToken = getCsrfToken();
+          const headers: Record<string, string> = {};
+          if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+          const res = await fetch("/api/ai/transcribe", {
+            method: "POST",
+            headers,
+            credentials: "include",
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.text) {
+            setInput((prev) => prev ? prev + " " + data.text : data.text);
+            inputRef.current?.focus();
+          }
+        } catch {}
+        setIsTranscribing(false);
+      };
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch {
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const handleFileAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles) return;
+
+    Array.from(selectedFiles).forEach((file) => {
+      const reader = new FileReader();
+      const isImage = file.type.startsWith("image/");
+
+      reader.onload = () => {
+        const content = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString() + Math.random().toString(36).slice(2),
+            name: file.name,
+            type: isImage ? "image" : file.type.startsWith("text/") || file.name.match(/\.(js|ts|tsx|jsx|py|json|css|html|md|yaml|yml|xml|csv|sql|sh|go|rs|java|c|cpp|h|rb|php)$/) ? "text" : "file",
+            content,
+            mimeType: file.type,
+            size: file.size,
+          },
+        ]);
+      };
+
+      if (isImage) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
   const [appliedBlocks, setAppliedBlocks] = useState<Set<string>>(new Set());
@@ -796,6 +921,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     </span>
                   </div>
                 )}
+                {msg.role === "user" && msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {msg.attachments.map((a) => (
+                      <div key={a.id} className="flex items-center gap-1 px-2 py-1 rounded bg-[var(--ide-surface)]/50 border border-[var(--ide-border)]/50 text-[10px] text-[var(--ide-text-muted)]">
+                        {a.type === "image" ? (
+                          <img src={a.content} alt={a.name} className="w-8 h-8 rounded object-cover" />
+                        ) : (
+                          <FileText className="w-3 h-3" />
+                        )}
+                        <span className="truncate max-w-[100px]">{a.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
                 {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
                   <div className="mt-2 flex items-center gap-2">
@@ -816,19 +955,50 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       </div>
 
       <div className="p-2.5 border-t border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2 px-1">
+            {attachments.map((a) => (
+              <div key={a.id} className="relative group flex items-center gap-1.5 pl-2 pr-7 py-1.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-secondary)] max-w-[180px]">
+                {a.type === "image" ? (
+                  <img src={a.content} alt={a.name} className="w-6 h-6 rounded object-cover shrink-0" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 shrink-0 text-[var(--ide-text-muted)]" />
+                )}
+                <span className="truncate text-[10px]">{a.name}</span>
+                <span className="text-[8px] text-[var(--ide-text-muted)]">({formatFileSize(a.size)})</span>
+                <button
+                  className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[var(--ide-text-muted)] hover:text-red-400"
+                  onClick={() => removeAttachment(a.id)}
+                  data-testid={`button-remove-attachment-${a.id}`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          multiple
+          accept="image/*,.txt,.js,.ts,.tsx,.jsx,.py,.json,.css,.html,.md,.yaml,.yml,.xml,.csv,.sql,.sh,.go,.rs,.java,.c,.cpp,.h,.rb,.php,.log,.env,.toml,.cfg"
+          onChange={handleFileAttachment}
+          data-testid="input-file-attachment"
+        />
         <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 focus-within:border-[#7C65CB]/40 focus-within:ring-1 focus-within:ring-[#7C65CB]/15 transition-all">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask AI anything..."
+            placeholder={isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : "Ask AI anything..."}
             rows={3}
             className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
-            disabled={isStreaming}
+            disabled={isStreaming || isTranscribing}
             data-testid="input-ai-chat"
           />
-          <div className="absolute right-2 bottom-2">
+          <div className="absolute right-2 bottom-2 flex items-center gap-1">
             {isStreaming ? (
               <Button
                 onClick={stopStreaming}
@@ -843,7 +1013,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 onClick={sendMessage}
                 size="icon"
                 className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-full shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
-                disabled={!input.trim()}
+                disabled={!input.trim() && attachments.length === 0}
                 data-testid="button-ai-send"
               >
                 <Send className="w-3.5 h-3.5 text-white" />
@@ -852,7 +1022,35 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1.5">
-          <span className="text-[9px] text-[#4A5068]">Shift+Enter for new line</span>
+          <div className="flex items-center gap-1">
+            <button
+              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                isRecording
+                  ? "bg-red-500 text-white animate-pulse"
+                  : isTranscribing
+                  ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+              }`}
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isStreaming || isTranscribing}
+              title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
+              data-testid="button-ai-mic"
+            >
+              {isRecording ? <MicOff className="w-3 h-3" /> : isTranscribing ? <Mic className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+            </button>
+            <button
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming}
+              title="Attach files"
+              data-testid="button-ai-attach"
+            >
+              <Paperclip className="w-3 h-3" />
+            </button>
+            <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
+              {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : "Shift+Enter for new line"}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             {isStreaming ? (
               <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
@@ -860,7 +1058,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 Generating...
               </span>
             ) : (
-              <span className={`text-[9px] ${input.length > 3800 ? "text-red-400" : "text-[#4A5068]"}`} data-testid="text-char-count">
+              <span className={`text-[9px] ${input.length > 3800 ? "text-red-400" : "text-[var(--ide-text-muted)]"}`} data-testid="text-char-count">
+                {attachments.length > 0 && `${attachments.length} file${attachments.length > 1 ? "s" : ""} · `}
                 {input.length > 0 ? `${input.length.toLocaleString()} chars` : ""}
               </span>
             )}
