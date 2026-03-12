@@ -233,14 +233,30 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("ai");
-  const [prevMobileTab, setPrevMobileTab] = useState<"files" | "editor" | "terminal" | "preview" | "ai">("editor");
+  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "deployments" | "packages" | "database" | "tests" | "settings";
+  const [mobileTab, setMobileTab] = useState<MobileTabType>("ai");
+  const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [mobileToolbarHidden, setMobileToolbarHidden] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [moreMenuSwipeY, setMoreMenuSwipeY] = useState(0);
+  const moreMenuTouchStartY = useRef(0);
   const lastScrollY = useRef(0);
-  const tabOrder = ["files", "editor", "terminal", "preview", "ai"] as const;
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "deployments", "packages", "database", "tests", "settings"] as const;
+  const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
+    { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
+    { id: "search", icon: Search, label: "Search", color: "#0079F2" },
+    { id: "git", icon: GitBranch, label: "Source Control", color: "#F26522" },
+    { id: "deployments", icon: Rocket, label: "Deployments", color: "#0079F2" },
+    { id: "packages", icon: Package, label: "Packages", color: "#0CCE6B" },
+    { id: "database", icon: Database, label: "Database", color: "#F26522" },
+    { id: "tests", icon: FlaskConical, label: "Tests", color: "#0CCE6B" },
+    { id: "settings", icon: Settings, label: "Settings", color: "#0079F2" },
+  ];
+  const overflowTabIds = overflowTabs.map(t => t.id);
+  const isOverflowTabActive = overflowTabIds.includes(mobileTab);
   const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
   const [swipedFileId, setSwipedFileId] = useState<string | null>(null);
   const swipeStartX = useRef(0);
@@ -3026,6 +3042,337 @@ function _projectPage() {
                   />
                 </div>
               )}
+              {mobileTab === "search" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-search-panel">
+                  <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Search</span>
+                    <div className="flex items-center gap-0.5">
+                      <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors ${showReplace ? "text-[#0079F2] bg-[#0079F2]/10" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => setShowReplace(!showReplace)} title="Toggle Replace" data-testid="mobile-button-toggle-replace">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.293 5.293l-4-4a1 1 0 00-1.414 0l-4 4a1 1 0 001.414 1.414L5 4.414V12a3 3 0 003 3h4a1 1 0 100-2H8a1 1 0 01-1-1V4.414l1.707 1.293a1 1 0 001.414-1.414z" /></svg>
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="px-3 py-2 border-b border-[var(--ide-border)] space-y-2">
+                    <div className="flex items-center gap-1">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                        <Input
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          placeholder="Search in files..."
+                          className="pl-8 bg-[var(--ide-bg)] border-[var(--ide-border)] h-8 text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md"
+                          autoFocus
+                          data-testid="mobile-input-search-files"
+                        />
+                      </div>
+                      <button className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchCaseSensitive ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-transparent"}`} onClick={() => setSearchCaseSensitive(!searchCaseSensitive)} title="Match Case" data-testid="mobile-button-search-case">Aa</button>
+                      <button className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchWholeWord ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-transparent"}`} onClick={() => setSearchWholeWord(!searchWholeWord)} title="Match Whole Word" data-testid="mobile-button-search-whole-word"><span className="border-b border-current px-0.5">ab</span></button>
+                      <button className={`w-7 h-7 flex items-center justify-center rounded text-[11px] shrink-0 transition-colors font-mono ${searchRegex ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-transparent"}`} onClick={() => setSearchRegex(!searchRegex)} title="Use Regular Expression" data-testid="mobile-button-search-regex">.*</button>
+                    </div>
+                    {showReplace && (
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1">
+                          <Input value={replaceTerm} onChange={(e) => setReplaceTerm(e.target.value)} placeholder="Replace..." className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-8 text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md pl-3" data-testid="mobile-input-replace-files" />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="w-7 h-7 shrink-0 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+                          title="Replace All"
+                          data-testid="mobile-button-replace-all"
+                          onClick={() => {
+                            if (!searchTerm.trim() || !filesQuery.data) return;
+                            let count = 0;
+                            let regex: RegExp;
+                            try {
+                              if (searchRegex) {
+                                const pattern = searchWholeWord ? `\\b${searchTerm}\\b` : searchTerm;
+                                regex = new RegExp(pattern, searchCaseSensitive ? "g" : "gi");
+                              } else {
+                                const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                const pattern = searchWholeWord ? `\\b${escaped}\\b` : escaped;
+                                regex = new RegExp(pattern, searchCaseSensitive ? "g" : "gi");
+                              }
+                            } catch { return; }
+                            filesQuery.data.forEach((file) => {
+                              const content = fileContents[file.id] ?? file.content ?? "";
+                              const matches = content.match(regex);
+                              if (matches && matches.length > 0) {
+                                const newContent = content.replace(regex, replaceTerm);
+                                setFileContents((prev) => ({ ...prev, [file.id]: newContent }));
+                                saveMutation.mutate({ fileId: file.id, content: newContent });
+                                count += matches.length;
+                              }
+                            });
+                            if (count > 0) {
+                              toast({ title: "Replace All", description: `Replaced ${count} occurrence${count === 1 ? "" : "s"} across files.` });
+                              setSearchTerm(searchTerm);
+                            } else {
+                              toast({ title: "Replace All", description: "No matches found.", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h10a2 2 0 012 2v4a1 1 0 01-2 0V3H3v10h4a1 1 0 010 2H3a2 2 0 01-2-2V3a2 2 0 012-2zm7 8l2 2-2 2m4-2H10" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </Button>
+                      </div>
+                    )}
+                    {searchTerm.trim() && searchResults.length > 0 && (
+                      <div className="text-[10px] text-[var(--ide-text-muted)]">{searchResults.length} result{searchResults.length === 1 ? "" : "s"} in {new Set(searchResults.map(r => r.fileId)).size} file{new Set(searchResults.map(r => r.fileId)).size === 1 ? "" : "s"}</div>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {searchTerm.trim() && searchResults.length === 0 && (
+                      <div className="px-3 py-6 text-center"><p className="text-xs text-[var(--ide-text-muted)]">No results found</p></div>
+                    )}
+                    {searchResults.map((result, i) => (
+                      <button key={`${result.fileId}-${result.line}-${i}`} className="w-full text-left px-3 py-1.5 hover:bg-[var(--ide-surface)] transition-colors border-b border-[var(--ide-border)]/50" onClick={() => { const file = filesQuery.data?.find((f) => f.id === result.fileId); if (file) { openFile(file); } setMobileTab("editor"); }} data-testid={`mobile-search-result-${i}`}>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <FileTypeIcon filename={result.filename} />
+                          <span className="text-[10px] font-medium text-[var(--ide-text)] truncate">{result.filename}</span>
+                          <span className="text-[9px] text-[var(--ide-text-muted)] ml-auto shrink-0">:{result.line}</span>
+                        </div>
+                        <p className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono pl-4">{result.text}</p>
+                      </button>
+                    ))}
+                    {!searchTerm.trim() && (
+                      <div className="px-3 py-8 text-center">
+                        <Search className="w-8 h-8 text-[var(--ide-border)] mx-auto mb-3" />
+                        <p className="text-xs text-[var(--ide-text-muted)]">Type to search across all files</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {mobileTab === "git" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-git-panel">
+                  <GitHubPanel projectId={projectId} projectName={project?.name || "project"} />
+                </div>
+              )}
+              {mobileTab === "deployments" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-deployments-panel">
+                  <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Deployments</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[var(--ide-text-muted)]"}`} />
+                        <span className="text-xs font-medium text-[var(--ide-text)]">{project?.isPublished ? "Published" : "Not published"}</span>
+                      </div>
+                      {project?.isPublished && (
+                        <div className="mb-3">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+                            <Globe className="w-3 h-3 text-[#0079F2] shrink-0" />
+                            <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono flex-1">{`${window.location.origin}/shared/${projectId}`}</span>
+                            <button className="p-0.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={copyShareUrl} data-testid="mobile-button-copy-deploy-url">
+                              {copiedUrl ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                            <button className="p-0.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => window.open(`/shared/${projectId}`, "_blank")} data-testid="mobile-button-open-deploy-url">
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+                        <div className="flex items-center gap-2">
+                          <Rocket className="w-3.5 h-3.5 text-[#0CCE6B]" />
+                          <span className="text-[11px] text-[var(--ide-text)]">Publish</span>
+                        </div>
+                        <Switch checked={project?.isPublished || false} onCheckedChange={() => publishMutation.mutate()} disabled={publishMutation.isPending} data-testid="mobile-switch-deploy-publish" />
+                      </div>
+                    </div>
+                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Deployment History</span>
+                      <div className="mt-2 space-y-1.5">
+                        {project?.isPublished ? (
+                          <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-[var(--ide-text)] font-medium">Production</p>
+                              <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date().toLocaleDateString()} · Live</p>
+                            </div>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Active</span>
+                          </div>
+                        ) : (
+                          <div className="py-4 text-center">
+                            <p className="text-[10px] text-[var(--ide-text-muted)]">No deployments yet</p>
+                            <p className="text-[9px] text-[#4A5068] mt-1">Publish your project to create a deployment</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="px-3 py-3">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Custom Domain</span>
+                      {customDomains.length > 0 ? (
+                        <div className="mt-2 space-y-2">
+                          {customDomains.map((d: any) => (
+                            <div key={d.id} className="p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{d.domain}</span>
+                                <button className="text-[var(--ide-text-muted)] hover:text-red-400 transition-colors ml-2" onClick={() => {
+                                  apiRequest("DELETE", `/api/projects/${projectId}/domains/${d.id}`)
+                                    .then(() => { setCustomDomains((prev: any[]) => prev.filter((x: any) => x.id !== d.id)); toast({ title: "Domain removed" }); });
+                                }} data-testid={`mobile-button-remove-domain-${d.id}`}><X className="w-3 h-3" /></button>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {d.verified ? (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Verified</span>
+                                ) : (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Pending</span>
+                                )}
+                                {d.sslStatus === "active" ? (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] border border-[#0079F2]/30">SSL Active</span>
+                                ) : d.sslStatus === "provisioning" ? (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">SSL Provisioning</span>
+                                ) : (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">No SSL</span>
+                                )}
+                              </div>
+                              {!d.verified && (
+                                <Button variant="ghost" size="sm" className="mt-2 h-6 px-2 text-[10px] text-[#0079F2] hover:bg-[#0079F2]/10 rounded w-full" onClick={() => {
+                                  apiRequest("POST", `/api/projects/${projectId}/domains/${d.id}/verify`)
+                                    .then(r => r.json()).then((data) => {
+                                      if (data.verified) {
+                                        setCustomDomains((prev: any[]) => prev.map((x: any) => x.id === d.id ? { ...x, verified: true, sslStatus: "provisioning" } : x));
+                                        toast({ title: "Domain verified!", description: "SSL certificate is being provisioned." });
+                                      } else {
+                                        toast({ title: "Not verified", description: data.message, variant: "destructive" });
+                                      }
+                                    });
+                                }} data-testid={`mobile-button-verify-domain-${d.id}`}>Verify DNS</Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="mt-2">
+                        {showDomainInput ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={domainInput}
+                              onChange={(e) => setDomainInput(e.target.value)}
+                              placeholder="example.com"
+                              className="flex-1 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-1.5 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] font-mono"
+                              onKeyDown={(e) => { if (e.key === "Enter" && domainInput.trim()) handleAddDomain(); if (e.key === "Escape") setShowDomainInput(false); }}
+                              autoFocus
+                              data-testid="mobile-input-custom-domain"
+                            />
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-[#0CCE6B] hover:bg-[#0CCE6B]/10 rounded shrink-0" onClick={handleAddDomain} data-testid="mobile-button-confirm-domain">Add</Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0" onClick={() => setShowDomainInput(false)}><X className="w-3 h-3" /></Button>
+                          </div>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] text-[var(--ide-text-secondary)] border border-[var(--ide-border)] border-dashed hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] hover:border-[#0079F2]/40 rounded-md w-full" onClick={() => setShowDomainInput(true)} data-testid="mobile-button-add-domain">
+                            <Plus className="w-3 h-3 mr-1" /> Add Domain
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {mobileTab === "packages" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-packages-panel">
+                  <PackagesPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
+              {mobileTab === "database" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-database-panel">
+                  <DatabasePanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
+              {mobileTab === "tests" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-tests-panel">
+                  <TestRunnerPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
+              {mobileTab === "settings" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
+                  <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+                    <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Settings</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Theme</span>
+                      <div className="mt-2 flex gap-2">
+                        <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0079F2]/10 border border-[#0079F2]/30 text-[11px] text-[var(--ide-text)]" data-testid="mobile-button-theme-dark">
+                          <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] border border-[var(--ide-border)]" /> Dark
+                        </button>
+                        <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] opacity-50 cursor-not-allowed" disabled data-testid="mobile-button-theme-light">
+                          <span className="w-4 h-4 rounded-full bg-white border border-gray-300" /> Light
+                        </button>
+                      </div>
+                    </div>
+                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Editor</span>
+                      <div className="mt-2 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Font Size</span>
+                          <div className="flex items-center gap-1.5">
+                            <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.max(10, editorFontSize - 1))} data-testid="mobile-button-font-size-decrease"><span className="text-xs font-bold">−</span></Button>
+                            <span className="text-[11px] text-[var(--ide-text)] w-6 text-center font-mono" data-testid="mobile-text-font-size">{editorFontSize}</span>
+                            <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.min(24, editorFontSize + 1))} data-testid="mobile-button-font-size-increase"><span className="text-xs font-bold">+</span></Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Tab Size</span>
+                          <div className="flex items-center gap-1">
+                            {[2, 4].map((size) => (
+                              <button key={size} onClick={() => setEditorTabSize(size)} className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${editorTabSize === size ? "bg-[#0079F2] text-white" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] border border-[var(--ide-border)]"}`} data-testid={`mobile-button-tab-size-${size}`}>
+                                {size}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Word Wrap</span>
+                          <Switch checked={editorWordWrap} onCheckedChange={setEditorWordWrap} data-testid="mobile-switch-word-wrap" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Project</span>
+                      <div className="mt-2 space-y-0.5">
+                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { setMobileTab("editor"); setProjectSettingsOpen(true); }} data-testid="mobile-button-open-project-settings">
+                          <Settings className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Project Settings</span>
+                          <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
+                        </button>
+                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { setMobileTab("editor"); setEnvVarsPanelOpen(true); }} data-testid="mobile-button-open-env-vars">
+                          <Key className="w-3.5 h-3.5 text-[#F5A623]" />
+                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Secrets</span>
+                          <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="px-3 py-3">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">About</span>
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-[var(--ide-text-muted)]">Version</span>
+                          <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">1.0.0</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-[var(--ide-text-muted)]">Runtime</span>
+                          <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">Node.js</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-[var(--ide-text-muted)]">Editor</span>
+                          <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">CodeMirror 6</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--ide-border)]">
+                          <svg width="10" height="10" viewBox="0 0 32 32" fill="none">
+                            <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
+                            <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
+                            <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
+                          </svg>
+                          <span className="text-[10px] text-[var(--ide-text-muted)]">Powered by E-Code</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {mobileTab === "editor" && (
@@ -3071,6 +3418,44 @@ function _projectPage() {
             )}
           </div>
 
+          {/* MOBILE MORE MENU OVERLAY */}
+          {moreMenuOpen && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" data-testid="mobile-more-overlay">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setMoreMenuOpen(false)} />
+              <div
+                className="relative bg-[var(--ide-bg)] border-t border-[var(--ide-border)] rounded-t-2xl pb-[env(safe-area-inset-bottom)] animate-slide-up"
+                style={{ transform: moreMenuSwipeY > 0 ? `translateY(${moreMenuSwipeY}px)` : undefined, transition: moreMenuSwipeY > 0 ? "none" : undefined }}
+                data-testid="mobile-more-menu"
+                onTouchStart={(e) => { moreMenuTouchStartY.current = e.touches[0].clientY; }}
+                onTouchMove={(e) => { const dy = e.touches[0].clientY - moreMenuTouchStartY.current; setMoreMenuSwipeY(Math.max(0, dy)); }}
+                onTouchEnd={() => { if (moreMenuSwipeY > 80) { setMoreMenuOpen(false); } setMoreMenuSwipeY(0); }}
+              >
+                <div className="flex justify-center pt-2 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-[var(--ide-border)]" />
+                </div>
+                <div className="px-4 py-2">
+                  <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">More</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1 px-3 pb-4">
+                  {overflowTabs.map(({ id, icon: Icon, label, color }) => {
+                    const isActive = mobileTab === id;
+                    return (
+                      <button
+                        key={id}
+                        className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl transition-all duration-150 active:scale-95 ${isActive ? "bg-[var(--ide-surface)]" : "hover:bg-[var(--ide-surface)]"}`}
+                        onClick={() => { handleMobileTabChange(id); setMoreMenuOpen(false); }}
+                        data-testid={`mobile-more-item-${id}`}
+                      >
+                        <Icon className="w-5 h-5" style={{ color: isActive ? color : "#9CA3AF" }} />
+                        <span className="text-[10px] font-medium leading-none" style={{ color: isActive ? color : "#9CA3AF" }}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* MOBILE BOTTOM NAV */}
           <div className="flex items-stretch h-[56px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
             {([
@@ -3078,7 +3463,6 @@ function _projectPage() {
               { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
               { id: "terminal" as const, icon: Terminal, label: "Shell", color: "#0CCE6B" },
               { id: "preview" as const, icon: Globe, label: "Webview", color: "#F5A623" },
-              { id: "ai" as const, icon: Sparkles, label: "Agent", color: "#7C65CB" },
             ]).map(({ id, icon: Icon, label, color }) => {
               const isActive = mobileTab === id;
               return (
@@ -3086,7 +3470,7 @@ function _projectPage() {
                   key={id}
                   className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-150 active:scale-90"
                   style={{ color: isActive ? color : "#9CA3AF" }}
-                  onClick={() => handleMobileTabChange(id)}
+                  onClick={() => { handleMobileTabChange(id); setMoreMenuOpen(false); }}
                   data-testid={`mobile-tab-${id}`}
                 >
                   {isActive && (
@@ -3100,6 +3484,18 @@ function _projectPage() {
                 </button>
               );
             })}
+            <button
+              className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-150 active:scale-90"
+              style={{ color: isOverflowTabActive ? (overflowTabs.find(t => t.id === mobileTab)?.color || "#9CA3AF") : "#9CA3AF" }}
+              onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+              data-testid="mobile-tab-more"
+            >
+              {isOverflowTabActive && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2.5px] rounded-full transition-all duration-200" style={{ backgroundColor: overflowTabs.find(t => t.id === mobileTab)?.color || "#9CA3AF" }} />
+              )}
+              <MoreHorizontal className={`w-5 h-5 transition-transform duration-150 ${isOverflowTabActive ? "scale-110" : ""}`} />
+              <span className={`text-[10px] font-medium leading-none ${isOverflowTabActive ? "opacity-100" : "opacity-70"}`}>More</span>
+            </button>
           </div>
         </>
       ) : (

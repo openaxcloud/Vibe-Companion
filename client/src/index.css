@@ -629,3 +629,12 @@ button:disabled {
 .mobile-slide-right {
   animation: mobile-slide-right-in 250ms ease-out;
 }
+
+@keyframes slide-up-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up-in 300ms ease-out;
+}
