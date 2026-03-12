@@ -223,6 +223,56 @@ export const PLAN_LIMITS = {
   team: { dailyExecutions: 2000, dailyAiCalls: 1000, storageMb: 50000, maxProjects: 200, price: 2500 },
 } as const;
 
+export const customDomains = pgTable("custom_domains", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  domain: text("domain").notNull().unique(),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  verified: boolean("verified").notNull().default(false),
+  verificationToken: text("verification_token").notNull(),
+  sslStatus: text("ssl_status").notNull().default("pending"),
+  sslExpiresAt: timestamp("ssl_expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  verifiedAt: timestamp("verified_at"),
+}, (table) => [
+  index("custom_domains_project_idx").on(table.projectId),
+  index("custom_domains_user_idx").on(table.userId),
+]);
+
+export const insertCustomDomainSchema = createInsertSchema(customDomains).pick({
+  domain: true,
+  projectId: true,
+  userId: true,
+  verificationToken: true,
+});
+export type InsertCustomDomain = z.infer<typeof insertCustomDomainSchema>;
+export type CustomDomain = typeof customDomains.$inferSelect;
+
+export const planConfigs = pgTable("plan_configs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  plan: text("plan").notNull().unique(),
+  dailyExecutions: integer("daily_executions").notNull(),
+  dailyAiCalls: integer("daily_ai_calls").notNull(),
+  storageMb: integer("storage_mb").notNull(),
+  maxProjects: integer("max_projects").notNull(),
+  price: integer("price").notNull(),
+  description: text("description"),
+  features: text("features").array(),
+});
+
+export const insertPlanConfigSchema = createInsertSchema(planConfigs).pick({
+  plan: true,
+  dailyExecutions: true,
+  dailyAiCalls: true,
+  storageMb: true,
+  maxProjects: true,
+  price: true,
+  description: true,
+  features: true,
+});
+export type InsertPlanConfig = z.infer<typeof insertPlanConfigSchema>;
+export type PlanConfig = typeof planConfigs.$inferSelect;
+
 export const projectEnvVars = pgTable("project_env_vars", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

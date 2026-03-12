@@ -26,7 +26,6 @@ import {
   getSystemMetrics,
   getClientIp,
 } from "./rateLimiter";
-import { PLAN_LIMITS } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -471,8 +470,7 @@ export async function registerRoutes(
     try {
       const userId = req.session.userId!;
       const quota = await storage.getUserQuota(userId);
-      const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
-      const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+      const limits = await storage.getPlanLimits(quota.plan || "free");
       const projectList = await storage.getProjects(userId);
       res.json({
         plan: quota.plan,
@@ -1110,10 +1108,10 @@ export async function registerRoutes(
       const isPublished = sourceProject.isPublished;
       if (!isOwner && !isPublished) return res.status(403).json({ message: "Cannot fork a private project" });
       const sourceFiles = await storage.getFiles(sourceProject.id);
-      const userProjects = await storage.getUserProjects(req.session.userId!);
-      const currentUser = await storage.getUser(req.session.userId!);
-      const limits = PLAN_LIMITS[(currentUser?.plan as keyof typeof PLAN_LIMITS) || "free"];
-      if (userProjects.length >= limits.maxProjects) return res.status(403).json({ message: "Project limit reached" });
+      const userProjects = await storage.getProjects(req.session.userId!);
+      const forkQuota = await storage.getUserQuota(req.session.userId!);
+      const forkLimits = await storage.getPlanLimits(forkQuota.plan || "free");
+      if (userProjects.length >= forkLimits.maxProjects) return res.status(403).json({ message: "Project limit reached" });
       const rawName = req.body.name || `${sourceProject.name} (fork)`;
       const forkName = sanitizeInput(rawName, 100);
       const newProject = await storage.createProject(req.session.userId!, {
@@ -1230,7 +1228,7 @@ export async function registerRoutes(
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const { domain } = z.object({ domain: z.string().min(3).max(253) }).parse(req.body);
-      const result = addDomain(domain, project.id, req.session.userId!);
+      const result = await addDomain(domain, project.id, req.session.userId!);
       return res.json(result);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1242,7 +1240,7 @@ export async function registerRoutes(
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
-      const domainRecord = getDomainById(req.params.domainId);
+      const domainRecord = await getDomainById(req.params.domainId);
       if (!domainRecord || domainRecord.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
       const result = await verifyDomain(req.params.domainId);
       if (result.verified) {
@@ -1258,7 +1256,9 @@ export async function registerRoutes(
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
-      const success = removeDomain(req.params.domainId, req.session.userId!);
+      const domainToDelete = await getDomainById(req.params.domainId);
+      if (!domainToDelete || domainToDelete.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
+      const success = await removeDomain(req.params.domainId, req.session.userId!);
       if (!success) return res.status(404).json({ message: "Domain not found" });
       if (project.customDomain) {
         await storage.updateProject(project.id, { customDomain: null });
@@ -1273,7 +1273,7 @@ export async function registerRoutes(
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
-      const domains = getProjectDomains(project.id);
+      const domains = await getProjectDomains(project.id);
       return res.json(domains);
     } catch {
       return res.status(500).json({ message: "Failed to fetch domains" });
@@ -1477,6 +1477,86 @@ export async function registerRoutes(
 
   app.get("/api/templates", (_req: Request, res: Response) => {
     return res.json(getAllTemplates());
+  });
+
+  app.get("/api/plan-configs", async (_req: Request, res: Response) => {
+    try {
+      const configs = await storage.getAllPlanConfigs();
+      return res.json(configs);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch plan configs" });
+    }
+  });
+
+  app.get("/api/landing-stats", async (_req: Request, res: Response) => {
+    try {
+      const stats = await storage.getLandingStats();
+      return res.json(stats);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch landing stats" });
+    }
+  });
+
+  app.get("/api/ai-suggestions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const languages = await storage.getUserRecentLanguages(userId);
+      const languageSuggestions: Record<string, { chat: string[]; agent: string[] }> = {
+        python: {
+          chat: ["Explain this Python code", "Add type hints to this code", "Convert to async/await", "Optimize with list comprehensions"],
+          agent: ["Build a Flask REST API", "Create a data analysis script", "Add pytest unit tests", "Build a CLI tool with Click"],
+        },
+        javascript: {
+          chat: ["Explain this JavaScript code", "Convert to TypeScript", "Add JSDoc comments", "Optimize array operations"],
+          agent: ["Build a React component", "Create an Express API endpoint", "Add Jest unit tests", "Build a Node.js CLI tool"],
+        },
+        typescript: {
+          chat: ["Explain this TypeScript code", "Improve type definitions", "Add generics", "Fix type errors"],
+          agent: ["Build a typed React component", "Create a typed API endpoint", "Add Vitest unit tests", "Refactor with utility types"],
+        },
+        go: {
+          chat: ["Explain this Go code", "Add error handling", "Optimize goroutines", "Add Go doc comments"],
+          agent: ["Build an HTTP handler", "Create a CLI with Cobra", "Add table-driven tests", "Build a concurrent worker"],
+        },
+        rust: {
+          chat: ["Explain this Rust code", "Fix borrow checker issues", "Add error handling with Result", "Optimize with iterators"],
+          agent: ["Build a CLI with Clap", "Create a REST API with Actix", "Add unit tests", "Implement a custom trait"],
+        },
+      };
+
+      if (languages.length > 0) {
+        const primaryLang = languages[0].toLowerCase();
+        const suggestions = languageSuggestions[primaryLang];
+        if (suggestions) {
+          return res.json({
+            personalized: true,
+            primaryLanguage: primaryLang,
+            languages,
+            chat: suggestions.chat.map(label => ({ label, category: "Suggested" })),
+            agent: suggestions.agent.map(label => ({ label, category: "Suggested" })),
+          });
+        }
+      }
+
+      return res.json({
+        personalized: false,
+        languages,
+        chat: [
+          { label: "Explain this code", category: "Understand" },
+          { label: "Find bugs and fix them", category: "Debug" },
+          { label: "Add error handling", category: "Improve" },
+          { label: "Optimize performance", category: "Optimize" },
+        ],
+        agent: [
+          { label: "Build a login form with validation", category: "UI" },
+          { label: "Add a REST API endpoint", category: "Backend" },
+          { label: "Create a utility functions file", category: "Utils" },
+          { label: "Refactor this code for performance", category: "Refactor" },
+        ],
+      });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch AI suggestions" });
+    }
   });
 
   app.post("/api/projects/from-template", requireAuth, async (req: Request, res: Response) => {
@@ -3775,6 +3855,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
 
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
+  await storage.seedPlanConfigs();
+  log("Plan configs seeded", "seed");
 
   return httpServer;
 }

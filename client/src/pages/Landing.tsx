@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, Eye, Menu, X } from "lucide-react";
 
@@ -88,7 +89,7 @@ const features = [
   { icon: Shield, title: "Enterprise Security", desc: "Sandboxed execution, CSRF protection, encrypted secrets, audit logging, and rate limiting.", color: "#FF6166" },
 ];
 
-const stats = [
+const defaultStats = [
   { value: "10+", label: "Languages" },
   { value: "3", label: "AI Models" },
   { value: "< 1s", label: "Deploy Time" },
@@ -99,6 +100,12 @@ export default function Landing() {
   const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const statsQuery = useQuery<{ value: string; label: string }[]>({
+    queryKey: ["/api/landing-stats"],
+    staleTime: 60000,
+  });
+  const stats = statsQuery.data || defaultStats;
 
   useEffect(() => {
     if (isAuthenticated) setLocation("/dashboard");

@@ -200,19 +200,44 @@ export default function Dashboard() {
     });
   const initials = user?.displayName?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || "??";
 
-  const TEMPLATES = [
-    { id: "react-app", name: "React App", desc: "React frontend with components and hooks", icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60", lang: "TypeScript", snippet: "export default function App() {" },
-    { id: "express-api", name: "Express API", desc: "REST API with Express and routing", icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60", lang: "JavaScript", snippet: "app.get('/api', (req, res) =>" },
-    { id: "python-flask", name: "Python Flask", desc: "Flask web server with routing", icon: Terminal, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60", lang: "Python", snippet: "@app.route('/')" },
-    { id: "node-cli", name: "Node CLI", desc: "Command-line tool with Node.js", icon: FileCode, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60", lang: "JavaScript", snippet: "process.argv.slice(2)" },
-    { id: "html-css-js", name: "HTML/CSS/JS", desc: "Static website with vanilla web tech", icon: FileText, gradient: "from-[#E34F26] to-[#F06529]", iconColor: "text-[#E34F26]", borderColor: "border-[#E34F26]/30 hover:border-[#E34F26]/60", lang: "HTML", snippet: "<!DOCTYPE html>" },
-    { id: "go-server", name: "Go Server", desc: "HTTP server with Go and net/http", icon: Globe, gradient: "from-[#00ADD8] to-[#00758D]", iconColor: "text-cyan-400", borderColor: "border-cyan-400/30 hover:border-cyan-400/60", lang: "Go", snippet: "http.HandleFunc(\"/\", handler)" },
-    { id: "cpp-app", name: "C++ App", desc: "C++ program with classes and STL", icon: Code2, gradient: "from-[#6366F1] to-[#4338CA]", iconColor: "text-indigo-400", borderColor: "border-indigo-400/30 hover:border-indigo-400/60", lang: "C++", snippet: "#include <iostream>" },
-    { id: "java-app", name: "Java App", desc: "Java application with OOP patterns", icon: Code2, gradient: "from-[#EF4444] to-[#B91C1C]", iconColor: "text-red-500", borderColor: "border-red-500/30 hover:border-red-500/60", lang: "Java", snippet: "public static void main(String[])" },
-    { id: "rust-app", name: "Rust App", desc: "Rust program with structs and enums", icon: Code2, gradient: "from-[#F97316] to-[#C2410C]", iconColor: "text-orange-400", borderColor: "border-orange-400/30 hover:border-orange-400/60", lang: "Rust", snippet: "fn main() {" },
-    { id: "ruby-script", name: "Ruby Script", desc: "Ruby script with classes and modules", icon: Code2, gradient: "from-[#EF4444] to-[#DC2626]", iconColor: "text-red-400", borderColor: "border-red-400/30 hover:border-red-400/60", lang: "Ruby", snippet: "class TaskManager" },
-    { id: "bash-script", name: "Bash Script", desc: "Shell script with functions", icon: Terminal, gradient: "from-[#64748B] to-[#475569]", iconColor: "text-slate-400", borderColor: "border-slate-400/30 hover:border-slate-400/60", lang: "Bash", snippet: "#!/bin/bash" },
+  const TEMPLATE_UI: Record<string, { icon: typeof Code2; gradient: string; iconColor: string; borderColor: string; snippet: string }> = {
+    "react-app": { icon: Globe, gradient: "from-[#0079F2] to-[#00B4D8]", iconColor: "text-[#0079F2]", borderColor: "border-[#0079F2]/30 hover:border-[#0079F2]/60", snippet: "export default function App() {" },
+    "express-api": { icon: Database, gradient: "from-[#0CCE6B] to-[#00B4D8]", iconColor: "text-[#0CCE6B]", borderColor: "border-[#0CCE6B]/30 hover:border-[#0CCE6B]/60", snippet: "app.get('/api', (req, res) =>" },
+    "python-flask": { icon: Terminal, gradient: "from-[#7C65CB] to-[#A371F7]", iconColor: "text-[#7C65CB]", borderColor: "border-[#7C65CB]/30 hover:border-[#7C65CB]/60", snippet: "@app.route('/')" },
+    "node-cli": { icon: FileCode, gradient: "from-[#F59E0B] to-[#EF4444]", iconColor: "text-[#F59E0B]", borderColor: "border-[#F59E0B]/30 hover:border-[#F59E0B]/60", snippet: "process.argv.slice(2)" },
+    "html-css-js": { icon: FileText, gradient: "from-[#E34F26] to-[#F06529]", iconColor: "text-[#E34F26]", borderColor: "border-[#E34F26]/30 hover:border-[#E34F26]/60", snippet: "<!DOCTYPE html>" },
+    "go-server": { icon: Globe, gradient: "from-[#00ADD8] to-[#00758D]", iconColor: "text-cyan-400", borderColor: "border-cyan-400/30 hover:border-cyan-400/60", snippet: "http.HandleFunc(\"/\", handler)" },
+    "cpp-app": { icon: Code2, gradient: "from-[#6366F1] to-[#4338CA]", iconColor: "text-indigo-400", borderColor: "border-indigo-400/30 hover:border-indigo-400/60", snippet: "#include <iostream>" },
+    "java-app": { icon: Code2, gradient: "from-[#EF4444] to-[#B91C1C]", iconColor: "text-red-500", borderColor: "border-red-500/30 hover:border-red-500/60", snippet: "public static void main(String[])" },
+    "rust-app": { icon: Code2, gradient: "from-[#F97316] to-[#C2410C]", iconColor: "text-orange-400", borderColor: "border-orange-400/30 hover:border-orange-400/60", snippet: "fn main() {" },
+    "ruby-script": { icon: Code2, gradient: "from-[#EF4444] to-[#DC2626]", iconColor: "text-red-400", borderColor: "border-red-400/30 hover:border-red-400/60", snippet: "class TaskManager" },
+    "bash-script": { icon: Terminal, gradient: "from-[#64748B] to-[#475569]", iconColor: "text-slate-400", borderColor: "border-slate-400/30 hover:border-slate-400/60", snippet: "#!/bin/bash" },
+  };
+  const defaultUI = { icon: Code2, gradient: "from-[#6366F1] to-[#4338CA]", iconColor: "text-indigo-400", borderColor: "border-indigo-400/30 hover:border-indigo-400/60", snippet: "" };
+
+  const templatesQuery = useQuery<{ id: string; name: string; description: string; language: string }[]>({
+    queryKey: ["/api/templates"],
+  });
+
+  const FALLBACK_TEMPLATES = [
+    { id: "react-app", name: "React App", description: "React frontend with components and hooks", language: "TypeScript" },
+    { id: "express-api", name: "Express API", description: "REST API with Express and routing", language: "JavaScript" },
+    { id: "python-flask", name: "Python Flask", description: "Flask web server with routing", language: "Python" },
+    { id: "node-cli", name: "Node CLI", description: "Command-line tool with Node.js", language: "JavaScript" },
+    { id: "html-css-js", name: "HTML/CSS/JS", description: "Static website with vanilla web tech", language: "HTML" },
+    { id: "go-server", name: "Go Server", description: "HTTP server with Go and net/http", language: "Go" },
+    { id: "cpp-app", name: "C++ App", description: "C++ program with classes and STL", language: "C++" },
+    { id: "java-app", name: "Java App", description: "Java application with OOP patterns", language: "Java" },
+    { id: "rust-app", name: "Rust App", description: "Rust program with structs and enums", language: "Rust" },
+    { id: "ruby-script", name: "Ruby Script", description: "Ruby script with classes and modules", language: "Ruby" },
+    { id: "bash-script", name: "Bash Script", description: "Shell script with functions", language: "Bash" },
   ];
+
+  const templateData = templatesQuery.data && templatesQuery.data.length > 0 ? templatesQuery.data : FALLBACK_TEMPLATES;
+  const TEMPLATES = templateData.map(t => {
+    const ui = TEMPLATE_UI[t.id] || defaultUI;
+    return { id: t.id, name: t.name, desc: t.description, icon: ui.icon, gradient: ui.gradient, iconColor: ui.iconColor, borderColor: ui.borderColor, lang: t.language, snippet: ui.snippet };
+  });
 
   const GENERATION_STEPS = [
     "Analyzing your prompt...",

@@ -746,19 +746,40 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const modelInfo = MODEL_LABELS[model];
   const ModelIcon = modelInfo.icon;
 
-  const chatSuggestions = [
+  const defaultChatSuggestions = [
     { icon: Code2, label: "Explain this code", category: "Understand" },
     { icon: Bug, label: "Find bugs and fix them", category: "Debug" },
     { icon: Shield, label: "Add error handling", category: "Improve" },
     { icon: Gauge, label: "Optimize performance", category: "Optimize" },
   ];
 
-  const agentSuggestions = [
+  const defaultAgentSuggestions = [
     { icon: Layout, label: "Build a login form with validation", category: "UI" },
     { icon: Database, label: "Add a REST API endpoint", category: "Backend" },
     { icon: Wrench, label: "Create a utility functions file", category: "Utils" },
     { icon: Lightbulb, label: "Refactor this code for performance", category: "Refactor" },
   ];
+
+  const [personalizedSuggestions, setPersonalizedSuggestions] = useState<{ chat: { label: string; category: string }[]; agent: { label: string; category: string }[] } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/ai-suggestions", { credentials: "include" })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.personalized && data.chat && data.agent) {
+          setPersonalizedSuggestions({ chat: data.chat, agent: data.agent });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const suggestionIcons = [Code2, Bug, Shield, Gauge, Layout, Database, Wrench, Lightbulb];
+  const chatSuggestions = personalizedSuggestions
+    ? personalizedSuggestions.chat.map((s, i) => ({ ...s, icon: suggestionIcons[i % suggestionIcons.length] }))
+    : defaultChatSuggestions;
+  const agentSuggestions = personalizedSuggestions
+    ? personalizedSuggestions.agent.map((s, i) => ({ ...s, icon: suggestionIcons[(i + 4) % suggestionIcons.length] }))
+    : defaultAgentSuggestions;
 
   return (
     <div className="flex flex-col h-full bg-[var(--ide-panel)]">

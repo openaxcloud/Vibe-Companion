@@ -8,6 +8,7 @@ import {
   passwordResetTokens, emailVerifications,
   teams, teamMembers, teamInvites,
   analyticsEvents, deployments,
+  customDomains, planConfigs,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -28,6 +29,8 @@ import {
   type TeamInvite,
   type AnalyticsEvent,
   type Deployment, type InsertDeployment,
+  type CustomDomain,
+  type PlanConfig,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -145,6 +148,21 @@ export interface IStorage {
   getDeployment(id: string): Promise<Deployment | undefined>;
   getProjectDeployments(projectId: string): Promise<Deployment[]>;
   updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date }>): Promise<Deployment | undefined>;
+
+  createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain>;
+  getCustomDomain(id: string): Promise<CustomDomain | undefined>;
+  getCustomDomainByHostname(hostname: string): Promise<CustomDomain | undefined>;
+  getProjectCustomDomains(projectId: string): Promise<CustomDomain[]>;
+  updateCustomDomain(id: string, data: Partial<{ verified: boolean; verifiedAt: Date; sslStatus: string; sslExpiresAt: Date }>): Promise<CustomDomain | undefined>;
+  deleteCustomDomain(id: string, userId: string): Promise<boolean>;
+
+  getPlanConfig(plan: string): Promise<PlanConfig | undefined>;
+  getAllPlanConfigs(): Promise<PlanConfig[]>;
+  seedPlanConfigs(): Promise<void>;
+
+  getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; storageMb: number; maxProjects: number; price: number }>;
+  getLandingStats(): Promise<{ label: string; value: string }[]>;
+  getUserRecentLanguages(userId: string): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -493,8 +511,7 @@ export class DatabaseStorage implements IStorage {
 
   async incrementExecution(userId: string): Promise<{ allowed: boolean; quota: UserQuota }> {
     const quota = await this.getUserQuota(userId);
-    const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const limits = await this.getPlanLimits(quota.plan || "free");
     if (quota.dailyExecutionsUsed >= limits.dailyExecutions) return { allowed: false, quota };
     const [updated] = await db.update(userQuotas)
       .set({ dailyExecutionsUsed: quota.dailyExecutionsUsed + 1, totalExecutions: quota.totalExecutions + 1, updatedAt: new Date() })
@@ -504,8 +521,7 @@ export class DatabaseStorage implements IStorage {
 
   async incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }> {
     const quota = await this.getUserQuota(userId);
-    const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const limits = await this.getPlanLimits(quota.plan || "free");
     if (quota.dailyAiCallsUsed >= limits.dailyAiCalls) return { allowed: false, quota };
     const [updated] = await db.update(userQuotas)
       .set({ dailyAiCallsUsed: quota.dailyAiCallsUsed + 1, totalAiCalls: quota.totalAiCalls + 1, updatedAt: new Date() })
@@ -515,8 +531,7 @@ export class DatabaseStorage implements IStorage {
 
   async checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }> {
     const quota = await this.getUserQuota(userId);
-    const plan = (quota.plan as keyof typeof PLAN_LIMITS) || "free";
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const limits = await this.getPlanLimits(quota.plan || "free");
     const userProjects = await db.select().from(projects).where(eq(projects.userId, userId));
     return { allowed: userProjects.length < limits.maxProjects, current: userProjects.length, limit: limits.maxProjects };
   }
@@ -792,6 +807,114 @@ export class DatabaseStorage implements IStorage {
   async updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date }>): Promise<Deployment | undefined> {
     const [dep] = await db.update(deployments).set(data).where(eq(deployments.id, id)).returning();
     return dep;
+  }
+
+  async createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain> {
+    const [domain] = await db.insert(customDomains).values(data).returning();
+    return domain;
+  }
+
+  async getCustomDomain(id: string): Promise<CustomDomain | undefined> {
+    const [domain] = await db.select().from(customDomains).where(eq(customDomains.id, id)).limit(1);
+    return domain;
+  }
+
+  async getCustomDomainByHostname(hostname: string): Promise<CustomDomain | undefined> {
+    const [domain] = await db.select().from(customDomains).where(eq(customDomains.domain, hostname.toLowerCase())).limit(1);
+    return domain;
+  }
+
+  async getProjectCustomDomains(projectId: string): Promise<CustomDomain[]> {
+    return db.select().from(customDomains).where(eq(customDomains.projectId, projectId)).orderBy(desc(customDomains.createdAt));
+  }
+
+  async updateCustomDomain(id: string, data: Partial<{ verified: boolean; verifiedAt: Date; sslStatus: string; sslExpiresAt: Date }>): Promise<CustomDomain | undefined> {
+    const [domain] = await db.update(customDomains).set(data).where(eq(customDomains.id, id)).returning();
+    return domain;
+  }
+
+  async deleteCustomDomain(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(customDomains).where(and(eq(customDomains.id, id), eq(customDomains.userId, userId))).returning();
+    return result.length > 0;
+  }
+
+  async getPlanConfig(plan: string): Promise<PlanConfig | undefined> {
+    const [config] = await db.select().from(planConfigs).where(eq(planConfigs.plan, plan)).limit(1);
+    return config;
+  }
+
+  async getAllPlanConfigs(): Promise<PlanConfig[]> {
+    return db.select().from(planConfigs).orderBy(planConfigs.price);
+  }
+
+  async seedPlanConfigs(): Promise<void> {
+    const existing = await db.select().from(planConfigs).limit(1);
+    if (existing.length > 0) return;
+    await db.insert(planConfigs).values([
+      {
+        plan: "free", dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5, price: 0,
+        description: "Perfect for learning and personal projects",
+        features: ["5 projects", "50 code executions / day", "20 AI calls / day", "50 MB storage", "JavaScript & Python", "Community support"],
+      },
+      {
+        plan: "pro", dailyExecutions: 500, dailyAiCalls: 200, storageMb: 5000, maxProjects: 50, price: 1200,
+        description: "For developers who need more power and flexibility",
+        features: ["Unlimited projects", "500 code executions / day", "200 AI calls / day", "5 GB storage", "All languages (Go, Java, C++, Ruby, Bash)", "Priority AI (GPT-4o, Claude, Gemini)", "Custom domains", "Priority support"],
+      },
+      {
+        plan: "team", dailyExecutions: 2000, dailyAiCalls: 1000, storageMb: 50000, maxProjects: 200, price: 2500,
+        description: "For teams building together with shared workspaces",
+        features: ["Everything in Pro", "Unlimited team members", "Shared projects & workspaces", "Team admin dashboard", "SSO & SAML", "Audit logs", "99.9% uptime SLA", "Dedicated support"],
+      },
+    ]);
+  }
+
+  async getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; storageMb: number; maxProjects: number; price: number }> {
+    const config = await this.getPlanConfig(plan);
+    if (config) {
+      return { dailyExecutions: config.dailyExecutions, dailyAiCalls: config.dailyAiCalls, storageMb: config.storageMb, maxProjects: config.maxProjects, price: config.price };
+    }
+    const fallback = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
+    return { ...fallback };
+  }
+
+  async getLandingStats(): Promise<{ label: string; value: string }[]> {
+    const [{ value: userCount }] = await db.select({ value: count() }).from(users);
+    const [{ value: projectCount }] = await db.select({ value: count() }).from(projects);
+    const languageRows = await db.selectDistinct({ language: projects.language }).from(projects);
+    const languageCount = languageRows.length || 10;
+    return [
+      { value: `${languageCount}+`, label: "Languages" },
+      { value: "3", label: "AI Models" },
+      { value: `${userCount}+`, label: "Developers" },
+      { value: `${projectCount}+`, label: "Projects" },
+    ];
+  }
+
+  async getUserRecentLanguages(userId: string): Promise<string[]> {
+    const recentProjects = await db.select({ language: projects.language })
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(desc(projects.updatedAt))
+      .limit(10);
+    const langs = [...new Set(recentProjects.map(p => p.language.toLowerCase()))];
+
+    const recentActivity = await db.select({ properties: analyticsEvents.properties })
+      .from(analyticsEvents)
+      .where(and(eq(analyticsEvents.userId, userId), eq(analyticsEvents.event, "code_executed")))
+      .orderBy(desc(analyticsEvents.createdAt))
+      .limit(20);
+    for (const row of recentActivity) {
+      const props = row.properties as { language?: string } | null;
+      if (props?.language && typeof props.language === "string") {
+        const normalized = props.language.toLowerCase();
+        if (!langs.includes(normalized)) {
+          langs.push(normalized);
+        }
+      }
+    }
+
+    return langs;
   }
 }
 
