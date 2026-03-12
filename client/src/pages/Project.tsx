@@ -76,6 +76,21 @@ function FileTypeIcon({ filename, className = "" }: { filename: string; classNam
     jpg: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
     jpeg: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
     gif: { bg: "bg-emerald-600", text: "text-white", label: "IM" },
+    yaml: { bg: "bg-rose-500", text: "text-white", label: "YL" },
+    yml: { bg: "bg-rose-500", text: "text-white", label: "YL" },
+    toml: { bg: "bg-gray-600", text: "text-white", label: "TM" },
+    xml: { bg: "bg-orange-600", text: "text-white", label: "XM" },
+    sql: { bg: "bg-blue-600", text: "text-white", label: "SQ" },
+    env: { bg: "bg-yellow-600", text: "text-black", label: ".E" },
+    lock: { bg: "bg-gray-500", text: "text-white", label: "LK" },
+    txt: { bg: "bg-gray-400", text: "text-white", label: "TX" },
+    log: { bg: "bg-gray-400", text: "text-white", label: "LG" },
+    dockerfile: { bg: "bg-blue-500", text: "text-white", label: "DK" },
+    makefile: { bg: "bg-amber-700", text: "text-white", label: "MK" },
+    scss: { bg: "bg-pink-600", text: "text-white", label: "SC" },
+    less: { bg: "bg-purple-500", text: "text-white", label: "LS" },
+    vue: { bg: "bg-green-600", text: "text-white", label: "VU" },
+    svelte: { bg: "bg-orange-500", text: "text-white", label: "SV" },
   };
   const icon = iconMap[ext];
   if (icon) {
@@ -261,6 +276,9 @@ function _projectPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [replaceTerm, setReplaceTerm] = useState("");
   const [showReplace, setShowReplace] = useState(false);
+  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
+  const [searchRegex, setSearchRegex] = useState(false);
+  const [searchWholeWord, setSearchWholeWord] = useState(false);
   const [searchResults, setSearchResults] = useState<{ fileId: string; filename: string; line: number; text: string }[]>([]);
   const [terminalTabs, setTerminalTabs] = useState<string[]>(["Terminal 1"]);
   const [activeTerminalTab, setActiveTerminalTab] = useState(0);
@@ -1462,20 +1480,34 @@ function _projectPage() {
       return;
     }
     const results: { fileId: string; filename: string; line: number; text: string }[] = [];
-    const lowerTerm = term.toLowerCase();
+    let regex: RegExp | null = null;
+    try {
+      if (searchRegex) {
+        const pattern = searchWholeWord ? `\\b${term}\\b` : term;
+        regex = new RegExp(pattern, searchCaseSensitive ? "g" : "gi");
+      } else {
+        const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = searchWholeWord ? `\\b${escaped}\\b` : escaped;
+        regex = new RegExp(pattern, searchCaseSensitive ? "g" : "gi");
+      }
+    } catch {
+      setSearchResults([]);
+      return;
+    }
     for (const file of filesQuery.data) {
       const content = fileContents[file.id] ?? file.content;
       const lines = content.split("\n");
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].toLowerCase().includes(lowerTerm)) {
+        if (regex.test(lines[i])) {
           results.push({ fileId: file.id, filename: file.filename, line: i + 1, text: lines[i].trim() });
-          if (results.length >= 100) break;
+          if (results.length >= 200) break;
         }
+        regex.lastIndex = 0;
       }
-      if (results.length >= 100) break;
+      if (results.length >= 200) break;
     }
     setSearchResults(results);
-  }, [filesQuery.data, fileContents]);
+  }, [filesQuery.data, fileContents, searchCaseSensitive, searchRegex, searchWholeWord]);
 
   useEffect(() => {
     const timer = setTimeout(() => performSearch(searchTerm), 200);
@@ -2171,6 +2203,17 @@ function _projectPage() {
                 <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeOtherTabs(tabId)} data-testid={`context-close-others-${tabId}`}>
                   Close Others
                 </ContextMenuItem>
+                <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => {
+                  const remaining = openTabs.filter(id => isSpecialTab(id) || dirtyFiles.has(id));
+                  setOpenTabs(remaining);
+                  if (activeFileId && !remaining.includes(activeFileId)) {
+                    const next = remaining.length > 0 ? remaining[0] : null;
+                    setActiveFileId(next);
+                    setActiveRunnerPath(next && next.startsWith("runner:") ? next.slice(7) : null);
+                  }
+                }} data-testid={`context-close-saved-${tabId}`}>
+                  Close Saved
+                </ContextMenuItem>
                 <ContextMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => closeAllTabs()} data-testid={`context-close-all-${tabId}`}>
                   Close All
                 </ContextMenuItem>
@@ -2501,15 +2544,15 @@ function _projectPage() {
                 <span className="text-[10px] text-[#676D7E]">Generate code with AI</span>
               </button>
               <button
-                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#0079F2]/40 hover:bg-[#0079F2]/5 transition-all text-center group cursor-default opacity-60"
-                onClick={() => toast({ title: "Import files", description: "File import coming soon" })}
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#0079F2]/40 hover:bg-[#0079F2]/5 transition-all text-center group"
+                onClick={() => uploadInputRef.current?.click()}
                 data-testid="button-quickstart-import"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#0079F2]/10 flex items-center justify-center">
                   <FolderOpen className="w-5 h-5 text-[#0079F2]" />
                 </div>
                 <span className="text-xs font-medium text-[#F5F9FC]">Import files</span>
-                <span className="text-[10px] text-[#676D7E]">Coming soon</span>
+                <span className="text-[10px] text-[#676D7E]">Upload from your device</span>
               </button>
             </div>
             <div className="flex items-center justify-center gap-4 mb-8 text-[10px] text-[#676D7E] font-mono" data-testid="text-keyboard-hints">
@@ -3265,16 +3308,42 @@ function _projectPage() {
                   </div>
                 </div>
                 <div className="px-3 py-2 border-b border-[#2B3245] space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
-                    <Input
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search in files..."
-                      className="pl-8 bg-[#0E1525] border-[#2B3245] h-8 text-xs text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md"
-                      autoFocus
-                      data-testid="input-search-files"
-                    />
+                  <div className="flex items-center gap-1">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#676D7E]" />
+                      <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search in files..."
+                        className="pl-8 bg-[#0E1525] border-[#2B3245] h-8 text-xs text-[#F5F9FC] placeholder:text-[#676D7E] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40 rounded-md"
+                        autoFocus
+                        data-testid="input-search-files"
+                      />
+                    </div>
+                    <button
+                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchCaseSensitive ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-transparent"}`}
+                      onClick={() => setSearchCaseSensitive(!searchCaseSensitive)}
+                      title="Match Case"
+                      data-testid="button-search-case"
+                    >
+                      Aa
+                    </button>
+                    <button
+                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] font-bold shrink-0 transition-colors ${searchWholeWord ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-transparent"}`}
+                      onClick={() => setSearchWholeWord(!searchWholeWord)}
+                      title="Match Whole Word"
+                      data-testid="button-search-whole-word"
+                    >
+                      <span className="border-b border-current px-0.5">ab</span>
+                    </button>
+                    <button
+                      className={`w-7 h-7 flex items-center justify-center rounded text-[11px] shrink-0 transition-colors font-mono ${searchRegex ? "bg-[#0079F2]/20 text-[#0079F2] border border-[#0079F2]/40" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] border border-transparent"}`}
+                      onClick={() => setSearchRegex(!searchRegex)}
+                      title="Use Regular Expression"
+                      data-testid="button-search-regex"
+                    >
+                      .*
+                    </button>
                   </div>
                   {showReplace && (
                     <div className="flex items-center gap-1">
@@ -3296,8 +3365,17 @@ function _projectPage() {
                         onClick={() => {
                           if (!searchTerm.trim() || !filesQuery.data) return;
                           let count = 0;
-                          const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                          const regex = new RegExp(escaped, "gi");
+                          let regex: RegExp;
+                          try {
+                            if (searchRegex) {
+                              const pattern = searchWholeWord ? `\\b${searchTerm}\\b` : searchTerm;
+                              regex = new RegExp(pattern, searchCaseSensitive ? "g" : "gi");
+                            } else {
+                              const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                              const pattern = searchWholeWord ? `\\b${escaped}\\b` : escaped;
+                              regex = new RegExp(pattern, searchCaseSensitive ? "g" : "gi");
+                            }
+                          } catch { return; }
                           filesQuery.data.forEach((file) => {
                             const content = fileContents[file.id] ?? file.content ?? "";
                             const matches = content.match(regex);
@@ -3906,7 +3984,7 @@ function _projectPage() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent side="top" align="end" className="w-40 p-1 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
-                    {["javascript", "typescript", "python", "html", "css", "json", "markdown"].map((lang) => (
+                    {["javascript", "typescript", "python", "go", "rust", "cpp", "java", "ruby", "bash", "html", "css", "json", "markdown"].map((lang) => (
                       <button
                         key={lang}
                         className={`w-full text-left px-2.5 py-1.5 text-[11px] rounded capitalize transition-colors ${lang === editorLanguage ? "bg-[#0079F2]/20 text-[#0079F2]" : "text-[#9DA2B0] hover:bg-[#2B3245] hover:text-[#F5F9FC]"}`}
