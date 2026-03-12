@@ -240,7 +240,7 @@ function _projectPage() {
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [mobileToolbarHidden, setMobileToolbarHidden] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
-  const [aiSheetOpen, setAiSheetOpen] = useState(false);
+  const [aiSheetOpen, setAiSheetOpen] = useState(true);
   const lastScrollY = useRef(0);
   const tabOrder = ["files", "editor", "terminal", "preview", "ai"] as const;
   const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
@@ -460,10 +460,10 @@ function _projectPage() {
         setSidebarOpen(false);
       } else if (w < 1024) {
         setViewMode("tablet");
-        setSidebarOpen(true);
+        setSidebarOpen(false);
       } else {
         setViewMode("desktop");
-        setSidebarOpen(true);
+        setSidebarOpen(false);
       }
     };
     updateViewMode();
