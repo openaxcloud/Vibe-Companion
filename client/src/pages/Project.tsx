@@ -2349,7 +2349,7 @@ function _projectPage() {
           title="Refresh" data-testid="button-webview-tab-refresh"><RefreshCw className="w-3 h-3" /></Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
-            <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
+            <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
             <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
           </div>
         </div>
@@ -2363,7 +2363,7 @@ function _projectPage() {
       </div>
       <div className="flex-1 overflow-hidden">
         {wsStatus === "running" && livePreviewUrl ? (
-          <iframe id="webview-tab-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
+          <iframe id="webview-tab-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
         ) : previewHtml ? (
           <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
         ) : (
@@ -2980,7 +2980,7 @@ function _projectPage() {
                       <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
                       <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
                       <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] truncate font-mono" data-testid="text-webview-url">
-                        <Globe className="w-3 h-3 text-[#9CA3AF] mr-1.5 shrink-0" />
+                        <Globe className="w-3 h-3 text-[var(--ide-text-muted)] mr-1.5 shrink-0" />
                         <span className="truncate">{livePreviewUrl}</span>
                       </div>
                       <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
@@ -3942,7 +3942,7 @@ function _projectPage() {
                         title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
-                          <Globe className="w-2.5 h-2.5 text-[#4A5068] shrink-0" />
+                          <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
                           <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
                         </div>
                       </div>
