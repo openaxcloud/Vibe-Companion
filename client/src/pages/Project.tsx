@@ -808,13 +808,14 @@ function _projectPage() {
         }
         setDirtyFiles((prev) => { const n = new Set(prev); n.delete(activeFileId); return n; });
       }
-      const code = activeFileId ? fileContents[activeFileId] || "" : "";
+      const code = activeFileId ? (fileContents[activeFileId] ?? "") : "";
       const ext = activeFileName?.split(".").pop()?.toLowerCase();
-      const langMap: Record<string, string> = { js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript", py: "python" };
+      const langMap: Record<string, string> = { js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript", py: "python", html: "javascript", css: "javascript" };
       const detectedLang = ext ? langMap[ext] : undefined;
+      const language = detectedLang || projectQuery.data?.language || "javascript";
       const res = await apiRequest("POST", `/api/projects/${projectId}/run`, {
         code,
-        language: detectedLang || projectQuery.data?.language || "javascript",
+        language,
       });
       return res.json();
     },

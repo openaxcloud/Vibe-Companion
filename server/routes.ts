@@ -1774,7 +1774,7 @@ export async function registerRoutes(
     }
 
     const { code, language } = req.body;
-    if (!code || !language) {
+    if (code === undefined || code === null || !language) {
       return res.status(400).json({ message: "Code and language are required" });
     }
 
@@ -1942,7 +1942,7 @@ export async function registerRoutes(
     }
 
     const { code, language } = req.body;
-    if (!code || !language) {
+    if (code === undefined || code === null || !language) {
       return res.status(400).json({ message: "Code and language are required" });
     }
 
