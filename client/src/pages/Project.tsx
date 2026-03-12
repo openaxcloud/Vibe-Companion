@@ -305,6 +305,9 @@ function _projectPage() {
   const [showMinimap, setShowMinimap] = useState(true);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [fileDragOver, setFileDragOver] = useState(false);
+  const [customDomains, setCustomDomains] = useState<any[]>([]);
+  const [showDomainInput, setShowDomainInput] = useState(false);
+  const [domainInput, setDomainInput] = useState("");
   const splitDragStartX = useRef<number | null>(null);
   const splitDragStartW = useRef<number>(50);
 
@@ -1518,6 +1521,35 @@ function _projectPage() {
     navigator.clipboard.writeText(`${window.location.origin}/shared/${projectId}`);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const loadCustomDomains = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/domains`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomDomains(data);
+      }
+    } catch {}
+  }, [projectId]);
+
+  useEffect(() => {
+    if (deploymentsPanelOpen) loadCustomDomains();
+  }, [deploymentsPanelOpen, loadCustomDomains]);
+
+  const handleAddDomain = async () => {
+    const domain = domainInput.trim();
+    if (!domain) return;
+    try {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/domains`, { domain });
+      const data = await res.json();
+      setCustomDomains((prev: any[]) => [...prev, data.record]);
+      setDomainInput("");
+      setShowDomainInput(false);
+      toast({ title: "Domain added", description: `Add a TXT record: ${data.record.verificationToken}` });
+    } catch (err: any) {
+      toast({ title: "Failed to add domain", description: err.message, variant: "destructive" });
+    }
   };
 
   const project = projectQuery.data;
@@ -3502,15 +3534,69 @@ function _projectPage() {
                   </div>
                   <div className="px-3 py-3">
                     <span className="text-[10px] font-bold text-[#676D7E] uppercase tracking-widest">Custom Domain</span>
-                    <div className="mt-2 p-3 rounded-lg bg-[#0E1525] border border-[#2B3245] border-dashed">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Globe className="w-3.5 h-3.5 text-[#676D7E]" />
-                        <span className="text-[11px] text-[#9DA2B0]">Custom Domain</span>
+                    {customDomains.length > 0 ? (
+                      <div className="mt-2 space-y-2">
+                        {customDomains.map((d: any) => (
+                          <div key={d.id} className="p-2.5 rounded-lg bg-[#0E1525] border border-[#2B3245]">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-[#F5F9FC] font-mono truncate flex-1">{d.domain}</span>
+                              <button className="text-[#676D7E] hover:text-red-400 transition-colors ml-2" onClick={() => {
+                                apiRequest("DELETE", `/api/projects/${projectId}/domains/${d.id}`)
+                                  .then(() => { setCustomDomains((prev: any[]) => prev.filter((x: any) => x.id !== d.id)); toast({ title: "Domain removed" }); });
+                              }} data-testid={`button-remove-domain-${d.id}`}><X className="w-3 h-3" /></button>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {d.verified ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Verified</span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Pending</span>
+                              )}
+                              {d.sslStatus === "active" ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] border border-[#0079F2]/30">SSL Active</span>
+                              ) : d.sslStatus === "provisioning" ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">SSL Provisioning</span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#2B3245] text-[#676D7E]">No SSL</span>
+                              )}
+                            </div>
+                            {!d.verified && (
+                              <Button variant="ghost" size="sm" className="mt-2 h-6 px-2 text-[10px] text-[#0079F2] hover:bg-[#0079F2]/10 rounded w-full" onClick={() => {
+                                apiRequest("POST", `/api/projects/${projectId}/domains/${d.id}/verify`)
+                                  .then(r => r.json()).then((data) => {
+                                    if (data.verified) {
+                                      setCustomDomains((prev: any[]) => prev.map((x: any) => x.id === d.id ? { ...x, verified: true, sslStatus: "provisioning" } : x));
+                                      toast({ title: "Domain verified!", description: "SSL certificate is being provisioned." });
+                                    } else {
+                                      toast({ title: "Not verified", description: data.message, variant: "destructive" });
+                                    }
+                                  });
+                              }} data-testid={`button-verify-domain-${d.id}`}>Verify DNS</Button>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-[10px] text-[#4A5068] leading-relaxed">Connect a custom domain to your deployment. This feature is coming soon.</p>
-                      <Button variant="ghost" size="sm" className="mt-2 h-7 px-3 text-[10px] text-[#676D7E] border border-[#2B3245] hover:text-[#9DA2B0] hover:bg-[#2B3245] rounded-md w-full" disabled data-testid="button-add-domain">
-                        Add Domain
-                      </Button>
+                    ) : null}
+                    <div className="mt-2">
+                      {showDomainInput ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={domainInput}
+                            onChange={(e) => setDomainInput(e.target.value)}
+                            placeholder="example.com"
+                            className="flex-1 text-[11px] bg-[#0E1525] border border-[#2B3245] rounded px-2.5 py-1.5 text-[#F5F9FC] placeholder-[#4A5068] outline-none focus:border-[#0079F2] font-mono"
+                            onKeyDown={(e) => { if (e.key === "Enter" && domainInput.trim()) handleAddDomain(); if (e.key === "Escape") setShowDomainInput(false); }}
+                            autoFocus
+                            data-testid="input-custom-domain"
+                          />
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-[#0CCE6B] hover:bg-[#0CCE6B]/10 rounded shrink-0" onClick={handleAddDomain} data-testid="button-confirm-domain">Add</Button>
+                          <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded shrink-0" onClick={() => setShowDomainInput(false)}><X className="w-3 h-3" /></Button>
+                        </div>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] text-[#9DA2B0] border border-[#2B3245] border-dashed hover:text-[#F5F9FC] hover:bg-[#2B3245] hover:border-[#0079F2]/40 rounded-md w-full" onClick={() => setShowDomainInput(true)} data-testid="button-add-domain">
+                          <Plus className="w-3 h-3 mr-1" /> Add Domain
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

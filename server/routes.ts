@@ -10,9 +10,12 @@ import { storage } from "./storage";
 import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared/schema";
 import { z } from "zod";
 import { executeCode } from "./executor";
+import { executionPool } from "./executionPool";
 import { getOrCreateTerminal, resizeTerminal } from "./terminal";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail } from "./email";
+import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment } from "./deploymentEngine";
+import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
 import {
   checkUserRateLimit,
   checkIpRateLimit,
@@ -1131,25 +1134,84 @@ export async function registerRoutes(
   });
 
   // --- DEPLOYMENTS ---
+  app.use(createDeploymentRouter());
+
   app.post("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
-      const deployment = await storage.createDeployment({ projectId: project.id, userId: req.session.userId! });
       const projectFiles = await storage.getFiles(project.id);
+      if (projectFiles.length === 0) return res.status(400).json({ message: "No files to deploy" });
+      const deployment = await storage.createDeployment({ projectId: project.id, userId: req.session.userId! });
+      const existingDeps = await storage.getProjectDeployments(project.id);
+      const version = existingDeps.length;
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
-      const url = `/shared/${project.id}`;
-      await storage.updateProject(project.id, { isPublished: true, publishedSlug: slug });
-      let buildLog = `[deploy] Building ${project.name}...\n`;
-      buildLog += `[deploy] Found ${projectFiles.length} files\n`;
-      buildLog += `[deploy] Language: ${project.language}\n`;
-      buildLog += `[deploy] Deploying to ${url}\n`;
-      buildLog += `[deploy] ✓ Deployment complete\n`;
-      await storage.updateDeployment(deployment.id, { status: "live", buildLog, url, finishedAt: new Date() });
-      await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id });
-      return res.json({ deployment: { ...deployment, status: "live", buildLog, url }, slug, url });
-    } catch {
+
+      const build = await buildAndDeploy(
+        project.id,
+        project.name,
+        project.language,
+        projectFiles.map(f => ({ filename: f.filename, content: f.content })),
+        req.session.userId!,
+        deployment.id,
+        version,
+        (line) => log(line, "deploy"),
+      );
+
+      const deployUrl = build.url;
+      if (build.status === "live") {
+        await storage.updateProject(project.id, { isPublished: true, publishedSlug: slug });
+      }
+      await storage.updateDeployment(deployment.id, {
+        status: build.status,
+        buildLog: build.buildLog,
+        url: deployUrl,
+        finishedAt: new Date(),
+      });
+      await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version });
+      return res.json({ deployment: { ...deployment, status: build.status, buildLog: build.buildLog, url: deployUrl }, slug, url: deployUrl, version });
+    } catch (err: any) {
+      log(`Deploy error: ${err.message}`, "deploy");
       return res.status(500).json({ message: "Deployment failed" });
+    }
+  });
+
+  app.post("/api/projects/:id/deploy/rollback", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { version } = z.object({ version: z.number().int().min(0) }).parse(req.body);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const result = await rollbackDeployment(project.id, slug, version);
+      if (!result.success) return res.status(400).json({ message: result.message });
+      return res.json({ success: true, message: result.message, version });
+    } catch {
+      return res.status(500).json({ message: "Rollback failed" });
+    }
+  });
+
+  app.get("/api/projects/:id/deploy/versions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const versions = await listDeploymentVersions(slug);
+      return res.json({ versions, slug });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch versions" });
+    }
+  });
+
+  app.delete("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      await teardownDeployment(slug);
+      await storage.updateProject(project.id, { isPublished: false, publishedSlug: null });
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Teardown failed" });
     }
   });
 
@@ -1159,6 +1221,73 @@ export async function registerRoutes(
       return res.json(deps);
     } catch {
       return res.status(500).json({ message: "Failed to fetch deployments" });
+    }
+  });
+
+  // --- CUSTOM DOMAINS ---
+  app.post("/api/projects/:id/domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { domain } = z.object({ domain: z.string().min(3).max(253) }).parse(req.body);
+      const result = addDomain(domain, project.id, req.session.userId!);
+      return res.json(result);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(400).json({ message: err.message || "Failed to add domain" });
+    }
+  });
+
+  app.post("/api/projects/:id/domains/:domainId/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const domainRecord = getDomainById(req.params.domainId);
+      if (!domainRecord || domainRecord.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
+      const result = await verifyDomain(req.params.domainId);
+      if (result.verified) {
+        await storage.updateProject(project.id, { customDomain: domainRecord.domain });
+      }
+      return res.json(result);
+    } catch {
+      return res.status(500).json({ message: "Verification failed" });
+    }
+  });
+
+  app.delete("/api/projects/:id/domains/:domainId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const success = removeDomain(req.params.domainId, req.session.userId!);
+      if (!success) return res.status(404).json({ message: "Domain not found" });
+      if (project.customDomain) {
+        await storage.updateProject(project.id, { customDomain: null });
+      }
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to remove domain" });
+    }
+  });
+
+  app.get("/api/projects/:id/domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const domains = getProjectDomains(project.id);
+      return res.json(domains);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch domains" });
+    }
+  });
+
+  // --- EXECUTION POOL STATUS (admin) ---
+  app.get("/api/admin/execution-pool", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin only" });
+      return res.json(executionPool.getStatus());
+    } catch {
+      return res.status(500).json({ message: "Failed to get pool status" });
     }
   });
 
@@ -1685,7 +1814,7 @@ export async function registerRoutes(
     }
 
     try {
-      const result = await executeCode(code, language, (message, type) => {
+      const result = await executionPool.submit(userId, project.id, code, language, (message, type) => {
         broadcastToProject(project.id, {
           type: "run_log",
           runId: run.id,
@@ -1693,7 +1822,7 @@ export async function registerRoutes(
           logType: type,
           timestamp: Date.now(),
         });
-      }, undefined, undefined, envVarsMap);
+      }, envVarsMap);
 
       const durationMs = Date.now() - startTime;
       const failed = result.exitCode !== 0;

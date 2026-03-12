@@ -7,7 +7,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
-- **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, OS-level isolation (ulimit, nice, unshare --net), `--disallow-code-generation-from-strings`, `--no-addons`, minimal env vars, 10s timeout, 64MB memory limit
+- **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, OS-level isolation (ulimit, nice, unshare --net), `--disallow-code-generation-from-strings`, `--no-addons`, minimal env vars, 10s timeout, 64MB memory limit. Worker pool (`executionPool.ts`) with 8 max concurrent, 50 max queue, per-user rate limiting (20/min, 3 concurrent), metrics tracking, graceful shutdown.
+- **Deployment Engine**: Real build pipeline (`deploymentEngine.ts`) — writes files to `.deployments/:slug/v{N}/`, serves at `/deployed/:slug/`, versioned rollback, build logs, HTML/Node/Python handlers, path traversal protection
+- **Custom Domains**: Domain manager (`domainManager.ts`) — DNS TXT verification, SSL provisioning simulation, domain-to-project mapping, CRUD API with ownership checks
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
@@ -211,6 +213,16 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `POST /api/projects/:id/packages/add` - Add package
 - `POST /api/projects/:id/packages/remove` - Remove package
 - `POST /api/analytics/track` - Track analytics event
+- `POST /api/projects/:id/deploy` - Deploy project (real build pipeline)
+- `POST /api/projects/:id/deploy/rollback` - Rollback deployment to version
+- `GET /api/projects/:id/deploy/versions` - List deployment versions
+- `DELETE /api/projects/:id/deploy/teardown` - Tear down deployment
+- `POST /api/projects/:id/domains` - Add custom domain
+- `POST /api/projects/:id/domains/:domainId/verify` - Verify domain DNS
+- `DELETE /api/projects/:id/domains/:domainId` - Remove custom domain
+- `GET /api/projects/:id/domains` - List custom domains
+- `GET /api/admin/execution-pool` - Execution pool metrics (admin only)
+- `GET /deployed/:slug/{*filePath}` - Serve deployed project files
 - `GET /api/runner/status` - Check runner VPS health
 - `POST /api/workspaces/:projectId` - Init/provision workspace
 - `POST /api/workspaces/:projectId/start` - Start workspace
@@ -238,6 +250,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `server/storage.ts` - IStorage interface + DatabaseStorage implementation (includes quota methods)
 - `server/executor.ts` - Multi-layered sandboxed code execution (AST analysis, runtime wrappers, OS-level ulimit/nice/unshare isolation)
 - `server/rateLimiter.ts` - Per-user/IP rate limiting, global execution pool (5 concurrent), execution queue with priority, metrics tracking
+- `server/executionPool.ts` - Queue-based worker pool (8 max concurrent, 50 max queue), per-user rate limiting
+- `server/deploymentEngine.ts` - Real deployment build pipeline with versioned rollback and static file serving
+- `server/domainManager.ts` - Custom domain management with DNS verification and SSL provisioning
 - `server/index.ts` - Express setup with Helmet.js security headers
 - `client/src/App.tsx` - Root app with ErrorBoundary, routing, providers
 - `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel, connection quality indicator)
