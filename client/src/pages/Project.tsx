@@ -31,9 +31,6 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  Drawer, DrawerContent,
-} from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -240,7 +237,6 @@ function _projectPage() {
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [mobileToolbarHidden, setMobileToolbarHidden] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
-  const [aiSheetOpen, setAiSheetOpen] = useState(true);
   const lastScrollY = useRef(0);
   const tabOrder = ["files", "editor", "terminal", "preview", "ai"] as const;
   const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
@@ -251,10 +247,6 @@ function _projectPage() {
   useEffect(() => { if (wsStatus !== "running") setMobileShellMode("console"); }, [wsStatus]);
 
   const handleMobileTabChange = useCallback((newTab: typeof mobileTab) => {
-    if (newTab === "ai") {
-      setAiSheetOpen(true);
-      return;
-    }
     const oldIdx = tabOrder.indexOf(mobileTab);
     const newIdx = tabOrder.indexOf(newTab);
     setSlideDirection(newIdx > oldIdx ? "right" : "left");
@@ -2567,7 +2559,7 @@ function _projectPage() {
               </button>
               <button
                 className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[#0E1525] border border-[#2B3245] hover:border-[#7C65CB]/40 hover:bg-[#7C65CB]/5 transition-all text-center group"
-                onClick={() => { if (isMobile) setAiSheetOpen(true); else { setAiPanelOpen(true); setSidebarOpen(false); } }}
+                onClick={() => { if (isMobile) setMobileTab("ai"); else { setAiPanelOpen(true); setSidebarOpen(false); } }}
                 data-testid="button-quickstart-ask-ai"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#7C65CB]/10 flex items-center justify-center group-hover:bg-[#7C65CB]/20 transition-colors">
@@ -3024,7 +3016,7 @@ function _projectPage() {
                     </button>
                     <button
                       className="w-11 h-11 rounded-full bg-[#7C65CB] text-white flex items-center justify-center shadow-md active:scale-90 transition-transform"
-                      onClick={() => { setAiSheetOpen(true); setFabOpen(false); }}
+                      onClick={() => { setMobileTab("ai"); setFabOpen(false); }}
                       data-testid="fab-ai"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -3040,45 +3032,40 @@ function _projectPage() {
                 </button>
               </div>
             )}
-          </div>
-
-          <Drawer open={aiSheetOpen} onOpenChange={setAiSheetOpen}>
-            <DrawerContent className="bg-white border-[#E5E7EB] h-[90vh] max-h-[90vh]">
-              <div className="flex-1 flex flex-col overflow-hidden h-full">
-                <AIPanel
-                  key={`ai-mobile-sheet-${projectId}`}
-                  context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
-                  onClose={() => setAiSheetOpen(false)}
-                  projectId={projectId}
-                  files={filesQuery.data}
-                  onFileCreated={(file) => {
-                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-                    setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
-                    setActiveFileId(file.id);
-                    setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
-                    expandParentFolders(file.filename);
-                    setMobileTab("editor");
-                    setAiSheetOpen(false);
-                  }}
-                  onFileUpdated={(file) => {
-                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-                    setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
-                  }}
-                  onApplyCode={(filename, code) => {
-                    const file = filesQuery.data?.find((f) => f.filename === filename);
-                    if (file) {
-                      setFileContents((prev) => ({ ...prev, [file.id]: code }));
-                      setDirtyFiles((prev) => new Set(prev).add(file.id));
-                      if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
+              {mobileTab === "ai" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                  <AIPanel
+                    key={`ai-mobile-fullscreen-${projectId}`}
+                    context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
+                    onClose={() => setMobileTab("editor")}
+                    projectId={projectId}
+                    files={filesQuery.data}
+                    onFileCreated={(file) => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                      setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
                       setActiveFileId(file.id);
+                      setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                      expandParentFolders(file.filename);
                       setMobileTab("editor");
-                      setAiSheetOpen(false);
-                    }
-                  }}
-                />
-              </div>
-            </DrawerContent>
-          </Drawer>
+                    }}
+                    onFileUpdated={(file) => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                      setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                    }}
+                    onApplyCode={(filename, code) => {
+                      const file = filesQuery.data?.find((f) => f.filename === filename);
+                      if (file) {
+                        setFileContents((prev) => ({ ...prev, [file.id]: code }));
+                        setDirtyFiles((prev) => new Set(prev).add(file.id));
+                        if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
+                        setActiveFileId(file.id);
+                        setMobileTab("editor");
+                      }
+                    }}
+                  />
+                </div>
+              )}
+          </div>
 
           {/* MOBILE BOTTOM NAV */}
           <div className="flex items-stretch h-[56px] bg-white border-t border-[#E5E7EB] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
@@ -3087,9 +3074,9 @@ function _projectPage() {
               { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
               { id: "terminal" as const, icon: Terminal, label: "Shell", color: "#0CCE6B" },
               { id: "preview" as const, icon: Globe, label: "Webview", color: "#F5A623" },
-              { id: "ai" as const, icon: Sparkles, label: "AI", color: "#7C65CB" },
+              { id: "ai" as const, icon: Sparkles, label: "Agent", color: "#7C65CB" },
             ]).map(({ id, icon: Icon, label, color }) => {
-              const isActive = id === "ai" ? aiSheetOpen : mobileTab === id;
+              const isActive = mobileTab === id;
               return (
                 <button
                   key={id}
