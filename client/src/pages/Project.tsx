@@ -1691,32 +1691,32 @@ function _projectPage() {
   const isTablet = viewMode === "tablet";
 
   const sidebarContent = (
-    <div className={`${isMobile ? "flex-1" : "h-full"} bg-[#1C2333] flex flex-col ${isMobile ? "" : "border-r border-[#2B3245]"} overflow-hidden`}>
-      <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
+    <div className={`${isMobile ? "flex-1 bg-[#F5F6F8]" : "h-full bg-[#1C2333]"} flex flex-col ${isMobile ? "" : "border-r border-[#2B3245]"} overflow-hidden`}>
+      <div className={`flex items-center justify-between px-3 h-9 shrink-0 ${isMobile ? "border-b border-[#E5E7EB] bg-white" : "border-b border-[#2B3245]"}`}>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-[#9DA2B0] uppercase tracking-wider">Files</span>
+          <span className={`text-[11px] font-semibold uppercase tracking-wider ${isMobile ? "text-[#6B7280]" : "text-[#9DA2B0]"}`}>Files</span>
           {useRunnerFS && <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 font-medium">LIVE</span>}
         </div>
         <div className="flex items-center gap-0.5">
           {useRunnerFS && (
-            <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
+            <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${isMobile ? "text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => setNewFolderDialogOpen(true)} data-testid="button-new-folder" title="New Folder">
               <FolderPlus className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
+          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${isMobile ? "text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => setNewFileDialogOpen(true)} data-testid="button-new-file" title="New File">
             <Plus className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => uploadInputRef.current?.click()} data-testid="button-upload-file" title="Upload File">
+          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${isMobile ? "text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => uploadInputRef.current?.click()} data-testid="button-upload-file" title="Upload File">
             <Upload className="w-3.5 h-3.5" />
           </Button>
           <input ref={uploadInputRef} type="file" multiple className="hidden" onChange={handleFileUpload} accept="*/*" />
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => invalidateFs()} title="Refresh">
+          <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${isMobile ? "text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245]"}`} onClick={() => invalidateFs()} title="Refresh">
             <RefreshCw className="w-3 h-3" />
           </Button>
         </div>
       </div>
       {useRunnerFS && currentFsPath !== "/" && (
-        <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] hover:bg-[#2B3245] border-b border-[#2B3245] shrink-0 transition-colors duration-150" onClick={() => {
+        <button className={`flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#0079F2] shrink-0 transition-colors duration-150 ${isMobile ? "hover:bg-[#F3F4F6] border-b border-[#E5E7EB]" : "hover:bg-[#2B3245] border-b border-[#2B3245]"}`} onClick={() => {
           const parent = currentFsPath.substring(0, currentFsPath.lastIndexOf("/")) || "/";
           setCurrentFsPath(parent);
         }}>
@@ -1783,7 +1783,7 @@ function _projectPage() {
                 <ContextMenu key={entry.path}>
                   <ContextMenuTrigger asChild>
                     <div
-                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"} relative overflow-hidden`}
+                      className={`group flex items-center gap-2 px-3 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${entryId === activeFileId ? (isMobile ? "bg-[#0079F2]/8 text-[#1A1A2E]" : "bg-[#2B3245]/70 text-[#F5F9FC]") : (isMobile ? "text-[#6B7280] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#9DA2B0] hover:text-[#F5F9FC]")} relative overflow-hidden`}
                       onClick={() => { if (swipedFileId === entryId) { setSwipedFileId(null); return; } isDir ? setCurrentFsPath(entry.path) : openRunnerFile(entry); if (isMobile && !isDir) setMobileTab("editor"); }}
                       onTouchStart={(e) => { if (isMobile) { swipeStartX.current = e.touches[0].clientX; swipingFileId.current = entryId; setSwipeOffset(0); } }}
                       onTouchMove={(e) => { if (isMobile && swipeStartX.current > 0 && swipingFileId.current === entryId) { const diff = swipeStartX.current - e.touches[0].clientX; if (diff > 10) setSwipeOffset(Math.min(diff, 120)); else if (diff < -10) { setSwipedFileId(null); setSwipeOffset(0); } } }}
@@ -1980,7 +1980,7 @@ function _projectPage() {
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
                           <div
-                            className={`group flex items-center gap-1 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40`}
+                            className={`group flex items-center gap-1 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${isMobile ? "text-[#6B7280] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#9DA2B0] hover:text-[#F5F9FC] hover:bg-[#2B3245]/40"}`}
                             style={{ paddingLeft: `${8 + depth * 12}px`, paddingRight: '12px' }}
                             onClick={() => toggleFolder(node.path)}
                             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("bg-[#0079F2]/20"); }}
@@ -2001,8 +2001,8 @@ function _projectPage() {
                             }}
                             data-testid={`folder-item-${node.path}`}
                           >
-                            {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0 text-[#676D7E]" /> : <ChevronRight className="w-3 h-3 shrink-0 text-[#676D7E]" />}
-                            {isExpanded ? <FolderOpen className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" /> : <Folder className="w-3.5 h-3.5 shrink-0 text-[#9DA2B0]" />}
+                            {isExpanded ? <ChevronDown className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#9CA3AF]" : "text-[#676D7E]"}`} /> : <ChevronRight className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#9CA3AF]" : "text-[#676D7E]"}`} />}
+                            {isExpanded ? <FolderOpen className={`w-3.5 h-3.5 shrink-0 ${isMobile ? "text-[#6B7280]" : "text-[#9DA2B0]"}`} /> : <Folder className={`w-3.5 h-3.5 shrink-0 ${isMobile ? "text-[#6B7280]" : "text-[#9DA2B0]"}`} />}
                             <span className="flex-1 text-[12px] truncate ml-0.5">{node.name}</span>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -2043,7 +2043,7 @@ function _projectPage() {
                   <ContextMenu key={node.fileId}>
                     <ContextMenuTrigger asChild>
                       <div
-                        className={`group flex items-center gap-2 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${file.id === activeFileId ? "bg-[#2B3245]/70 text-[#F5F9FC]" : "text-[#9DA2B0] hover:text-[#F5F9FC]"}`}
+                        className={`group flex items-center gap-2 ${isMobile ? "py-2.5" : "py-[5px]"} cursor-pointer file-tree-item ${file.id === activeFileId ? (isMobile ? "bg-[#0079F2]/8 text-[#1A1A2E]" : "bg-[#2B3245]/70 text-[#F5F9FC]") : (isMobile ? "text-[#6B7280] hover:text-[#1A1A2E] hover:bg-[#F3F4F6]" : "text-[#9DA2B0] hover:text-[#F5F9FC]")}`}
                         style={{ paddingLeft: `${20 + depth * 12}px`, paddingRight: '12px' }}
                         onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}
                         draggable
@@ -2123,7 +2123,7 @@ function _projectPage() {
   };
 
   const editorTabBar = openTabs.length > 0 ? (
-    <div className="flex items-center bg-[#0E1525] border-b border-[#2B3245] shrink-0 h-9 overflow-hidden relative">
+    <div className={`flex items-center shrink-0 h-9 overflow-hidden relative ${isMobile ? "bg-white border-b border-[#E5E7EB]" : "bg-[#0E1525] border-b border-[#2B3245]"}`}>
       {tabBarOverflow && !isMobile && (
         <button
           className="absolute left-0 z-10 h-full px-1.5 bg-[#0E1525] border-r border-[#2B3245] text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#1C2333] transition-colors duration-150"
@@ -2152,7 +2152,7 @@ function _projectPage() {
             <ContextMenu key={tabId}>
               <ContextMenuTrigger asChild>
                 <div
-                  className={`group relative flex items-center gap-1.5 ${isMobile ? "px-2.5" : "px-3"} h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent"} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
+                  className={`group relative flex items-center gap-1.5 ${isMobile ? "px-2.5" : "px-3"} h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? (isMobile ? "bg-[#F3F4F6] text-[#1A1A2E] border-b-[#0079F2]" : "bg-[#1C2333] text-[#F5F9FC] border-b-[#0079F2]") : (isMobile ? "text-[#9CA3AF] hover:text-[#6B7280] hover:bg-[#F3F4F6] border-b-transparent" : "text-[#676D7E] hover:text-[#9DA2B0] hover:bg-[#1C2333]/40 border-b-transparent")} ${dragTabId === tabId ? "opacity-40" : "opacity-100"}`}
                   onClick={() => {
                     setActiveFileId(tabId);
                     if (specialInfo) {
@@ -2785,18 +2785,18 @@ function _projectPage() {
   return (
     <div className="h-screen flex flex-col bg-[#1C2333] text-sm select-none overflow-hidden">
       {/* TOP BAR */}
-      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2" : "grid-cols-3 px-3"} h-11 bg-[#0E1525] border-b border-[#2B3245] shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
+      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-white border-b border-[#E5E7EB]" : "grid-cols-3 px-3 bg-[#0E1525] border-b border-[#2B3245]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
-          <button className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-[#1C2333] transition-colors duration-150 group" onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
+          <button className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-150 group ${isMobile ? "hover:bg-[#F3F4F6]" : "hover:bg-[#1C2333]"}`} onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
               <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
               <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
               <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
             </svg>
           </button>
-          <ChevronRight className="w-3 h-3 text-[#323B4F] shrink-0" />
-          <span className={`text-[13px] font-medium text-[#F5F9FC] truncate ${isMobile ? "max-w-[120px]" : "max-w-[180px]"}`} data-testid="text-project-name">{project?.name}</span>
-          {project?.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shrink-0">Live</span>}
+          <ChevronRight className={`w-3 h-3 shrink-0 ${isMobile ? "text-[#D1D5DB]" : "text-[#323B4F]"}`} />
+          <span className={`text-[13px] font-medium truncate ${isMobile ? "text-[#1A1A2E] max-w-[120px]" : "text-[#F5F9FC] max-w-[180px]"}`} data-testid="text-project-name">{project?.name}</span>
+          {project?.isPublished && <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${isMobile ? "bg-green-50 text-green-600 border border-green-200" : "bg-green-500/10 text-green-400 border border-green-500/20"}`}>Live</span>}
         </div>
         <div className="flex items-center justify-center gap-1.5">
           <TooltipProvider delayDuration={300}>
@@ -2835,26 +2835,26 @@ function _projectPage() {
         <div className="flex items-center justify-end gap-1">
           {isMobile ? (
             <>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish-mobile">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-[#6B7280] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] rounded-md transition-colors duration-150" onClick={() => setPublishDialogOpen(true)} data-testid="button-publish-mobile">
                 <Rocket className="w-3.5 h-3.5" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[#9DA2B0] hover:text-white hover:bg-[#2B3245] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
+                  <Button variant="ghost" size="icon" className="w-7 h-7 text-[#6B7280] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-[#1C2333] border-[#2B3245] rounded-lg shadow-2xl">
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
+                <DropdownMenuContent align="end" className="w-48 bg-white border-[#E5E7EB] rounded-lg shadow-xl shadow-black/10">
+                  <DropdownMenuItem className="gap-2 text-xs text-[#6B7280] focus:bg-[#F3F4F6] focus:text-[#1A1A2E] cursor-pointer" onClick={() => setProjectSettingsOpen(true)}>
                     <Settings className="w-3.5 h-3.5" /> Project Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#6B7280] focus:bg-[#F3F4F6] focus:text-[#1A1A2E] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
                     <Rocket className="w-3.5 h-3.5" /> Publish
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#6B7280] focus:bg-[#F3F4F6] focus:text-[#1A1A2E] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
                     <Users className="w-3.5 h-3.5" /> Invite
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[#9DA2B0] focus:bg-[#2B3245] focus:text-[#F5F9FC] cursor-pointer" onClick={() => setGitPanelOpen(true)}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[#6B7280] focus:bg-[#F3F4F6] focus:text-[#1A1A2E] cursor-pointer" onClick={() => setGitPanelOpen(true)}>
                     <GitBranch className="w-3.5 h-3.5" /> Version Control
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2915,11 +2915,11 @@ function _projectPage() {
                 </div>
               )}
               {mobileTab === "terminal" && (
-                <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
-                  <div className="flex items-center justify-between px-2 h-9 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
+                <div className="flex-1 flex flex-col overflow-hidden bg-[#F5F6F8]">
+                  <div className="flex items-center justify-between px-2 h-9 border-b border-[#E5E7EB] bg-white shrink-0">
                     <div className="flex items-center gap-0">
                       <button
-                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+                        className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#9CA3AF] border-transparent hover:text-[#6B7280]"}`}
                         onClick={() => setMobileShellMode("console")}
                         data-testid="mobile-shell-tab-console"
                       >
@@ -2928,7 +2928,7 @@ function _projectPage() {
                       </button>
                       {wsStatus === "running" && (
                         <button
-                          className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#676D7E] border-transparent hover:text-[#9DA2B0]"}`}
+                          className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "shell" ? "text-[#0CCE6B] border-[#0CCE6B]" : "text-[#9CA3AF] border-transparent hover:text-[#6B7280]"}`}
                           onClick={() => setMobileShellMode("shell")}
                           data-testid="mobile-shell-tab-shell"
                         >
@@ -2938,7 +2938,7 @@ function _projectPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       {mobileShellMode === "console" && (
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
                       )}
                       {wsStatusBadge}
                       {workspaceButton}
@@ -2948,17 +2948,17 @@ function _projectPage() {
                 </div>
               )}
               {mobileTab === "preview" && (
-                <div className="flex-1 flex flex-col overflow-hidden bg-[#1C2333]">
+                <div className="flex-1 flex flex-col overflow-hidden bg-[#F5F6F8]">
                   {wsStatus === "running" && livePreviewUrl && (
-                    <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[#2B3245] bg-[#0E1525] shrink-0">
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.back(); } catch {} }} data-testid="button-webview-back"><ArrowLeft className="w-3.5 h-3.5" /></button>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
-                      <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[#1C2333] border border-[#2B3245] text-[11px] text-[#9DA2B0] truncate font-mono" data-testid="text-webview-url">
-                        <Globe className="w-3 h-3 text-[#676D7E] mr-1.5 shrink-0" />
+                    <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[#E5E7EB] bg-white shrink-0">
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.back(); } catch {} }} data-testid="button-webview-back"><ArrowLeft className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
+                      <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[#F3F4F6] border border-[#E5E7EB] text-[11px] text-[#6B7280] truncate font-mono" data-testid="text-webview-url">
+                        <Globe className="w-3 h-3 text-[#9CA3AF] mr-1.5 shrink-0" />
                         <span className="truncate">{livePreviewUrl}</span>
                       </div>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#676D7E] hover:text-[#F5F9FC] hover:bg-[#2B3245] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:text-[#1A1A2E] hover:bg-[#F3F4F6] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
                     </div>
                   )}
                   {previewContent}
@@ -2971,14 +2971,14 @@ function _projectPage() {
                 {fabOpen && (
                   <div className="flex flex-col gap-2 mb-1 animate-fade-in">
                     <button
-                      className="w-11 h-11 rounded-full bg-[#0CCE6B] text-[#0E1525] flex items-center justify-center shadow-lg shadow-[#0CCE6B]/30 active:scale-90 transition-transform"
+                      className="w-11 h-11 rounded-full bg-[#0CCE6B] text-white flex items-center justify-center shadow-md active:scale-90 transition-transform"
                       onClick={() => { handleRun(); setFabOpen(false); }}
                       data-testid="fab-run"
                     >
                       {isRunning ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
                     </button>
                     <button
-                      className="w-11 h-11 rounded-full bg-[#0079F2] text-white flex items-center justify-center shadow-lg shadow-[#0079F2]/30 active:scale-90 transition-transform"
+                      className="w-11 h-11 rounded-full bg-[#0079F2] text-white flex items-center justify-center shadow-md active:scale-90 transition-transform"
                       onClick={() => {
                         if (activeFileId && fileContents[activeFileId]) {
                           saveMutation.mutate({ fileId: activeFileId, content: fileContents[activeFileId] });
@@ -2990,7 +2990,7 @@ function _projectPage() {
                       <Save className="w-4 h-4" />
                     </button>
                     <button
-                      className="w-11 h-11 rounded-full bg-[#7C65CB] text-white flex items-center justify-center shadow-lg shadow-[#7C65CB]/30 active:scale-90 transition-transform"
+                      className="w-11 h-11 rounded-full bg-[#7C65CB] text-white flex items-center justify-center shadow-md active:scale-90 transition-transform"
                       onClick={() => { setAiSheetOpen(true); setFabOpen(false); }}
                       data-testid="fab-ai"
                     >
@@ -2999,7 +2999,7 @@ function _projectPage() {
                   </div>
                 )}
                 <button
-                  className={`w-14 h-14 rounded-full bg-[#0079F2] text-white flex items-center justify-center shadow-xl shadow-[#0079F2]/40 active:scale-90 transition-all duration-200 ${fabOpen ? "rotate-45" : ""}`}
+                  className={`w-14 h-14 rounded-full bg-[#0079F2] text-white flex items-center justify-center shadow-lg active:scale-90 transition-all duration-200 ${fabOpen ? "rotate-45" : ""}`}
                   onClick={() => setFabOpen(!fabOpen)}
                   data-testid="fab-toggle"
                 >
@@ -3010,7 +3010,7 @@ function _projectPage() {
           </div>
 
           <Drawer open={aiSheetOpen} onOpenChange={setAiSheetOpen}>
-            <DrawerContent className="bg-[#1C2333] border-[#2B3245] h-[90vh] max-h-[90vh]">
+            <DrawerContent className="bg-white border-[#E5E7EB] h-[90vh] max-h-[90vh]">
               <div className="flex-1 flex flex-col overflow-hidden h-full">
                 <AIPanel
                   key={`ai-mobile-sheet-${projectId}`}
@@ -3048,9 +3048,9 @@ function _projectPage() {
           </Drawer>
 
           {/* MOBILE BOTTOM NAV */}
-          <div className="flex items-stretch h-[56px] bg-[#0E1525] border-t border-[#2B3245] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
+          <div className="flex items-stretch h-[56px] bg-white border-t border-[#E5E7EB] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-nav-bar">
             {([
-              { id: "files" as const, icon: FolderOpen, label: "Files", color: "#9DA2B0" },
+              { id: "files" as const, icon: FolderOpen, label: "Files", color: "#6B7280" },
               { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
               { id: "terminal" as const, icon: Terminal, label: "Shell", color: "#0CCE6B" },
               { id: "preview" as const, icon: Globe, label: "Webview", color: "#F5A623" },
@@ -3061,17 +3061,17 @@ function _projectPage() {
                 <button
                   key={id}
                   className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-150 active:scale-90"
-                  style={{ color: isActive ? color : "#676D7E" }}
+                  style={{ color: isActive ? color : "#9CA3AF" }}
                   onClick={() => handleMobileTabChange(id)}
                   data-testid={`mobile-tab-${id}`}
                 >
                   {isActive && (
-                    <span className="absolute top-1 left-1/2 -translate-x-1/2 w-10 h-[4px] rounded-full transition-all duration-200" style={{ backgroundColor: color }} />
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2.5px] rounded-full transition-all duration-200" style={{ backgroundColor: color }} />
                   )}
                   <Icon className={`w-5 h-5 transition-transform duration-150 ${isActive ? "scale-110" : ""}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "opacity-100" : "opacity-70"}`}>{label}</span>
                   {id === "terminal" && isRunning && (
-                    <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2 h-2 rounded-full bg-[#0CCE6B] border-2 border-[#0E1525]" />
+                    <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2 h-2 rounded-full bg-[#0CCE6B] border-2 border-white" />
                   )}
                 </button>
               );
