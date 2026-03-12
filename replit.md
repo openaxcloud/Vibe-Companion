@@ -94,6 +94,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Teams & Organizations**: Create teams, invite members, role-based access (owner/admin/member)
 - **Admin Dashboard**: Platform metrics, user management, analytics (admin-only)
 - **Package Management**: Detect package.json/requirements.txt, add/remove packages, activity bar icon
+- **Database Viewer**: Activity bar panel to browse database tables, view columns/types, run SQL queries (read-only SELECT/WITH/EXPLAIN/SHOW), results table display. Component: `DatabasePanel.tsx`, API: `POST /api/projects/:id/database/query`
+- **Test Runner**: Activity bar panel to detect test files (Jest/Vitest/Mocha/pytest patterns), run all or single tests, display pass/fail/skip results with duration. Component: `TestRunnerPanel.tsx`, API: `GET /api/projects/:id/tests/detect`, `POST /api/projects/:id/tests/run`
+- **AI Commit Messages**: "AI" button in git commit textarea that generates a commit message by analyzing file changes since last commit using Claude Sonnet. API: `POST /api/projects/:id/git/generate-commit-message`
 - **Profile Settings**: Display name, connected accounts (GitHub), GDPR data export, email verification, billing portal, account deletion
 - **Legal Pages**: Terms of Service, Privacy Policy with proper routing
 - **Stripe Billing**: Checkout sessions, subscription management, webhook handling, billing portal (when Stripe configured)

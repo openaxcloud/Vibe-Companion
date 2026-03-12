@@ -3481,6 +3481,272 @@ Always write complete, working code. Never use placeholders or TODOs.`;
     }
   });
 
+  // ============ DATABASE VIEWER ============
+  app.post("/api/projects/:id/database/query", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+
+      const { sql } = req.body;
+      if (!sql || typeof sql !== "string") return res.status(400).json({ error: "SQL query required" });
+
+      const trimmed = sql.trim().toUpperCase();
+      const allowed = trimmed.startsWith("SELECT") || trimmed.startsWith("WITH") || trimmed.startsWith("EXPLAIN") || trimmed.startsWith("SHOW");
+      if (!allowed) return res.status(400).json({ error: "Only SELECT, WITH, EXPLAIN, and SHOW queries are allowed" });
+
+      const { pool } = await import("./db");
+      const result = await pool.query(sql);
+
+      if (result.rows && result.fields) {
+        const columns = result.fields.map((f: any) => f.name);
+        const rows = result.rows.map((row: any) => columns.map((col: string) => row[col]));
+        res.json({ columns, rows, rowCount: result.rowCount ?? rows.length });
+      } else {
+        res.json({ columns: [], rows: [], rowCount: result.rowCount ?? 0 });
+      }
+    } catch (err: any) {
+      res.json({ error: err.message || "Query failed" });
+    }
+  });
+
+  // ============ TEST RUNNER ============
+  app.get("/api/projects/:id/tests/detect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+
+      const files = await storage.getFiles(req.params.id);
+      const testPatterns = [
+        /\.test\.[jt]sx?$/,
+        /\.spec\.[jt]sx?$/,
+        /test_.*\.py$/,
+        /.*_test\.py$/,
+        /.*_test\.go$/,
+        /Test\.java$/,
+        /\.test\.ts$/,
+      ];
+
+      const testFiles = files
+        .filter((f) => testPatterns.some((p) => p.test(f.filename)))
+        .map((f) => f.filename);
+
+      let framework = "none";
+      const hasPackageJson = files.find((f) => f.filename === "package.json");
+      if (hasPackageJson) {
+        try {
+          const pkg = JSON.parse(hasPackageJson.content || "{}");
+          const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+          if (allDeps.jest || allDeps["@jest/core"]) framework = "jest";
+          else if (allDeps.vitest) framework = "vitest";
+          else if (allDeps.mocha) framework = "mocha";
+          else if (allDeps["@testing-library/react"]) framework = "testing-library";
+          else framework = "node:test";
+        } catch {}
+      } else if (files.some((f) => f.filename.endsWith(".py"))) {
+        framework = "pytest";
+      }
+
+      res.json({ files: testFiles, framework });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/projects/:id/tests/run", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+
+      const files = await storage.getFiles(req.params.id);
+      const { file } = req.body;
+
+      const testPatterns = [/\.test\.[jt]sx?$/, /\.spec\.[jt]sx?$/, /test_.*\.py$/, /.*_test\.py$/];
+      const testFiles = file
+        ? files.filter((f) => f.filename === file)
+        : files.filter((f) => testPatterns.some((p) => p.test(f.filename)));
+
+      if (testFiles.length === 0) {
+        return res.json({ suites: [], output: "No test files found." });
+      }
+
+      const suites: any[] = [];
+      let fullOutput = "";
+
+      for (const tf of testFiles) {
+        const content = tf.content || "";
+        const isJs = /\.[jt]sx?$/.test(tf.filename);
+        const isPy = /\.py$/.test(tf.filename);
+
+        try {
+          let testCode: string;
+          if (isJs) {
+            testCode = `
+const startTime = Date.now();
+const results = [];
+function describe(name, fn) { fn(); }
+function it(name, fn) { test(name, fn); }
+function test(name, fn) {
+  const t0 = Date.now();
+  try { fn(); results.push({ name, status: "pass", duration: Date.now() - t0 }); }
+  catch(e) { results.push({ name, status: "fail", duration: Date.now() - t0, error: e.message }); }
+}
+function expect(v) {
+  return {
+    toBe(e) { if (v !== e) throw new Error(\`Expected \${JSON.stringify(e)} but got \${JSON.stringify(v)}\`); },
+    toEqual(e) { if (JSON.stringify(v) !== JSON.stringify(e)) throw new Error(\`Expected \${JSON.stringify(e)} but got \${JSON.stringify(v)}\`); },
+    toBeTruthy() { if (!v) throw new Error(\`Expected truthy but got \${JSON.stringify(v)}\`); },
+    toBeFalsy() { if (v) throw new Error(\`Expected falsy but got \${JSON.stringify(v)}\`); },
+    toContain(e) { if (!v.includes(e)) throw new Error(\`Expected to contain \${JSON.stringify(e)}\`); },
+    toThrow(msg) { try { v(); throw new Error("Expected to throw"); } catch(e) { if (msg && !e.message.includes(msg)) throw new Error(\`Expected throw message to contain "\${msg}"\`); } },
+    toBeGreaterThan(e) { if (!(v > e)) throw new Error(\`Expected \${v} > \${e}\`); },
+    toBeLessThan(e) { if (!(v < e)) throw new Error(\`Expected \${v} < \${e}\`); },
+    toBeNull() { if (v !== null) throw new Error(\`Expected null but got \${JSON.stringify(v)}\`); },
+    toBeUndefined() { if (v !== undefined) throw new Error(\`Expected undefined but got \${JSON.stringify(v)}\`); },
+    toBeDefined() { if (v === undefined) throw new Error("Expected defined but got undefined"); },
+    not: {
+      toBe(e) { if (v === e) throw new Error(\`Expected not \${JSON.stringify(e)}\`); },
+      toEqual(e) { if (JSON.stringify(v) === JSON.stringify(e)) throw new Error(\`Expected not \${JSON.stringify(e)}\`); },
+      toBeTruthy() { if (v) throw new Error("Expected falsy"); },
+      toBeNull() { if (v === null) throw new Error("Expected not null"); },
+    }
+  };
+}
+${content}
+console.log(JSON.stringify({ results, duration: Date.now() - startTime }));`;
+          } else if (isPy) {
+            testCode = content + `
+import json, time, sys, unittest, io
+loader = unittest.TestLoader()
+suite_obj = loader.loadTestsFromModule(sys.modules[__name__])
+stream = io.StringIO()
+runner = unittest.TextTestRunner(stream=stream, verbosity=2)
+t0 = time.time()
+result = runner.run(suite_obj)
+dur = int((time.time()-t0)*1000)
+tests = []
+for t,_ in result.failures: tests.append({"name":str(t),"status":"fail","error":_})
+for t,_ in result.errors: tests.append({"name":str(t),"status":"fail","error":_})
+for t in result.successes if hasattr(result,'successes') else []: tests.append({"name":str(t),"status":"pass"})
+run_count = result.testsRun
+pass_count = run_count - len(result.failures) - len(result.errors)
+if not tests:
+    for i in range(pass_count): tests.append({"name":f"test_{i+1}","status":"pass"})
+print(json.dumps({"results":tests,"duration":dur}))`;
+          } else {
+            continue;
+          }
+
+          const lang = isJs ? (tf.filename.endsWith(".ts") || tf.filename.endsWith(".tsx") ? "typescript" : "javascript") : "python";
+          const result = await executeCode(testCode, lang);
+          fullOutput += `--- ${tf.filename} ---\n${result.stdout || ""}${result.stderr ? "\n" + result.stderr : ""}\n\n`;
+
+          try {
+            const lines = (result.stdout || "").trim().split("\n");
+            const lastLine = lines[lines.length - 1];
+            const parsed = JSON.parse(lastLine);
+            const tests = parsed.results || [];
+            suites.push({
+              file: tf.filename,
+              tests,
+              passed: tests.filter((t: any) => t.status === "pass").length,
+              failed: tests.filter((t: any) => t.status === "fail").length,
+              skipped: tests.filter((t: any) => t.status === "skip").length,
+              duration: parsed.duration || 0,
+            });
+          } catch {
+            suites.push({
+              file: tf.filename,
+              tests: [{ name: tf.filename, status: result.exitCode === 0 ? "pass" : "fail", error: result.stderr || undefined }],
+              passed: result.exitCode === 0 ? 1 : 0,
+              failed: result.exitCode === 0 ? 0 : 1,
+              skipped: 0,
+              duration: 0,
+            });
+          }
+        } catch (err: any) {
+          suites.push({
+            file: tf.filename,
+            tests: [{ name: tf.filename, status: "fail", error: err.message }],
+            passed: 0, failed: 1, skipped: 0, duration: 0,
+          });
+          fullOutput += `--- ${tf.filename} ---\nError: ${err.message}\n\n`;
+        }
+      }
+
+      res.json({ suites, output: fullOutput });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============ AI COMMIT MESSAGE ============
+  app.post("/api/projects/:id/git/generate-commit-message", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+
+      const files = await storage.getFiles(req.params.id);
+      const branch = req.body.branch || "main";
+      const commits = await storage.getCommits(req.params.id, branch);
+
+      let changesSummary = "";
+      if (commits.length > 0) {
+        const lastSnapshot = commits[0].snapshot as Record<string, string> || {};
+        const currentFiles: Record<string, string> = {};
+        files.forEach((f) => { currentFiles[f.filename] = f.content || ""; });
+
+        const added = Object.keys(currentFiles).filter((k) => !(k in lastSnapshot));
+        const deleted = Object.keys(lastSnapshot).filter((k) => !(k in currentFiles));
+        const modified = Object.keys(currentFiles).filter((k) => k in lastSnapshot && currentFiles[k] !== lastSnapshot[k]);
+
+        if (added.length) changesSummary += `Added: ${added.join(", ")}\n`;
+        if (deleted.length) changesSummary += `Deleted: ${deleted.join(", ")}\n`;
+        if (modified.length) {
+          changesSummary += `Modified: ${modified.join(", ")}\n`;
+          for (const f of modified.slice(0, 5)) {
+            const oldContent = lastSnapshot[f] || "";
+            const newContent = currentFiles[f] || "";
+            const oldLines = oldContent.split("\n");
+            const newLines = newContent.split("\n");
+            const addedLines = newLines.filter((l) => !oldLines.includes(l)).slice(0, 5);
+            const removedLines = oldLines.filter((l) => !newLines.includes(l)).slice(0, 5);
+            if (addedLines.length || removedLines.length) {
+              changesSummary += `\n${f}:\n`;
+              removedLines.forEach((l) => { changesSummary += `- ${l.trim().slice(0, 100)}\n`; });
+              addedLines.forEach((l) => { changesSummary += `+ ${l.trim().slice(0, 100)}\n`; });
+            }
+          }
+        }
+      } else {
+        changesSummary = `Initial commit with files: ${files.map((f) => f.filename).join(", ")}`;
+      }
+
+      if (!changesSummary.trim()) {
+        return res.json({ message: "Update project files" });
+      }
+
+      const anthropic = new Anthropic();
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 100,
+        messages: [{
+          role: "user",
+          content: `Generate a concise git commit message (max 72 chars first line, optional body) for these changes:\n\n${changesSummary.slice(0, 2000)}\n\nRespond with ONLY the commit message, no quotes or explanation.`
+        }],
+      });
+
+      const message = response.content[0].type === "text" ? response.content[0].text.trim() : "Update project files";
+      res.json({ message });
+    } catch (err: any) {
+      log(`AI commit message error: ${err.message}`, "ai");
+      res.json({ message: "Update project files" });
+    }
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
 

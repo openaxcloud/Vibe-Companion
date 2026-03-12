@@ -54,26 +54,26 @@ export default function PackagesPanel({ projectId, onClose }: PackagesPanelProps
 
   return (
     <div className="flex flex-col h-full" data-testid="packages-panel">
-      <div className="flex items-center justify-between px-3 h-9 border-b border-[#2B3245] shrink-0">
-        <span className="text-[10px] font-bold text-[#9DA2B0] uppercase tracking-widest flex items-center gap-1.5">
+      <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+        <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest flex items-center gap-1.5">
           <Package className="w-3.5 h-3.5 text-[#0CCE6B]" /> Packages
         </span>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={() => packagesQuery.refetch()} data-testid="button-refresh-packages">
+          <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => packagesQuery.refetch()} data-testid="button-refresh-packages">
             <RefreshCw className="w-3 h-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[#676D7E] hover:text-[#F5F9FC]" onClick={onClose} data-testid="button-close-packages">
+          <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-packages">
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
-      <div className="px-3 py-2 border-b border-[#2B3245]">
+      <div className="px-3 py-2 border-b border-[var(--ide-border)]">
         <form onSubmit={(e) => { e.preventDefault(); if (newPackageName.trim()) addPackageMutation.mutate({ name: newPackageName.trim() }); }} className="flex gap-1.5">
           <Input
             value={newPackageName}
             onChange={(e) => setNewPackageName(e.target.value)}
             placeholder="Add package..."
-            className="flex-1 h-7 text-xs bg-[#0E1525] border-[#2B3245] text-[#F5F9FC] rounded-md placeholder:text-[#676D7E]"
+            className="flex-1 h-7 text-xs bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)] rounded-md placeholder:text-[var(--ide-text-muted)]"
             data-testid="input-add-package"
           />
           <Button type="submit" size="sm" disabled={!newPackageName.trim() || addPackageMutation.isPending}
@@ -82,33 +82,33 @@ export default function PackagesPanel({ projectId, onClose }: PackagesPanelProps
           </Button>
         </form>
         {packagesQuery.data && (
-          <div className="mt-1.5 text-[9px] text-[#676D7E]">
+          <div className="mt-1.5 text-[9px] text-[var(--ide-text-muted)]">
             {packagesQuery.data.packageManager === "npm" ? "npm" : packagesQuery.data.packageManager === "pip" ? "pip" : "No package manager detected"} · {packagesQuery.data.packages.length} packages
           </div>
         )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {packagesQuery.isLoading ? (
-          <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 text-[#676D7E] animate-spin" /></div>
+          <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 text-[var(--ide-text-muted)] animate-spin" /></div>
         ) : (packagesQuery.data?.packages.length || 0) === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Package className="w-8 h-8 text-[#2B3245] mb-2" />
-            <p className="text-xs text-[#676D7E]">No packages found</p>
-            <p className="text-[10px] text-[#676D7E] mt-1">Add a package above to get started</p>
+            <p className="text-xs text-[var(--ide-text-muted)]">No packages found</p>
+            <p className="text-[10px] text-[var(--ide-text-muted)] mt-1">Add a package above to get started</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#2B3245]/50">
+          <div className="divide-y divide-[var(--ide-border)]/50">
             {packagesQuery.data!.packages.map((pkg, i) => (
-              <div key={`${pkg.name}-${i}`} className="flex items-center justify-between px-3 py-2 hover:bg-[#2B3245]/30 group" data-testid={`package-item-${pkg.name}`}>
+              <div key={`${pkg.name}-${i}`} className="flex items-center justify-between px-3 py-2 hover:bg-[var(--ide-surface)]/30 group" data-testid={`package-item-${pkg.name}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-[#F5F9FC] font-medium truncate">{pkg.name}</span>
-                    {pkg.dev && <span className="text-[8px] px-1 py-0.5 rounded bg-[#2B3245] text-[#9DA2B0]">dev</span>}
+                    <span className="text-[11px] text-[var(--ide-text)] font-medium truncate">{pkg.name}</span>
+                    {pkg.dev && <span className="text-[8px] px-1 py-0.5 rounded bg-[var(--ide-surface)] text-[var(--ide-text-secondary)]">dev</span>}
                   </div>
-                  <span className="text-[10px] text-[#676D7E]">{pkg.version}</span>
+                  <span className="text-[10px] text-[var(--ide-text-muted)]">{pkg.version}</span>
                 </div>
                 <Button variant="ghost" size="icon"
-                  className="w-5 h-5 text-[#676D7E] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => removePackageMutation.mutate(pkg.name)}
                   disabled={removePackageMutation.isPending}
                   data-testid={`button-remove-package-${pkg.name}`}

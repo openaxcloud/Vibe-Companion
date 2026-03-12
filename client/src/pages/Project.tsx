@@ -11,10 +11,12 @@ import {
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
-  ArrowLeft, ArrowRight, Save, GripHorizontal
+  ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
+import DatabasePanel from "@/components/DatabasePanel";
+import TestRunnerPanel from "@/components/TestRunnerPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
@@ -292,6 +294,8 @@ function _projectPage() {
   const [editorTabSize, setEditorTabSize] = useState(2);
   const [editorWordWrap, setEditorWordWrap] = useState(false);
   const [packagesPanelOpen, setPackagesPanelOpen] = useState(false);
+  const [databasePanelOpen, setDatabasePanelOpen] = useState(false);
+  const [testsPanelOpen, setTestsPanelOpen] = useState(false);
   const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -3122,7 +3126,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); } }}
                     data-testid="activity-search"
                   >
                     {searchPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -3135,7 +3139,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); } }}
                     data-testid="activity-ai"
                   >
                     {aiPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#7C65CB]" />}
@@ -3148,7 +3152,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${gitPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setGitPanelOpen(!gitPanelOpen); if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    onClick={() => { setGitPanelOpen(!gitPanelOpen); if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); } }}
                     data-testid="activity-git"
                   >
                     {gitPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
@@ -3162,7 +3166,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); } }}
+                    onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); } }}
                     data-testid="activity-deployments"
                   >
                     {deploymentsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -3175,7 +3179,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${packagesPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setPackagesPanelOpen(!packagesPanelOpen); if (!packagesPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); } }}
+                    onClick={() => { setPackagesPanelOpen(!packagesPanelOpen); if (!packagesPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); } }}
                     data-testid="activity-packages"
                   >
                     {packagesPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
@@ -3183,6 +3187,32 @@ function _projectPage() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Packages</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${databasePanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => { setDatabasePanelOpen(!databasePanelOpen); if (!databasePanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setTestsPanelOpen(false); } }}
+                    data-testid="activity-database"
+                  >
+                    {databasePanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
+                    <Database className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Database</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${testsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => { setTestsPanelOpen(!testsPanelOpen); if (!testsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); } }}
+                    data-testid="activity-tests"
+                  >
+                    {testsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
+                    <FlaskConical className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Tests</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3230,7 +3260,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); } }}
+                    onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); } }}
                     data-testid="activity-settings"
                   >
                     {settingsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -3654,18 +3684,38 @@ function _projectPage() {
 
                   {/* Commit section */}
                   <div className="px-3 py-2.5 border-b border-[var(--ide-border)]">
-                    <textarea
-                      value={commitMessage}
-                      onChange={(e) => setCommitMessage(e.target.value)}
-                      placeholder="Commit message..."
-                      className="w-full text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-2 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] resize-none min-h-[60px]"
-                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && commitMessage.trim()) { e.preventDefault(); commitMutation.mutate(); } }}
-                      data-testid="textarea-commit-message"
-                    />
+                    <div className="relative">
+                      <textarea
+                        value={commitMessage}
+                        onChange={(e) => setCommitMessage(e.target.value)}
+                        placeholder="Commit message..."
+                        className="w-full text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-2 pr-20 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] resize-none min-h-[60px]"
+                        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && commitMessage.trim()) { e.preventDefault(); commitMutation.mutate(); } }}
+                        data-testid="textarea-commit-message"
+                      />
+                      <button
+                        className="absolute top-1.5 right-1.5 flex items-center gap-1 px-2 py-1 text-[10px] rounded bg-[#7C65CB]/15 text-[#7C65CB] hover:bg-[#7C65CB]/25 transition-colors disabled:opacity-50"
+                        onClick={async () => {
+                          try {
+                            setCommitMessage("Generating...");
+                            const res = await apiRequest("POST", `/api/projects/${projectId}/git/generate-commit-message`, { branch: currentBranch });
+                            const data = await res.json();
+                            setCommitMessage(data.message || "Update project files");
+                          } catch {
+                            setCommitMessage("");
+                          }
+                        }}
+                        disabled={commitMessage === "Generating..."}
+                        data-testid="button-generate-commit-message"
+                      >
+                        {commitMessage === "Generating..." ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        AI
+                      </button>
+                    </div>
                     <Button
                       className="w-full mt-1.5 h-7 text-[11px] bg-[#0079F2] hover:bg-[#0079F2]/90 text-white rounded font-medium gap-1.5"
                       onClick={() => commitMutation.mutate()}
-                      disabled={!commitMessage.trim() || commitMutation.isPending}
+                      disabled={!commitMessage.trim() || commitMutation.isPending || commitMessage === "Generating..."}
                       data-testid="button-commit"
                     >
                       {commitMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -3794,6 +3844,20 @@ function _projectPage() {
             {packagesPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
               <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`}>
                 <PackagesPanel projectId={projectId} onClose={() => setPackagesPanelOpen(false)} />
+              </div>
+            )}
+
+            {/* DATABASE PANEL */}
+            {databasePanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="database-sidebar">
+                <DatabasePanel projectId={projectId} onClose={() => setDatabasePanelOpen(false)} />
+              </div>
+            )}
+
+            {/* TEST RUNNER PANEL */}
+            {testsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="tests-sidebar">
+                <TestRunnerPanel projectId={projectId} onClose={() => setTestsPanelOpen(false)} />
               </div>
             )}
 
