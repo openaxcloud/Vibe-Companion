@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, Eye, Menu, X } from "lucide-react";
+import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, Eye, Menu, X, Send, Loader2 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 function ECodeLogo({ size = 32 }: { size?: number }) {
   return (
@@ -80,6 +81,89 @@ function CodeDemo() {
   );
 }
 
+const examplePrompts = [
+  "Build a todo app with authentication",
+  "Create a REST API with Express and PostgreSQL",
+  "Make a real-time chat app with WebSockets",
+  "Build a portfolio website with dark mode",
+  "Create a weather dashboard using an API",
+  "Build a markdown editor with live preview",
+];
+
+function PromptInput({ onSubmit, isLoading }: { onSubmit: (prompt: string) => void; isLoading: boolean }) {
+  const [prompt, setPrompt] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = () => {
+    const trimmed = prompt.trim();
+    if (!trimmed || isLoading) return;
+    onSubmit(trimmed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const handleExampleClick = (example: string) => {
+    setPrompt(example);
+    textareaRef.current?.focus();
+  };
+
+  return (
+    <div className="w-full max-w-2xl mx-auto">
+      <div className="relative rounded-2xl border border-[var(--ide-border)] bg-[var(--ide-panel)] shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden transition-all focus-within:border-[#0079F2]/50 focus-within:shadow-[0_8px_32px_rgba(0,121,242,0.15)]">
+        <textarea
+          ref={textareaRef}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="What do you want to build?"
+          rows={2}
+          className="w-full bg-transparent text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] resize-none px-5 pt-5 pb-3 text-[15px] leading-relaxed outline-none"
+          data-testid="input-prompt"
+        />
+        <div className="flex items-center justify-between px-4 pb-4">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" />
+            <span className="text-[11px] text-[var(--ide-text-muted)]">AI-powered</span>
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={!prompt.trim() || isLoading}
+            className="flex items-center gap-2 h-9 px-5 rounded-xl text-sm font-medium bg-[#0079F2] hover:bg-[#006AD8] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            data-testid="button-prompt-submit"
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5" />
+                Build
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        {examplePrompts.map((example) => (
+          <button
+            key={example}
+            onClick={() => handleExampleClick(example)}
+            className="px-3 py-1.5 rounded-lg text-xs text-[var(--ide-text-muted)] border border-[var(--ide-border)] bg-[var(--ide-bg)] hover:bg-[var(--ide-panel)] hover:text-[var(--ide-text)] hover:border-[#3B4B5F] transition-all"
+            data-testid={`button-example-${example.slice(0, 20).replace(/\s/g, "-").toLowerCase()}`}
+          >
+            {example}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const features = [
   { icon: Code2, title: "Powerful IDE", desc: "Full-featured code editor with syntax highlighting, autocomplete, linting, and multi-language support.", color: "#0079F2" },
   { icon: Sparkles, title: "AI Coding Agent", desc: "Chat with AI or let it build entire features. Supports Claude, GPT-4o, and Gemini models.", color: "#7C65CB" },
@@ -100,6 +184,23 @@ export default function Landing() {
   const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [promptLoading, setPromptLoading] = useState(false);
+
+  const handlePromptSubmit = async (prompt: string) => {
+    setPromptLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/projects", {
+        name: prompt.slice(0, 50),
+        language: "javascript",
+      });
+      const project = await res.json();
+      setLocation(`/project/${project.id}?prompt=${encodeURIComponent(prompt)}`);
+    } catch {
+      setLocation(`/login?signup=true&prompt=${encodeURIComponent(prompt)}`);
+    } finally {
+      setPromptLoading(false);
+    }
+  };
 
   const statsQuery = useQuery<{ value: string; label: string }[]>({
     queryKey: ["/api/landing-stats"],
@@ -186,20 +287,22 @@ export default function Landing() {
           A cloud IDE with a powerful editor, AI coding agent, live terminal, instant deployment, and team collaboration. Write, run, and ship code from anywhere.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
+        <PromptInput onSubmit={handlePromptSubmit} isLoading={promptLoading} />
+
+        <p className="text-xs text-[var(--ide-text-muted)] mt-6 mb-12">No credit card required. Free tier included.</p>
+
+        <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
           <Link href="/login?signup=true">
-            <Button className="h-12 px-8 text-base font-semibold bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-xl shadow-[0_0_20px_rgba(12,206,107,0.3)] hover:shadow-[0_0_30px_rgba(12,206,107,0.4)] transition-all gap-2" data-testid="cta-signup">
+            <Button className="h-11 px-7 text-sm font-semibold bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-xl shadow-[0_0_20px_rgba(12,206,107,0.3)] hover:shadow-[0_0_30px_rgba(12,206,107,0.4)] transition-all gap-2" data-testid="cta-signup">
               Start building for free <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
           <Link href="/demo">
-            <Button variant="outline" className="h-12 px-8 text-base font-medium bg-transparent border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] rounded-xl gap-2" data-testid="cta-demo">
+            <Button variant="outline" className="h-11 px-7 text-sm font-medium bg-transparent border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] rounded-xl gap-2" data-testid="cta-demo">
               <Play className="w-4 h-4" /> Try the demo
             </Button>
           </Link>
         </div>
-
-        <p className="text-xs text-[var(--ide-text-muted)] mb-16">No credit card required. Free tier included.</p>
 
         <CodeDemo />
       </section>

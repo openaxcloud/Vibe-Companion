@@ -13,7 +13,7 @@ import { executeCode } from "./executor";
 import { executionPool } from "./executionPool";
 import { getOrCreateTerminal, resizeTerminal } from "./terminal";
 import { log } from "./index";
-import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
 import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment } from "./deploymentEngine";
 import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
 import {
@@ -347,6 +347,23 @@ export async function registerRoutes(
     });
   });
 
+  app.get("/api/config/status", (_req: Request, res: Response) => {
+    const stripeReady = !!(process.env.STRIPE_SECRET_KEY);
+    const emailReady = isEmailConfigured();
+
+    res.json({
+      stripe: {
+        configured: stripeReady,
+        proConfigured: stripeReady && !!process.env.STRIPE_PRO_PRICE_ID,
+        teamConfigured: stripeReady && !!process.env.STRIPE_TEAM_PRICE_ID,
+        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      },
+      email: {
+        configured: emailReady,
+      },
+    });
+  });
+
   app.get("/api/metrics", async (req: Request, res: Response) => {
     if (!req.session.userId) {
       return res.json({ execution: getSystemMetrics(), errorCount: 0 });
@@ -494,19 +511,21 @@ export async function registerRoutes(
   };
 
   let stripe: any = null;
-  try {
-    const Stripe = require("stripe");
-    if (process.env.STRIPE_SECRET_KEY) {
+  if (process.env.STRIPE_SECRET_KEY) {
+    try {
+      const Stripe = require("stripe");
       stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    } catch (err: any) {
+      log(`Stripe initialization failed: ${err.message}`);
     }
-  } catch {}
+  }
 
   app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
     const { plan } = req.body;
     if (!plan || !["pro", "team"].includes(plan)) {
       return res.status(400).json({ message: "Invalid plan" });
     }
-    if (!stripe || !STRIPE_PRICES[plan]) {
+    if (!stripe || !STRIPE_PRICES[plan] || !process.env.STRIPE_WEBHOOK_SECRET) {
       return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
     }
     try {
@@ -523,7 +542,7 @@ export async function registerRoutes(
         customer: customerId,
         mode: "subscription",
         line_items: [{ price: STRIPE_PRICES[plan], quantity: 1 }],
-        success_url: `${req.protocol}://${req.get("host")}/dashboard?billing=success`,
+        success_url: `${req.protocol}://${req.get("host")}/pricing?billing=success`,
         cancel_url: `${req.protocol}://${req.get("host")}/pricing?billing=cancelled`,
         metadata: { userId: user.id, plan },
       });
@@ -565,7 +584,7 @@ export async function registerRoutes(
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!sig || !webhookSecret) return res.status(200).send("OK");
     try {
-      const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      const event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, webhookSecret);
       switch (event.type) {
         case "checkout.session.completed": {
           const session = event.data.object;

@@ -24,6 +24,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
 - **Email**: Nodemailer with SMTP support (env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, APP_URL). Falls back to console logging when SMTP not configured.
+- **Stripe Billing**: Stripe checkout, portal, and webhook integration. Env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRO_PRICE_ID, STRIPE_TEAM_PRICE_ID. Webhook uses raw body for signature verification. Graceful degradation when not configured.
+- **Config Status API**: `GET /api/config/status` — reports Stripe and email configuration state for frontend UI adaptation.
+- **Homepage Prompt Input**: Landing page has a Replit-style prompt input with example suggestions. Creates a project and redirects to the IDE. Unauthenticated users are sent to login with prompt preserved in query params.
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Eye, Github } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 function AnimatedGrid() {
   return (
@@ -45,8 +46,28 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
 
+  const promptHandled = useRef(false);
+
   useEffect(() => {
-    if (isAuthenticated) setLocation("/dashboard");
+    if (!isAuthenticated) return;
+    const pendingPrompt = params.get("prompt");
+    if (pendingPrompt && !promptHandled.current) {
+      promptHandled.current = true;
+      (async () => {
+        try {
+          const res = await apiRequest("POST", "/api/projects", {
+            name: pendingPrompt.slice(0, 50),
+            language: "javascript",
+          });
+          const project = await res.json();
+          setLocation(`/project/${project.id}?prompt=${encodeURIComponent(pendingPrompt)}`);
+        } catch {
+          setLocation("/dashboard");
+        }
+      })();
+    } else {
+      setLocation("/dashboard");
+    }
   }, [isAuthenticated, setLocation]);
 
   if (authLoading) {

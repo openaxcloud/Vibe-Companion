@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2, CreditCard, CheckCircle2, ListChecks } from "lucide-react";
+import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2, CreditCard, CheckCircle2, ListChecks, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +31,23 @@ export default function Pricing() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
+  const [stripeStatus, setStripeStatus] = useState<{ configured: boolean; proConfigured: boolean; teamConfigured: boolean; hasWebhookSecret: boolean } | null>(null);
+
+  const stripeReady = stripeStatus ? stripeStatus.configured && stripeStatus.hasWebhookSecret : null;
+
+  useEffect(() => {
+    fetch("/api/config/status")
+      .then((r) => r.json())
+      .then((data) => setStripeStatus(data.stripe || { configured: false, proConfigured: false, teamConfigured: false, hasWebhookSecret: false }))
+      .catch(() => setStripeStatus({ configured: false, proConfigured: false, teamConfigured: false, hasWebhookSecret: false }));
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("billing") === "cancelled") {
+      toast({ title: "Checkout was cancelled. You can try again anytime." });
+    }
+  }, [search]);
 
   const planConfigsQuery = useQuery<{ plan: string; description: string | null; features: string[] | null; price: number }[]>({
     queryKey: ["/api/plan-configs"],
@@ -59,7 +76,6 @@ export default function Pricing() {
   const currentStep = useMemo(() => {
     const params = new URLSearchParams(search);
     if (params.get("billing") === "success") return 3;
-    if (params.get("billing") === "cancelled") return 1;
     if (loading) return 2;
     return 1;
   }, [search, loading]);
@@ -71,17 +87,21 @@ export default function Pricing() {
       return;
     }
     if (!user) {
-      setLocation("/auth");
+      setLocation("/login");
+      return;
+    }
+    if (stripeReady === false || (stripeStatus && planId === "pro" && !stripeStatus.proConfigured)) {
+      toast({ title: "Payments are not available yet. Please check back soon.", variant: "destructive" });
       return;
     }
     setLoading(planId);
     try {
       const res = await apiRequest("POST", "/api/billing/checkout", { plan: planId });
-      const { url } = await res.json();
-      if (url) {
-        window.location.href = url;
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
       } else {
-        toast({ title: "Stripe is not configured yet. Please check back soon." });
+        toast({ title: data.message || "Unable to start checkout. Please try again later.", variant: "destructive" });
       }
     } catch (err: any) {
       toast({ title: err.message || "Failed to start checkout", variant: "destructive" });
@@ -108,6 +128,15 @@ export default function Pricing() {
             <p className="text-[var(--ide-text-secondary)] mt-1">Scale your development with the right tools</p>
           </div>
         </div>
+
+        {stripeReady === false && (
+          <div className="max-w-2xl mx-auto mb-8 flex items-center gap-3 px-4 py-3 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)]" data-testid="stripe-not-configured-banner">
+            <AlertCircle className="w-5 h-5 text-[var(--ide-text-muted)] shrink-0" />
+            <p className="text-sm text-[var(--ide-text-secondary)]">
+              Payments are not available yet. You can browse plans but checkout is currently disabled.
+            </p>
+          </div>
+        )}
 
         <div className="max-w-lg mx-auto mb-12" data-testid="progress-bar-container">
           <div className="flex items-center justify-between relative">
@@ -200,7 +229,7 @@ export default function Pricing() {
                     : "bg-[var(--ide-surface)] hover:bg-[#3B4255] text-[var(--ide-text)]"
                 }`}
                 onClick={() => handleUpgrade(plan.id)}
-                disabled={plan.id === "free" || loading === plan.id}
+                disabled={plan.id === "free" || loading === plan.id || (plan.id === "pro" && (stripeReady === false || (stripeStatus && !stripeStatus.proConfigured)))}
                 data-testid={`button-upgrade-${plan.id}`}
               >
                 {loading === plan.id ? <Loader2 className="w-4 h-4 animate-spin" /> : plan.cta}
