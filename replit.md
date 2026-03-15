@@ -48,6 +48,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `deployments`: id, project_id, user_id, status, url, logs, created_at, updated_at
 - `custom_domains`: id, domain (unique), project_id (indexed), user_id (indexed), verified, verification_token, ssl_status, ssl_expires_at, created_at, verified_at
 - `plan_configs`: id, plan (unique), daily_executions, daily_ai_calls, storage_mb, max_projects, price, description, features (text[])
+- `project_auth_config`: id, project_id (unique, indexed), enabled, providers (JSON string[]), require_email_verification, session_duration_hours, allowed_domains (JSON string[])
+- `project_auth_users`: id, project_id (indexed), email, password_hash, provider, verified, last_login_at, created_at — unique(project_id, email)
+- `integration_catalog`: id, name (unique), category, description, icon, env_var_keys (JSON string[])
+- `project_integrations`: id, project_id (indexed), integration_id, status, config (JSON), connected_at — unique(project_id, integration_id)
+- `integration_logs`: id, project_integration_id (indexed), level, message, created_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features

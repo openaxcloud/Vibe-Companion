@@ -4331,10 +4331,150 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
   });
 
+  // --- PROJECT AUTH ---
+  app.get("/api/projects/:id/auth/config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const config = await storage.getProjectAuthConfig(req.params.id);
+      res.json(config || { enabled: false, providers: ["email"], requireEmailVerification: false, sessionDurationHours: 24, allowedDomains: [] });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to get auth config" });
+    }
+  });
+
+  app.put("/api/projects/:id/auth/config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const schema = z.object({
+        enabled: z.boolean().optional(),
+        providers: z.array(z.string()).optional(),
+        requireEmailVerification: z.boolean().optional(),
+        sessionDurationHours: z.number().min(1).max(720).optional(),
+        allowedDomains: z.array(z.string()).optional(),
+      });
+      const data = schema.parse(req.body);
+      const config = await storage.upsertProjectAuthConfig(req.params.id, data);
+      res.json(config);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Failed to update auth config" });
+    }
+  });
+
+  app.get("/api/projects/:id/auth/users", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const users = await storage.getProjectAuthUsers(req.params.id);
+      res.json(users);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to get auth users" });
+    }
+  });
+
+  app.post("/api/projects/:id/auth/users", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const schema = z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+        provider: z.string().default("email"),
+      });
+      const data = schema.parse(req.body);
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      const user = await storage.createProjectAuthUser(req.params.id, data.email, passwordHash, data.provider);
+      res.status(201).json(user);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if (err.code === "23505") return res.status(409).json({ message: "User already exists" });
+      res.status(500).json({ message: "Failed to create auth user" });
+    }
+  });
+
+  app.delete("/api/projects/:id/auth/users/:userId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deleted = await storage.deleteProjectAuthUser(req.params.id, req.params.userId);
+      if (!deleted) return res.status(404).json({ message: "User not found" });
+      res.json({ message: "User deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to delete auth user" });
+    }
+  });
+
+  // --- INTEGRATIONS ---
+  app.get("/api/integrations/catalog", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const catalog = await storage.getIntegrationCatalog();
+      res.json(catalog);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to get integration catalog" });
+    }
+  });
+
+  app.get("/api/projects/:id/integrations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const integrations = await storage.getProjectIntegrations(req.params.id);
+      res.json(integrations);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to get integrations" });
+    }
+  });
+
+  app.post("/api/projects/:id/integrations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const schema = z.object({
+        integrationId: z.string(),
+        config: z.record(z.string()).default({}),
+      });
+      const data = schema.parse(req.body);
+      const pi = await storage.connectIntegration(req.params.id, data.integrationId, data.config);
+      await storage.addIntegrationLog(pi.id, "info", "Integration connected");
+      res.status(201).json(pi);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      if (err.code === "23505") return res.status(409).json({ message: "Integration already connected" });
+      res.status(500).json({ message: "Failed to connect integration" });
+    }
+  });
+
+  app.delete("/api/projects/:id/integrations/:integrationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deleted = await storage.disconnectIntegration(req.params.id, req.params.integrationId);
+      if (!deleted) return res.status(404).json({ message: "Integration not found" });
+      res.json({ message: "Integration disconnected" });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to disconnect integration" });
+    }
+  });
+
+  app.get("/api/projects/:id/integrations/:integrationId/logs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const logs = await storage.getIntegrationLogs(req.params.id, req.params.integrationId, 50);
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to get integration logs" });
+    }
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
   await storage.seedPlanConfigs();
   log("Plan configs seeded", "seed");
+  await storage.seedIntegrationCatalog();
+  log("Integration catalog seeded", "seed");
 
   return httpServer;
 }

@@ -11,6 +11,8 @@ import {
   customDomains, planConfigs,
   securityScans, securityFindings,
   storageKv, storageObjects,
+  projectAuthConfig, projectAuthUsers,
+  integrationCatalog, projectIntegrations, integrationLogs,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -37,6 +39,11 @@ import {
   type SecurityFinding, type InsertSecurityFinding,
   type StorageKv, type InsertStorageKv,
   type StorageObject, type InsertStorageObject,
+  type ProjectAuthConfig,
+  type ProjectAuthUser,
+  type IntegrationCatalogEntry,
+  type ProjectIntegration,
+  type IntegrationLog,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -188,6 +195,21 @@ export interface IStorage {
   createStorageObject(data: InsertStorageObject): Promise<StorageObject>;
   deleteStorageObject(id: string): Promise<boolean>;
   getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }>;
+
+  getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined>;
+  upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[] }>): Promise<ProjectAuthConfig>;
+  getProjectAuthUsers(projectId: string): Promise<ProjectAuthUser[]>;
+  createProjectAuthUser(projectId: string, email: string, passwordHash: string, provider: string): Promise<ProjectAuthUser>;
+  deleteProjectAuthUser(projectId: string, id: string): Promise<boolean>;
+
+  getIntegrationCatalog(): Promise<IntegrationCatalogEntry[]>;
+  seedIntegrationCatalog(): Promise<void>;
+  getProjectIntegrations(projectId: string): Promise<(ProjectIntegration & { integration: IntegrationCatalogEntry })[]>;
+  connectIntegration(projectId: string, integrationId: string, config: Record<string, string>): Promise<ProjectIntegration>;
+  disconnectIntegration(projectId: string, id: string): Promise<boolean>;
+  updateIntegrationStatus(id: string, status: string): Promise<ProjectIntegration | undefined>;
+  getIntegrationLogs(projectId: string, projectIntegrationId: string, limit?: number): Promise<IntegrationLog[]>;
+  addIntegrationLog(projectIntegrationId: string, level: string, message: string): Promise<IntegrationLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1026,6 +1048,119 @@ export class DatabaseStorage implements IStorage {
     const objectCount = objects.length;
     const objectSizeBytes = objects.reduce((sum, o) => sum + o.sizeBytes, 0);
     return { kvCount, kvSizeBytes, objectCount, objectSizeBytes, totalBytes: kvSizeBytes + objectSizeBytes };
+  }
+
+  async getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined> {
+    const [config] = await db.select().from(projectAuthConfig).where(eq(projectAuthConfig.projectId, projectId)).limit(1);
+    return config;
+  }
+
+  async upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[] }>): Promise<ProjectAuthConfig> {
+    const existing = await this.getProjectAuthConfig(projectId);
+    if (existing) {
+      const updates: any = {};
+      if (data.enabled !== undefined) updates.enabled = data.enabled;
+      if (data.providers !== undefined) updates.providers = data.providers;
+      if (data.requireEmailVerification !== undefined) updates.requireEmailVerification = data.requireEmailVerification;
+      if (data.sessionDurationHours !== undefined) updates.sessionDurationHours = data.sessionDurationHours;
+      if (data.allowedDomains !== undefined) updates.allowedDomains = data.allowedDomains;
+      const [updated] = await db.update(projectAuthConfig).set(updates).where(eq(projectAuthConfig.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(projectAuthConfig).values({
+      projectId,
+      enabled: data.enabled ?? false,
+      providers: data.providers ?? ["email"],
+      requireEmailVerification: data.requireEmailVerification ?? false,
+      sessionDurationHours: data.sessionDurationHours ?? 24,
+      allowedDomains: data.allowedDomains ?? [],
+    }).returning();
+    return created;
+  }
+
+  async getProjectAuthUsers(projectId: string): Promise<ProjectAuthUser[]> {
+    return db.select().from(projectAuthUsers).where(eq(projectAuthUsers.projectId, projectId)).orderBy(desc(projectAuthUsers.createdAt));
+  }
+
+  async createProjectAuthUser(projectId: string, email: string, passwordHash: string, provider: string): Promise<ProjectAuthUser> {
+    const [user] = await db.insert(projectAuthUsers).values({ projectId, email, passwordHash, provider }).returning();
+    return user;
+  }
+
+  async deleteProjectAuthUser(projectId: string, id: string): Promise<boolean> {
+    const result = await db.delete(projectAuthUsers).where(and(eq(projectAuthUsers.id, id), eq(projectAuthUsers.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async getIntegrationCatalog(): Promise<IntegrationCatalogEntry[]> {
+    return db.select().from(integrationCatalog).orderBy(integrationCatalog.category, integrationCatalog.name);
+  }
+
+  async seedIntegrationCatalog(): Promise<void> {
+    const existing = await db.select().from(integrationCatalog).limit(1);
+    if (existing.length > 0) return;
+    await db.insert(integrationCatalog).values([
+      { name: "PostgreSQL", category: "Database", description: "Connect to a PostgreSQL database", icon: "database", envVarKeys: ["DATABASE_URL"] },
+      { name: "Redis", category: "Database", description: "In-memory data store for caching", icon: "database", envVarKeys: ["REDIS_URL"] },
+      { name: "MongoDB", category: "Database", description: "NoSQL document database", icon: "database", envVarKeys: ["MONGODB_URI"] },
+      { name: "OpenAI", category: "AI & ML", description: "GPT models and embeddings API", icon: "sparkles", envVarKeys: ["OPENAI_API_KEY"] },
+      { name: "Anthropic", category: "AI & ML", description: "Claude AI assistant API", icon: "sparkles", envVarKeys: ["ANTHROPIC_API_KEY"] },
+      { name: "Stripe", category: "Payments", description: "Payment processing and subscriptions", icon: "credit-card", envVarKeys: ["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY"] },
+      { name: "GitHub", category: "Developer Tools", description: "Source control and CI/CD integration", icon: "github", envVarKeys: ["GITHUB_TOKEN"] },
+      { name: "AWS S3", category: "Cloud Storage", description: "Object storage for files and assets", icon: "cloud", envVarKeys: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_BUCKET"] },
+      { name: "SendGrid", category: "Communication", description: "Email delivery service", icon: "mail", envVarKeys: ["SENDGRID_API_KEY"] },
+      { name: "Twilio", category: "Communication", description: "SMS and voice communication", icon: "phone", envVarKeys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"] },
+      { name: "Firebase", category: "Backend Services", description: "Authentication, database, and hosting", icon: "flame", envVarKeys: ["FIREBASE_API_KEY", "FIREBASE_PROJECT_ID"] },
+      { name: "Supabase", category: "Backend Services", description: "Open source Firebase alternative", icon: "zap", envVarKeys: ["SUPABASE_URL", "SUPABASE_ANON_KEY"] },
+    ]);
+  }
+
+  async getProjectIntegrations(projectId: string): Promise<(ProjectIntegration & { integration: IntegrationCatalogEntry })[]> {
+    const rows = await db.select()
+      .from(projectIntegrations)
+      .innerJoin(integrationCatalog, eq(projectIntegrations.integrationId, integrationCatalog.id))
+      .where(eq(projectIntegrations.projectId, projectId));
+    return rows.map(r => ({
+      ...r.project_integrations,
+      integration: r.integration_catalog,
+    }));
+  }
+
+  async connectIntegration(projectId: string, integrationId: string, config: Record<string, string>): Promise<ProjectIntegration> {
+    const [pi] = await db.insert(projectIntegrations).values({
+      projectId,
+      integrationId,
+      status: "connected",
+      config,
+    }).returning();
+    return pi;
+  }
+
+  async disconnectIntegration(projectId: string, id: string): Promise<boolean> {
+    await db.delete(integrationLogs).where(eq(integrationLogs.projectIntegrationId, id));
+    const result = await db.delete(projectIntegrations).where(and(eq(projectIntegrations.id, id), eq(projectIntegrations.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async updateIntegrationStatus(id: string, status: string): Promise<ProjectIntegration | undefined> {
+    const [updated] = await db.update(projectIntegrations).set({ status }).where(eq(projectIntegrations.id, id)).returning();
+    return updated;
+  }
+
+  async getIntegrationLogs(projectId: string, projectIntegrationId: string, limit = 50): Promise<IntegrationLog[]> {
+    const pi = await db.select().from(projectIntegrations)
+      .where(and(eq(projectIntegrations.id, projectIntegrationId), eq(projectIntegrations.projectId, projectId)))
+      .limit(1);
+    if (pi.length === 0) return [];
+    return db.select().from(integrationLogs)
+      .where(eq(integrationLogs.projectIntegrationId, projectIntegrationId))
+      .orderBy(desc(integrationLogs.createdAt))
+      .limit(limit);
+  }
+
+  async addIntegrationLog(projectIntegrationId: string, level: string, message: string): Promise<IntegrationLog> {
+    const [log] = await db.insert(integrationLogs).values({ projectIntegrationId, level, message }).returning();
+    return log;
   }
 }
 

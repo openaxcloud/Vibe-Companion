@@ -526,3 +526,65 @@ export const insertStorageObjectSchema = createInsertSchema(storageObjects).pick
 });
 export type InsertStorageObject = z.infer<typeof insertStorageObjectSchema>;
 export type StorageObject = typeof storageObjects.$inferSelect;
+
+export const projectAuthConfig = pgTable("project_auth_config", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull().unique(),
+  enabled: boolean("enabled").notNull().default(false),
+  providers: json("providers").notNull().$type<string[]>().default(["email"]),
+  requireEmailVerification: boolean("require_email_verification").notNull().default(false),
+  sessionDurationHours: integer("session_duration_hours").notNull().default(24),
+  allowedDomains: json("allowed_domains").$type<string[]>().default([]),
+}, (table) => [
+  index("auth_config_project_idx").on(table.projectId),
+]);
+export type ProjectAuthConfig = typeof projectAuthConfig.$inferSelect;
+
+export const projectAuthUsers = pgTable("project_auth_users", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull().default(""),
+  provider: text("provider").notNull().default("email"),
+  verified: boolean("verified").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("auth_users_project_idx").on(table.projectId),
+  uniqueIndex("auth_users_project_email_unique").on(table.projectId, table.email),
+]);
+export type ProjectAuthUser = typeof projectAuthUsers.$inferSelect;
+
+export const integrationCatalog = pgTable("integration_catalog", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  category: text("category").notNull(),
+  description: text("description").notNull().default(""),
+  icon: text("icon").notNull().default("plug"),
+  envVarKeys: json("env_var_keys").notNull().$type<string[]>().default([]),
+});
+export type IntegrationCatalogEntry = typeof integrationCatalog.$inferSelect;
+
+export const projectIntegrations = pgTable("project_integrations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  integrationId: varchar("integration_id", { length: 36 }).notNull(),
+  status: text("status").notNull().default("connected"),
+  config: json("config").$type<Record<string, string>>().default({}),
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+}, (table) => [
+  index("proj_integrations_project_idx").on(table.projectId),
+  uniqueIndex("proj_integrations_unique").on(table.projectId, table.integrationId),
+])
+export type ProjectIntegration = typeof projectIntegrations.$inferSelect;
+
+export const integrationLogs = pgTable("integration_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectIntegrationId: varchar("project_integration_id", { length: 36 }).notNull(),
+  level: text("level").notNull().default("info"),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("integration_logs_pi_idx").on(table.projectIntegrationId),
+]);
+export type IntegrationLog = typeof integrationLogs.$inferSelect;
