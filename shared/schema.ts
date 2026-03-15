@@ -683,3 +683,103 @@ export const workflowRuns = pgTable("workflow_runs", {
   index("workflow_runs_workflow_idx").on(table.workflowId),
 ]);
 export type WorkflowRun = typeof workflowRuns.$inferSelect;
+
+export const monitoringMetrics = pgTable("monitoring_metrics", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  metricType: text("metric_type").notNull(),
+  value: integer("value").notNull().default(0),
+  metadata: json("metadata").$type<Record<string, any>>(),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+}, (table) => [
+  index("monitoring_metrics_project_idx").on(table.projectId),
+  index("monitoring_metrics_type_idx").on(table.metricType),
+]);
+export type MonitoringMetric = typeof monitoringMetrics.$inferSelect;
+
+export const monitoringAlerts = pgTable("monitoring_alerts", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  metricType: text("metric_type").notNull(),
+  condition: text("condition").notNull().default("gt"),
+  threshold: integer("threshold").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("monitoring_alerts_project_idx").on(table.projectId),
+]);
+export const insertMonitoringAlertSchema = createInsertSchema(monitoringAlerts).pick({
+  projectId: true,
+  name: true,
+  metricType: true,
+  condition: true,
+  threshold: true,
+  enabled: true,
+});
+export type InsertMonitoringAlert = z.infer<typeof insertMonitoringAlertSchema>;
+export type MonitoringAlert = typeof monitoringAlerts.$inferSelect;
+
+export const codeThreads = pgTable("code_threads", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  filename: text("filename").notNull(),
+  lineNumber: integer("line_number"),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => [
+  index("code_threads_project_idx").on(table.projectId),
+  index("code_threads_file_idx").on(table.filename),
+]);
+export const insertCodeThreadSchema = createInsertSchema(codeThreads).pick({
+  projectId: true,
+  userId: true,
+  filename: true,
+  lineNumber: true,
+  title: true,
+});
+export type InsertCodeThread = z.infer<typeof insertCodeThreadSchema>;
+export type CodeThread = typeof codeThreads.$inferSelect;
+
+export const threadComments = pgTable("thread_comments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  threadId: varchar("thread_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("thread_comments_thread_idx").on(table.threadId),
+]);
+export const insertThreadCommentSchema = createInsertSchema(threadComments).pick({
+  threadId: true,
+  userId: true,
+  content: true,
+});
+export type InsertThreadComment = z.infer<typeof insertThreadCommentSchema>;
+export type ThreadComment = typeof threadComments.$inferSelect;
+
+export const portConfigs = pgTable("port_configs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  port: integer("port").notNull(),
+  label: text("label").notNull().default(""),
+  protocol: text("protocol").notNull().default("http"),
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("port_configs_project_idx").on(table.projectId),
+  uniqueIndex("port_configs_project_port_unique").on(table.projectId, table.port),
+]);
+export const insertPortConfigSchema = createInsertSchema(portConfigs).pick({
+  projectId: true,
+  port: true,
+  label: true,
+  protocol: true,
+  isPublic: true,
+});
+export type InsertPortConfig = z.infer<typeof insertPortConfigSchema>;
+export type PortConfig = typeof portConfigs.$inferSelect;

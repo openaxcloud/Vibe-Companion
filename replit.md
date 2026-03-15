@@ -61,6 +61,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `workflows`: id (uuid), project_id (indexed), name, trigger_event, enabled, created_at
 - `workflow_steps`: id (uuid), workflow_id (indexed), name, command, order_index, continue_on_error
 - `workflow_runs`: id (uuid), workflow_id (indexed), status, step_results (JSON), duration_ms, started_at, finished_at
+- `monitoring_metrics`: id (uuid), project_id (indexed), metric_type (indexed), value, metadata (JSON), recorded_at
+- `monitoring_alerts`: id (uuid), project_id (indexed), name, metric_type, condition, threshold, enabled, last_triggered_at, created_at
+- `code_threads`: id (uuid), project_id (indexed), user_id, filename (indexed), line_number, title, status, created_at, resolved_at
+- `thread_comments`: id (uuid), thread_id (indexed), user_id, content, created_at
+- `port_configs`: id (uuid), project_id (indexed), port, label, protocol, is_public, created_at — unique(project_id, port)
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -70,6 +75,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
 - **Automations**: Cron scheduling (node-cron), webhook triggers (unique token per automation), on-deploy triggers, execution history with stdout/stderr. Panel in activity bar (Zap icon, #F5A623).
 - **Workflows**: Multi-step sequential build/run workflows with templates (CI/CD, Build & Test, Lint & Format), live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
+- **Monitoring**: CPU, memory, request, and error metric tracking with configurable alerts (gt/lt/eq thresholds). Demo data generation. Panel in activity bar (Activity icon, #10B981).
+- **Threads**: Code discussion threads per-file with line number references, open/resolved status, comments. Panel in activity bar (MessageSquare icon, #8B5CF6).
+- **Networking**: Port configuration with labels, protocol (http/https/tcp/ws), public/private toggle, per-project isolation. Panel in activity bar (Network icon, #06B6D4).
 - **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
 - **Desktop bottom panel**: Console + Shell tabs in resizable bottom panel (like VS Code) with Ctrl+J/Ctrl+` toggle
 - **Split preview panel**: Side-by-side editor + preview on desktop with resizable drag handle (Ctrl+\), auto-opens for HTML, live-refreshes on code change (500ms debounce)

@@ -4791,6 +4791,281 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     res.json(WORKFLOW_TEMPLATES);
   });
 
+  // ===================== MONITORING ROUTES =====================
+  app.get("/api/projects/:id/monitoring/metrics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const metrics = await storage.getMonitoringMetrics(project.id);
+      res.json(metrics);
+    } catch { res.status(500).json({ message: "Failed to load metrics" }); }
+  });
+
+  app.get("/api/projects/:id/monitoring/summary", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const summary = await storage.getMonitoringSummary(project.id);
+      res.json(summary);
+    } catch { res.status(500).json({ message: "Failed to load summary" }); }
+  });
+
+  app.post("/api/projects/:id/monitoring/record", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const cpuVal = Math.round(Math.random() * 40 + 5);
+      const memVal = Math.round(Math.random() * 200 + 50);
+      const reqVal = Math.round(Math.random() * 50 + 1);
+      const respVal = Math.round(Math.random() * 200 + 20);
+      await Promise.all([
+        storage.recordMonitoringMetric(project.id, "cpu_usage", cpuVal),
+        storage.recordMonitoringMetric(project.id, "memory_usage", memVal),
+        storage.recordMonitoringMetric(project.id, "request_count", reqVal),
+        storage.recordMonitoringMetric(project.id, "response_time", respVal),
+      ]);
+      res.json({ recorded: true });
+    } catch { res.status(500).json({ message: "Failed to record metrics" }); }
+  });
+
+  app.get("/api/projects/:id/monitoring/alerts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const alerts = await storage.getMonitoringAlerts(project.id);
+      res.json(alerts);
+    } catch { res.status(500).json({ message: "Failed to load alerts" }); }
+  });
+
+  app.post("/api/projects/:id/monitoring/alerts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { name, metricType, threshold, condition } = req.body;
+      if (!name || !metricType || threshold === undefined) return res.status(400).json({ message: "Missing fields" });
+      const alert = await storage.createMonitoringAlert({ projectId: project.id, name, metricType, threshold, condition: condition || "gt", enabled: true });
+      res.status(201).json(alert);
+    } catch { res.status(500).json({ message: "Failed to create alert" }); }
+  });
+
+  app.patch("/api/projects/:id/monitoring/alerts/:alertId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const alerts = await storage.getMonitoringAlerts(req.params.id);
+      const existing = alerts.find(a => a.id === req.params.alertId);
+      if (!existing) return res.status(404).json({ message: "Alert not found" });
+      const alert = await storage.updateMonitoringAlert(req.params.alertId, req.body);
+      if (!alert) return res.status(404).json({ message: "Alert not found" });
+      res.json(alert);
+    } catch { res.status(500).json({ message: "Failed to update alert" }); }
+  });
+
+  app.delete("/api/projects/:id/monitoring/alerts/:alertId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const alerts = await storage.getMonitoringAlerts(req.params.id);
+      const existing = alerts.find(a => a.id === req.params.alertId);
+      if (!existing) return res.status(404).json({ message: "Alert not found" });
+      await storage.deleteMonitoringAlert(req.params.alertId);
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ message: "Failed to delete alert" }); }
+  });
+
+  // ===================== THREADS ROUTES =====================
+  app.get("/api/projects/:id/threads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const threads = await storage.getCodeThreads(project.id);
+      const threadsWithCounts = await Promise.all(threads.map(async (t) => {
+        const comments = await storage.getThreadComments(t.id);
+        const author = await storage.getUser(t.userId);
+        return { ...t, commentCount: comments.length, authorName: author?.displayName || author?.email || "User" };
+      }));
+      res.json(threadsWithCounts);
+    } catch { res.status(500).json({ message: "Failed to load threads" }); }
+  });
+
+  app.post("/api/projects/:id/threads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { title, filename, lineNumber } = req.body;
+      if (!title || !filename) return res.status(400).json({ message: "Title and filename are required" });
+      const thread = await storage.createCodeThread({ projectId: project.id, userId: req.session.userId!, title, filename, lineNumber: lineNumber || null });
+      res.status(201).json(thread);
+    } catch { res.status(500).json({ message: "Failed to create thread" }); }
+  });
+
+  app.patch("/api/projects/:id/threads/:threadId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const thread = await storage.getCodeThread(req.params.threadId);
+      if (!thread || thread.projectId !== project.id) return res.status(404).json({ message: "Thread not found" });
+      const data: any = {};
+      if (req.body.status) data.status = req.body.status;
+      if (req.body.status === "resolved") data.resolvedAt = new Date();
+      if (req.body.status === "open") data.resolvedAt = null;
+      const updated = await storage.updateCodeThread(req.params.threadId, data);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update thread" }); }
+  });
+
+  app.delete("/api/projects/:id/threads/:threadId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const thread = await storage.getCodeThread(req.params.threadId);
+      if (!thread || thread.projectId !== project.id) return res.status(404).json({ message: "Thread not found" });
+      await storage.deleteCodeThread(req.params.threadId);
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ message: "Failed to delete thread" }); }
+  });
+
+  app.get("/api/projects/:id/threads/:threadId/comments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const thread = await storage.getCodeThread(req.params.threadId);
+      if (!thread || thread.projectId !== project.id) return res.status(404).json({ message: "Thread not found" });
+      const comments = await storage.getThreadComments(req.params.threadId);
+      const commentsWithAuthors = await Promise.all(comments.map(async (c) => {
+        const author = await storage.getUser(c.userId);
+        return { ...c, authorName: author?.displayName || author?.email || "User" };
+      }));
+      res.json(commentsWithAuthors);
+    } catch { res.status(500).json({ message: "Failed to load comments" }); }
+  });
+
+  app.post("/api/projects/:id/threads/:threadId/comments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const thread = await storage.getCodeThread(req.params.threadId);
+      if (!thread || thread.projectId !== project.id) return res.status(404).json({ message: "Thread not found" });
+      const { content } = req.body;
+      if (!content) return res.status(400).json({ message: "Content is required" });
+      const comment = await storage.createThreadComment({ threadId: req.params.threadId, userId: req.session.userId!, content });
+      const author = await storage.getUser(req.session.userId!);
+      res.status(201).json({ ...comment, authorName: author?.displayName || author?.email || "User" });
+    } catch { res.status(500).json({ message: "Failed to add comment" }); }
+  });
+
+  // ===================== NETWORKING ROUTES =====================
+  app.get("/api/projects/:id/networking/ports", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const ports = await storage.getPortConfigs(project.id);
+      res.json(ports);
+    } catch { res.status(500).json({ message: "Failed to load ports" }); }
+  });
+
+  app.post("/api/projects/:id/networking/ports", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { port, label, protocol } = req.body;
+      if (!port) return res.status(400).json({ message: "Port is required" });
+      const config = await storage.createPortConfig({ projectId: project.id, port, label: label || "", protocol: protocol || "http", isPublic: false });
+      res.status(201).json(config);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Port already configured" });
+      res.status(500).json({ message: "Failed to add port" });
+    }
+  });
+
+  app.patch("/api/projects/:id/networking/ports/:portId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const portConfig = await storage.getPortConfig(req.params.portId);
+      if (!portConfig || portConfig.projectId !== project.id) return res.status(404).json({ message: "Port config not found" });
+      const updated = await storage.updatePortConfig(req.params.portId, req.body);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update port" }); }
+  });
+
+  app.delete("/api/projects/:id/networking/ports/:portId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const portConfig = await storage.getPortConfig(req.params.portId);
+      if (!portConfig || portConfig.projectId !== project.id) return res.status(404).json({ message: "Port config not found" });
+      await storage.deletePortConfig(req.params.portId);
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ message: "Failed to delete port" }); }
+  });
+
+  app.get("/api/projects/:id/networking/domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const domains = await storage.getProjectCustomDomains(project.id);
+      res.json(domains);
+    } catch { res.status(500).json({ message: "Failed to load domains" }); }
+  });
+
+  app.post("/api/projects/:id/networking/domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { domain } = req.body;
+      if (!domain) return res.status(400).json({ message: "Domain is required" });
+      const crypto = await import("crypto");
+      const verificationToken = "ecode-verify-" + crypto.randomBytes(16).toString("hex");
+      const d = await storage.createCustomDomain({ domain, projectId: project.id, userId: req.session.userId!, verificationToken });
+      res.status(201).json(d);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Domain already registered" });
+      res.status(500).json({ message: "Failed to add domain" });
+    }
+  });
+
+  app.post("/api/projects/:id/networking/domains/:domainId/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const domain = await storage.getCustomDomain(req.params.domainId);
+      if (!domain || domain.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
+      const updated = await storage.updateCustomDomain(req.params.domainId, { verified: true, verifiedAt: new Date(), sslStatus: "active" });
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to verify domain" }); }
+  });
+
+  app.delete("/api/projects/:id/networking/domains/:domainId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      await storage.deleteCustomDomain(req.params.domainId, req.session.userId!);
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ message: "Failed to delete domain" }); }
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
   await storage.seedPlanConfigs();

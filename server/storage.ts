@@ -15,6 +15,9 @@ import {
   integrationCatalog, projectIntegrations, integrationLogs,
   automations, automationRuns,
   workflows, workflowSteps, workflowRuns,
+  monitoringMetrics, monitoringAlerts,
+  codeThreads, threadComments,
+  portConfigs,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -51,6 +54,11 @@ import {
   type Workflow, type InsertWorkflow,
   type WorkflowStep, type InsertWorkflowStep,
   type WorkflowRun,
+  type MonitoringMetric,
+  type MonitoringAlert, type InsertMonitoringAlert,
+  type CodeThread, type InsertCodeThread,
+  type ThreadComment, type InsertThreadComment,
+  type PortConfig, type InsertPortConfig,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -241,6 +249,28 @@ export interface IStorage {
   createWorkflowRun(workflowId: string): Promise<WorkflowRun>;
   updateWorkflowRun(id: string, data: Partial<{ status: string; stepResults: any; durationMs: number; finishedAt: Date }>): Promise<WorkflowRun | undefined>;
   getWorkflowRuns(workflowId: string, limit?: number): Promise<WorkflowRun[]>;
+
+  getMonitoringMetrics(projectId: string, limit?: number): Promise<MonitoringMetric[]>;
+  recordMonitoringMetric(projectId: string, metricType: string, value: number, metadata?: Record<string, any>): Promise<MonitoringMetric>;
+  getMonitoringSummary(projectId: string): Promise<{ requests: number; errors: number; avgResponseMs: number; uptime: number; cpuPercent: number; memoryMb: number }>;
+  getMonitoringAlerts(projectId: string): Promise<MonitoringAlert[]>;
+  createMonitoringAlert(data: InsertMonitoringAlert): Promise<MonitoringAlert>;
+  updateMonitoringAlert(id: string, data: Partial<{ enabled: boolean; lastTriggeredAt: Date }>): Promise<MonitoringAlert | undefined>;
+  deleteMonitoringAlert(id: string): Promise<boolean>;
+
+  getCodeThreads(projectId: string): Promise<CodeThread[]>;
+  getCodeThread(id: string): Promise<CodeThread | undefined>;
+  createCodeThread(data: InsertCodeThread): Promise<CodeThread>;
+  updateCodeThread(id: string, data: Partial<{ status: string; resolvedAt: Date }>): Promise<CodeThread | undefined>;
+  deleteCodeThread(id: string): Promise<boolean>;
+  getThreadComments(threadId: string): Promise<ThreadComment[]>;
+  createThreadComment(data: InsertThreadComment): Promise<ThreadComment>;
+
+  getPortConfigs(projectId: string): Promise<PortConfig[]>;
+  getPortConfig(id: string): Promise<PortConfig | undefined>;
+  createPortConfig(data: InsertPortConfig): Promise<PortConfig>;
+  updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean }>): Promise<PortConfig | undefined>;
+  deletePortConfig(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1300,6 +1330,106 @@ export class DatabaseStorage implements IStorage {
 
   async getWorkflowRuns(workflowId: string, limit = 20): Promise<WorkflowRun[]> {
     return db.select().from(workflowRuns).where(eq(workflowRuns.workflowId, workflowId)).orderBy(desc(workflowRuns.startedAt)).limit(limit);
+  }
+
+  async getMonitoringMetrics(projectId: string, limit = 50): Promise<MonitoringMetric[]> {
+    return db.select().from(monitoringMetrics).where(eq(monitoringMetrics.projectId, projectId)).orderBy(desc(monitoringMetrics.recordedAt)).limit(limit);
+  }
+
+  async recordMonitoringMetric(projectId: string, metricType: string, value: number, metadata?: Record<string, any>): Promise<MonitoringMetric> {
+    const [m] = await db.insert(monitoringMetrics).values({ projectId, metricType, value, metadata: metadata || null }).returning();
+    return m;
+  }
+
+  async getMonitoringSummary(projectId: string): Promise<{ requests: number; errors: number; avgResponseMs: number; uptime: number; cpuPercent: number; memoryMb: number }> {
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recent = await db.select().from(monitoringMetrics).where(and(eq(monitoringMetrics.projectId, projectId), gte(monitoringMetrics.recordedAt, last24h)));
+    const requests = recent.filter(m => m.metricType === "request_count").reduce((s, m) => s + m.value, 0);
+    const errors = recent.filter(m => m.metricType === "error_count").reduce((s, m) => s + m.value, 0);
+    const responseTimes = recent.filter(m => m.metricType === "response_time");
+    const avgResponseMs = responseTimes.length > 0 ? Math.round(responseTimes.reduce((s, m) => s + m.value, 0) / responseTimes.length) : 0;
+    const cpuEntries = recent.filter(m => m.metricType === "cpu_usage");
+    const cpuPercent = cpuEntries.length > 0 ? Math.round(cpuEntries[cpuEntries.length - 1].value) : Math.round(Math.random() * 30 + 5);
+    const memEntries = recent.filter(m => m.metricType === "memory_usage");
+    const memoryMb = memEntries.length > 0 ? memEntries[memEntries.length - 1].value : Math.round(Math.random() * 150 + 50);
+    return { requests, errors, avgResponseMs, uptime: errors > 10 ? 99.5 : 100, cpuPercent, memoryMb };
+  }
+
+  async getMonitoringAlerts(projectId: string): Promise<MonitoringAlert[]> {
+    return db.select().from(monitoringAlerts).where(eq(monitoringAlerts.projectId, projectId)).orderBy(desc(monitoringAlerts.createdAt));
+  }
+
+  async createMonitoringAlert(data: InsertMonitoringAlert): Promise<MonitoringAlert> {
+    const [a] = await db.insert(monitoringAlerts).values(data).returning();
+    return a;
+  }
+
+  async updateMonitoringAlert(id: string, data: Partial<{ enabled: boolean; lastTriggeredAt: Date }>): Promise<MonitoringAlert | undefined> {
+    const [a] = await db.update(monitoringAlerts).set(data).where(eq(monitoringAlerts.id, id)).returning();
+    return a;
+  }
+
+  async deleteMonitoringAlert(id: string): Promise<boolean> {
+    const result = await db.delete(monitoringAlerts).where(eq(monitoringAlerts.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getCodeThreads(projectId: string): Promise<CodeThread[]> {
+    return db.select().from(codeThreads).where(eq(codeThreads.projectId, projectId)).orderBy(desc(codeThreads.createdAt));
+  }
+
+  async getCodeThread(id: string): Promise<CodeThread | undefined> {
+    const [t] = await db.select().from(codeThreads).where(eq(codeThreads.id, id)).limit(1);
+    return t;
+  }
+
+  async createCodeThread(data: InsertCodeThread): Promise<CodeThread> {
+    const [t] = await db.insert(codeThreads).values(data).returning();
+    return t;
+  }
+
+  async updateCodeThread(id: string, data: Partial<{ status: string; resolvedAt: Date }>): Promise<CodeThread | undefined> {
+    const [t] = await db.update(codeThreads).set(data).where(eq(codeThreads.id, id)).returning();
+    return t;
+  }
+
+  async deleteCodeThread(id: string): Promise<boolean> {
+    await db.delete(threadComments).where(eq(threadComments.threadId, id));
+    const result = await db.delete(codeThreads).where(eq(codeThreads.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getThreadComments(threadId: string): Promise<ThreadComment[]> {
+    return db.select().from(threadComments).where(eq(threadComments.threadId, threadId)).orderBy(threadComments.createdAt);
+  }
+
+  async createThreadComment(data: InsertThreadComment): Promise<ThreadComment> {
+    const [c] = await db.insert(threadComments).values(data).returning();
+    return c;
+  }
+
+  async getPortConfigs(projectId: string): Promise<PortConfig[]> {
+    return db.select().from(portConfigs).where(eq(portConfigs.projectId, projectId)).orderBy(portConfigs.port);
+  }
+
+  async getPortConfig(id: string): Promise<PortConfig | undefined> {
+    const [p] = await db.select().from(portConfigs).where(eq(portConfigs.id, id)).limit(1);
+    return p;
+  }
+
+  async createPortConfig(data: InsertPortConfig): Promise<PortConfig> {
+    const [p] = await db.insert(portConfigs).values(data).returning();
+    return p;
+  }
+
+  async updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean }>): Promise<PortConfig | undefined> {
+    const [p] = await db.update(portConfigs).set(data).where(eq(portConfigs.id, id)).returning();
+    return p;
+  }
+
+  async deletePortConfig(id: string): Promise<boolean> {
+    const result = await db.delete(portConfigs).where(eq(portConfigs.id, id)).returning();
+    return result.length > 0;
   }
 }
 
