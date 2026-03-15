@@ -11,7 +11,7 @@ import {
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
-  ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle
+  ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -21,6 +21,8 @@ import SecurityScannerPanel from "@/components/SecurityScannerPanel";
 import AppStoragePanel from "@/components/AppStoragePanel";
 import AuthPanel from "@/components/AuthPanel";
 import IntegrationsPanel from "@/components/IntegrationsPanel";
+import AutomationsPanel from "@/components/AutomationsPanel";
+import WorkflowsPanel from "@/components/WorkflowsPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
@@ -237,7 +239,7 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "settings";
+  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "settings";
   const [mobileTab, setMobileTab] = useState<MobileTabType>("ai");
   const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
@@ -248,7 +250,7 @@ function _projectPage() {
   const [moreMenuSwipeY, setMoreMenuSwipeY] = useState(0);
   const moreMenuTouchStartY = useRef(0);
   const lastScrollY = useRef(0);
-  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "settings"] as const;
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "settings"] as const;
   const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
     { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
     { id: "search", icon: Search, label: "Search", color: "#0079F2" },
@@ -261,6 +263,8 @@ function _projectPage() {
     { id: "storage", icon: HardDrive, label: "App Storage", color: "#7C65CB" },
     { id: "auth", icon: ShieldCheck, label: "Auth", color: "#0CCE6B" },
     { id: "integrations", icon: Puzzle, label: "Integrations", color: "#0079F2" },
+    { id: "automations", icon: Zap, label: "Automations", color: "#F5A623" },
+    { id: "workflows", icon: GitMerge, label: "Workflows", color: "#0079F2" },
     { id: "settings", icon: Settings, label: "Settings", color: "#0079F2" },
   ];
   const overflowTabIds = overflowTabs.map(t => t.id);
@@ -324,6 +328,8 @@ function _projectPage() {
   const [storagePanelOpen, setStoragePanelOpen] = useState(false);
   const [authPanelOpen, setAuthPanelOpen] = useState(false);
   const [integrationsPanelOpen, setIntegrationsPanelOpen] = useState(false);
+  const [automationsPanelOpen, setAutomationsPanelOpen] = useState(false);
+  const [workflowsPanelOpen, setWorkflowsPanelOpen] = useState(false);
   const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -3339,6 +3345,16 @@ function _projectPage() {
                   <IntegrationsPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
                 </div>
               )}
+              {mobileTab === "automations" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-automations-panel">
+                  <AutomationsPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
+              {mobileTab === "workflows" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-workflows-panel">
+                  <WorkflowsPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
               {mobileTab === "settings" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
                   <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
@@ -3575,7 +3591,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setSearchPanelOpen(!searchPanelOpen); if (!searchPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-search"
                   >
                     {searchPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -3588,7 +3604,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-ai"
                   >
                     {aiPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#7C65CB]" />}
@@ -3601,7 +3617,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${gitPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setGitPanelOpen(!gitPanelOpen); if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setGitPanelOpen(!gitPanelOpen); if (!gitPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-git"
                   >
                     {gitPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
@@ -3615,7 +3631,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setDeploymentsPanelOpen(!deploymentsPanelOpen); if (!deploymentsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setSettingsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-deployments"
                   >
                     {deploymentsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -3628,7 +3644,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${packagesPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setPackagesPanelOpen(!packagesPanelOpen); if (!packagesPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setPackagesPanelOpen(!packagesPanelOpen); if (!packagesPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-packages"
                   >
                     {packagesPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
@@ -3641,7 +3657,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${databasePanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setDatabasePanelOpen(!databasePanelOpen); if (!databasePanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setDatabasePanelOpen(!databasePanelOpen); if (!databasePanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-database"
                   >
                     {databasePanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
@@ -3654,7 +3670,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${testsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setTestsPanelOpen(!testsPanelOpen); if (!testsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setTestsPanelOpen(!testsPanelOpen); if (!testsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-tests"
                   >
                     {testsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
@@ -3667,7 +3683,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${securityPanelOpen ? "text-[#E54D4D]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setSecurityPanelOpen(!securityPanelOpen); if (!securityPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setSecurityPanelOpen(!securityPanelOpen); if (!securityPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-security"
                   >
                     {securityPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#E54D4D]" />}
@@ -3680,7 +3696,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${authPanelOpen ? "text-[#0CCE6B]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setAuthPanelOpen(!authPanelOpen); if (!authPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setAuthPanelOpen(!authPanelOpen); if (!authPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-auth"
                   >
                     {authPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
@@ -3693,7 +3709,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${storagePanelOpen ? "text-[#7C65CB]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setStoragePanelOpen(!storagePanelOpen); if (!storagePanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setStoragePanelOpen(!storagePanelOpen); if (!storagePanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-storage"
                   >
                     {storagePanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#7C65CB]" />}
@@ -3706,7 +3722,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${integrationsPanelOpen ? "text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setIntegrationsPanelOpen(!integrationsPanelOpen); if (!integrationsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); } }}
+                    onClick={() => { setIntegrationsPanelOpen(!integrationsPanelOpen); if (!integrationsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-integrations"
                   >
                     {integrationsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -3714,6 +3730,32 @@ function _projectPage() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Integrations</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${automationsPanelOpen ? "text-[#F5A623]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => { setAutomationsPanelOpen(!automationsPanelOpen); if (!automationsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
+                    data-testid="activity-automations"
+                  >
+                    {automationsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
+                    <Zap className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Automations</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${workflowsPanelOpen ? "text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => { setWorkflowsPanelOpen(!workflowsPanelOpen); if (!workflowsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setSettingsPanelOpen(false); setGitPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); } }}
+                    data-testid="activity-workflows"
+                  >
+                    {workflowsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
+                    <GitMerge className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Workflows</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3761,7 +3803,7 @@ function _projectPage() {
                 <TooltipTrigger asChild>
                   <button
                     className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); } }}
+                    onClick={() => { setSettingsPanelOpen(!settingsPanelOpen); if (!settingsPanelOpen) { setAiPanelOpen(false); setSidebarOpen(false); setSearchPanelOpen(false); setDeploymentsPanelOpen(false); setPackagesPanelOpen(false); setDatabasePanelOpen(false); setTestsPanelOpen(false); setSecurityPanelOpen(false); setStoragePanelOpen(false); setAuthPanelOpen(false); setIntegrationsPanelOpen(false); setAutomationsPanelOpen(false); setWorkflowsPanelOpen(false); } }}
                     data-testid="activity-settings"
                   >
                     {settingsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
@@ -4385,6 +4427,20 @@ function _projectPage() {
             {integrationsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
               <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="integrations-sidebar">
                 <IntegrationsPanel projectId={projectId} onClose={() => setIntegrationsPanelOpen(false)} />
+              </div>
+            )}
+
+            {/* AUTOMATIONS PANEL */}
+            {automationsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="automations-sidebar">
+                <AutomationsPanel projectId={projectId} onClose={() => setAutomationsPanelOpen(false)} />
+              </div>
+            )}
+
+            {/* WORKFLOWS PANEL */}
+            {workflowsPanelOpen && !aiPanelOpen && !searchPanelOpen && !deploymentsPanelOpen && !settingsPanelOpen && (
+              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="workflows-sidebar">
+                <WorkflowsPanel projectId={projectId} onClose={() => setWorkflowsPanelOpen(false)} />
               </div>
             )}
 

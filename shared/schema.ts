@@ -588,3 +588,98 @@ export const integrationLogs = pgTable("integration_logs", {
   index("integration_logs_pi_idx").on(table.projectIntegrationId),
 ]);
 export type IntegrationLog = typeof integrationLogs.$inferSelect;
+
+export const automations = pgTable("automations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("cron"),
+  cronExpression: text("cron_expression"),
+  webhookToken: text("webhook_token"),
+  script: text("script").notNull().default(""),
+  language: text("language").notNull().default("javascript"),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRunAt: timestamp("last_run_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("automations_project_idx").on(table.projectId),
+]);
+export const insertAutomationSchema = createInsertSchema(automations).pick({
+  projectId: true,
+  name: true,
+  type: true,
+  cronExpression: true,
+  script: true,
+  language: true,
+  enabled: true,
+});
+export type InsertAutomation = z.infer<typeof insertAutomationSchema>;
+export type Automation = typeof automations.$inferSelect;
+
+export const automationRuns = pgTable("automation_runs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  automationId: varchar("automation_id", { length: 36 }).notNull(),
+  status: text("status").notNull().default("running"),
+  stdout: text("stdout"),
+  stderr: text("stderr"),
+  exitCode: integer("exit_code"),
+  durationMs: integer("duration_ms"),
+  triggeredBy: text("triggered_by").notNull().default("cron"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+}, (table) => [
+  index("automation_runs_automation_idx").on(table.automationId),
+]);
+export type AutomationRun = typeof automationRuns.$inferSelect;
+
+export const workflows = pgTable("workflows", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  triggerEvent: text("trigger_event").notNull().default("manual"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("workflows_project_idx").on(table.projectId),
+]);
+export const insertWorkflowSchema = createInsertSchema(workflows).pick({
+  projectId: true,
+  name: true,
+  triggerEvent: true,
+  enabled: true,
+});
+export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
+export type Workflow = typeof workflows.$inferSelect;
+
+export const workflowSteps = pgTable("workflow_steps", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  command: text("command").notNull(),
+  orderIndex: integer("order_index").notNull().default(0),
+  continueOnError: boolean("continue_on_error").notNull().default(false),
+}, (table) => [
+  index("workflow_steps_workflow_idx").on(table.workflowId),
+]);
+export const insertWorkflowStepSchema = createInsertSchema(workflowSteps).pick({
+  workflowId: true,
+  name: true,
+  command: true,
+  orderIndex: true,
+  continueOnError: true,
+});
+export type InsertWorkflowStep = z.infer<typeof insertWorkflowStepSchema>;
+export type WorkflowStep = typeof workflowSteps.$inferSelect;
+
+export const workflowRuns = pgTable("workflow_runs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  status: text("status").notNull().default("running"),
+  stepResults: json("step_results").$type<{ stepId: string; name: string; status: string; stdout: string; stderr: string; exitCode: number; durationMs: number }[]>(),
+  durationMs: integer("duration_ms"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+}, (table) => [
+  index("workflow_runs_workflow_idx").on(table.workflowId),
+]);
+export type WorkflowRun = typeof workflowRuns.$inferSelect;

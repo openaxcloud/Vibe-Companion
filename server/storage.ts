@@ -13,6 +13,8 @@ import {
   storageKv, storageObjects,
   projectAuthConfig, projectAuthUsers,
   integrationCatalog, projectIntegrations, integrationLogs,
+  automations, automationRuns,
+  workflows, workflowSteps, workflowRuns,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -44,6 +46,11 @@ import {
   type IntegrationCatalogEntry,
   type ProjectIntegration,
   type IntegrationLog,
+  type Automation, type InsertAutomation,
+  type AutomationRun,
+  type Workflow, type InsertWorkflow,
+  type WorkflowStep, type InsertWorkflowStep,
+  type WorkflowRun,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -210,6 +217,30 @@ export interface IStorage {
   updateIntegrationStatus(id: string, status: string): Promise<ProjectIntegration | undefined>;
   getIntegrationLogs(projectId: string, projectIntegrationId: string, limit?: number): Promise<IntegrationLog[]>;
   addIntegrationLog(projectIntegrationId: string, level: string, message: string): Promise<IntegrationLog>;
+
+  getAutomations(projectId: string): Promise<Automation[]>;
+  getAutomation(id: string): Promise<Automation | undefined>;
+  createAutomation(data: InsertAutomation & { webhookToken?: string }): Promise<Automation>;
+  updateAutomation(id: string, data: Partial<{ name: string; cronExpression: string; script: string; language: string; enabled: boolean; lastRunAt: Date }>): Promise<Automation | undefined>;
+  deleteAutomation(id: string): Promise<boolean>;
+  getAutomationByWebhookToken(token: string): Promise<Automation | undefined>;
+  createAutomationRun(automationId: string, triggeredBy: string): Promise<AutomationRun>;
+  updateAutomationRun(id: string, data: Partial<{ status: string; stdout: string; stderr: string; exitCode: number; durationMs: number; finishedAt: Date }>): Promise<AutomationRun | undefined>;
+  getAutomationRuns(automationId: string, limit?: number): Promise<AutomationRun[]>;
+
+  getWorkflows(projectId: string): Promise<Workflow[]>;
+  getWorkflow(id: string): Promise<Workflow | undefined>;
+  createWorkflow(data: InsertWorkflow): Promise<Workflow>;
+  updateWorkflow(id: string, data: Partial<{ name: string; triggerEvent: string; enabled: boolean }>): Promise<Workflow | undefined>;
+  deleteWorkflow(id: string): Promise<boolean>;
+  getWorkflowStep(id: string): Promise<WorkflowStep | undefined>;
+  getWorkflowSteps(workflowId: string): Promise<WorkflowStep[]>;
+  createWorkflowStep(data: InsertWorkflowStep): Promise<WorkflowStep>;
+  updateWorkflowStep(id: string, data: Partial<{ name: string; command: string; orderIndex: number; continueOnError: boolean }>): Promise<WorkflowStep | undefined>;
+  deleteWorkflowStep(id: string): Promise<boolean>;
+  createWorkflowRun(workflowId: string): Promise<WorkflowRun>;
+  updateWorkflowRun(id: string, data: Partial<{ status: string; stepResults: any; durationMs: number; finishedAt: Date }>): Promise<WorkflowRun | undefined>;
+  getWorkflowRuns(workflowId: string, limit?: number): Promise<WorkflowRun[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1161,6 +1192,114 @@ export class DatabaseStorage implements IStorage {
   async addIntegrationLog(projectIntegrationId: string, level: string, message: string): Promise<IntegrationLog> {
     const [log] = await db.insert(integrationLogs).values({ projectIntegrationId, level, message }).returning();
     return log;
+  }
+
+  async getAutomations(projectId: string): Promise<Automation[]> {
+    return db.select().from(automations).where(eq(automations.projectId, projectId)).orderBy(desc(automations.createdAt));
+  }
+
+  async getAutomation(id: string): Promise<Automation | undefined> {
+    const [a] = await db.select().from(automations).where(eq(automations.id, id)).limit(1);
+    return a;
+  }
+
+  async createAutomation(data: InsertAutomation & { webhookToken?: string }): Promise<Automation> {
+    const [a] = await db.insert(automations).values(data).returning();
+    return a;
+  }
+
+  async updateAutomation(id: string, data: Partial<{ name: string; cronExpression: string; script: string; language: string; enabled: boolean; lastRunAt: Date }>): Promise<Automation | undefined> {
+    const [a] = await db.update(automations).set(data).where(eq(automations.id, id)).returning();
+    return a;
+  }
+
+  async deleteAutomation(id: string): Promise<boolean> {
+    await db.delete(automationRuns).where(eq(automationRuns.automationId, id));
+    const result = await db.delete(automations).where(eq(automations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAutomationByWebhookToken(token: string): Promise<Automation | undefined> {
+    const [a] = await db.select().from(automations).where(eq(automations.webhookToken, token)).limit(1);
+    return a;
+  }
+
+  async createAutomationRun(automationId: string, triggeredBy: string): Promise<AutomationRun> {
+    const [run] = await db.insert(automationRuns).values({ automationId, triggeredBy, status: "running" }).returning();
+    return run;
+  }
+
+  async updateAutomationRun(id: string, data: Partial<{ status: string; stdout: string; stderr: string; exitCode: number; durationMs: number; finishedAt: Date }>): Promise<AutomationRun | undefined> {
+    const [run] = await db.update(automationRuns).set(data).where(eq(automationRuns.id, id)).returning();
+    return run;
+  }
+
+  async getAutomationRuns(automationId: string, limit = 20): Promise<AutomationRun[]> {
+    return db.select().from(automationRuns).where(eq(automationRuns.automationId, automationId)).orderBy(desc(automationRuns.startedAt)).limit(limit);
+  }
+
+  async getWorkflows(projectId: string): Promise<Workflow[]> {
+    return db.select().from(workflows).where(eq(workflows.projectId, projectId)).orderBy(desc(workflows.createdAt));
+  }
+
+  async getWorkflow(id: string): Promise<Workflow | undefined> {
+    const [w] = await db.select().from(workflows).where(eq(workflows.id, id)).limit(1);
+    return w;
+  }
+
+  async createWorkflow(data: InsertWorkflow): Promise<Workflow> {
+    const [w] = await db.insert(workflows).values(data).returning();
+    return w;
+  }
+
+  async updateWorkflow(id: string, data: Partial<{ name: string; triggerEvent: string; enabled: boolean }>): Promise<Workflow | undefined> {
+    const [w] = await db.update(workflows).set(data).where(eq(workflows.id, id)).returning();
+    return w;
+  }
+
+  async deleteWorkflow(id: string): Promise<boolean> {
+    await db.delete(workflowRuns).where(eq(workflowRuns.workflowId, id));
+    await db.delete(workflowSteps).where(eq(workflowSteps.workflowId, id));
+    const result = await db.delete(workflows).where(eq(workflows.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getWorkflowStep(id: string): Promise<WorkflowStep | undefined> {
+    const [s] = await db.select().from(workflowSteps).where(eq(workflowSteps.id, id));
+    return s;
+  }
+
+  async getWorkflowSteps(workflowId: string): Promise<WorkflowStep[]> {
+    return db.select().from(workflowSteps).where(eq(workflowSteps.workflowId, workflowId)).orderBy(workflowSteps.orderIndex);
+  }
+
+  async createWorkflowStep(data: InsertWorkflowStep): Promise<WorkflowStep> {
+    const [s] = await db.insert(workflowSteps).values(data).returning();
+    return s;
+  }
+
+  async updateWorkflowStep(id: string, data: Partial<{ name: string; command: string; orderIndex: number; continueOnError: boolean }>): Promise<WorkflowStep | undefined> {
+    const [s] = await db.update(workflowSteps).set(data).where(eq(workflowSteps.id, id)).returning();
+    return s;
+  }
+
+  async deleteWorkflowStep(id: string): Promise<boolean> {
+    const result = await db.delete(workflowSteps).where(eq(workflowSteps.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async createWorkflowRun(workflowId: string): Promise<WorkflowRun> {
+    const [run] = await db.insert(workflowRuns).values({ workflowId, status: "running" }).returning();
+    return run;
+  }
+
+  async updateWorkflowRun(id: string, data: Partial<{ status: string; stepResults: any; durationMs: number; finishedAt: Date }>): Promise<WorkflowRun | undefined> {
+    const [run] = await db.update(workflowRuns).set(data).where(eq(workflowRuns.id, id)).returning();
+    return run;
+  }
+
+  async getWorkflowRuns(workflowId: string, limit = 20): Promise<WorkflowRun[]> {
+    return db.select().from(workflowRuns).where(eq(workflowRuns.workflowId, workflowId)).orderBy(desc(workflowRuns.startedAt)).limit(limit);
   }
 }
 

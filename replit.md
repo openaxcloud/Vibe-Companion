@@ -56,6 +56,11 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `integration_catalog`: id, name (unique), category, description, icon, env_var_keys (JSON string[])
 - `project_integrations`: id, project_id (indexed), integration_id, status, config (JSON), connected_at — unique(project_id, integration_id)
 - `integration_logs`: id, project_integration_id (indexed), level, message, created_at
+- `automations`: id (uuid), project_id (indexed), name, type (cron/webhook/on-deploy), cron_expression, webhook_token (unique), script, language, enabled, last_run_at, created_at
+- `automation_runs`: id (uuid), automation_id (indexed), status, stdout, stderr, exit_code, duration_ms, triggered_by, started_at, finished_at
+- `workflows`: id (uuid), project_id (indexed), name, trigger_event, enabled, created_at
+- `workflow_steps`: id (uuid), workflow_id (indexed), name, command, order_index, continue_on_error
+- `workflow_runs`: id (uuid), workflow_id (indexed), status, step_results (JSON), duration_ms, started_at, finished_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -63,6 +68,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - CRUD projects (create, list, duplicate, delete) with project limit enforcement
 - **Usage quotas**: Per-user daily limits (50 executions, 20 AI calls on free plan), project limits (5 on free), storage limits, with live usage display in dashboard sidebar
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
+- **Automations**: Cron scheduling (node-cron), webhook triggers (unique token per automation), on-deploy triggers, execution history with stdout/stderr. Panel in activity bar (Zap icon, #F5A623).
+- **Workflows**: Multi-step sequential build/run workflows with templates (CI/CD, Build & Test, Lint & Format), live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
 - **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
 - **Desktop bottom panel**: Console + Shell tabs in resizable bottom panel (like VS Code) with Ctrl+J/Ctrl+` toggle
 - **Split preview panel**: Side-by-side editor + preview on desktop with resizable drag handle (Ctrl+\), auto-opens for HTML, live-refreshes on code change (500ms debounce)

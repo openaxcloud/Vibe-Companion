@@ -182,6 +182,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/ai/complete",
   "/api/billing/webhook",
   "/api/analytics/track",
+  "/api/webhooks/automation",
 ];
 
 function csrfProtection(req: Request, res: Response, next: NextFunction) {
@@ -189,7 +190,7 @@ function csrfProtection(req: Request, res: Response, next: NextFunction) {
     return next();
   }
   const fullPath = req.originalUrl?.split("?")[0] || req.path;
-  if (CSRF_EXEMPT_PATHS.some(p => fullPath === p || req.path === p)) {
+  if (CSRF_EXEMPT_PATHS.some(p => fullPath === p || req.path === p || fullPath.startsWith(p + "/") || req.path.startsWith(p + "/"))) {
     return next();
   }
   const token = req.headers["x-csrf-token"] as string;
@@ -4488,12 +4489,317 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
   });
 
+  // --- AUTOMATIONS ---
+  app.get("/api/projects/:id/automations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const list = await storage.getAutomations(req.params.id);
+      res.json(list);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch automations" });
+    }
+  });
+
+  app.post("/api/projects/:id/automations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { name, type, cronExpression, script, language } = req.body;
+      if (!name || !type) return res.status(400).json({ message: "Name and type are required" });
+
+      const data: any = { projectId: req.params.id, name, type, script: script || "", language: language || "javascript" };
+      if (type === "cron" && cronExpression) {
+        const { validateCronExpression } = await import("./automationScheduler");
+        if (!validateCronExpression(cronExpression)) return res.status(400).json({ message: "Invalid cron expression" });
+        data.cronExpression = cronExpression;
+      }
+      if (type === "webhook") {
+        const { generateWebhookToken } = await import("./automationScheduler");
+        data.webhookToken = generateWebhookToken();
+      }
+
+      const automation = await storage.createAutomation(data);
+
+      if (type === "cron" && cronExpression && automation.enabled) {
+        const { scheduleAutomation } = await import("./automationScheduler");
+        scheduleAutomation(automation.id, cronExpression);
+      }
+
+      res.status(201).json(automation);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to create automation" });
+    }
+  });
+
+  app.patch("/api/automations/:automationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const automation = await storage.getAutomation(req.params.automationId);
+      if (!automation) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.script !== undefined) updates.script = req.body.script;
+      if (req.body.language !== undefined) updates.language = req.body.language;
+      if (req.body.enabled !== undefined) updates.enabled = req.body.enabled;
+      if (req.body.cronExpression !== undefined) {
+        const { validateCronExpression } = await import("./automationScheduler");
+        if (!validateCronExpression(req.body.cronExpression)) return res.status(400).json({ message: "Invalid cron expression" });
+        updates.cronExpression = req.body.cronExpression;
+      }
+
+      const updated = await storage.updateAutomation(req.params.automationId, updates);
+
+      const { scheduleAutomation, unscheduleAutomation } = await import("./automationScheduler");
+      if (updated && updated.type === "cron") {
+        if (updated.enabled && updated.cronExpression) {
+          scheduleAutomation(updated.id, updated.cronExpression);
+        } else {
+          unscheduleAutomation(updated.id);
+        }
+      }
+
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update automation" });
+    }
+  });
+
+  app.delete("/api/automations/:automationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const automation = await storage.getAutomation(req.params.automationId);
+      if (!automation) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const { unscheduleAutomation } = await import("./automationScheduler");
+      unscheduleAutomation(req.params.automationId);
+
+      await storage.deleteAutomation(req.params.automationId);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete automation" });
+    }
+  });
+
+  app.post("/api/automations/:automationId/trigger", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const automation = await storage.getAutomation(req.params.automationId);
+      if (!automation) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const { executeAutomation } = await import("./automationScheduler");
+      const result = await executeAutomation(req.params.automationId, "manual");
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Failed to trigger automation" });
+    }
+  });
+
+  app.get("/api/automations/:automationId/runs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const automation = await storage.getAutomation(req.params.automationId);
+      if (!automation) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const runs = await storage.getAutomationRuns(req.params.automationId);
+      res.json(runs);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch runs" });
+    }
+  });
+
+  app.all("/api/webhooks/automation/:token", async (req: Request, res: Response) => {
+    try {
+      const automation = await storage.getAutomationByWebhookToken(req.params.token);
+      if (!automation) return res.status(404).json({ message: "Webhook not found" });
+      if (!automation.enabled) return res.status(403).json({ message: "Automation is disabled" });
+
+      const { executeAutomation } = await import("./automationScheduler");
+      const result = await executeAutomation(automation.id, "webhook");
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Webhook execution failed" });
+    }
+  });
+
+  // --- WORKFLOWS ---
+  app.get("/api/projects/:id/workflows", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const list = await storage.getWorkflows(req.params.id);
+      const withSteps = await Promise.all(list.map(async (w) => {
+        const steps = await storage.getWorkflowSteps(w.id);
+        return { ...w, steps };
+      }));
+      res.json(withSteps);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch workflows" });
+    }
+  });
+
+  app.post("/api/projects/:id/workflows", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { name, triggerEvent, steps } = req.body;
+      if (!name) return res.status(400).json({ message: "Name is required" });
+
+      const workflow = await storage.createWorkflow({ projectId: req.params.id, name, triggerEvent: triggerEvent || "manual" });
+
+      if (steps && Array.isArray(steps)) {
+        for (let i = 0; i < steps.length; i++) {
+          await storage.createWorkflowStep({ workflowId: workflow.id, name: steps[i].name || `Step ${i + 1}`, command: steps[i].command || "echo 'hello'", orderIndex: i, continueOnError: steps[i].continueOnError || false });
+        }
+      }
+
+      const createdSteps = await storage.getWorkflowSteps(workflow.id);
+      res.status(201).json({ ...workflow, steps: createdSteps });
+    } catch {
+      res.status(500).json({ message: "Failed to create workflow" });
+    }
+  });
+
+  app.post("/api/projects/:id/workflows/from-template", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { templateName } = req.body;
+      const { WORKFLOW_TEMPLATES } = await import("./workflowExecutor");
+      const template = WORKFLOW_TEMPLATES.find(t => t.name === templateName);
+      if (!template) return res.status(404).json({ message: "Template not found" });
+
+      const workflow = await storage.createWorkflow({ projectId: req.params.id, name: template.name, triggerEvent: template.triggerEvent });
+      for (let i = 0; i < template.steps.length; i++) {
+        await storage.createWorkflowStep({ workflowId: workflow.id, name: template.steps[i].name, command: template.steps[i].command, orderIndex: i });
+      }
+
+      const createdSteps = await storage.getWorkflowSteps(workflow.id);
+      res.status(201).json({ ...workflow, steps: createdSteps });
+    } catch {
+      res.status(500).json({ message: "Failed to create from template" });
+    }
+  });
+
+  app.patch("/api/workflows/:workflowId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const workflow = await storage.getWorkflow(req.params.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.triggerEvent !== undefined) updates.triggerEvent = req.body.triggerEvent;
+      if (req.body.enabled !== undefined) updates.enabled = req.body.enabled;
+
+      const updated = await storage.updateWorkflow(req.params.workflowId, updates);
+      const steps = await storage.getWorkflowSteps(req.params.workflowId);
+      res.json({ ...updated, steps });
+    } catch {
+      res.status(500).json({ message: "Failed to update workflow" });
+    }
+  });
+
+  app.delete("/api/workflows/:workflowId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const workflow = await storage.getWorkflow(req.params.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      await storage.deleteWorkflow(req.params.workflowId);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete workflow" });
+    }
+  });
+
+  app.post("/api/workflows/:workflowId/steps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const workflow = await storage.getWorkflow(req.params.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const { name, command, orderIndex, continueOnError } = req.body;
+      const step = await storage.createWorkflowStep({ workflowId: req.params.workflowId, name: name || "New Step", command: command || "echo 'hello'", orderIndex: orderIndex ?? 0, continueOnError: continueOnError || false });
+      res.status(201).json(step);
+    } catch {
+      res.status(500).json({ message: "Failed to create step" });
+    }
+  });
+
+  app.patch("/api/workflow-steps/:stepId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const step = await storage.getWorkflowStep(req.params.stepId);
+      if (!step) return res.status(404).json({ message: "Step not found" });
+      const workflow = await storage.getWorkflow(step.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Workflow not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.command !== undefined) updates.command = req.body.command;
+      if (req.body.orderIndex !== undefined) updates.orderIndex = req.body.orderIndex;
+      if (req.body.continueOnError !== undefined) updates.continueOnError = req.body.continueOnError;
+
+      const updated = await storage.updateWorkflowStep(req.params.stepId, updates);
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update step" });
+    }
+  });
+
+  app.delete("/api/workflow-steps/:stepId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const step = await storage.getWorkflowStep(req.params.stepId);
+      if (!step) return res.status(404).json({ message: "Step not found" });
+      const workflow = await storage.getWorkflow(step.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Workflow not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      await storage.deleteWorkflowStep(req.params.stepId);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete step" });
+    }
+  });
+
+  app.post("/api/workflows/:workflowId/run", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const workflow = await storage.getWorkflow(req.params.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const { executeWorkflow } = await import("./workflowExecutor");
+      const result = await executeWorkflow(req.params.workflowId);
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Failed to run workflow" });
+    }
+  });
+
+  app.get("/api/workflows/:workflowId/runs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const workflow = await storage.getWorkflow(req.params.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const runs = await storage.getWorkflowRuns(req.params.workflowId);
+      res.json(runs);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch runs" });
+    }
+  });
+
+  app.get("/api/workflow-templates", requireAuth, async (_req: Request, res: Response) => {
+    const { WORKFLOW_TEMPLATES } = await import("./workflowExecutor");
+    res.json(WORKFLOW_TEMPLATES);
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
   await storage.seedPlanConfigs();
   log("Plan configs seeded", "seed");
   await storage.seedIntegrationCatalog();
   log("Integration catalog seeded", "seed");
+
+  const { startAutomationScheduler } = await import("./automationScheduler");
+  startAutomationScheduler().catch(err => log(`Automation scheduler error: ${err.message}`, "automation"));
 
   return httpServer;
 }
