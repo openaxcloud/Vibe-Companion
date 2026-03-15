@@ -2735,29 +2735,42 @@ function _projectPage() {
           <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
         </>
       ) : (
-        <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
-          <Globe className="w-10 h-10" />
-          <p className="text-sm font-medium text-[var(--ide-text)]">{hasHtmlFile ? "HTML Preview" : "Live Preview"}</p>
-          {hasHtmlFile ? (
-            <>
-              <p className="text-xs text-center max-w-[280px]">Preview your HTML project directly in the browser</p>
-              <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-mobile-start">
-                <Eye className="w-3 h-3" /> Preview HTML
-              </Button>
-            </>
-          ) : runnerOnline === false ? (
-            <>
-              <p className="text-xs text-center max-w-[280px] text-orange-400/80">Runner is offline. Create an HTML file to use the built-in preview, or wait for the runner to come back online.</p>
-            </>
-          ) : wsStatus === "none" || wsStatus === "stopped" ? (
-            <>
-              <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#0079F2] font-mono">:3000</span> in the workspace to see the preview here.</p>
-              <p className="text-[10px] text-[var(--ide-border)]">Start the workspace then run your app</p>
-            </>
-          ) : (
-            <p className="text-xs">Workspace starting up...</p>
-          )}
-        </div>
+        <>
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Globe className="w-3 h-3 text-[var(--ide-text-secondary)] shrink-0" />
+              <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">localhost:3000</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
+                onClick={() => { const html = generateHtmlPreview(); if (html) setPreviewHtml(html); }}
+                title="Refresh" data-testid="button-preview-refresh-idle"><RefreshCw className="w-3 h-3" /></Button>
+            </div>
+          </div>
+          <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
+            <Globe className="w-10 h-10" />
+            <p className="text-sm font-medium text-[var(--ide-text)]">{hasHtmlFile ? "HTML Preview" : "Live Preview"}</p>
+            {hasHtmlFile ? (
+              <>
+                <p className="text-xs text-center max-w-[280px]">Preview your HTML project directly in the browser</p>
+                <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-mobile-start">
+                  <Eye className="w-3 h-3" /> Preview HTML
+                </Button>
+              </>
+            ) : runnerOnline === false ? (
+              <>
+                <p className="text-xs text-center max-w-[280px] text-orange-400/80">Runner is offline. Create an HTML file to use the built-in preview, or wait for the runner to come back online.</p>
+              </>
+            ) : wsStatus === "none" || wsStatus === "stopped" ? (
+              <>
+                <p className="text-xs text-center max-w-[280px]">Start your server on port <span className="text-[#0079F2] font-mono">:3000</span> in the workspace to see the preview here.</p>
+                <p className="text-[10px] text-[var(--ide-border)]">Start the workspace then run your app</p>
+              </>
+            ) : (
+              <p className="text-xs">Workspace starting up...</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -3000,18 +3013,26 @@ function _projectPage() {
               )}
               {mobileTab === "preview" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]">
-                  {wsStatus === "running" && livePreviewUrl && (
-                    <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+                  <div className="flex items-center gap-1.5 px-2 h-10 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
                       <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.back(); } catch {} }} data-testid="button-webview-back"><ArrowLeft className="w-3.5 h-3.5" /></button>
                       <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { try { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) iframe.contentWindow.history.forward(); } catch {} }} data-testid="button-webview-forward"><ArrowRight className="w-3.5 h-3.5" /></button>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
+                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => {
+                        if (wsStatus === "running" && livePreviewUrl) {
+                          const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement;
+                          if (iframe) iframe.src = livePreviewUrl;
+                        } else {
+                          const html = generateHtmlPreview();
+                          if (html) setPreviewHtml(html);
+                        }
+                      }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
                       <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] truncate font-mono" data-testid="text-webview-url">
                         <Globe className="w-3 h-3 text-[var(--ide-text-muted)] mr-1.5 shrink-0" />
-                        <span className="truncate">{livePreviewUrl}</span>
+                        <span className="truncate">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
                       </div>
-                      <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
+                      {livePreviewUrl && (
+                        <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
+                      )}
                     </div>
-                  )}
                   {previewContent}
                 </div>
               )}
