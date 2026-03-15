@@ -438,3 +438,91 @@ export const insertDeploymentSchema = createInsertSchema(deployments).pick({
 });
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;
+
+export const securityScans = pgTable("security_scans", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  status: text("status").notNull().default("running"),
+  totalFindings: integer("total_findings").notNull().default(0),
+  critical: integer("critical").notNull().default(0),
+  high: integer("high").notNull().default(0),
+  medium: integer("medium").notNull().default(0),
+  low: integer("low").notNull().default(0),
+  info: integer("info").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+}, (table) => [
+  index("security_scans_project_idx").on(table.projectId),
+]);
+export const insertSecurityScanSchema = createInsertSchema(securityScans).pick({
+  projectId: true,
+  userId: true,
+});
+export type InsertSecurityScan = z.infer<typeof insertSecurityScanSchema>;
+export type SecurityScan = typeof securityScans.$inferSelect;
+
+export const securityFindings = pgTable("security_findings", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  scanId: varchar("scan_id", { length: 36 }).notNull(),
+  severity: text("severity").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  file: text("file").notNull(),
+  line: integer("line"),
+  code: text("code"),
+  suggestion: text("suggestion"),
+}, (table) => [
+  index("security_findings_scan_idx").on(table.scanId),
+]);
+export const insertSecurityFindingSchema = createInsertSchema(securityFindings).pick({
+  scanId: true,
+  severity: true,
+  title: true,
+  description: true,
+  file: true,
+  line: true,
+  code: true,
+  suggestion: true,
+});
+export type InsertSecurityFinding = z.infer<typeof insertSecurityFindingSchema>;
+export type SecurityFinding = typeof securityFindings.$inferSelect;
+
+export const storageKv = pgTable("storage_kv", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  key: text("key").notNull(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("storage_kv_project_key_unique").on(table.projectId, table.key),
+  index("storage_kv_project_idx").on(table.projectId),
+]);
+export const insertStorageKvSchema = createInsertSchema(storageKv).pick({
+  projectId: true,
+  key: true,
+  value: true,
+});
+export type InsertStorageKv = z.infer<typeof insertStorageKvSchema>;
+export type StorageKv = typeof storageKv.$inferSelect;
+
+export const storageObjects = pgTable("storage_objects", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  filename: text("filename").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  storagePath: text("storage_path").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("storage_objects_project_idx").on(table.projectId),
+])
+export const insertStorageObjectSchema = createInsertSchema(storageObjects).pick({
+  projectId: true,
+  filename: true,
+  mimeType: true,
+  sizeBytes: true,
+  storagePath: true,
+});
+export type InsertStorageObject = z.infer<typeof insertStorageObjectSchema>;
+export type StorageObject = typeof storageObjects.$inferSelect;

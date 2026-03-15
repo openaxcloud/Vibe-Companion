@@ -3853,6 +3853,484 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
   });
 
+  // --- SECURITY SCANNER ---
+  async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
+    const project = await storage.getProject(projectId);
+    if (!project) return false;
+    if (project.userId === userId) return true;
+    if (project.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      return teams.some(t => t.id === project.teamId);
+    }
+    return false;
+  }
+
+  app.post("/api/projects/:id/security/scan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.id;
+      const userId = req.session.userId!;
+      if (!await verifyProjectAccess(projectId, userId)) return res.status(403).json({ message: "Access denied" });
+
+      const scan = await storage.createSecurityScan({ projectId, userId });
+      const projectFiles = await storage.getFiles(projectId);
+
+      type FindingEntry = { severity: string; title: string; description: string; file: string; line: number | null; code: string | null; suggestion: string | null };
+      const findings: FindingEntry[] = [];
+
+      const regexPatterns = [
+        { pattern: /\b(password|passwd|secret|api_key|apikey|api[-_]?secret|token|auth[-_]?token)\s*[:=]\s*["'`][^"'`]{4,}["'`]/gi, severity: "critical", title: "Hardcoded secret/credential", description: "Hardcoded secrets in source code can be exposed if the code is shared or committed.", suggestion: "Use environment variables or a secrets manager instead." },
+        { pattern: /["'`](sk-[a-zA-Z0-9]{20,})["'`]/g, severity: "critical", title: "Hardcoded API key (OpenAI pattern)", description: "API keys should never be hardcoded in source code.", suggestion: "Store API keys in environment variables." },
+        { pattern: /["'`](ghp_[a-zA-Z0-9]{36,})["'`]/g, severity: "critical", title: "Hardcoded GitHub token", description: "GitHub personal access tokens should not be in source code.", suggestion: "Use environment variables for tokens." },
+        { pattern: /\$\{.*\}\s*(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER)/gi, severity: "high", title: "Potential SQL injection", description: "String interpolation in SQL queries can lead to SQL injection attacks.", suggestion: "Use parameterized queries or an ORM." },
+        { pattern: /["'`]\s*(?:SELECT|INSERT|UPDATE|DELETE)\s+.*\+\s*/gi, severity: "high", title: "SQL string concatenation", description: "Building SQL queries with string concatenation is vulnerable to SQL injection.", suggestion: "Use parameterized queries with placeholders." },
+        { pattern: /innerHTML\s*=/g, severity: "high", title: "Direct innerHTML assignment", description: "Setting innerHTML with user input can lead to XSS attacks.", suggestion: "Use textContent or a DOM sanitization library like DOMPurify." },
+        { pattern: /document\.write\s*\(/g, severity: "high", title: "Use of document.write()", description: "document.write() can be exploited for XSS attacks.", suggestion: "Use DOM manipulation methods instead." },
+        { pattern: /dangerouslySetInnerHTML/g, severity: "medium", title: "React dangerouslySetInnerHTML", description: "dangerouslySetInnerHTML bypasses React's XSS protections.", suggestion: "Sanitize content with DOMPurify before using dangerouslySetInnerHTML." },
+        { pattern: /fs\.(readFile|writeFile|unlink|rmdir|readdir)\s*\([^)]*(?:req\.|params\.|query\.)/g, severity: "high", title: "User input in filesystem operation", description: "Passing user input directly to filesystem operations can lead to path traversal.", suggestion: "Validate file paths against an allow list or base directory." },
+        { pattern: /(?:cors\(\s*\)|Access-Control-Allow-Origin.*\*)/g, severity: "medium", title: "Permissive CORS configuration", description: "Allowing all origins can expose the API to cross-origin attacks.", suggestion: "Restrict CORS to specific trusted origins." },
+        { pattern: /Math\.random\s*\(\)/g, severity: "low", title: "Weak random number generation", description: "Math.random() is not cryptographically secure.", suggestion: "Use crypto.randomBytes() or crypto.randomUUID() for security-sensitive values." },
+        { pattern: /console\.(log|debug|info)\s*\(/g, severity: "info", title: "Console logging", description: "Console logging may leak sensitive information in production.", suggestion: "Remove or guard console statements in production code." },
+        { pattern: /(?:http:\/\/)/g, severity: "low", title: "HTTP URL (insecure)", description: "Using HTTP instead of HTTPS can expose data in transit.", suggestion: "Use HTTPS URLs for secure communication." },
+      ];
+
+      const pythonRegexPatterns = [
+        { pattern: /\bexec\s*\(/g, severity: "critical", title: "Use of exec()", description: "exec() executes arbitrary Python code and can lead to code injection.", suggestion: "Avoid exec(); use safe alternatives or controlled evaluation." },
+        { pattern: /\beval\s*\(/g, severity: "critical", title: "Use of eval()", description: "eval() executes arbitrary expressions and can lead to code injection.", suggestion: "Use ast.literal_eval() for safe evaluation of literals." },
+        { pattern: /\bos\.system\s*\(/g, severity: "critical", title: "Use of os.system()", description: "os.system() executes shell commands and is vulnerable to injection.", suggestion: "Use subprocess.run() with a list of arguments instead." },
+        { pattern: /\bsubprocess\.\w+\s*\([^)]*shell\s*=\s*True/g, severity: "high", title: "Subprocess with shell=True", description: "Using shell=True with subprocess allows shell injection attacks.", suggestion: "Use subprocess with a list of arguments and shell=False." },
+        { pattern: /\bpickle\.(load|loads)\s*\(/g, severity: "high", title: "Unsafe pickle deserialization", description: "Deserializing untrusted data with pickle can execute arbitrary code.", suggestion: "Use json or a safe serialization format instead of pickle for untrusted data." },
+        { pattern: /\b__import__\s*\(/g, severity: "medium", title: "Dynamic import with __import__", description: "Dynamic imports can load arbitrary modules if input is not controlled.", suggestion: "Use static imports or validate module names against an allow list." },
+        { pattern: /\bformat\s*\(.*\bsql\b|\bf["'].*\{.*\}.*(?:SELECT|INSERT|UPDATE|DELETE)/gi, severity: "high", title: "Potential SQL injection in Python", description: "String formatting in SQL queries is vulnerable to injection.", suggestion: "Use parameterized queries with %s or ? placeholders." },
+      ];
+
+      function runAstAnalysis(content: string, filename: string): FindingEntry[] {
+        const astFindings: FindingEntry[] = [];
+        try {
+          const acorn = require("acorn");
+          const walk = require("acorn-walk");
+
+          const isJsx = filename.endsWith(".jsx") || filename.endsWith(".tsx");
+          let parseContent = content;
+          if (filename.endsWith(".ts") || filename.endsWith(".tsx")) {
+            parseContent = content
+              .replace(/:\s*\w[\w<>\[\]|&,\s]*(?=[;=,\)\}\]\n])/g, "")
+              .replace(/\bas\s+\w+/g, "")
+              .replace(/<\w+(?:\s+extends\s+\w+)?>/g, "");
+          }
+
+          let ast: any;
+          try {
+            ast = acorn.parse(parseContent, {
+              ecmaVersion: "latest",
+              sourceType: "module",
+              locations: true,
+              allowImportExportEverywhere: true,
+              allowReturnOutsideFunction: true,
+              allowHashBang: true,
+              ...(isJsx ? {} : {}),
+            });
+          } catch {
+            return astFindings;
+          }
+
+          walk.simple(ast, {
+            CallExpression(node: any) {
+              const callee = node.callee;
+              if (callee.type === "Identifier" && callee.name === "eval") {
+                astFindings.push({
+                  severity: "critical",
+                  title: "Use of eval() (AST detected)",
+                  description: "eval() executes arbitrary code. Detected via AST analysis of the call expression.",
+                  file: filename,
+                  line: node.loc?.start?.line ?? null,
+                  code: content.split("\n")[(node.loc?.start?.line ?? 1) - 1]?.trim().slice(0, 200) ?? null,
+                  suggestion: "Use JSON.parse() for JSON data, or a safe alternative to eval().",
+                });
+              }
+
+              if (callee.type === "Identifier" && callee.name === "setTimeout" || callee.name === "setInterval") {
+                if (node.arguments.length > 0 && node.arguments[0].type === "Literal" && typeof node.arguments[0].value === "string") {
+                  astFindings.push({
+                    severity: "high",
+                    title: `String argument to ${callee.name}() (AST detected)`,
+                    description: `Passing a string to ${callee.name}() is equivalent to eval() and can execute arbitrary code.`,
+                    file: filename,
+                    line: node.loc?.start?.line ?? null,
+                    code: content.split("\n")[(node.loc?.start?.line ?? 1) - 1]?.trim().slice(0, 200) ?? null,
+                    suggestion: "Pass a function reference instead of a string.",
+                  });
+                }
+              }
+
+              if (callee.type === "MemberExpression") {
+                const obj = callee.object;
+                const prop = callee.property;
+
+                if (obj.type === "Identifier" && obj.name === "child_process" ||
+                    (prop.type === "Identifier" && (prop.name === "exec" || prop.name === "execSync") &&
+                     obj.type === "Identifier" && obj.name !== "RegExp")) {
+                  const hasTemplateOrConcat = node.arguments.some((arg: any) =>
+                    arg.type === "TemplateLiteral" || arg.type === "BinaryExpression"
+                  );
+                  if (hasTemplateOrConcat) {
+                    astFindings.push({
+                      severity: "critical",
+                      title: "Command injection risk (AST detected)",
+                      description: "Dynamic string passed to command execution function detected via AST analysis.",
+                      file: filename,
+                      line: node.loc?.start?.line ?? null,
+                      code: content.split("\n")[(node.loc?.start?.line ?? 1) - 1]?.trim().slice(0, 200) ?? null,
+                      suggestion: "Use execFile() with an argument array, or sanitize inputs.",
+                    });
+                  }
+                }
+              }
+            },
+
+            NewExpression(node: any) {
+              if (node.callee.type === "Identifier" && node.callee.name === "Function") {
+                astFindings.push({
+                  severity: "high",
+                  title: "Dynamic Function constructor (AST detected)",
+                  description: "The Function constructor creates functions from strings, similar to eval().",
+                  file: filename,
+                  line: node.loc?.start?.line ?? null,
+                  code: content.split("\n")[(node.loc?.start?.line ?? 1) - 1]?.trim().slice(0, 200) ?? null,
+                  suggestion: "Avoid dynamic code generation; use static functions instead.",
+                });
+              }
+            },
+
+            AssignmentExpression(node: any) {
+              if (node.left.type === "MemberExpression" && node.left.property.type === "Identifier") {
+                if (node.left.property.name === "innerHTML" || node.left.property.name === "outerHTML") {
+                  const hasUserInput = node.right.type === "TemplateLiteral" ||
+                    node.right.type === "BinaryExpression" ||
+                    (node.right.type === "Identifier" && !["''", '""', "``"].includes(node.right.name));
+                  if (hasUserInput) {
+                    astFindings.push({
+                      severity: "high",
+                      title: `Dynamic ${node.left.property.name} assignment (AST detected)`,
+                      description: `Setting ${node.left.property.name} with dynamic content can lead to XSS attacks.`,
+                      file: filename,
+                      line: node.loc?.start?.line ?? null,
+                      code: content.split("\n")[(node.loc?.start?.line ?? 1) - 1]?.trim().slice(0, 200) ?? null,
+                      suggestion: "Use textContent or sanitize with DOMPurify.",
+                    });
+                  }
+                }
+              }
+            },
+
+            ImportDeclaration(node: any) {
+              if (node.source.value === "child_process") {
+                astFindings.push({
+                  severity: "medium",
+                  title: "child_process import (AST detected)",
+                  description: "Importing child_process can lead to command injection if not used carefully.",
+                  file: filename,
+                  line: node.loc?.start?.line ?? null,
+                  code: content.split("\n")[(node.loc?.start?.line ?? 1) - 1]?.trim().slice(0, 200) ?? null,
+                  suggestion: "Ensure all child_process usage validates and sanitizes inputs.",
+                });
+              }
+            },
+          });
+        } catch {}
+        return astFindings;
+      }
+
+      for (const file of projectFiles) {
+        const ext = file.filename.split(".").pop()?.toLowerCase();
+        if (!ext || !["js", "ts", "jsx", "tsx", "py", "html", "css", "json", "mjs", "cjs"].includes(ext)) continue;
+
+        const isJsLike = ["js", "ts", "jsx", "tsx", "mjs", "cjs"].includes(ext);
+        const isPython = ext === "py";
+
+        if (isJsLike) {
+          const astResults = runAstAnalysis(file.content, file.filename);
+          findings.push(...astResults);
+        }
+
+        const patternsToUse = isPython
+          ? [...regexPatterns, ...pythonRegexPatterns]
+          : regexPatterns;
+
+        const lines = file.content.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          for (const rule of patternsToUse) {
+            rule.pattern.lastIndex = 0;
+            if (rule.pattern.test(line)) {
+              const isDuplicate = isJsLike && findings.some(f =>
+                f.file === file.filename && f.line === i + 1 && f.title.replace(" (AST detected)", "") === rule.title
+              );
+              if (!isDuplicate) {
+                findings.push({
+                  severity: rule.severity,
+                  title: rule.title,
+                  description: rule.description,
+                  file: file.filename,
+                  line: i + 1,
+                  code: line.trim().slice(0, 200),
+                  suggestion: rule.suggestion,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      const knownVulnDeps: Record<string, { severity: string; description: string; suggestion: string }> = {
+        "lodash": { severity: "medium", description: "Older lodash versions have prototype pollution vulnerabilities.", suggestion: "Update to lodash >=4.17.21." },
+        "express": { severity: "info", description: "Ensure express is up-to-date for security patches.", suggestion: "Keep express updated to the latest version." },
+        "jquery": { severity: "medium", description: "jQuery has known XSS vulnerabilities in older versions.", suggestion: "Update jQuery to >=3.5.0 or use vanilla JS." },
+        "moment": { severity: "low", description: "moment.js is in maintenance mode with known ReDoS issues.", suggestion: "Consider migrating to date-fns or dayjs." },
+        "minimist": { severity: "medium", description: "minimist has prototype pollution vulnerabilities in older versions.", suggestion: "Update to minimist >=1.2.6." },
+        "node-fetch": { severity: "low", description: "node-fetch v2 has known issues; consider built-in fetch.", suggestion: "Use built-in fetch (Node 18+) or update to node-fetch v3." },
+      };
+
+      const knownVulnPyDeps: Record<string, { severity: string; description: string; suggestion: string }> = {
+        "pyyaml": { severity: "high", description: "PyYAML yaml.load() without Loader argument can execute arbitrary code.", suggestion: "Use yaml.safe_load() instead of yaml.load()." },
+        "requests": { severity: "info", description: "Keep requests updated for security patches.", suggestion: "Update to the latest version of requests." },
+        "flask": { severity: "info", description: "Ensure Flask is up-to-date for security patches.", suggestion: "Update Flask to the latest version." },
+        "django": { severity: "info", description: "Ensure Django is up-to-date for security patches.", suggestion: "Update Django to the latest LTS version." },
+        "jinja2": { severity: "medium", description: "Older Jinja2 versions have sandbox escape vulnerabilities.", suggestion: "Update to Jinja2 >=3.1.2." },
+        "pillow": { severity: "medium", description: "Older Pillow versions have buffer overflow vulnerabilities.", suggestion: "Update to Pillow >=9.3.0." },
+        "paramiko": { severity: "medium", description: "Older paramiko versions have authentication bypass issues.", suggestion: "Update to paramiko >=3.4.0." },
+      };
+
+      const packageJson = projectFiles.find(f => f.filename === "package.json");
+      if (packageJson) {
+        try {
+          const pkg = JSON.parse(packageJson.content);
+          const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+          for (const [dep, info] of Object.entries(knownVulnDeps)) {
+            if (deps[dep]) {
+              findings.push({
+                severity: info.severity,
+                title: `Dependency: ${dep}`,
+                description: info.description,
+                file: "package.json",
+                line: null,
+                code: `"${dep}": "${deps[dep]}"`,
+                suggestion: info.suggestion,
+              });
+            }
+          }
+        } catch {}
+      }
+
+      const requirementsTxt = projectFiles.find(f => f.filename === "requirements.txt");
+      if (requirementsTxt) {
+        try {
+          const lines = requirementsTxt.content.split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith("#")) continue;
+            const match = line.match(/^([a-zA-Z0-9_-]+)\s*(?:[=<>!~]+\s*(.*))?$/);
+            if (match) {
+              const pkgName = match[1].toLowerCase();
+              const version = match[2] || "unknown";
+              for (const [dep, info] of Object.entries(knownVulnPyDeps)) {
+                if (pkgName === dep || pkgName === dep.replace(/-/g, "_")) {
+                  findings.push({
+                    severity: info.severity,
+                    title: `Python dependency: ${pkgName}`,
+                    description: info.description,
+                    file: "requirements.txt",
+                    line: i + 1,
+                    code: line,
+                    suggestion: info.suggestion,
+                  });
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+      for (const f of findings) {
+        if (f.severity in counts) counts[f.severity as keyof typeof counts]++;
+      }
+
+      if (findings.length > 0) {
+        await storage.createSecurityFindings(findings.map(f => ({ scanId: scan.id, ...f })));
+      }
+
+      const updated = await storage.updateSecurityScan(scan.id, {
+        status: "completed",
+        totalFindings: findings.length,
+        ...counts,
+        finishedAt: new Date(),
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      log(`Security scan error: ${err.message}`, "security");
+      res.status(500).json({ message: "Scan failed" });
+    }
+  });
+
+  app.get("/api/projects/:id/security/scans", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const scans = await storage.getProjectScans(req.params.id);
+      res.json(scans);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch scans" });
+    }
+  });
+
+  app.get("/api/projects/:id/security/scans/:scanId/findings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const scan = (await storage.getProjectScans(req.params.id)).find(s => s.id === req.params.scanId);
+      if (!scan) return res.status(404).json({ message: "Scan not found in this project" });
+      const findings = await storage.getScanFindings(req.params.scanId);
+      res.json(findings);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch findings" });
+    }
+  });
+
+  // --- APP STORAGE: KEY-VALUE ---
+  app.get("/api/projects/:id/storage/kv", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const entries = await storage.getStorageKvEntries(req.params.id);
+      res.json(entries);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch KV entries" });
+    }
+  });
+
+  app.put("/api/projects/:id/storage/kv", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { key, value } = req.body;
+      if (!key || typeof key !== "string" || typeof value !== "string") {
+        return res.status(400).json({ message: "Key and value are required strings" });
+      }
+      if (key.length > 256) return res.status(400).json({ message: "Key too long (max 256 chars)" });
+      if (value.length > 65536) return res.status(400).json({ message: "Value too long (max 64KB)" });
+      const entry = await storage.setStorageKvEntry(req.params.id, key, value);
+      res.json(entry);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to set KV entry" });
+    }
+  });
+
+  app.delete("/api/projects/:id/storage/kv/:key", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const key = decodeURIComponent(req.params.key);
+      const deleted = await storage.deleteStorageKvEntry(req.params.id, key);
+      if (!deleted) return res.status(404).json({ message: "Key not found" });
+      res.json({ message: "Deleted" });
+    } catch {
+      res.status(500).json({ message: "Failed to delete KV entry" });
+    }
+  });
+
+  // --- APP STORAGE: OBJECTS ---
+  const storageUpload = multer({
+    dest: "/tmp/storage_uploads",
+    limits: { fileSize: 10 * 1024 * 1024 },
+  });
+
+  app.get("/api/projects/:id/storage/objects", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const objects = await storage.getStorageObjects(req.params.id);
+      res.json(objects);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch objects" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/objects", requireAuth, storageUpload.single("file"), async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const file = (req as any).file;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+      const projectId = req.params.id;
+      const { mkdir, rename } = await import("fs/promises");
+      const { join } = await import("path");
+
+      const storageDir = join("/tmp", "project_storage", projectId);
+      await mkdir(storageDir, { recursive: true });
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".");
+      const storagePath = join(storageDir, `${Date.now()}_${safeName}`);
+      await rename(file.path, storagePath);
+
+      const obj = await storage.createStorageObject({
+        projectId,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        storagePath,
+      });
+      res.json(obj);
+    } catch (err: any) {
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/objects/:objId/download", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const obj = await storage.getStorageObject(req.params.objId);
+      if (!obj || obj.projectId !== req.params.id) return res.status(404).json({ message: "Object not found" });
+
+      const { createReadStream } = await import("fs");
+      const { stat } = await import("fs/promises");
+
+      try {
+        await stat(obj.storagePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on disk" });
+      }
+
+      res.setHeader("Content-Type", obj.mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${obj.filename}"`);
+      createReadStream(obj.storagePath).pipe(res);
+    } catch {
+      res.status(500).json({ message: "Download failed" });
+    }
+  });
+
+  app.delete("/api/projects/:id/storage/objects/:objId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const obj = await storage.getStorageObject(req.params.objId);
+      if (!obj || obj.projectId !== req.params.id) return res.status(404).json({ message: "Object not found" });
+
+      try {
+        const { unlink } = await import("fs/promises");
+        await unlink(obj.storagePath);
+      } catch {}
+
+      const deleted = await storage.deleteStorageObject(req.params.objId);
+      if (!deleted) return res.status(404).json({ message: "Object not found" });
+      res.json({ message: "Deleted" });
+    } catch {
+      res.status(500).json({ message: "Failed to delete object" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/usage", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const usage = await storage.getProjectStorageUsage(req.params.id);
+      res.json(usage);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
   await storage.seedPlanConfigs();

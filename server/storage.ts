@@ -9,6 +9,8 @@ import {
   teams, teamMembers, teamInvites,
   analyticsEvents, deployments,
   customDomains, planConfigs,
+  securityScans, securityFindings,
+  storageKv, storageObjects,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -31,6 +33,10 @@ import {
   type Deployment, type InsertDeployment,
   type CustomDomain,
   type PlanConfig,
+  type SecurityScan, type InsertSecurityScan,
+  type SecurityFinding, type InsertSecurityFinding,
+  type StorageKv, type InsertStorageKv,
+  type StorageObject, type InsertStorageObject,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -163,6 +169,25 @@ export interface IStorage {
   getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; storageMb: number; maxProjects: number; price: number }>;
   getLandingStats(): Promise<{ label: string; value: string }[]>;
   getUserRecentLanguages(userId: string): Promise<string[]>;
+
+  createSecurityScan(data: InsertSecurityScan): Promise<SecurityScan>;
+  getSecurityScan(id: string): Promise<SecurityScan | undefined>;
+  updateSecurityScan(id: string, data: Partial<{ status: string; totalFindings: number; critical: number; high: number; medium: number; low: number; info: number; finishedAt: Date }>): Promise<SecurityScan | undefined>;
+  getProjectScans(projectId: string): Promise<SecurityScan[]>;
+  createSecurityFinding(data: InsertSecurityFinding): Promise<SecurityFinding>;
+  createSecurityFindings(data: InsertSecurityFinding[]): Promise<SecurityFinding[]>;
+  getScanFindings(scanId: string): Promise<SecurityFinding[]>;
+
+  getStorageKvEntries(projectId: string): Promise<StorageKv[]>;
+  getStorageKvEntry(projectId: string, key: string): Promise<StorageKv | undefined>;
+  setStorageKvEntry(projectId: string, key: string, value: string): Promise<StorageKv>;
+  deleteStorageKvEntry(projectId: string, key: string): Promise<boolean>;
+
+  getStorageObjects(projectId: string): Promise<StorageObject[]>;
+  getStorageObject(id: string): Promise<StorageObject | undefined>;
+  createStorageObject(data: InsertStorageObject): Promise<StorageObject>;
+  deleteStorageObject(id: string): Promise<boolean>;
+  getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -915,6 +940,92 @@ export class DatabaseStorage implements IStorage {
     }
 
     return langs;
+  }
+
+  async createSecurityScan(data: InsertSecurityScan): Promise<SecurityScan> {
+    const [scan] = await db.insert(securityScans).values(data).returning();
+    return scan;
+  }
+
+  async getSecurityScan(id: string): Promise<SecurityScan | undefined> {
+    const [scan] = await db.select().from(securityScans).where(eq(securityScans.id, id)).limit(1);
+    return scan;
+  }
+
+  async updateSecurityScan(id: string, data: Partial<{ status: string; totalFindings: number; critical: number; high: number; medium: number; low: number; info: number; finishedAt: Date }>): Promise<SecurityScan | undefined> {
+    const [scan] = await db.update(securityScans).set(data).where(eq(securityScans.id, id)).returning();
+    return scan;
+  }
+
+  async getProjectScans(projectId: string): Promise<SecurityScan[]> {
+    return db.select().from(securityScans).where(eq(securityScans.projectId, projectId)).orderBy(desc(securityScans.createdAt)).limit(20);
+  }
+
+  async createSecurityFinding(data: InsertSecurityFinding): Promise<SecurityFinding> {
+    const [finding] = await db.insert(securityFindings).values(data).returning();
+    return finding;
+  }
+
+  async createSecurityFindings(data: InsertSecurityFinding[]): Promise<SecurityFinding[]> {
+    if (data.length === 0) return [];
+    return db.insert(securityFindings).values(data).returning();
+  }
+
+  async getScanFindings(scanId: string): Promise<SecurityFinding[]> {
+    return db.select().from(securityFindings).where(eq(securityFindings.scanId, scanId));
+  }
+
+  async getStorageKvEntries(projectId: string): Promise<StorageKv[]> {
+    return db.select().from(storageKv).where(eq(storageKv.projectId, projectId)).orderBy(storageKv.key);
+  }
+
+  async getStorageKvEntry(projectId: string, key: string): Promise<StorageKv | undefined> {
+    const [entry] = await db.select().from(storageKv).where(and(eq(storageKv.projectId, projectId), eq(storageKv.key, key))).limit(1);
+    return entry;
+  }
+
+  async setStorageKvEntry(projectId: string, key: string, value: string): Promise<StorageKv> {
+    const existing = await this.getStorageKvEntry(projectId, key);
+    if (existing) {
+      const [updated] = await db.update(storageKv).set({ value, updatedAt: new Date() }).where(eq(storageKv.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(storageKv).values({ projectId, key, value }).returning();
+    return created;
+  }
+
+  async deleteStorageKvEntry(projectId: string, key: string): Promise<boolean> {
+    const result = await db.delete(storageKv).where(and(eq(storageKv.projectId, projectId), eq(storageKv.key, key))).returning();
+    return result.length > 0;
+  }
+
+  async getStorageObjects(projectId: string): Promise<StorageObject[]> {
+    return db.select().from(storageObjects).where(eq(storageObjects.projectId, projectId)).orderBy(desc(storageObjects.createdAt));
+  }
+
+  async getStorageObject(id: string): Promise<StorageObject | undefined> {
+    const [obj] = await db.select().from(storageObjects).where(eq(storageObjects.id, id)).limit(1);
+    return obj;
+  }
+
+  async createStorageObject(data: InsertStorageObject): Promise<StorageObject> {
+    const [obj] = await db.insert(storageObjects).values(data).returning();
+    return obj;
+  }
+
+  async deleteStorageObject(id: string): Promise<boolean> {
+    const result = await db.delete(storageObjects).where(eq(storageObjects.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }> {
+    const kvEntries = await db.select().from(storageKv).where(eq(storageKv.projectId, projectId));
+    const kvCount = kvEntries.length;
+    const kvSizeBytes = kvEntries.reduce((sum, e) => sum + Buffer.byteLength(e.key + e.value, "utf-8"), 0);
+    const objects = await db.select().from(storageObjects).where(eq(storageObjects.projectId, projectId));
+    const objectCount = objects.length;
+    const objectSizeBytes = objects.reduce((sum, o) => sum + o.sizeBytes, 0);
+    return { kvCount, kvSizeBytes, objectCount, objectSizeBytes, totalBytes: kvSizeBytes + objectSizeBytes };
   }
 }
 
