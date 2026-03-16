@@ -816,6 +816,8 @@ declare module "express-session" {
   interface SessionData {
     userId?: string;
     csrfToken?: string;
+    twitterCodeVerifier?: string;
+    oauthState?: string;
   }
 }
 
@@ -835,6 +837,13 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/register",
   "/api/auth/logout",
   "/api/auth/github",
+  "/api/auth/github/callback",
+  "/api/auth/google",
+  "/api/auth/google/callback",
+  "/api/auth/apple",
+  "/api/auth/apple/callback",
+  "/api/auth/twitter",
+  "/api/auth/twitter/callback",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
   "/api/auth/send-verification",
@@ -1075,11 +1084,41 @@ export async function registerRoutes(
     });
   });
 
+  async function verifyRecaptcha(token: string | undefined): Promise<boolean> {
+    const secret = process.env.RECAPTCHA_SECRET_KEY;
+    if (!secret) return true;
+    if (!token) return false;
+    try {
+      const res = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`,
+      });
+      const data = await res.json() as { success: boolean; score?: number };
+      return data.success && (data.score === undefined || data.score >= 0.5);
+    } catch (err) {
+      console.error("reCAPTCHA verification error:", err);
+      return false;
+    }
+  }
+
   app.get("/api/csrf-token", (req: Request, res: Response) => {
     if (!req.session.csrfToken) {
       req.session.csrfToken = generateCsrfToken();
     }
     return res.json({ csrfToken: req.session.csrfToken });
+  });
+
+  app.get("/api/auth/config", (_req: Request, res: Response) => {
+    return res.json({
+      recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || null,
+      providers: {
+        github: !!(process.env.GITHUB_CLIENT_ID),
+        google: !!(process.env.GOOGLE_CLIENT_ID),
+        apple: !!(process.env.APPLE_CLIENT_ID),
+        twitter: !!(process.env.TWITTER_CLIENT_ID),
+      },
+    });
   });
 
   app.use("/api", csrfProtection);
@@ -1091,8 +1130,14 @@ export async function registerRoutes(
         email: z.string().email(),
         password: z.string().min(6),
         displayName: z.string().optional(),
+        recaptchaToken: z.string().optional(),
       });
       const data = schema.parse(req.body);
+
+      const captchaValid = await verifyRecaptcha(data.recaptchaToken);
+      if (!captchaValid) {
+        return res.status(403).json({ message: "reCAPTCHA verification failed" });
+      }
 
       const existing = await storage.getUserByEmail(data.email);
       if (existing) {
@@ -1108,6 +1153,8 @@ export async function registerRoutes(
 
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "email", req.headers["user-agent"] || null);
       return res.status(201).json({
         id: user.id,
         email: user.email,
@@ -1127,12 +1174,22 @@ export async function registerRoutes(
       const schema = z.object({
         email: z.string().email(),
         password: z.string(),
+        recaptchaToken: z.string().optional(),
       });
       const data = schema.parse(req.body);
+
+      const captchaValid = await verifyRecaptcha(data.recaptchaToken);
+      if (!captchaValid) {
+        return res.status(403).json({ message: "reCAPTCHA verification failed" });
+      }
 
       const user = await storage.getUserByEmail(data.email);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      if (user.isBanned) {
+        return res.status(403).json({ message: "Your account has been suspended" + (user.banReason ? `: ${user.banReason}` : "") });
       }
 
       const valid = await bcrypt.compare(data.password, user.password);
@@ -1142,6 +1199,8 @@ export async function registerRoutes(
 
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "email", req.headers["user-agent"] || null);
       return res.json({
         id: user.id,
         email: user.email,
@@ -1562,12 +1621,243 @@ export async function registerRoutes(
           });
         }
       }
+      if (user.isBanned) {
+        return res.status(403).json({ message: "Your account has been suspended" + (user.banReason ? `: ${user.banReason}` : "") });
+      }
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "github", req.headers["user-agent"] || null);
       await storage.trackEvent(user.id, "login", { method: "github" });
       return res.json({ id: user.id, email: user.email, displayName: user.displayName, csrfToken: req.session.csrfToken });
     } catch (err: any) {
       return res.status(500).json({ message: "GitHub authentication failed: " + (err.message || "Unknown error") });
+    }
+  });
+
+  app.get("/api/auth/github/redirect", (req: Request, res: Response) => {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ message: "GitHub OAuth not configured" });
+    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/github/callback`;
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.oauthState = state;
+    const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/github/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query;
+      if (!code) return res.redirect("/auth?error=no_code");
+      const savedState = req.session.oauthState;
+      delete req.session.oauthState;
+      if (!state || !savedState || state !== savedState) return res.redirect("/auth?error=invalid_state");
+      const clientId = process.env.GITHUB_CLIENT_ID;
+      const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
+      const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code }),
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string };
+      if (!tokenData.access_token) return res.redirect("/auth?error=token_failed");
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: "application/json" },
+      });
+      const ghUser = await userRes.json() as { id: number; login: string; name?: string; email?: string; avatar_url?: string };
+      const githubId = String(ghUser.id);
+      let user = await storage.getUserByGithubId(githubId);
+      if (!user) {
+        const email = ghUser.email || `github-${githubId}@users.noreply.github.com`;
+        const existing = await storage.getUserByEmail(email);
+        if (existing) {
+          await storage.updateUser(existing.id, { githubId, avatarUrl: ghUser.avatar_url });
+          user = (await storage.getUser(existing.id))!;
+        } else {
+          user = await storage.createUser({ email, password: "", displayName: ghUser.login || ghUser.name || email.split("@")[0], githubId, avatarUrl: ghUser.avatar_url, emailVerified: true });
+        }
+      }
+      if (user.isBanned) return res.redirect("/auth?error=banned");
+      req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "github", req.headers["user-agent"] || null);
+      return res.redirect("/dashboard");
+    } catch {
+      return res.redirect("/auth?error=github_failed");
+    }
+  });
+
+  app.get("/api/auth/google", (req: Request, res: Response) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ message: "Google OAuth not configured" });
+    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/google/callback`;
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.oauthState = state;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("openid email profile")}&access_type=offline&state=${state}`;
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/google/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query;
+      if (!code) return res.redirect("/auth?error=no_code");
+      const savedState = req.session.oauthState;
+      delete req.session.oauthState;
+      if (!state || !savedState || state !== savedState) return res.redirect("/auth?error=invalid_state");
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
+      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/google/callback`;
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `code=${code}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&grant_type=authorization_code`,
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string };
+      if (!tokenData.access_token) return res.redirect("/auth?error=token_failed");
+      const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const gUser = await userRes.json() as { id: string; email: string; name?: string; picture?: string };
+      let user = await storage.getUserByGoogleId(gUser.id);
+      if (!user) {
+        const existing = await storage.getUserByEmail(gUser.email);
+        if (existing) {
+          await storage.updateUser(existing.id, { googleId: gUser.id, avatarUrl: gUser.picture || existing.avatarUrl });
+          user = (await storage.getUser(existing.id))!;
+        } else {
+          user = await storage.createUser({ email: gUser.email, password: "", displayName: gUser.name || gUser.email.split("@")[0], googleId: gUser.id, avatarUrl: gUser.picture, emailVerified: true });
+        }
+      }
+      if (user.isBanned) return res.redirect("/auth?error=banned");
+      req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "google", req.headers["user-agent"] || null);
+      return res.redirect("/dashboard");
+    } catch {
+      return res.redirect("/auth?error=google_failed");
+    }
+  });
+
+  app.get("/api/auth/apple", (req: Request, res: Response) => {
+    const clientId = process.env.APPLE_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ message: "Apple Sign-In not configured" });
+    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/apple/callback`;
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.oauthState = state;
+    const url = `https://appleid.apple.com/auth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("name email")}&response_mode=form_post&state=${state}`;
+    return res.redirect(url);
+  });
+
+  app.post("/api/auth/apple/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.body;
+      if (!code) return res.redirect("/auth?error=no_code");
+      const savedState = req.session.oauthState;
+      delete req.session.oauthState;
+      if (!state || !savedState || state !== savedState) return res.redirect("/auth?error=invalid_state");
+      const clientId = process.env.APPLE_CLIENT_ID;
+      const clientSecret = process.env.APPLE_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
+      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/apple/callback`;
+      const tokenRes = await fetch("https://appleid.apple.com/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `client_id=${clientId}&client_secret=${clientSecret}&code=${code}&grant_type=authorization_code&redirect_uri=${encodeURIComponent(redirectUri)}`,
+      });
+      const tokenData = await tokenRes.json() as { id_token?: string };
+      if (!tokenData.id_token) return res.redirect("/auth?error=token_failed");
+      const payload = JSON.parse(Buffer.from(tokenData.id_token.split(".")[1], "base64").toString()) as { sub: string; email?: string };
+      const appleId = payload.sub;
+      const email = payload.email || `apple-${appleId}@privaterelay.appleid.com`;
+      let user = await storage.getUserByAppleId(appleId);
+      if (!user) {
+        const existing = await storage.getUserByEmail(email);
+        if (existing) {
+          await storage.updateUser(existing.id, { appleId });
+          user = (await storage.getUser(existing.id))!;
+        } else {
+          const userPayload = req.body.user ? JSON.parse(req.body.user) : null;
+          const displayName = userPayload?.name ? `${userPayload.name.firstName || ""} ${userPayload.name.lastName || ""}`.trim() : email.split("@")[0];
+          user = await storage.createUser({ email, password: "", displayName, appleId, emailVerified: true });
+        }
+      }
+      if (user.isBanned) return res.redirect("/auth?error=banned");
+      req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "apple", req.headers["user-agent"] || null);
+      return res.redirect("/dashboard");
+    } catch {
+      return res.redirect("/auth?error=apple_failed");
+    }
+  });
+
+  app.get("/api/auth/twitter", (req: Request, res: Response) => {
+    const clientId = process.env.TWITTER_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ message: "X/Twitter OAuth not configured" });
+    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/twitter/callback`;
+    const codeVerifier = crypto.randomBytes(32).toString("base64url");
+    const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.twitterCodeVerifier = codeVerifier;
+    req.session.oauthState = state;
+    const url = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent("tweet.read users.read offline.access")}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/twitter/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query;
+      if (!code) return res.redirect("/auth?error=no_code");
+      const savedState = req.session.oauthState;
+      delete req.session.oauthState;
+      if (!state || !savedState || state !== savedState) return res.redirect("/auth?error=invalid_state");
+      const clientId = process.env.TWITTER_CLIENT_ID;
+      const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
+      const codeVerifier = req.session.twitterCodeVerifier;
+      if (!codeVerifier) return res.redirect("/auth?error=no_verifier");
+      delete req.session.twitterCodeVerifier;
+      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/twitter/callback`;
+      const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+        },
+        body: `code=${code}&grant_type=authorization_code&redirect_uri=${encodeURIComponent(redirectUri)}&code_verifier=${codeVerifier}`,
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string };
+      if (!tokenData.access_token) return res.redirect("/auth?error=token_failed");
+      const userRes = await fetch("https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const userData = await userRes.json() as { data?: { id: string; name: string; username: string; profile_image_url?: string } };
+      if (!userData.data) return res.redirect("/auth?error=user_fetch_failed");
+      const twitterId = userData.data.id;
+      let user = await storage.getUserByTwitterId(twitterId);
+      if (!user) {
+        const email = `twitter-${twitterId}@users.noreply.twitter.com`;
+        const existing = await storage.getUserByEmail(email);
+        if (existing) {
+          await storage.updateUser(existing.id, { twitterId, avatarUrl: userData.data.profile_image_url });
+          user = (await storage.getUser(existing.id))!;
+        } else {
+          user = await storage.createUser({ email, password: "", displayName: userData.data.name || userData.data.username, twitterId, avatarUrl: userData.data.profile_image_url, emailVerified: true });
+        }
+      }
+      if (user.isBanned) return res.redirect("/auth?error=banned");
+      req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "twitter", req.headers["user-agent"] || null);
+      return res.redirect("/dashboard");
+    } catch {
+      return res.redirect("/auth?error=twitter_failed");
     }
   });
 
@@ -2033,6 +2323,7 @@ export async function registerRoutes(
       const safeUsers = userList.map(u => ({
         id: u.id, email: u.email, displayName: u.displayName, avatarUrl: u.avatarUrl,
         emailVerified: u.emailVerified, isAdmin: u.isAdmin, createdAt: u.createdAt,
+        isBanned: u.isBanned, bannedAt: u.bannedAt, banReason: u.banReason,
       }));
       return res.json({ users: safeUsers, total, limit, offset });
     } catch {
@@ -2073,6 +2364,39 @@ export async function registerRoutes(
       return res.json({ message: "User deleted" });
     } catch {
       return res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.post("/api/admin/users/:id/ban", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      if (req.params.id === req.session.userId) return res.status(400).json({ message: "Cannot ban yourself" });
+      const { reason } = z.object({ reason: z.string().min(1).max(500) }).parse(req.body);
+      const user = await storage.banUser(req.params.id, reason);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      return res.json({ id: user.id, email: user.email, isBanned: user.isBanned, bannedAt: user.bannedAt, banReason: user.banReason });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to ban user" });
+    }
+  });
+
+  app.post("/api/admin/users/:id/unban", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.unbanUser(req.params.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      return res.json({ id: user.id, email: user.email, isBanned: user.isBanned });
+    } catch {
+      return res.status(500).json({ message: "Failed to unban user" });
+    }
+  });
+
+  app.get("/api/admin/users/:id/activity", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const history = await storage.getLoginHistory(req.params.id, limit);
+      return res.json(history);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch login history" });
     }
   });
 
@@ -11399,7 +11723,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const config = await storage.getProjectAuthConfig(req.params.id);
-      res.json(config || { enabled: false, providers: ["email"], requireEmailVerification: false, sessionDurationHours: 24, allowedDomains: [] });
+      res.json(config || { enabled: false, providers: ["email"], requireEmailVerification: false, sessionDurationHours: 24, allowedDomains: [], appName: null, appIconUrl: null });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to get auth config" });
     }
@@ -11415,6 +11739,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         requireEmailVerification: z.boolean().optional(),
         sessionDurationHours: z.number().min(1).max(720).optional(),
         allowedDomains: z.array(z.string()).optional(),
+        appName: z.string().max(100).optional().nullable(),
+        appIconUrl: z.string().max(500).optional().nullable(),
       });
       const data = schema.parse(req.body);
       const config = await storage.upsertProjectAuthConfig(req.params.id, data);

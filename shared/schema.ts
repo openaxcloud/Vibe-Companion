@@ -135,6 +135,12 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   githubId: text("github_id"),
+  googleId: text("google_id"),
+  appleId: text("apple_id"),
+  twitterId: text("twitter_id"),
+  isBanned: boolean("is_banned").notNull().default(false),
+  bannedAt: timestamp("banned_at"),
+  banReason: text("ban_reason"),
   preferences: json("preferences").$type<UserPreferencesStored>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -1081,10 +1087,24 @@ export const projectAuthConfig = pgTable("project_auth_config", {
   requireEmailVerification: boolean("require_email_verification").notNull().default(false),
   sessionDurationHours: integer("session_duration_hours").notNull().default(24),
   allowedDomains: json("allowed_domains").$type<string[]>().default([]),
+  appName: text("app_name"),
+  appIconUrl: text("app_icon_url"),
 }, (table) => [
   index("auth_config_project_idx").on(table.projectId),
 ]);
 export type ProjectAuthConfig = typeof projectAuthConfig.$inferSelect;
+
+export const loginHistory = pgTable("login_history", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  ip: text("ip"),
+  provider: text("provider").notNull().default("email"),
+  userAgent: text("user_agent"),
+}, (table) => [
+  index("login_history_user_idx").on(table.userId),
+]);
+export type LoginHistory = typeof loginHistory.$inferSelect;
 
 export const projectAuthUsers = pgTable("project_auth_users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, Link, useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,22 @@ function GoogleIcon() {
   );
 }
 
+function AppleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.51-3.23 0-1.44.62-2.2.44-3.06-.4C3.79 16.17 4.36 9.02 8.93 8.75c1.26.07 2.13.72 2.91.77.99-.2 1.95-.78 3.01-.71 1.28.1 2.24.6 2.87 1.5-2.63 1.57-2.01 5.01.33 5.97-.39 1.05-.9 2.09-1.01 4zm-4.72-15.27c.05 2.07-1.59 3.72-3.55 3.53-.22-1.89 1.64-3.73 3.55-3.53z" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
 export default function Auth() {
   const [, setLocation] = useLocation();
   const search = useSearch();
@@ -46,7 +63,35 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
 
+  const authConfigQuery = useQuery<{ recaptchaSiteKey: string | null; providers: Record<string, boolean> }>({
+    queryKey: ["/api/auth/config"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/config");
+      return res.json();
+    },
+    staleTime: 60000,
+  });
+
+  const providers = authConfigQuery.data?.providers || {};
+
   const promptHandled = useRef(false);
+
+  useEffect(() => {
+    const error = params.get("error");
+    if (error) {
+      const messages: Record<string, string> = {
+        banned: "Your account has been suspended.",
+        no_code: "Authentication failed - no authorization code received.",
+        not_configured: "This login method is not configured yet.",
+        token_failed: "Authentication failed - could not verify credentials.",
+        github_failed: "GitHub authentication failed.",
+        google_failed: "Google authentication failed.",
+        apple_failed: "Apple authentication failed.",
+        twitter_failed: "X/Twitter authentication failed.",
+      };
+      toast({ title: "Authentication Error", description: messages[error] || "Authentication failed.", variant: "destructive" });
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -97,6 +142,8 @@ export default function Auth() {
 
   const isSubmitting = login.isPending || register.isPending;
 
+  const socialButtonClass = "w-full h-11 rounded-xl font-medium bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-hover)] transition-all duration-200 gap-3";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--ide-bg)] relative overflow-hidden">
       <AnimatedGrid />
@@ -123,20 +170,22 @@ export default function Auth() {
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 rounded-xl font-medium bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-hover)] transition-all duration-200 gap-3"
+              className={socialButtonClass}
               data-testid="button-github-login"
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/auth/github", { method: "POST", headers: { "Content-Type": "application/json" } });
-                  const data = await res.json();
-                  if (res.ok && data.id) {
-                    if (data.csrfToken) localStorage.setItem("csrfToken", data.csrfToken);
-                    window.location.href = "/dashboard";
-                  } else {
-                    toast({ title: "GitHub Login", description: data.message || "Connect GitHub integration first", variant: "destructive" });
-                  }
-                } catch (err: any) {
-                  toast({ title: "GitHub Login Failed", description: err.message, variant: "destructive" });
+              onClick={() => {
+                if (providers.github) {
+                  window.location.href = "/api/auth/github/redirect";
+                } else {
+                  fetch("/api/auth/github", { method: "POST", headers: { "Content-Type": "application/json" } })
+                    .then(r => r.json().then(data => {
+                      if (r.ok && data.id) {
+                        if (data.csrfToken) localStorage.setItem("csrfToken", data.csrfToken);
+                        window.location.href = "/dashboard";
+                      } else {
+                        toast({ title: "GitHub Login", description: data.message || "Connect GitHub integration first", variant: "destructive" });
+                      }
+                    }))
+                    .catch((err: any) => toast({ title: "GitHub Login Failed", description: err.message, variant: "destructive" }));
                 }
               }}
             >
@@ -146,12 +195,50 @@ export default function Auth() {
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 rounded-xl font-medium bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-hover)] transition-all duration-200 gap-3"
+              className={socialButtonClass}
               data-testid="button-google-login"
-              onClick={() => toast({ title: "Google Sign-In", description: "Configure Google OAuth to enable this option." })}
+              onClick={() => {
+                if (providers.google) {
+                  window.location.href = "/api/auth/google";
+                } else {
+                  toast({ title: "Google Sign-In", description: "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables." });
+                }
+              }}
             >
               <GoogleIcon />
               Continue with Google
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className={socialButtonClass}
+              data-testid="button-apple-login"
+              onClick={() => {
+                if (providers.apple) {
+                  window.location.href = "/api/auth/apple";
+                } else {
+                  toast({ title: "Apple Sign-In", description: "Apple OAuth is not configured. Set APPLE_CLIENT_ID and APPLE_CLIENT_SECRET environment variables." });
+                }
+              }}
+            >
+              <AppleIcon />
+              Continue with Apple
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className={socialButtonClass}
+              data-testid="button-twitter-login"
+              onClick={() => {
+                if (providers.twitter) {
+                  window.location.href = "/api/auth/twitter";
+                } else {
+                  toast({ title: "X Sign-In", description: "X/Twitter OAuth is not configured. Set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET environment variables." });
+                }
+              }}
+            >
+              <XIcon />
+              Continue with X
             </Button>
           </div>
 

@@ -60,6 +60,8 @@ import {
   type StorageKv, type InsertStorageKv,
   type StorageObject, type InsertStorageObject,
   type ProjectAuthConfig,
+  type LoginHistory,
+  loginHistory,
   type ProjectAuthUser,
   type IntegrationCatalogEntry,
   type ProjectIntegration,
@@ -118,8 +120,11 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByDisplayName(displayName: string): Promise<User | undefined>;
   getUserByGithubId(githubId: string): Promise<User | undefined>;
-  createUser(user: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
-  updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  getUserByAppleId(appleId: string): Promise<User | undefined>;
+  getUserByTwitterId(twitterId: string): Promise<User | undefined>;
+  createUser(user: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
+  updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined>;
   getUserPreferences(userId: string): Promise<UserPreferences>;
   updateUserPreferences(userId: string, prefs: Partial<UserPreferencesStored>): Promise<UserPreferences>;
   getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>>;
@@ -128,6 +133,10 @@ export interface IStorage {
   savePaneLayout(userId: string, projectId: string, layout: Record<string, unknown>): Promise<void>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(limit?: number, offset?: number): Promise<{ users: User[]; total: number }>;
+  banUser(id: string, reason: string): Promise<User | undefined>;
+  unbanUser(id: string): Promise<User | undefined>;
+  recordLogin(userId: string, ip: string | null, provider: string, userAgent: string | null): Promise<LoginHistory>;
+  getLoginHistory(userId: string, limit?: number): Promise<LoginHistory[]>;
 
   getProjects(userId: string): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
@@ -335,7 +344,7 @@ export interface IStorage {
   getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }>;
 
   getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined>;
-  upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[] }>): Promise<ProjectAuthConfig>;
+  upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[]; appName: string | null; appIconUrl: string | null }>): Promise<ProjectAuthConfig>;
   getProjectAuthUsers(projectId: string): Promise<ProjectAuthUser[]>;
   createProjectAuthUser(projectId: string, email: string, passwordHash: string, provider: string): Promise<ProjectAuthUser>;
   deleteProjectAuthUser(projectId: string, id: string): Promise<boolean>;
@@ -538,21 +547,71 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async createUser(data: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User> {
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId)).limit(1);
+    return user;
+  }
+
+  async getUserByAppleId(appleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.appleId, appleId)).limit(1);
+    return user;
+  }
+
+  async getUserByTwitterId(twitterId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.twitterId, twitterId)).limit(1);
+    return user;
+  }
+
+  async createUser(data: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User> {
     const [user] = await db.insert(users).values({
       email: data.email,
       password: data.password || "",
       displayName: data.displayName,
       githubId: data.githubId,
+      googleId: data.googleId,
+      appleId: data.appleId,
+      twitterId: data.twitterId,
       avatarUrl: data.avatarUrl,
       emailVerified: data.emailVerified || false,
     }).returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
+  }
+
+  async banUser(id: string, reason: string): Promise<User | undefined> {
+    const [user] = await db.update(users).set({
+      isBanned: true,
+      bannedAt: new Date(),
+      banReason: reason,
+    }).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  async unbanUser(id: string): Promise<User | undefined> {
+    const [user] = await db.update(users).set({
+      isBanned: false,
+      bannedAt: null,
+      banReason: null,
+    }).where(eq(users.id, id)).returning();
+    return user;
+  }
+
+  async recordLogin(userId: string, ip: string | null, provider: string, userAgent: string | null): Promise<LoginHistory> {
+    const [record] = await db.insert(loginHistory).values({
+      userId,
+      ip,
+      provider,
+      userAgent,
+    }).returning();
+    return record;
+  }
+
+  async getLoginHistory(userId: string, limit: number = 50): Promise<LoginHistory[]> {
+    return db.select().from(loginHistory).where(eq(loginHistory.userId, userId)).orderBy(desc(loginHistory.timestamp)).limit(limit);
   }
 
   async getUserPreferences(userId: string): Promise<UserPreferences> {
@@ -1918,7 +1977,7 @@ export class DatabaseStorage implements IStorage {
     return config;
   }
 
-  async upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[] }>): Promise<ProjectAuthConfig> {
+  async upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[]; appName: string | null; appIconUrl: string | null }>): Promise<ProjectAuthConfig> {
     const existing = await this.getProjectAuthConfig(projectId);
     if (existing) {
       const updates: any = {};
@@ -1927,6 +1986,8 @@ export class DatabaseStorage implements IStorage {
       if (data.requireEmailVerification !== undefined) updates.requireEmailVerification = data.requireEmailVerification;
       if (data.sessionDurationHours !== undefined) updates.sessionDurationHours = data.sessionDurationHours;
       if (data.allowedDomains !== undefined) updates.allowedDomains = data.allowedDomains;
+      if (data.appName !== undefined) updates.appName = data.appName;
+      if (data.appIconUrl !== undefined) updates.appIconUrl = data.appIconUrl;
       const [updated] = await db.update(projectAuthConfig).set(updates).where(eq(projectAuthConfig.id, existing.id)).returning();
       return updated;
     }
@@ -1937,6 +1998,8 @@ export class DatabaseStorage implements IStorage {
       requireEmailVerification: data.requireEmailVerification ?? false,
       sessionDurationHours: data.sessionDurationHours ?? 24,
       allowedDomains: data.allowedDomains ?? [],
+      appName: data.appName ?? null,
+      appIconUrl: data.appIconUrl ?? null,
     }).returning();
     return created;
   }

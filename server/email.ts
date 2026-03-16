@@ -36,9 +36,8 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
       return false;
     }
   }
-  log(`[DEV] Would send "${subject}" to ${to}`);
-  log(`[DEV] HTML content:\n${html}`);
-  return true;
+  log(`Email delivery not configured (SMTP_HOST, SMTP_USER, SMTP_PASS required). Cannot send "${subject}" to ${to}`);
+  return false;
 }
 
 export async function sendPasswordResetEmail(email: string, token: string): Promise<boolean> {
