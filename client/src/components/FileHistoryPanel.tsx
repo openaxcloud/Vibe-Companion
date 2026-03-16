@@ -11,7 +11,8 @@ import {
 import {
   X, RotateCcw, ChevronDown, ChevronRight, GitCommitHorizontal,
   FileCode2, Loader2, User, ImageIcon, FileWarning, ChevronsUpDown,
-  Search, ArrowDown,
+  Search, ArrowDown, ChevronLeft, Play, Pause, SkipBack, SkipForward,
+  GitCompare,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { diffLines as jsDiffLines } from "diff";
@@ -147,13 +148,6 @@ function getLanguageSupport(filename: string) {
     case "java": case "kt": case "kts": case "groovy": case "gradle": return java();
     case "c": case "cpp": case "cc": case "cxx": case "h": case "hpp": case "hxx": return cpp();
     case "rs": return rust();
-    case "sh": case "bash": case "zsh": case "fish": case "env":
-    case "yml": case "yaml": case "toml": case "ini": case "cfg": case "conf":
-    case "sql": case "graphql": case "gql":
-    case "php": case "rb": case "ruby":
-    case "dockerfile": case "makefile":
-    case "tf": case "hcl":
-      return null;
     default: return null;
   }
 }
@@ -463,6 +457,27 @@ function DiffViewer({ oldContent, newContent, filename }: { oldContent: string; 
   );
 }
 
+function CodePreview({ content, filename }: { content: string; filename: string }) {
+  const lines = useMemo(() => content.split("\n"), [content]);
+  const highlighted = useMemo(() => lines.map(line => highlightCode(line, filename)), [lines, filename]);
+  const isBinary = useMemo(() => isBinaryFile(filename) || isBinaryContent(content), [filename, content]);
+
+  if (isBinary) return <BinaryFileIndicator filename={filename} />;
+
+  return (
+    <ScrollArea className="flex-1">
+      <div className="font-mono text-[12px] leading-[1.65]" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
+        {lines.map((line, i) => (
+          <div key={i} className="flex whitespace-pre" data-testid={`preview-line-${i}`}>
+            <span className="w-10 shrink-0 text-right pr-2 select-none text-[11px] text-[var(--ide-text-muted)]/60">{i + 1}</span>
+            <span className="flex-1 px-1" dangerouslySetInnerHTML={{ __html: highlighted[i] || "&nbsp;" }} />
+          </div>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+}
+
 function TimelineSkeleton() {
   return (
     <div className="px-3 py-2 space-y-3" data-testid="file-history-skeleton">
@@ -485,15 +500,20 @@ function TimelineSkeleton() {
 
 export default function FileHistoryPanel({ projectId, files, onClose, onFileRestored }: FileHistoryPanelProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [fileDropdownOpen, setFileDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [accumulatedEntries, setAccumulatedEntries] = useState<FileHistoryEntry[]>([]);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [compareLatest, setCompareLatest] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1000);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -553,6 +573,8 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
   const entries = accumulatedEntries;
   const pagination = historyQuery.data?.pagination;
 
+  const reversedEntries = useMemo(() => [...entries].reverse(), [entries]);
+
   const currentFileContent = useMemo(() => {
     if (!selectedFile) return "";
     const f = files.find(ff => ff.filename === selectedFile);
@@ -560,9 +582,61 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
   }, [selectedFile, files]);
 
   const selectedEntry = useMemo(() => {
-    if (!selectedCommitId || !entries.length) return null;
-    return entries.find(e => e.commitId === selectedCommitId) ?? null;
-  }, [selectedCommitId, entries]);
+    if (selectedIndex < 0 || selectedIndex >= entries.length) return null;
+    return entries[selectedIndex];
+  }, [selectedIndex, entries]);
+
+  useEffect(() => {
+    if (isPlaying && reversedEntries.length > 0) {
+      const currentReversedIndex = selectedIndex >= 0 ? entries.length - 1 - selectedIndex : 0;
+      let playIdx = currentReversedIndex;
+
+      playbackTimerRef.current = setInterval(() => {
+        playIdx++;
+        if (playIdx >= reversedEntries.length) {
+          setIsPlaying(false);
+          if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+          return;
+        }
+        setSelectedIndex(entries.length - 1 - playIdx);
+      }, playbackSpeed);
+
+      return () => {
+        if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+      };
+    }
+  }, [isPlaying, playbackSpeed, reversedEntries.length, entries.length]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === " ") {
+        e.preventDefault();
+        setIsPlaying(false);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (isPlaying) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (!selectedFile || entries.length === 0) return;
+      if (fileDropdownOpen || restoreConfirmOpen) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.min(entries.length - 1, prev + 1));
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.max(0, prev - 1));
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isPlaying, selectedFile, entries.length, fileDropdownOpen, restoreConfirmOpen]);
 
   const restoreMutation = useMutation({
     mutationFn: async ({ filename, content, commitId }: { filename: string; content: string; commitId: string }) => {
@@ -573,6 +647,7 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
       toast({ title: "File restored", description: `${variables.filename} has been restored to the selected version.` });
       setCurrentPage(1);
       setAccumulatedEntries([]);
+      setSelectedIndex(-1);
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "file-history"] });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/commits`] });
@@ -600,17 +675,25 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
 
   const handleSelectFile = useCallback((filename: string) => {
     setSelectedFile(filename);
-    setSelectedCommitId(null);
+    setSelectedIndex(-1);
     setFileDropdownOpen(false);
     setSearchQuery("");
     setCurrentPage(1);
     setAccumulatedEntries([]);
+    setCompareLatest(false);
+    setIsPlaying(false);
   }, []);
 
   const handleLoadMore = useCallback(() => {
     setIsLoadingMore(true);
     setCurrentPage(prev => prev + 1);
   }, []);
+
+  const handleStartPlayback = useCallback(() => {
+    if (entries.length < 2) return;
+    setSelectedIndex(entries.length - 1);
+    setIsPlaying(true);
+  }, [entries.length]);
 
   const sortedFiles = useMemo(() =>
     [...files]
@@ -627,7 +710,7 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
   const selectedFileBinary = useMemo(() => selectedFile ? isBinaryFile(selectedFile) : false, [selectedFile]);
 
   return (
-    <div className="flex flex-col h-full" data-testid="file-history-panel">
+    <div className="flex flex-col h-full" ref={panelRef} data-testid="file-history-panel">
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
         <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">File History</span>
         <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={onClose} data-testid="button-close-file-history">
@@ -723,21 +806,112 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
             <div className="text-[11px] text-[var(--ide-text-muted)] mt-0.5">
               {selectedFileBinary
                 ? "Binary files have limited history tracking"
-                : "Create a commit in Source Control to start tracking changes"}
+                : "Edit this file to start automatic version tracking"}
             </div>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col min-h-0">
-          <div className={`${selectedCommitId ? "max-h-[220px] shrink-0" : "flex-1"} overflow-y-auto border-b border-[var(--ide-border)]`}>
+          {entries.length > 1 && (
+            <div className="px-3 py-2 border-b border-[var(--ide-border)] shrink-0">
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={entries.length - 1}
+                  value={selectedIndex >= 0 ? selectedIndex : 0}
+                  onChange={(e) => { setSelectedIndex(parseInt(e.target.value)); setIsPlaying(false); }}
+                  className="flex-1 h-1 accent-[#F5A623] cursor-pointer"
+                  data-testid="history-slider"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                    onClick={() => { setSelectedIndex(entries.length - 1); setIsPlaying(false); }}
+                    title="First version"
+                    data-testid="button-first-version"
+                  >
+                    <SkipBack className="w-3 h-3" />
+                  </button>
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                    onClick={() => { setSelectedIndex(prev => Math.min(entries.length - 1, prev + 1)); setIsPlaying(false); }}
+                    title="Previous version (Left arrow)"
+                    data-testid="button-prev-version"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${isPlaying ? "bg-[#F5A623]/20 text-[#F5A623]" : "hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => isPlaying ? setIsPlaying(false) : handleStartPlayback()}
+                    title={isPlaying ? "Pause playback (Space)" : "Play through versions"}
+                    data-testid="button-playback"
+                  >
+                    {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  </button>
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                    onClick={() => { setSelectedIndex(prev => Math.max(0, prev - 1)); setIsPlaying(false); }}
+                    title="Next version (Right arrow)"
+                    data-testid="button-next-version"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                    onClick={() => { setSelectedIndex(0); setIsPlaying(false); }}
+                    title="Latest version"
+                    data-testid="button-latest-version"
+                  >
+                    <SkipForward className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isPlaying && (
+                    <select
+                      className="text-[10px] bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded px-1 py-0.5 text-[var(--ide-text-secondary)]"
+                      value={playbackSpeed}
+                      onChange={(e) => setPlaybackSpeed(parseInt(e.target.value))}
+                      data-testid="select-playback-speed"
+                    >
+                      <option value={2000}>0.5x</option>
+                      <option value={1000}>1x</option>
+                      <option value={500}>2x</option>
+                      <option value={250}>4x</option>
+                    </select>
+                  )}
+                  <button
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+                      compareLatest ? "bg-[#0079F2]/15 text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]"
+                    }`}
+                    onClick={() => setCompareLatest(!compareLatest)}
+                    title="Toggle diff comparison with current file"
+                    data-testid="button-compare-latest"
+                  >
+                    <GitCompare className="w-3 h-3" />
+                    <span>Diff</span>
+                  </button>
+                </div>
+              </div>
+              {selectedEntry && (
+                <div className="mt-1.5 text-[10px] text-[var(--ide-text-muted)]">
+                  Version {selectedEntry.message} · {formatRelativeDate(selectedEntry.createdAt)}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className={`${selectedIndex >= 0 ? "max-h-[180px] shrink-0" : "flex-1"} overflow-y-auto border-b border-[var(--ide-border)]`}>
             <div className="px-3 py-2 flex items-center justify-between">
               <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">
                 {pagination ? pagination.totalVersions : entries.length} Version{(pagination?.totalVersions ?? entries.length) !== 1 ? "s" : ""}
               </span>
-              {selectedCommitId && (
+              {selectedIndex >= 0 && (
                 <button
                   className="text-[10px] text-[#0079F2] hover:text-[#0079F2]/80 transition-colors"
-                  onClick={() => setSelectedCommitId(null)}
+                  onClick={() => { setSelectedIndex(-1); setIsPlaying(false); }}
                   data-testid="button-clear-selection"
                 >
                   Clear selection
@@ -745,14 +919,14 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
               )}
             </div>
             {entries.map((entry, i) => {
-              const isSelected = selectedCommitId === entry.commitId;
+              const isSelected = selectedIndex === i;
               return (
                 <button
                   key={entry.commitId}
                   className={`w-full text-left px-3 py-2.5 transition-colors group ${
                     isSelected ? "bg-[#0079F2]/10 border-l-2 border-[#0079F2]" : "hover:bg-[var(--ide-surface)] border-l-2 border-transparent"
                   }`}
-                  onClick={() => setSelectedCommitId(isSelected ? null : entry.commitId)}
+                  onClick={() => { setSelectedIndex(isSelected ? -1 : i); setIsPlaying(false); }}
                   title={formatFullDate(entry.createdAt)}
                   data-testid={`history-entry-${entry.commitId}`}
                 >
@@ -768,8 +942,6 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
                           <User className="w-2.5 h-2.5" />
                           {entry.authorName}
                         </span>
-                        <span className="text-[10px] text-[var(--ide-text-muted)]">·</span>
-                        <span className="text-[10px] text-[var(--ide-text-muted)] font-mono">{entry.commitId.slice(0, 7)}</span>
                         <span className="text-[10px] text-[var(--ide-text-muted)]">·</span>
                         <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid={`history-date-${entry.commitId}`}>{formatRelativeDate(entry.createdAt)}</span>
                       </div>
@@ -804,7 +976,11 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--ide-border)] shrink-0 bg-[var(--ide-surface)]/30">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] text-[var(--ide-text-muted)] truncate">
-                    Comparing <span className="font-mono text-[var(--ide-text-secondary)]">{selectedEntry.commitId.slice(0, 7)}</span> with current
+                    {compareLatest ? (
+                      <>Comparing <span className="font-mono text-[var(--ide-text-secondary)]">{selectedEntry.message}</span> with current</>
+                    ) : (
+                      <>{selectedEntry.message} · {formatRelativeDate(selectedEntry.createdAt)}</>
+                    )}
                   </span>
                 </div>
                 <Button
@@ -815,15 +991,19 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
                   data-testid="button-restore-version"
                 >
                   {restoreMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RotateCcw className="w-3 h-3 mr-1" />}
-                  Restore this version
+                  Restore
                 </Button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <DiffViewer
-                  oldContent={selectedEntry.content}
-                  newContent={currentFileContent}
-                  filename={selectedFile!}
-                />
+                {compareLatest ? (
+                  <DiffViewer
+                    oldContent={selectedEntry.content}
+                    newContent={currentFileContent}
+                    filename={selectedFile!}
+                  />
+                ) : (
+                  <CodePreview content={selectedEntry.content} filename={selectedFile!} />
+                )}
               </div>
             </div>
           )}
@@ -835,7 +1015,7 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[var(--ide-text)] text-base">Restore file to previous version?</AlertDialogTitle>
             <AlertDialogDescription className="text-[var(--ide-text-muted)] text-[13px]">
-              This will replace the current content of <span className="font-mono text-[var(--ide-text-secondary)]">{selectedFile}</span> with the version from commit <span className="font-mono text-[var(--ide-text-secondary)]">{selectedEntry?.commitId.slice(0, 7)}</span>. A new commit will be created to record this change. This action cannot be undone.
+              This will replace the current content of <span className="font-mono text-[var(--ide-text-secondary)]">{selectedFile}</span> with the selected version. A new version will be created to record this change.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

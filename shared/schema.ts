@@ -375,6 +375,26 @@ export const insertFileSchema = createInsertSchema(files).pick({
 export type InsertFile = z.infer<typeof insertFileSchema>;
 export type File = typeof files.$inferSelect;
 
+export const fileVersions = pgTable("file_versions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  fileId: varchar("file_id", { length: 36 }).notNull(),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  content: text("content").notNull(),
+  versionNumber: integer("version_number").notNull(),
+  byteSize: integer("byte_size").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("file_versions_file_version_idx").on(table.fileId, table.versionNumber),
+  index("file_versions_project_created_idx").on(table.projectId, table.createdAt),
+]);
+
+export const insertFileVersionSchema = createInsertSchema(fileVersions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFileVersion = z.infer<typeof insertFileVersionSchema>;
+export type FileVersion = typeof fileVersions.$inferSelect;
+
 export const runs = pgTable("runs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

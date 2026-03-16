@@ -28,6 +28,7 @@ import {
   creditUsage,
   slidesData, videoData,
   projectInvites,
+  fileVersions,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -104,6 +105,7 @@ import {
   systemModules, systemDeps,
   type SystemModule, type InsertSystemModule,
   type SystemDep, type InsertSystemDep,
+  type FileVersion, type InsertFileVersion,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -501,6 +503,13 @@ export interface IStorage {
   getSystemDeps(projectId: string): Promise<SystemDep[]>;
   createSystemDep(data: InsertSystemDep): Promise<SystemDep>;
   deleteSystemDep(id: string): Promise<boolean>;
+
+  createFileVersion(data: InsertFileVersion): Promise<FileVersion>;
+  getFileVersions(fileId: string, limit?: number, offset?: number): Promise<FileVersion[]>;
+  getFileVersion(id: string): Promise<FileVersion | undefined>;
+  getFileVersionCount(fileId: string): Promise<number>;
+  getLatestFileVersionNumber(fileId: string): Promise<number>;
+  deleteOldFileVersions(fileId: string, keepCount: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2884,6 +2893,53 @@ export class DatabaseStorage implements IStorage {
   async deleteVideoData(projectId: string): Promise<boolean> {
     const result = await db.delete(videoData).where(eq(videoData.projectId, projectId)).returning();
     return result.length > 0;
+  }
+
+  async createFileVersion(data: InsertFileVersion): Promise<FileVersion> {
+    const [version] = await db.insert(fileVersions).values(data).returning();
+    return version;
+  }
+
+  async getFileVersions(fileId: string, limit: number = 200, offset: number = 0): Promise<FileVersion[]> {
+    return db.select().from(fileVersions)
+      .where(eq(fileVersions.fileId, fileId))
+      .orderBy(desc(fileVersions.versionNumber))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getFileVersion(id: string): Promise<FileVersion | undefined> {
+    const [version] = await db.select().from(fileVersions).where(eq(fileVersions.id, id)).limit(1);
+    return version;
+  }
+
+  async getFileVersionCount(fileId: string): Promise<number> {
+    const [result] = await db.select({ count: count() }).from(fileVersions).where(eq(fileVersions.fileId, fileId));
+    return result?.count ?? 0;
+  }
+
+  async getLatestFileVersionNumber(fileId: string): Promise<number> {
+    const [result] = await db.select({ maxVersion: sql<number>`COALESCE(MAX(${fileVersions.versionNumber}), 0)` })
+      .from(fileVersions)
+      .where(eq(fileVersions.fileId, fileId));
+    return result?.maxVersion ?? 0;
+  }
+
+  async deleteOldFileVersions(fileId: string, keepCount: number): Promise<number> {
+    const versionsToKeep = await db.select({ id: fileVersions.id })
+      .from(fileVersions)
+      .where(eq(fileVersions.fileId, fileId))
+      .orderBy(desc(fileVersions.versionNumber))
+      .limit(keepCount);
+    const keepIds = versionsToKeep.map(v => v.id);
+    if (keepIds.length === 0) return 0;
+    const deleted = await db.delete(fileVersions)
+      .where(and(
+        eq(fileVersions.fileId, fileId),
+        sql`${fileVersions.id} NOT IN (${sql.join(keepIds.map(id => sql`${id}`), sql`, `)})`
+      ))
+      .returning();
+    return deleted.length;
   }
 
   async getSystemModules(projectId: string): Promise<SystemModule[]> {

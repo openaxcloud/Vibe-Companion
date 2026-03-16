@@ -3458,77 +3458,86 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/projects/:id/files/:fileId/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const file = await storage.getFile(req.params.fileId);
+      if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
+      const totalVersions = await storage.getFileVersionCount(file.id);
+      const offset = (page - 1) * pageSize;
+      const versions = await storage.getFileVersions(file.id, pageSize, offset);
+      return res.json({
+        versions,
+        pagination: { page, pageSize, totalVersions, totalPages: Math.ceil(totalVersions / pageSize), hasMore: offset + pageSize < totalVersions },
+      });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch file history" });
+    }
+  });
+
+  app.get("/api/projects/:id/files/:fileId/history/:versionId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const file = await storage.getFile(req.params.fileId);
+      if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
+      const version = await storage.getFileVersion(req.params.versionId);
+      if (!version || version.fileId !== file.id) return res.status(404).json({ message: "Version not found" });
+      return res.json(version);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch file version" });
+    }
+  });
+
+  app.post("/api/projects/:id/files/:fileId/restore/:versionId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const file = await storage.getFile(req.params.fileId);
+      if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
+      const version = await storage.getFileVersion(req.params.versionId);
+      if (!version || version.fileId !== file.id) return res.status(404).json({ message: "Version not found" });
+      const currentVersionNum = await storage.getLatestFileVersionNumber(file.id);
+      await storage.createFileVersion({
+        fileId: file.id, projectId: project.id, content: file.content,
+        versionNumber: currentVersionNum + 1, byteSize: Buffer.byteLength(file.content, "utf-8"),
+      });
+      const updated = await storage.updateFileContent(file.id, version.content);
+      await storage.createFileVersion({
+        fileId: file.id, projectId: project.id, content: version.content,
+        versionNumber: currentVersionNum + 2, byteSize: Buffer.byteLength(version.content, "utf-8"),
+      });
+      storage.deleteOldFileVersions(file.id, 200).catch(() => {});
+      return res.json({ file: updated });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to restore file" });
+    }
+  });
+
   app.get("/api/projects/:id/file-history/:filename", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const filename = req.params.filename;
+      const filename = decodeURIComponent(req.params.filename);
+      const projectFiles = await storage.getFiles(project.id);
+      const file = projectFiles.find(f => f.filename === filename);
+      if (!file) return res.json({ entries: [], pagination: { page: 1, pageSize: 50, totalVersions: 0, totalPages: 0, hasMore: false } });
       const page = Math.max(1, parseInt(req.query.page as string) || 1);
       const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
-
-      const totalCommits = await storage.getCommitCount(project.id, "main");
-      const batchSize = 100;
-      const history: { commitId: string; message: string; authorId: string; authorName: string; createdAt: string; content: string }[] = [];
-      const authorCache = new Map<string, string>();
-
-      async function getAuthorName(authorId: string): Promise<string> {
-        if (authorCache.has(authorId)) return authorCache.get(authorId)!;
-        const author = await storage.getUser(authorId);
-        const name = author?.displayName || author?.email || authorId.slice(0, 7);
-        authorCache.set(authorId, name);
-        return name;
-      }
-
-      let previousContent: string | undefined = undefined;
-      let offset = totalCommits;
-
-      while (offset > 0) {
-        const batchStart = Math.max(0, offset - batchSize);
-        const batchLen = offset - batchStart;
-        const batch = await storage.getCommitsPaginated(project.id, "main", batchLen, batchStart);
-        batch.reverse();
-
-        for (const commit of batch) {
-          const snapshot = commit.snapshot as Record<string, string>;
-          if (!snapshot || !(filename in snapshot)) {
-            if (previousContent !== undefined) {
-              const authorName = await getAuthorName(commit.authorId);
-              history.unshift({
-                commitId: commit.id, message: commit.message, authorId: commit.authorId, authorName,
-                createdAt: commit.createdAt instanceof Date ? commit.createdAt.toISOString() : String(commit.createdAt),
-                content: "",
-              });
-              previousContent = undefined;
-            }
-            continue;
-          }
-          const currentContent = snapshot[filename];
-          if (previousContent === undefined || currentContent !== previousContent) {
-            const authorName = await getAuthorName(commit.authorId);
-            history.unshift({
-              commitId: commit.id, message: commit.message, authorId: commit.authorId, authorName,
-              createdAt: commit.createdAt instanceof Date ? commit.createdAt.toISOString() : String(commit.createdAt),
-              content: currentContent,
-            });
-          }
-          previousContent = currentContent;
-        }
-        offset = batchStart;
-      }
-
-      const totalVersions = history.length;
-      const startIdx = (page - 1) * pageSize;
-      const paginated = history.slice(startIdx, startIdx + pageSize);
-
+      const totalVersions = await storage.getFileVersionCount(file.id);
+      const offset = (page - 1) * pageSize;
+      const versions = await storage.getFileVersions(file.id, pageSize, offset);
+      const entries = versions.map(v => ({
+        commitId: v.id, message: `Version ${v.versionNumber}`, authorId: project.userId, authorName: "Auto-save",
+        createdAt: v.createdAt instanceof Date ? v.createdAt.toISOString() : String(v.createdAt), content: v.content,
+      }));
       return res.json({
-        entries: paginated,
-        pagination: {
-          page,
-          pageSize,
-          totalVersions,
-          totalPages: Math.ceil(totalVersions / pageSize),
-          hasMore: startIdx + pageSize < totalVersions,
-        },
+        entries,
+        pagination: { page, pageSize, totalVersions, totalPages: Math.ceil(totalVersions / pageSize), hasMore: offset + pageSize < totalVersions },
       });
     } catch {
       return res.status(500).json({ message: "Failed to fetch file history" });
@@ -3543,24 +3552,18 @@ export async function registerRoutes(
       const projectFiles = await storage.getFiles(project.id);
       const file = projectFiles.find(f => f.filename === filename);
       if (!file) return res.status(404).json({ message: "File not found" });
-      const updated = await storage.updateFileContent(file.id, content);
-      const snapshot: Record<string, string> = {};
-      const latestFiles = await storage.getFiles(project.id);
-      latestFiles.forEach(f => { snapshot[f.filename] = f.content; });
-      const existingCommits = await storage.getCommits(project.id, "main");
-      const parentCommitId = existingCommits.length > 0 ? existingCommits[0].id : undefined;
-      const commitMsg = `Restore ${filename}${commitId ? ` to version ${commitId.slice(0, 7)}` : ""}`;
-      const newCommit = await storage.createCommit({
-        projectId: project.id, branchName: "main", message: commitMsg,
-        authorId: req.session.userId!, parentCommitId: parentCommitId || null, snapshot,
+      const currentVersionNum = await storage.getLatestFileVersionNumber(file.id);
+      await storage.createFileVersion({
+        fileId: file.id, projectId: project.id, content: file.content,
+        versionNumber: currentVersionNum + 1, byteSize: Buffer.byteLength(file.content, "utf-8"),
       });
-      let branch = await storage.getBranch(project.id, "main");
-      if (!branch) {
-        await storage.createBranch({ projectId: project.id, name: "main", headCommitId: newCommit.id, isDefault: true });
-      } else {
-        await storage.updateBranchHead(branch.id, newCommit.id);
-      }
-      return res.json({ file: updated, commit: newCommit });
+      const updated = await storage.updateFileContent(file.id, content);
+      await storage.createFileVersion({
+        fileId: file.id, projectId: project.id, content: content,
+        versionNumber: currentVersionNum + 2, byteSize: Buffer.byteLength(content, "utf-8"),
+      });
+      storage.deleteOldFileVersions(file.id, 200).catch(() => {});
+      return res.json({ file: updated });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       return res.status(500).json({ message: "Failed to restore file" });
@@ -4099,9 +4102,22 @@ export async function registerRoutes(
     const { content, filename } = req.body;
     if (typeof content === "string") {
       const sanitizedContent = sanitizeInput(content, 500000);
+      const oldContent = existingFile.content;
       const file = await storage.updateFileContent(req.params.id, sanitizedContent);
       storage.updateStorageUsage(req.session.userId!).catch(() => {});
       import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(project.id, "on-save")).catch(() => {});
+      if (sanitizedContent !== oldContent && !sanitizedContent.startsWith("data:")) {
+        (async () => {
+          try {
+            const versionNum = await storage.getLatestFileVersionNumber(existingFile.id);
+            await storage.createFileVersion({
+              fileId: existingFile.id, projectId: existingFile.projectId, content: sanitizedContent,
+              versionNumber: versionNum + 1, byteSize: Buffer.byteLength(sanitizedContent, "utf-8"),
+            });
+            storage.deleteOldFileVersions(existingFile.id, 200).catch(() => {});
+          } catch {}
+        })();
+      }
       return res.json(file);
     }
     if (typeof filename === "string" && filename.trim()) {
