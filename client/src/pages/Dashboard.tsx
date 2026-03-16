@@ -7,7 +7,7 @@ import {
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
   Bell, CreditCard, Menu, X, Terminal, FileText, User,
-  Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw
+  Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw, LayoutGrid, List as ListIcon
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -206,6 +206,32 @@ export default function Dashboard() {
   const [selectedCategory, setSelectedCategory] = useState(APP_CATEGORIES[0].id);
   const [promptSeed, setPromptSeed] = useState(0);
   const categoriesRef = useRef<HTMLDivElement>(null);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateLangFilter, setTemplateLangFilter] = useState<string | null>(null);
+  const [templateCategory, setTemplateCategory] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  const TEMPLATE_CATEGORIES = [
+    { id: "all", label: "All Templates" },
+    { id: "frontend", label: "Frontend" },
+    { id: "backend", label: "Backend" },
+    { id: "cli", label: "CLI & Scripts" },
+    { id: "languages", label: "Languages" },
+  ];
+
+  const TEMPLATE_CATEGORY_MAP: Record<string, string> = {
+    "react-app": "frontend",
+    "html-css-js": "frontend",
+    "express-api": "backend",
+    "python-flask": "backend",
+    "go-server": "backend",
+    "node-cli": "cli",
+    "bash-script": "cli",
+    "ruby-script": "cli",
+    "cpp-app": "languages",
+    "java-app": "languages",
+    "rust-app": "languages",
+  };
 
   const getExamplePrompts = useCallback((categoryId: string, seed: number) => {
     const cat = APP_CATEGORIES.find(c => c.id === categoryId);
@@ -408,6 +434,11 @@ export default function Dashboard() {
   const sidebarLinks = [
     { id: "home" as const, icon: Home, label: "Home" },
     { id: "repls" as const, icon: FileCode, label: "My Repls" },
+  ];
+
+  const sidebarSecondaryLinks = [
+    { icon: Compass, label: "Templates", action: () => setDialogOpen(true), testId: "nav-templates" },
+    { icon: MessageSquare, label: "Community", action: () => window.open("https://ask.replit.com", "_blank"), testId: "nav-community-link" },
   ];
 
   const mobileHomeContent = (
@@ -867,33 +898,90 @@ export default function Dashboard() {
             </Tooltip>
           </TooltipProvider>
           <Dialog open={!isMobile && dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-sm">
+              <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                 <DialogHeader>
-                  <DialogTitle className="text-[var(--ide-text)] text-base">Create Repl</DialogTitle>
-                  <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Start with an empty project</DialogDescription>
+                  <DialogTitle className="text-[var(--ide-text)] text-lg font-bold">Create Repl</DialogTitle>
+                  <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Start from a template or create an empty project</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 mt-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-[var(--ide-text-secondary)]">Title</Label>
-                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-10 rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-[#0079F2]/40" required data-testid="input-project-name" />
+                <div className="flex items-center gap-2 mt-2 mb-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                    <Input
+                      placeholder="Search templates..."
+                      value={templateSearch}
+                      onChange={(e) => setTemplateSearch(e.target.value)}
+                      className="pl-9 bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 rounded-lg text-[var(--ide-text)] text-xs placeholder:text-[var(--ide-text-muted)] focus-visible:ring-[#0079F2]/40"
+                      data-testid="input-template-search"
+                    />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-[var(--ide-text-secondary)]">Language</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {(Object.keys(LANG_ICONS) as string[]).map((lang) => {
-                        const info = LANG_ICONS[lang];
-                        return (
-                          <button key={lang} type="button" onClick={() => setNewProjectLang(lang)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${newProjectLang === lang ? `${info.bg} ${info.color} ring-1 ring-current/20` : "bg-[var(--ide-surface)]/50 text-[var(--ide-text-secondary)] border-transparent hover:border-[var(--ide-hover)]"}`} data-testid={`button-lang-${lang}`}>
-                            <Code2 className="w-3 h-3" /> {info.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="flex items-center gap-1 bg-[var(--ide-surface)]/50 rounded-lg p-0.5">
+                    {(Object.keys(LANG_ICONS) as string[]).slice(0, 5).map((lang) => {
+                      const info = LANG_ICONS[lang];
+                      return (
+                        <button key={lang} type="button" onClick={() => setTemplateLangFilter(templateLangFilter === lang ? null : lang)} className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${templateLangFilter === lang ? `${info.bg} ${info.color}` : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`} data-testid={`filter-lang-${lang}`}>
+                          {info.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <Button type="submit" className="w-full rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white h-10" disabled={createProject.isPending} data-testid="button-create-project">
-                    {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Repl"}
-                  </Button>
-                </form>
+                </div>
+                <div className="flex items-center gap-1 mb-3 border-b border-[var(--ide-border)] -mx-6 px-6">
+                  {TEMPLATE_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setTemplateCategory(cat.id)}
+                      className={`px-3 py-2 text-[11px] font-medium border-b-2 transition-colors ${templateCategory === cat.id ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`}
+                      data-testid={`tab-template-category-${cat.id}`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex-1 overflow-y-auto -mx-6 px-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pb-4">
+                    {TEMPLATES
+                      .filter(t => {
+                        if (templateSearch && !t.name.toLowerCase().includes(templateSearch.toLowerCase()) && !t.lang.toLowerCase().includes(templateSearch.toLowerCase())) return false;
+                        if (templateLangFilter && !t.lang.toLowerCase().includes(templateLangFilter)) return false;
+                        if (templateCategory !== "all" && TEMPLATE_CATEGORY_MAP[t.id] !== templateCategory) return false;
+                        return true;
+                      })
+                      .map((tmpl) => (
+                      <button
+                        key={tmpl.name}
+                        className={`relative flex flex-col items-start gap-2 p-3 rounded-lg border ${tmpl.borderColor} bg-[var(--ide-bg)] transition-all text-left group hover:border-[#0079F2]/40 hover:bg-[var(--ide-panel)]`}
+                        onClick={() => { createFromTemplate.mutate(tmpl.id); setDialogOpen(false); }}
+                        disabled={createFromTemplate.isPending}
+                        data-testid={`picker-template-${tmpl.id}`}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <div className="w-7 h-7 rounded-md bg-[var(--ide-surface)] flex items-center justify-center border border-[var(--ide-border)]/50 shrink-0">
+                            <tmpl.icon className={`w-3.5 h-3.5 ${tmpl.iconColor}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-[var(--ide-text)] truncate">{tmpl.name}</p>
+                            <p className="text-[9px] text-[var(--ide-text-muted)]">{tmpl.lang}</p>
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-[var(--ide-text-muted)] leading-relaxed line-clamp-2">{tmpl.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t border-[var(--ide-border)] pt-3 mt-1">
+                  <p className="text-[10px] text-[var(--ide-text-muted)] mb-2">Or create an empty project</p>
+                  <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="flex items-center gap-2">
+                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 rounded-lg text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] flex-1" required data-testid="input-project-name" />
+                    <select value={newProjectLang} onChange={(e) => setNewProjectLang(e.target.value)} className="h-9 px-2 rounded-lg text-xs bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="select-project-lang">
+                      {(Object.keys(LANG_ICONS) as string[]).map((lang) => (
+                        <option key={lang} value={lang}>{LANG_ICONS[lang].label}</option>
+                      ))}
+                    </select>
+                    <Button type="submit" className="h-9 px-4 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-xs font-medium" disabled={createProject.isPending} data-testid="button-create-project">
+                      {createProject.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Create"}
+                    </Button>
+                  </form>
+                </div>
               </DialogContent>
             </Dialog>
           <DropdownMenu>
@@ -921,6 +1009,15 @@ export default function Dashboard() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="hidden sm:flex w-[220px] bg-[var(--ide-bg)] border-r border-[var(--ide-border)]/40 flex-col shrink-0">
+          <div className="px-3 pt-3 pb-1">
+            <Button
+              className="w-full h-9 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[13px] font-medium rounded-lg gap-1.5"
+              onClick={() => setDialogOpen(true)}
+              data-testid="sidebar-create-repl"
+            >
+              <Plus className="w-3.5 h-3.5" /> Create Repl
+            </Button>
+          </div>
           <nav className="flex-1 py-2 px-2 space-y-0.5">
             {sidebarLinks.map(({ id, icon: Icon, label }) => (
               <button
@@ -933,19 +1030,21 @@ export default function Dashboard() {
                 {label}
               </button>
             ))}
-            <Link href="/demo">
-              <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text)] transition-colors" data-testid="nav-demo">
-                <Eye className="w-4 h-4" />
-                Demo
+            {sidebarSecondaryLinks.map(({ icon: Icon, label, action, testId }) => (
+              <button
+                key={label}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text)] transition-colors"
+                onClick={action}
+                data-testid={testId}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
               </button>
-            </Link>
+            ))}
             <div className="!mt-4 pt-3 border-t border-[var(--ide-border)]/40">
               <p className="px-3 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2">Resources</p>
               <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => window.open("https://docs.replit.com", "_blank")} data-testid="nav-docs">
                 <BookOpen className="w-3.5 h-3.5" /> Docs
-              </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => window.open("https://ask.replit.com", "_blank")} data-testid="nav-community">
-                <MessageSquare className="w-3.5 h-3.5" /> Community
               </button>
               <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => toast({ title: "Help", description: "Help center coming soon." })} data-testid="nav-help">
                 <HelpCircle className="w-3.5 h-3.5" /> Help
@@ -1400,6 +1499,14 @@ export default function Dashboard() {
                       data-testid="input-search-repls"
                     />
                   </div>
+                  <div className="hidden sm:flex items-center bg-[var(--ide-surface)]/50 rounded-lg p-0.5">
+                    <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-[var(--ide-panel)] text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`} data-testid="button-view-grid">
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-[var(--ide-panel)] text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`} data-testid="button-view-list">
+                      <ListIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <Button size="sm" className="h-8 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[11px] rounded-lg gap-1.5 font-medium px-3" onClick={() => setDialogOpen(true)} data-testid="button-new-project-repls">
                     <Plus className="w-3.5 h-3.5" /> New Repl
                   </Button>
@@ -1464,7 +1571,7 @@ export default function Dashboard() {
                     )}
                   </div>
                 </div>
-              ) : (
+              ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
                   <button
                     className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[var(--ide-border)] bg-[var(--ide-panel)]/20 hover:bg-[var(--ide-panel)]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
@@ -1515,10 +1622,6 @@ export default function Dashboard() {
                           <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
                             <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
                           </span>
-                          <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
-                          <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1" data-testid={`text-file-count-${project.id}`}>
-                            <FileCode className="w-2.5 h-2.5" /> {(project.name.length % 5) + 1} files
-                          </span>
                           {project.isPublished && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 shrink-0 font-medium ml-auto">Live</span>
                           )}
@@ -1527,7 +1630,54 @@ export default function Dashboard() {
                     );
                   })}
                 </div>
-              )}
+                ) : (
+                <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20 animate-fade-in">
+                  {projects.map((project, idx) => {
+                    const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
+                    return (
+                      <div
+                        key={project.id}
+                        className={`flex items-center gap-3 px-4 py-3 hover:bg-[var(--ide-panel)]/60 cursor-pointer transition-all group ${idx !== 0 ? "border-t border-[var(--ide-border)]/30" : ""}`}
+                        onClick={() => setLocation(`/project/${project.id}`)}
+                        data-testid={`list-project-${project.id}`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[9px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
+                          {langInfo.label}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate">{project.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{project.language}</span>
+                            <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                            <span className="text-[10px] text-[var(--ide-text-muted)]">{timeAgo(project.updatedAt)}</span>
+                          </div>
+                        </div>
+                        {project.isPublished && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 font-medium">Live</span>
+                        )}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="w-7 h-7 rounded-md text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]">
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
+                              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => duplicateProject.mutate(project.id)}>
+                                <Copy className="w-3 h-3" /> Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[var(--ide-surface)]/50" />
+                              <DropdownMenuItem className="gap-2 text-[11px] text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer mx-1 rounded-md" onClick={() => { setDeleteTargetProject({ id: project.id, name: project.name }); setDeleteConfirmDialogOpen(true); }}>
+                                <Trash className="w-3 h-3" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                )}
             </div>
           )}
         </main>

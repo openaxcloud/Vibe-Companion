@@ -226,15 +226,16 @@ export default function Landing() {
     <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)] overflow-x-hidden" data-testid="landing-page">
       <AnimatedGrid />
 
-      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]/80 backdrop-blur-md">
+      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
         <div className="flex items-center gap-3">
           <ECodeLogo size={28} />
           <span className="text-lg font-bold tracking-tight">E-Code</span>
         </div>
         <div className="hidden md:flex items-center gap-8">
+          <Link href="/demo" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-ai">AI</Link>
+          <Link href="/teams" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-teams">Teams</Link>
           <Link href="/pricing" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-pricing">Pricing</Link>
-          <Link href="/demo" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-demo">Demo</Link>
-          <a href="https://docs.e-code.ai" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-docs">Docs</a>
+          <a href="https://docs.e-code.ai" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-learn">Learn</a>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login">
@@ -259,9 +260,10 @@ export default function Landing() {
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
         <div className={`absolute top-0 right-0 w-[280px] h-full bg-[var(--ide-bg)] border-l border-[var(--ide-border)]/50 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}>
           <nav className="flex flex-col p-6 gap-2">
+            <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-ai">AI</Link>
+            <Link href="/teams" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-teams">Teams</Link>
             <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-pricing">Pricing</Link>
-            <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-demo">Demo</Link>
-            <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="mobile-nav-docs">Docs</a>
+            <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="mobile-nav-learn">Learn</a>
             <div className="my-3 border-t border-[var(--ide-border)]/50" />
             <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-login">Log in</Link>
             <Link href="/login?signup=true" onClick={() => setMobileMenuOpen(false)}>
@@ -373,45 +375,24 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 px-6 lg:px-12 py-12">
-        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <ECodeLogo size={20} />
-              <span className="font-bold text-sm">E-Code</span>
-            </div>
-            <p className="text-xs text-[var(--ide-text-muted)] leading-relaxed">Build, run, and deploy code from anywhere. The cloud IDE for modern developers.</p>
+      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-12 py-10">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start justify-between gap-8">
+          <div className="flex items-center gap-2">
+            <ECodeLogo size={20} />
+            <span className="font-bold text-sm">E-Code</span>
           </div>
-          <div>
-            <h4 className="text-xs font-bold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-3">Product</h4>
-            <div className="space-y-2">
-              <Link href="/pricing" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
-              <Link href="/demo" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Demo</Link>
-              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Changelog</a>
-            </div>
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-3">Resources</h4>
-            <div className="space-y-2">
-              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Documentation</a>
-              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Blog</a>
-              <a href="#" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Community</a>
-            </div>
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-3">Legal</h4>
-            <div className="space-y-2">
-              <Link href="/terms" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Terms of Service</Link>
-              <Link href="/privacy" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Privacy Policy</Link>
-              <a href="mailto:support@e-code.ai" className="block text-sm text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors">Contact</a>
-            </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-[var(--ide-text-muted)]">
+            <Link href="/pricing" className="hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
+            <Link href="/teams" className="hover:text-[var(--ide-text)] transition-colors">Teams</Link>
+            <a href="https://docs.e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Docs</a>
+            <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
+            <a href="mailto:support@e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Contact</a>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-[var(--ide-border)]/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto mt-6 pt-5 border-t border-[var(--ide-border)]/50 flex items-center justify-between">
           <p className="text-xs text-[var(--ide-text-muted)]">&copy; {new Date().getFullYear()} E-Code. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <a href="#" className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"><Github className="w-4 h-4" /></a>
-          </div>
+          <a href="#" className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"><Github className="w-4 h-4" /></a>
         </div>
       </footer>
     </div>

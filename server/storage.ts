@@ -258,7 +258,7 @@ export interface IStorage {
 
   getMonitoringMetrics(projectId: string, limit?: number): Promise<MonitoringMetric[]>;
   recordMonitoringMetric(projectId: string, metricType: string, value: number, metadata?: Record<string, any>): Promise<MonitoringMetric>;
-  getMonitoringSummary(projectId: string): Promise<{ requests: number; errors: number; avgResponseMs: number; uptime: number; cpuPercent: number; memoryMb: number }>;
+  getMonitoringSummary(projectId: string): Promise<{ requests: number; errors: number; avgResponseMs: number; uptime: number; cpuPercent: number; memoryMb: number } | null>;
   getMonitoringAlerts(projectId: string): Promise<MonitoringAlert[]>;
   createMonitoringAlert(data: InsertMonitoringAlert): Promise<MonitoringAlert>;
   updateMonitoringAlert(id: string, data: Partial<{ enabled: boolean; lastTriggeredAt: Date }>): Promise<MonitoringAlert | undefined>;
@@ -1395,9 +1395,10 @@ export class DatabaseStorage implements IStorage {
     return m;
   }
 
-  async getMonitoringSummary(projectId: string): Promise<{ requests: number; errors: number; avgResponseMs: number; uptime: number; cpuPercent: number; memoryMb: number }> {
+  async getMonitoringSummary(projectId: string): Promise<{ requests: number; errors: number; avgResponseMs: number; uptime: number; cpuPercent: number; memoryMb: number } | null> {
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recent = await db.select().from(monitoringMetrics).where(and(eq(monitoringMetrics.projectId, projectId), gte(monitoringMetrics.recordedAt, last24h)));
+    if (recent.length === 0) return null;
     const requests = recent.filter(m => m.metricType === "request_count").reduce((s, m) => s + m.value, 0);
     const errors = recent.filter(m => m.metricType === "error_count").reduce((s, m) => s + m.value, 0);
     const responseTimes = recent.filter(m => m.metricType === "response_time");

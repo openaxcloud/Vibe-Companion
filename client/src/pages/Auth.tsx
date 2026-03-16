@@ -116,7 +116,7 @@ export default function Auth() {
           </p>
         </div>
 
-        <div className="bg-[var(--ide-panel)]/80 backdrop-blur-md border border-[var(--ide-border)] rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-7 shadow-lg">
           <div className="space-y-3 mb-6">
             <Button
               type="button"

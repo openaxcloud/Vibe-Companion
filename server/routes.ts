@@ -5117,6 +5117,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const summary = await storage.getMonitoringSummary(project.id);
+      if (!summary) {
+        return res.json(null);
+      }
       const realMetrics = getRealMetrics();
       res.json({
         ...summary,

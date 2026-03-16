@@ -191,6 +191,7 @@ function _projectPage() {
   const [bottomTab, setBottomTab] = useState<"terminal" | "shell" | "problems">("terminal");
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
+  const [webviewUrlInput, setWebviewUrlInput] = useState("");
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [newFileParentFolder, setNewFileParentFolder] = useState<string | null>(null);
@@ -1283,7 +1284,8 @@ function _projectPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
-      toast({ title: project?.isPublished ? "Project unpublished" : "Project published" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deployments"] });
+      toast({ title: project?.isPublished ? "Project unpublished" : "Project published successfully" });
     },
     onError: (err: any) => {
       toast({ title: "Publish failed", description: err.message || "Could not toggle publish state. Please try again.", variant: "destructive" });
@@ -2202,7 +2204,11 @@ function _projectPage() {
                           {folderContextMenuItems(node.path)}
                         </ContextMenuContent>
                       </ContextMenu>
-                      {isExpanded && node.children.map((child) => renderNode(child, depth + 1))}
+                      {isExpanded && (
+                        <div className="file-tree-indent" style={{ '--indent-left': `${14 + depth * 12}px` } as React.CSSProperties}>
+                          {node.children.map((child) => renderNode(child, depth + 1))}
+                        </div>
+                      )}
                     </div>
                   );
                 }
@@ -2481,6 +2487,12 @@ function _projectPage() {
     <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
       <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
+          onClick={() => { const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.back(); } }}
+          title="Back" data-testid="button-webview-tab-back"><ArrowLeft className="w-3 h-3" /></Button>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
+          onClick={() => { const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.forward(); } }}
+          title="Forward" data-testid="button-webview-tab-forward"><ArrowRight className="w-3 h-3" /></Button>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
           onClick={() => {
             if (wsStatus === "running" && livePreviewUrl) {
               const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement;
@@ -2492,10 +2504,24 @@ function _projectPage() {
           }}
           title="Refresh" data-testid="button-webview-tab-refresh"><RefreshCw className="w-3 h-3" /></Button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
+          <form className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70" onSubmit={(e) => {
+            e.preventDefault();
+            if (webviewUrlInput.trim()) {
+              const url = webviewUrlInput.startsWith("http://") || webviewUrlInput.startsWith("https://") ? webviewUrlInput : `https://${webviewUrlInput}`;
+              const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement;
+              if (iframe) iframe.src = url;
+            }
+          }}>
             <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
-            <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
-          </div>
+            <input
+              className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0"
+              value={webviewUrlInput || livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}
+              onChange={(e) => setWebviewUrlInput(e.target.value)}
+              onFocus={() => setWebviewUrlInput(livePreviewUrl || "")}
+              onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
+              data-testid="input-webview-tab-url"
+            />
+          </form>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {livePreviewUrl && (
@@ -3143,10 +3169,24 @@ function _projectPage() {
                           if (html) setPreviewHtml(html);
                         }
                       }} data-testid="button-webview-refresh"><RefreshCw className="w-3.5 h-3.5" /></button>
-                      <div className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] truncate font-mono" data-testid="text-webview-url">
+                      <form className="flex-1 mx-1 h-7 flex items-center px-2.5 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)]" onSubmit={(e) => {
+                        e.preventDefault();
+                        if (webviewUrlInput.trim()) {
+                          const url = webviewUrlInput.startsWith("http://") || webviewUrlInput.startsWith("https://") ? webviewUrlInput : `https://${webviewUrlInput}`;
+                          const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement;
+                          if (iframe) iframe.src = url;
+                        }
+                      }}>
                         <Globe className="w-3 h-3 text-[var(--ide-text-muted)] mr-1.5 shrink-0" />
-                        <span className="truncate">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
-                      </div>
+                        <input
+                          className="flex-1 bg-transparent text-[11px] text-[var(--ide-text-muted)] font-mono outline-none min-w-0"
+                          value={webviewUrlInput || livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}
+                          onChange={(e) => setWebviewUrlInput(e.target.value)}
+                          onFocus={() => setWebviewUrlInput(livePreviewUrl || "")}
+                          onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
+                          data-testid="input-webview-url"
+                        />
+                      </form>
                       {livePreviewUrl && (
                         <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
                       )}
@@ -3396,7 +3436,7 @@ function _projectPage() {
                       </div>
                     </div>
                     <div className="px-3 py-3">
-                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Custom Domain</span>
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Custom Domain</span>
                       {customDomains.length > 0 ? (
                         <div className="mt-2 space-y-2">
                           {customDomains.map((d: any) => (
@@ -4244,8 +4284,11 @@ function _projectPage() {
             {deploymentsPanelOpen && !aiPanelOpen && !searchPanelOpen && !settingsPanelOpen && (
               <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="deployments-panel">
                 <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
-                  <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Deployments</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setDeploymentsPanelOpen(false)} data-testid="button-close-deployments">
+                  <div className="flex items-center gap-2">
+                    <Rocket className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                    <span className="text-[11px] font-semibold text-[var(--ide-text)]">Deployments</span>
+                  </div>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setDeploymentsPanelOpen(false)} data-testid="button-close-deployments">
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -4269,21 +4312,23 @@ function _projectPage() {
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
-                      <div className="flex items-center gap-2">
-                        <Rocket className="w-3.5 h-3.5 text-[#0CCE6B]" />
-                        <span className="text-[11px] text-[var(--ide-text)]">Publish</span>
-                      </div>
-                      <Switch
-                        checked={project?.isPublished || false}
-                        onCheckedChange={() => publishMutation.mutate()}
-                        disabled={publishMutation.isPending}
-                        data-testid="switch-deploy-publish"
-                      />
-                    </div>
+                    <Button
+                      className={`w-full h-9 rounded-lg text-[12px] font-semibold gap-2 ${project?.isPublished ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "bg-[#0079F2] hover:bg-[#0066CC] text-white"}`}
+                      onClick={() => publishMutation.mutate()}
+                      disabled={publishMutation.isPending}
+                      data-testid="button-deploy-publish"
+                    >
+                      {publishMutation.isPending ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {project?.isPublished ? "Unpublishing..." : "Deploying..."}</>
+                      ) : project?.isPublished ? (
+                        <><X className="w-3.5 h-3.5" /> Unpublish</>
+                      ) : (
+                        <><Rocket className="w-3.5 h-3.5" /> Deploy to Production</>
+                      )}
+                    </Button>
                   </div>
                   <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Deployment History</span>
+                    <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Deployment History</span>
                     <div className="mt-2 space-y-1.5">
                       {deploymentsQuery.isError ? (
                         <div className="py-4 text-center">
@@ -4352,7 +4397,7 @@ function _projectPage() {
                     </div>
                   </div>
                   <div className="px-3 py-3">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Custom Domain</span>
+                    <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Custom Domain</span>
                     {customDomains.length > 0 ? (
                       <div className="mt-2 space-y-2">
                         {customDomains.map((d: any) => (
@@ -5019,6 +5064,12 @@ function _projectPage() {
                   <div className="overflow-hidden flex flex-col" style={{ width: `${previewPanelWidth}%` }}>
                     <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
                       <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
+                        onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.back(); } }}
+                        title="Back" data-testid="button-preview-panel-back"><ArrowLeft className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
+                        onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.forward(); } }}
+                        title="Forward" data-testid="button-preview-panel-forward"><ArrowRight className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
                         onClick={() => {
                           if (wsStatus === "running" && livePreviewUrl) {
                             const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
@@ -5030,10 +5081,24 @@ function _projectPage() {
                         }}
                         title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
+                        <form className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70" onSubmit={(e) => {
+                          e.preventDefault();
+                          if (webviewUrlInput.trim()) {
+                            const url = webviewUrlInput.startsWith("http://") || webviewUrlInput.startsWith("https://") ? webviewUrlInput : `https://${webviewUrlInput}`;
+                            const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
+                            if (iframe) iframe.src = url;
+                          }
+                        }}>
                           <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
-                          <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono">{livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}</span>
-                        </div>
+                          <input
+                            className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0"
+                            value={webviewUrlInput || livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}
+                            onChange={(e) => setWebviewUrlInput(e.target.value)}
+                            onFocus={() => setWebviewUrlInput(livePreviewUrl || "")}
+                            onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
+                            data-testid="input-preview-panel-url"
+                          />
+                        </form>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
                         {(livePreviewUrl || previewHtml) && (

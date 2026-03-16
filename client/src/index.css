@@ -394,10 +394,22 @@
 }
 
 .glass-panel {
-  background: color-mix(in srgb, var(--ide-panel) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid color-mix(in srgb, var(--ide-surface) 60%, transparent);
+  background: var(--ide-panel);
+  border: 1px solid var(--ide-border);
+}
+
+.file-tree-indent {
+  position: relative;
+}
+.file-tree-indent::before {
+  content: "";
+  position: absolute;
+  left: var(--indent-left, 14px);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ide-border);
+  opacity: 0.4;
 }
 
 input:focus-visible,
@@ -533,10 +545,8 @@ button:disabled {
 }
 
 .glass-surface {
-  background: color-mix(in srgb, var(--ide-panel) 60%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid color-mix(in srgb, var(--ide-surface) 50%, transparent);
+  background: var(--ide-panel);
+  border: 1px solid var(--ide-border);
 }
 
 .tooltip-arrow {

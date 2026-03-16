@@ -924,15 +924,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           const MsgModelIcon = msgModel?.icon || Sparkles;
           return (
             <div key={msg.id} className={`flex gap-2.5 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-              <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-1 ${
-                msg.role === "assistant" ? "bg-[#7C65CB]/15 ring-1 ring-[#7C65CB]/20" : "bg-[#0079F2] ring-1 ring-[#0079F2]/30"
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                msg.role === "assistant" ? "bg-[var(--ide-surface)] border border-[var(--ide-border)]" : "bg-[#0079F2]"
               }`}>
-                {msg.role === "assistant" ? <Bot className="w-3.5 h-3.5 text-[#7C65CB]" /> : <User className="w-3.5 h-3.5 text-white" />}
+                {msg.role === "assistant" ? <Bot className="w-3.5 h-3.5 text-[var(--ide-text-secondary)]" /> : <User className="w-3.5 h-3.5 text-white" />}
               </div>
-              <div className={`max-w-[82%] rounded-lg text-[13px] leading-relaxed ${
+              <div className={`max-w-[82%] rounded-xl text-[13px] leading-relaxed px-3.5 py-2.5 ${
                 msg.role === "user"
-                  ? "bg-[#0079F2]/8 text-[var(--ide-text)] px-3.5 py-2.5"
-                  : "bg-[var(--ide-bg)]/50 text-[var(--ide-text)] px-3.5 py-2.5"
+                  ? "bg-[#0079F2]/10 border border-[#0079F2]/15 text-[var(--ide-text)]"
+                  : "bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[var(--ide-text)]"
               }`}>
                 {msg.role === "assistant" && msgModel && (
                   <div className="flex items-center gap-1.5 mb-1.5" data-testid={`badge-model-${msg.model}`}>

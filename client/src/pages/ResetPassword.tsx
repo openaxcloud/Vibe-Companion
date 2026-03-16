@@ -49,7 +49,7 @@ export default function ResetPassword() {
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `radial-gradient(circle at 1px 1px, #0079F2 1px, transparent 0)`, backgroundSize: "40px 40px" }} />
       </div>
       <div className="w-full max-w-[400px] px-6 z-10">
-        <div className="bg-[var(--ide-panel)]/80 backdrop-blur-md border border-[var(--ide-border)] rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-7 shadow-lg">
           {success ? (
             <div className="text-center py-4" data-testid="text-reset-success">
               <div className="w-14 h-14 rounded-full bg-[#0CCE6B]/10 flex items-center justify-center mx-auto mb-4">

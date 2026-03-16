@@ -37,7 +37,7 @@ export default function ForgotPassword() {
           <ArrowLeft className="w-4 h-4" /> Back to login
         </Link>
 
-        <div className="bg-[var(--ide-panel)]/80 backdrop-blur-md border border-[var(--ide-border)] rounded-2xl p-7 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-7 shadow-lg">
           {sent ? (
             <div className="text-center py-4" data-testid="text-reset-sent">
               <div className="w-14 h-14 rounded-full bg-[#0CCE6B]/10 flex items-center justify-center mx-auto mb-4">

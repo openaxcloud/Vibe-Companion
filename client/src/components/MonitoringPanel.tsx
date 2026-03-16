@@ -67,7 +67,7 @@ export default function MonitoringPanel({ projectId, onClose }: { projectId: str
     refetchInterval: 30000,
   });
 
-  const summaryQuery = useQuery<MetricsSummary>({
+  const summaryQuery = useQuery<MetricsSummary | null>({
     queryKey: ["/api/projects", projectId, "monitoring", "summary"],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/monitoring/summary`, { credentials: "include" });
@@ -171,28 +171,44 @@ export default function MonitoringPanel({ projectId, onClose }: { projectId: str
                   <Zap className="w-3 h-3 text-blue-400" />
                   <span className="text-[9px] text-[var(--ide-text-muted)] uppercase">Requests</span>
                 </div>
-                <span className="text-lg font-bold text-[var(--ide-text)]">{summary?.requests ?? 0}</span>
+                {summary ? (
+                  <span className="text-lg font-bold text-[var(--ide-text)]">{summary.requests}</span>
+                ) : (
+                  <span className="text-[11px] text-[var(--ide-text-muted)]">No data</span>
+                )}
               </div>
               <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid="metric-card-errors">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Bell className="w-3 h-3 text-red-400" />
                   <span className="text-[9px] text-[var(--ide-text-muted)] uppercase">Errors</span>
                 </div>
-                <span className="text-lg font-bold text-[var(--ide-text)]">{summary?.errors ?? 0}</span>
+                {summary ? (
+                  <span className="text-lg font-bold text-[var(--ide-text)]">{summary.errors}</span>
+                ) : (
+                  <span className="text-[11px] text-[var(--ide-text-muted)]">No data</span>
+                )}
               </div>
               <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid="metric-card-response">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Clock className="w-3 h-3 text-yellow-400" />
                   <span className="text-[9px] text-[var(--ide-text-muted)] uppercase">Avg Response</span>
                 </div>
-                <span className="text-lg font-bold text-[var(--ide-text)]">{summary?.avgResponseMs ?? 0}<span className="text-xs text-[var(--ide-text-muted)]">ms</span></span>
+                {summary ? (
+                  <span className="text-lg font-bold text-[var(--ide-text)]">{summary.avgResponseMs}<span className="text-xs text-[var(--ide-text-muted)]">ms</span></span>
+                ) : (
+                  <span className="text-[11px] text-[var(--ide-text-muted)]">No data</span>
+                )}
               </div>
               <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid="metric-card-uptime">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Activity className="w-3 h-3 text-green-400" />
                   <span className="text-[9px] text-[var(--ide-text-muted)] uppercase">Uptime</span>
                 </div>
-                <span className="text-lg font-bold text-[var(--ide-text)]">{summary?.uptime ?? 100}<span className="text-xs text-[var(--ide-text-muted)]">%</span></span>
+                {summary ? (
+                  <span className="text-lg font-bold text-[var(--ide-text)]">{summary.uptime}<span className="text-xs text-[var(--ide-text-muted)]">%</span></span>
+                ) : (
+                  <span className="text-[11px] text-[var(--ide-text-muted)]">No data</span>
+                )}
               </div>
             </div>
 
@@ -205,7 +221,7 @@ export default function MonitoringPanel({ projectId, onClose }: { projectId: str
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Cpu className="w-3 h-3" /> CPU</span>
-                      <span className="text-[10px] font-medium text-[var(--ide-text)]">{summary?.cpuPercent ?? 0}%</span>
+                      <span className="text-[10px] font-medium text-[var(--ide-text)]">{summary ? `${summary.cpuPercent}%` : "—"}</span>
                     </div>
                     <div className="w-full h-1.5 bg-[var(--ide-border)] rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.min(summary?.cpuPercent ?? 0, 100)}%` }} />
@@ -214,7 +230,7 @@ export default function MonitoringPanel({ projectId, onClose }: { projectId: str
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Memory</span>
-                      <span className="text-[10px] font-medium text-[var(--ide-text)]">{summary?.memoryMb ?? 0} MB</span>
+                      <span className="text-[10px] font-medium text-[var(--ide-text)]">{summary ? `${summary.memoryMb} MB` : "—"}</span>
                     </div>
                     <div className="w-full h-1.5 bg-[var(--ide-border)] rounded-full overflow-hidden">
                       <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${Math.min((summary?.memoryMb ?? 0) / 5.12, 100)}%` }} />

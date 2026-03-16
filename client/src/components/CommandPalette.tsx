@@ -196,51 +196,51 @@ export default function CommandPalette({
       onClick={onClose}
       data-testid="command-palette-overlay"
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60" />
       <div
-        className="relative w-full max-w-[520px] bg-[#1C2333] border border-[#2B3245] rounded-xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-[520px] bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         data-testid="command-palette"
       >
-        <div className="flex items-center gap-2 px-4 h-12 border-b border-[#2B3245]">
-          <Search className="w-4 h-4 text-[#676D7E] shrink-0" />
+        <div className="flex items-center gap-2 px-4 h-12 border-b border-[var(--ide-border)]">
+          <Search className="w-4 h-4 text-[var(--ide-text-muted)] shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search files..."
-            className="flex-1 bg-transparent text-sm text-[#F5F9FC] placeholder:text-[#676D7E] outline-none"
+            className="flex-1 bg-transparent text-sm text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] outline-none"
             data-testid="input-command-palette"
           />
-          <kbd className="text-[9px] text-[#676D7E] bg-[#0E1525] px-1.5 py-0.5 rounded border border-[#2B3245] font-mono shrink-0">ESC</kbd>
+          <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">ESC</kbd>
         </div>
 
         <div ref={listRef} className="max-h-[340px] overflow-y-auto py-1">
           {filtered.length === 0 && (
             <div className="px-4 py-8 text-center">
-              <p className="text-xs text-[#676D7E]">No results found</p>
+              <p className="text-xs text-[var(--ide-text-muted)]">No results found</p>
             </div>
           )}
 
           {fileResults.length > 0 && (
             <>
               <div className="px-4 py-1.5">
-                <span className="text-[9px] font-semibold text-[#676D7E] uppercase tracking-wider">Files</span>
+                <span className="text-[9px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Files</span>
               </div>
               {fileResults.map((cmd, i) => {
                 const globalIndex = filtered.indexOf(cmd);
                 return (
                   <button
                     key={cmd.id}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${globalIndex === selectedIndex ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#9DA2B0] hover:bg-[#2B3245]/50 hover:text-[#F5F9FC]"}`}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${globalIndex === selectedIndex ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50 hover:text-[var(--ide-text)]"}`}
                     onClick={cmd.action}
                     onMouseEnter={() => setSelectedIndex(globalIndex)}
                     data-testid={`command-item-${cmd.id}`}
                   >
                     {cmd.icon}
                     <span className="flex-1 text-[12px] truncate">{cmd.label}</span>
-                    {cmd.shortcut && <kbd className="text-[9px] text-[#676D7E] bg-[#0E1525] px-1.5 py-0.5 rounded border border-[#2B3245] font-mono shrink-0">{cmd.shortcut}</kbd>}
+                    {cmd.shortcut && <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">{cmd.shortcut}</kbd>}
                   </button>
                 );
               })}
@@ -249,23 +249,23 @@ export default function CommandPalette({
 
           {actionResults.length > 0 && (
             <>
-              {fileResults.length > 0 && <div className="h-px bg-[#2B3245] mx-3 my-1" />}
+              {fileResults.length > 0 && <div className="h-px bg-[var(--ide-border)] mx-3 my-1" />}
               <div className="px-4 py-1.5">
-                <span className="text-[9px] font-semibold text-[#676D7E] uppercase tracking-wider">Commands</span>
+                <span className="text-[9px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Commands</span>
               </div>
               {actionResults.map((cmd) => {
                 const globalIndex = filtered.indexOf(cmd);
                 return (
                   <button
                     key={cmd.id}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${globalIndex === selectedIndex ? "bg-[#2B3245] text-[#F5F9FC]" : "text-[#9DA2B0] hover:bg-[#2B3245]/50 hover:text-[#F5F9FC]"}`}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${globalIndex === selectedIndex ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50 hover:text-[var(--ide-text)]"}`}
                     onClick={cmd.action}
                     onMouseEnter={() => setSelectedIndex(globalIndex)}
                     data-testid={`command-item-${cmd.id}`}
                   >
                     {cmd.icon}
                     <span className="flex-1 text-[12px]">{cmd.label}</span>
-                    {cmd.shortcut && <kbd className="text-[9px] text-[#676D7E] bg-[#0E1525] px-1.5 py-0.5 rounded border border-[#2B3245] font-mono shrink-0">{cmd.shortcut}</kbd>}
+                    {cmd.shortcut && <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">{cmd.shortcut}</kbd>}
                   </button>
                 );
               })}
@@ -273,10 +273,10 @@ export default function CommandPalette({
           )}
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-2 border-t border-[#2B3245] bg-[#0E1525]">
-          <span className="text-[9px] text-[#676D7E] flex items-center gap-1"><kbd className="bg-[#1C2333] px-1 py-0.5 rounded border border-[#2B3245] font-mono">↑↓</kbd> navigate</span>
-          <span className="text-[9px] text-[#676D7E] flex items-center gap-1"><kbd className="bg-[#1C2333] px-1 py-0.5 rounded border border-[#2B3245] font-mono">↵</kbd> select</span>
-          <span className="text-[9px] text-[#676D7E] flex items-center gap-1"><kbd className="bg-[#1C2333] px-1 py-0.5 rounded border border-[#2B3245] font-mono">esc</kbd> close</span>
+        <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--ide-border)] bg-[var(--ide-bg)]">
+          <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1"><kbd className="bg-[var(--ide-panel)] px-1 py-0.5 rounded border border-[var(--ide-border)] font-mono">↑↓</kbd> navigate</span>
+          <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1"><kbd className="bg-[var(--ide-panel)] px-1 py-0.5 rounded border border-[var(--ide-border)] font-mono">↵</kbd> select</span>
+          <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1"><kbd className="bg-[var(--ide-panel)] px-1 py-0.5 rounded border border-[var(--ide-border)] font-mono">esc</kbd> close</span>
         </div>
       </div>
     </div>
