@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield } from "lucide-react";
+import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/components/ThemeProvider";
+import { useQuery } from "@tanstack/react-query";
 
 function UserAvatar({ initials, size = "lg" }: { initials: string; size?: "sm" | "md" | "lg" }) {
   const sizes = {
@@ -51,6 +52,23 @@ export default function Settings() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [exportingData, setExportingData] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
+  const [creditAlertThreshold, setCreditAlertThreshold] = useState(80);
+
+  const usageQuery = useQuery<any>({ queryKey: ["/api/user/usage"], staleTime: 60000 });
+  const creditHistoryQuery = useQuery<any>({ queryKey: ["/api/user/credits/history"], staleTime: 60000 });
+
+  useEffect(() => {
+    if (usageQuery.data?.creditAlertThreshold) {
+      setCreditAlertThreshold(usageQuery.data.creditAlertThreshold);
+    }
+  }, [usageQuery.data]);
+
+  const saveCreditAlert = async (val: number) => {
+    setCreditAlertThreshold(val);
+    try {
+      await apiRequest("PUT", "/api/user/agent-preferences", { creditAlertThreshold: val });
+    } catch {}
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -335,6 +353,113 @@ export default function Settings() {
                   {exportingData ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Export JSON"}
                 </Button>
               </div>
+            </div>
+          </div>
+
+          <div className="h-px bg-[var(--ide-surface)]/60" />
+
+          <div className="space-y-3" data-testid="section-credits">
+            <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider px-1 flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" /> Credits & Usage
+            </h2>
+            <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] divide-y divide-[var(--ide-border)]">
+              {usageQuery.data && (
+                <>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-[var(--ide-text)] font-medium">Daily Credits</span>
+                      <span className="text-sm font-semibold text-[#0079F2]" data-testid="text-credits-balance">
+                        {usageQuery.data.daily?.credits?.used || 0} / {usageQuery.data.daily?.credits?.limit || 100}
+                      </span>
+                    </div>
+                    <div className="relative w-full h-3 rounded-full bg-[var(--ide-surface)] overflow-hidden mb-2">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#0CCE6B] via-[#0079F2] to-[#7C65CB] transition-all"
+                        style={{ width: `${Math.min(100, ((usageQuery.data.daily?.credits?.used || 0) / (usageQuery.data.daily?.credits?.limit || 100)) * 100)}%` }}
+                        data-testid="progress-credits"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-[var(--ide-text-muted)]">
+                      <span>Resets {usageQuery.data.resetsAt ? new Date(usageQuery.data.resetsAt).toLocaleTimeString() : "daily"}</span>
+                      <span className="capitalize">{usageQuery.data.plan} plan</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-3 block">7-Day Usage</span>
+                    {creditHistoryQuery.data?.days && (
+                      <div className="flex items-end gap-1.5 h-20" data-testid="chart-credit-history">
+                        {creditHistoryQuery.data.days.map((day: any, i: number) => {
+                          const maxVal = Math.max(...creditHistoryQuery.data.days.map((d: any) => d.total), 1);
+                          const h = Math.max(4, (day.total / maxVal) * 100);
+                          return (
+                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                              <div className="w-full flex flex-col justify-end" style={{ height: "60px" }}>
+                                {day.turbo > 0 && (
+                                  <div className="w-full rounded-t bg-[#F59E0B]" style={{ height: `${(day.turbo / maxVal) * 60}px` }} />
+                                )}
+                                {day.power > 0 && (
+                                  <div className={`w-full bg-[#0079F2] ${day.turbo === 0 ? "rounded-t" : ""}`} style={{ height: `${(day.power / maxVal) * 60}px` }} />
+                                )}
+                                {day.economy > 0 && (
+                                  <div className={`w-full bg-[#0CCE6B] ${day.power === 0 && day.turbo === 0 ? "rounded-t" : ""} rounded-b`} style={{ height: `${(day.economy / maxVal) * 60}px` }} />
+                                )}
+                                {day.total === 0 && (
+                                  <div className="w-full rounded bg-[var(--ide-surface)]" style={{ height: "4px" }} />
+                                )}
+                              </div>
+                              <span className="text-[8px] text-[var(--ide-text-muted)]">
+                                {new Date(day.date).toLocaleDateString("en", { weekday: "short" }).slice(0, 2)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 mt-2 text-[9px] text-[var(--ide-text-muted)]">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#0CCE6B]" /> Economy</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#0079F2]" /> Power</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#F59E0B]" /> Turbo</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-medium text-[var(--ide-text-secondary)]">Credit Alert Threshold</span>
+                      <span className="text-[11px] text-[var(--ide-text-muted)]">{creditAlertThreshold}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={10}
+                      max={100}
+                      step={5}
+                      value={creditAlertThreshold}
+                      onChange={(e) => saveCreditAlert(Number(e.target.value))}
+                      className="w-full h-1.5 rounded-full appearance-none bg-[var(--ide-surface)] cursor-pointer accent-[#0079F2]"
+                      data-testid="slider-credit-alert"
+                    />
+                    <p className="text-[9px] text-[var(--ide-text-muted)] mt-1">Alert when credit usage reaches this percentage</p>
+                  </div>
+
+                  <div className="p-4">
+                    <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-2 block">Cost per Mode</span>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-[#0CCE6B] flex items-center gap-1"><Gauge className="w-3 h-3" /> Economy</span>
+                        <span className="text-[var(--ide-text-muted)]">1 credit / call</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-[#0079F2] flex items-center gap-1"><Zap className="w-3 h-3" /> Power</span>
+                        <span className="text-[var(--ide-text-muted)]">3 credits / call</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-[#F59E0B] flex items-center gap-1"><Sparkles className="w-3 h-3" /> Turbo</span>
+                        <span className="text-[var(--ide-text-muted)]">6 credits / call</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

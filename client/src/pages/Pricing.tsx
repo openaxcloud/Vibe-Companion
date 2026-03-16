@@ -20,9 +20,9 @@ const PLAN_UI: Record<string, { period: string; cta: string; popular: boolean; c
 };
 
 const fallbackPlans = [
-  { id: "free", name: "Free", price: "$0", period: "forever", description: "Perfect for learning and personal projects", features: ["5 projects", "50 code executions / day", "20 AI calls / day", "50 MB storage", "JavaScript & Python", "Community support"], cta: "Current Plan", popular: false, color: "var(--ide-text-muted)" },
-  { id: "pro", name: "Pro", price: "$12", period: "/ month", description: "For developers who need more power and flexibility", features: ["Unlimited projects", "500 code executions / day", "200 AI calls / day", "5 GB storage", "All languages (Go, Java, C++, Ruby, Bash)", "Priority AI (GPT-4o, Claude, Gemini)", "Custom domains", "Priority support"], cta: "Upgrade to Pro", popular: true, color: "#0079F2" },
-  { id: "team", name: "Team", price: "$25", period: "/ user / month", description: "For teams building together with shared workspaces", features: ["Everything in Pro", "Unlimited team members", "Shared projects & workspaces", "Team admin dashboard", "SSO & SAML", "Audit logs", "99.9% uptime SLA", "Dedicated support"], cta: "Contact Sales", popular: false, color: "#7C65CB" },
+  { id: "free", name: "Free", price: "$0", period: "forever", description: "Perfect for learning and personal projects", features: ["5 projects", "50 code executions / day", "100 AI credits / day", "Economy & Power modes", "50 MB storage", "JavaScript & Python", "Community support"], cta: "Current Plan", popular: false, color: "var(--ide-text-muted)" },
+  { id: "pro", name: "Pro", price: "$12", period: "/ month", description: "For developers who need more power and flexibility", features: ["Unlimited projects", "500 code executions / day", "1,000 AI credits / day", "All modes incl. Turbo", "Code Optimizations", "5 GB storage", "All languages (Go, Java, C++, Ruby, Bash)", "Priority AI (GPT-4o, Claude, Gemini)", "Custom domains", "Priority support"], cta: "Upgrade to Pro", popular: true, color: "#0079F2" },
+  { id: "team", name: "Team", price: "$25", period: "/ user / month", description: "For teams building together with shared workspaces", features: ["Everything in Pro", "5,000 AI credits / day", "Unlimited team members", "Shared projects & workspaces", "Team admin dashboard", "SSO & SAML", "Audit logs", "99.9% uptime SLA", "Dedicated support"], cta: "Contact Sales", popular: false, color: "#7C65CB" },
 ];
 
 export default function Pricing() {

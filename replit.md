@@ -21,6 +21,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Custom Domains**: Domain manager (`domainManager.ts`) — DNS TXT verification, SSL provisioning simulation, domain-to-project mapping, CRUD API with ownership checks, persisted in PostgreSQL `custom_domains` table
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
+- **Agent Modes**: Economy (1 credit, lighter models: gpt-4o-mini, gemini-2.0-flash), Power (3 credits, full models), Turbo (6 credits, Pro/Team only). Credit limits: Free=100/day, Pro=1000/day, Team=5000/day. Atomic credit deduction with SQL-level concurrency safety.
+- **Code Optimizations**: Post-processing review pass for AI-generated code. Toggle in AI panel settings popover, persisted per-user.
 - **AI Agent**: Tool-use endpoint that can create/edit files and create skills directly in the project
 - **Agent Skills**: Per-project reusable skills (patterns, conventions, domain knowledge) that are automatically injected into AI context. CRUD via REST API + Skills panel in sidebar. AI agent has a `create_skill` tool. Skills stored in `skills` table.
 - **Console Panel**: `ConsolePanel.tsx` — structured run-based console with collapsible run entries, "Show Only Latest" toggle, "Clear past runs" with confirmation, "Ask AI" button per run entry, stop button for active runs. Run history persisted to `console_runs` table. Replaces old flat log list.
@@ -44,7 +46,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at
 - `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
 - `execution_logs`: id (uuid), user_id (indexed), project_id, language, exit_code, duration_ms, security_violation (indexed), code_hash, ip_address, created_at (indexed)
-- `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, stripe_customer_id, stripe_subscription_id, last_reset_at, updated_at
+- `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, daily_credits_used, storage_bytes, total_executions, total_ai_calls, agent_mode, code_optimizations_enabled, credit_alert_threshold, stripe_customer_id, stripe_subscription_id, last_reset_at, updated_at
+- `credit_usage`: id (uuid), user_id, mode, model, credit_cost, endpoint, created_at — tracks per-call credit costs
 - `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
 - `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
 - `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at

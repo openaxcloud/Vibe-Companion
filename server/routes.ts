@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, type InsertDeployment, type CheckpointStateSnapshot } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, type AgentMode, type InsertDeployment, type CheckpointStateSnapshot } from "@shared/schema";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode } from "./executor";
@@ -934,19 +934,72 @@ export async function registerRoutes(
       const quota = await storage.getUserQuota(userId);
       const limits = await storage.getPlanLimits(quota.plan || "free");
       const projectList = await storage.getProjects(userId);
+      const alertThreshold = quota.creditAlertThreshold || 80;
+      const creditPercent = limits.dailyCredits > 0 ? Math.round((quota.dailyCreditsUsed / limits.dailyCredits) * 100) : 0;
       res.json({
         plan: quota.plan,
         daily: {
           executions: { used: quota.dailyExecutionsUsed, limit: limits.dailyExecutions },
           aiCalls: { used: quota.dailyAiCallsUsed, limit: limits.dailyAiCalls },
+          credits: { used: quota.dailyCreditsUsed, limit: limits.dailyCredits },
         },
         storage: { usedMb: Math.round(quota.storageBytes / 1024 / 1024 * 100) / 100, limitMb: limits.storageMb },
         projects: { count: projectList.length, limit: limits.maxProjects },
         totals: { executions: quota.totalExecutions, aiCalls: quota.totalAiCalls },
         resetsAt: new Date(new Date(quota.lastResetAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
+        agentMode: quota.agentMode || "economy",
+        codeOptimizationsEnabled: quota.codeOptimizationsEnabled || false,
+        creditAlertThreshold: alertThreshold,
+        creditAlertTriggered: creditPercent >= alertThreshold,
       });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch usage data" });
+    }
+  });
+
+  app.get("/api/user/credits/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const history = await storage.getCreditHistory(req.session.userId!);
+      const dayMap: Record<string, { economy: number; power: number; turbo: number; total: number }> = {};
+      for (const entry of history) {
+        const day = new Date(entry.createdAt).toISOString().split("T")[0];
+        if (!dayMap[day]) dayMap[day] = { economy: 0, power: 0, turbo: 0, total: 0 };
+        const mode = entry.mode as "economy" | "power" | "turbo";
+        dayMap[day][mode] = (dayMap[day][mode] || 0) + entry.creditCost;
+        dayMap[day].total += entry.creditCost;
+      }
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().split("T")[0];
+        days.push({ date: key, ...(dayMap[key] || { economy: 0, power: 0, turbo: 0, total: 0 }) });
+      }
+      res.json({ days, entries: history.slice(0, 50) });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch credit history" });
+    }
+  });
+
+  app.put("/api/user/agent-preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { agentMode, codeOptimizationsEnabled, creditAlertThreshold } = req.body;
+      const updates: any = {};
+      if (agentMode && ["economy", "power", "turbo"].includes(agentMode)) {
+        if (agentMode === "turbo") {
+          const quota = await storage.getUserQuota(req.session.userId!);
+          if (quota.plan === "free") {
+            return res.status(403).json({ message: "Turbo mode requires Pro or Team plan" });
+          }
+        }
+        updates.agentMode = agentMode;
+      }
+      if (typeof codeOptimizationsEnabled === "boolean") updates.codeOptimizationsEnabled = codeOptimizationsEnabled;
+      if (typeof creditAlertThreshold === "number" && creditAlertThreshold >= 0 && creditAlertThreshold <= 100) updates.creditAlertThreshold = creditAlertThreshold;
+      const updated = await storage.updateAgentPreferences(req.session.userId!, updates);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update preferences" });
     }
   });
 
@@ -3972,7 +4025,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/workspaces/:projectId/preview-proxy/*", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/workspaces/:projectId/preview-proxy/{*path}", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
       if (!project || project.userId !== req.session.userId) {
@@ -3984,7 +4037,8 @@ export async function registerRoutes(
       }
       const rawPort = parseInt(req.query.port as string);
       const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
-      const subpath = "/" + (req.params[0] || "");
+      const rawPath = req.params.path;
+      const subpath = "/" + (Array.isArray(rawPath) ? rawPath.join("/") : rawPath || "");
       const result = await runnerClient.fetchPreviewContent(workspace.id, port, subpath);
       for (const [key, value] of Object.entries(result.headers)) {
         if (key.toLowerCase() !== "content-length") {
@@ -4263,6 +4317,10 @@ Rules:
       if (!imageQuota.allowed) {
         return res.status(429).json({ error: "Daily AI call limit reached. Upgrade to Pro for more." });
       }
+      const imgCreditResult = await storage.deductCredits(req.session.userId!, "economy");
+      if (!imgCreditResult.allowed) {
+        return res.status(429).json({ error: imgCreditResult.reason || "Daily credit limit reached" });
+      }
 
       const imageBuffer = await generateImageBuffer(prompt, imageSize);
       if (!imageBuffer || imageBuffer.length === 0) {
@@ -4349,8 +4407,8 @@ Rules:
       if (!code || typeof cursorOffset !== "number") {
         return res.status(400).json({ message: "code and cursorOffset required" });
       }
-      const quota = await storage.incrementAiCall(req.session.userId!);
-      if (!quota.allowed) {
+      const creditResult = await storage.deductCredits(req.session.userId!, "economy", "gpt-4o-mini", "complete");
+      if (!creditResult.allowed) {
         return res.json({ completion: "" });
       }
       const before = code.slice(Math.max(0, cursorOffset - 1500), cursorOffset);
@@ -4372,7 +4430,7 @@ Rules:
 
   app.post("/api/ai/chat", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
-      const { messages, context, model } = req.body;
+      const { messages, context, model, agentMode: reqMode } = req.body;
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ message: "messages array required" });
       }
@@ -4387,6 +4445,16 @@ Rules:
           return res.status(400).json({ message: "Context code too large" });
         }
       }
+
+      let chatMode: AgentMode = (reqMode && ["economy", "power", "turbo"].includes(reqMode)) ? reqMode : "economy";
+      if (chatMode === "turbo") {
+        const userQuota = await storage.getUserQuota(req.session.userId!);
+        if (userQuota.plan === "free" || !userQuota.plan) {
+          chatMode = "power";
+        }
+      }
+      const selectedModel = model || "claude";
+      const modelId = AGENT_MODE_MODELS[chatMode]?.[selectedModel] || AGENT_MODE_MODELS.economy[selectedModel] || "claude-sonnet-4-6";
 
       let skillsContext = "";
       if (req.body.projectId && typeof req.body.projectId === "string") {
@@ -4411,16 +4479,18 @@ Rules:
 - Include all imports, all functions, and all necessary code for the file to work standalone.
 - When modifying existing code, show the COMPLETE updated file, not just the changed parts.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${skillsContext}`;
 
-      const chatAiQuota = await storage.incrementAiCall(req.session.userId!);
-      if (!chatAiQuota.allowed) {
-        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+      const chatCreditResult = await storage.deductCredits(req.session.userId!, chatMode, modelId, "chat");
+      if (!chatCreditResult.allowed) {
+        return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
       }
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      if (model === "gemini") {
+      const turboMaxTokens = chatMode === "turbo" ? 32768 : 16384;
+
+      if (selectedModel === "gemini") {
         const geminiContents = [
           { role: "user" as const, parts: [{ text: systemPrompt }] },
           { role: "model" as const, parts: [{ text: "Understood. I'm ready to help." }] },
@@ -4431,9 +4501,9 @@ Rules:
         ];
 
         const stream = await gemini.models.generateContentStream({
-          model: "gemini-2.5-flash",
+          model: modelId,
           contents: geminiContents,
-          config: { maxOutputTokens: 16384 },
+          config: { maxOutputTokens: turboMaxTokens },
         });
 
         for await (const chunk of stream) {
@@ -4442,17 +4512,17 @@ Rules:
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
-      } else if (model === "gpt") {
+      } else if (selectedModel === "gpt") {
         const gptMessages = [
           { role: "system" as const, content: systemPrompt },
           ...messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
         ];
 
         const stream = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: modelId,
           messages: gptMessages,
           stream: true,
-          max_completion_tokens: 16384,
+          max_completion_tokens: turboMaxTokens,
         });
 
         for await (const chunk of stream) {
@@ -4463,10 +4533,10 @@ Rules:
         }
       } else {
         const stream = anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
+          model: modelId,
           system: systemPrompt,
           messages: messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
-          max_tokens: 16384,
+          max_tokens: turboMaxTokens,
         });
 
         stream.on("text", (text) => {
@@ -4617,7 +4687,7 @@ Rules:
 
   app.post("/api/ai/agent", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
-      const { messages, projectId, model: requestedModel, optimize } = req.body;
+      const { messages, projectId, model: requestedModel, optimize, agentMode: agentReqMode } = req.body;
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -4636,9 +4706,19 @@ Rules:
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      const agentAiQuota = await storage.incrementAiCall(req.session.userId!);
-      if (!agentAiQuota.allowed) {
-        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+      let agentModeVal: AgentMode = (agentReqMode && ["economy", "power", "turbo"].includes(agentReqMode)) ? agentReqMode : "economy";
+      if (agentModeVal === "turbo") {
+        const modeQuota = await storage.getUserQuota(req.session.userId!);
+        if (modeQuota.plan === "free" || !modeQuota.plan) {
+          agentModeVal = "power";
+        }
+      }
+      const agentSelectedModel = requestedModel || "claude";
+      const agentModelId = AGENT_MODE_MODELS[agentModeVal]?.[agentSelectedModel] || AGENT_MODE_MODELS.economy[agentSelectedModel] || "claude-sonnet-4-6";
+
+      const agentCreditResult = await storage.deductCredits(req.session.userId!, agentModeVal, agentModelId, "agent");
+      if (!agentCreditResult.allowed) {
+        return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
       }
 
       const existingFiles = await storage.getFiles(projectId);
@@ -4677,7 +4757,9 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      if (requestedModel === "gemini") {
+      const agentTurboMaxTokens = agentModeVal === "turbo" ? 32768 : 16384;
+
+      if (agentSelectedModel === "gemini") {
         const geminiTools = [{
           functionDeclarations: [
             {
@@ -4809,7 +4891,7 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
         if (iterations >= MAX_AGENT_ITERATIONS) {
           res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
         }
-      } else if (requestedModel === "gpt") {
+      } else if (agentSelectedModel === "gpt") {
         const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           {
             type: "function",
@@ -4901,10 +4983,10 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
           const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model: agentModelId,
             messages: gptMessages,
             tools: openaiTools,
-            max_completion_tokens: 16384,
+            max_completion_tokens: agentTurboMaxTokens,
           });
 
           const choice = response.choices[0];
@@ -5026,10 +5108,10 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
           const response = await anthropic.messages.create({
-            model: "claude-sonnet-4-6",
+            model: agentModelId,
             system: agentSystemPrompt,
             messages: currentMessages,
-            max_tokens: 4096,
+            max_tokens: agentTurboMaxTokens > 16384 ? 8192 : 4096,
             tools,
           });
 
@@ -5072,7 +5154,9 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
         }
       }
 
-      if (optimize && agentModifiedFiles.size > 0) {
+      const userQuota = await storage.getUserQuota(req.session.userId!);
+      const shouldOptimize = optimize || userQuota.codeOptimizationsEnabled;
+      if (shouldOptimize && agentModifiedFiles.size > 0) {
         const updatedFiles = await storage.getFiles(projectId);
         const changedFiles = updatedFiles.filter(f => agentModifiedFiles.has(f.filename));
         const changedFileSummary = changedFiles
@@ -5095,9 +5179,10 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n---\n\n**🔍 Code Optimization Review**\n\n" })}\n\n`);
 
         try {
-          if (requestedModel === "gemini") {
+          const reviewModelId = AGENT_MODE_MODELS.economy[agentSelectedModel] || "gpt-4o-mini";
+          if (agentSelectedModel === "gemini") {
             const reviewStream = await gemini.models.generateContentStream({
-              model: "gemini-2.5-flash",
+              model: reviewModelId,
               contents: [{ role: "user", parts: [{ text: optimizePrompt }] }],
               config: { maxOutputTokens: 4096 },
             });
@@ -5107,9 +5192,9 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
                 res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
               }
             }
-          } else if (requestedModel === "gpt") {
+          } else if (agentSelectedModel === "gpt") {
             const reviewStream = await openai.chat.completions.create({
-              model: "gpt-4o",
+              model: reviewModelId,
               messages: [{ role: "user", content: optimizePrompt }],
               stream: true,
               max_completion_tokens: 4096,
@@ -5122,7 +5207,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
             }
           } else {
             const reviewStream = anthropic.messages.stream({
-              model: "claude-sonnet-4-6",
+              model: reviewModelId,
               messages: [{ role: "user", content: optimizePrompt }],
               max_tokens: 4096,
             });
@@ -5180,6 +5265,10 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       const liteAiQuota = await storage.incrementAiCall(req.session.userId!);
       if (!liteAiQuota.allowed) {
         return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+      }
+      const liteCreditResult = await storage.deductCredits(req.session.userId!, "economy");
+      if (!liteCreditResult.allowed) {
+        return res.status(429).json({ message: liteCreditResult.reason || "Daily credit limit reached" });
       }
 
       const existingFiles = await storage.getFiles(projectId);
@@ -5425,6 +5514,10 @@ Rules:
       const searchQuota = await storage.incrementAiCall(req.session.userId!);
       if (!searchQuota.allowed) {
         return res.status(429).json({ message: "Daily AI call limit reached." });
+      }
+      const searchCreditResult = await storage.deductCredits(req.session.userId!, "economy");
+      if (!searchCreditResult.allowed) {
+        return res.status(429).json({ message: searchCreditResult.reason || "Daily credit limit reached" });
       }
 
       res.setHeader("Content-Type", "text/event-stream");

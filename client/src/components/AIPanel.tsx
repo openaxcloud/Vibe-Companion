@@ -50,6 +50,7 @@ interface AIPanelProps {
 
 type AIModel = "claude" | "gpt" | "gemini";
 type AIMode = "chat" | "agent" | "plan";
+type AgentMode = "economy" | "power" | "turbo";
 
 interface AgentToolsConfig {
   liteMode: boolean;
@@ -63,6 +64,12 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
   gpt: { name: "GPT-4o", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
   gemini: { name: "Gemini Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
+};
+
+const AGENT_MODE_LABELS: Record<AgentMode, { name: string; cost: number; color: string; description: string }> = {
+  economy: { name: "Economy", cost: 1, color: "text-[#0CCE6B]", description: "Lighter models, 1 credit/call" },
+  power: { name: "Power", cost: 3, color: "text-[#0079F2]", description: "Full models, 3 credits/call" },
+  turbo: { name: "Turbo", cost: 6, color: "text-[#F59E0B]", description: "Priority processing, 6 credits/call" },
 };
 
 const LANG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -177,6 +184,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [copied, setCopied] = useState<string | null>(null);
   const [model, setModel] = useState<AIModel>("gpt");
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
+  const [agentMode, setAgentMode] = useState<AgentMode>(() => {
+    try { return (localStorage.getItem("ai-agent-mode") as AgentMode) || "economy"; } catch { return "economy"; }
+  });
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const [conversationLoaded, setConversationLoaded] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -189,6 +199,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [agentToolsConfig, setAgentToolsConfig] = useState<AgentToolsConfig>({
     liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false,
   });
+  const [showSettings, setShowSettings] = useState(false);
+  const [userPlan, setUserPlan] = useState<string>("free");
+
+  useEffect(() => {
+    fetch("/api/user/usage", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setUserPlan(data.plan || "free");
+          if (data.agentMode) {
+            setAgentMode(data.agentMode as AgentMode);
+            try { localStorage.setItem("ai-agent-mode", data.agentMode); } catch {}
+          }
+          if (typeof data.codeOptimizationsEnabled === "boolean") {
+            setCodeOptimizations(data.codeOptimizationsEnabled);
+            try { localStorage.setItem("ai-code-optimizations", String(data.codeOptimizationsEnabled)); } catch {}
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
@@ -516,6 +547,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const body: any = {
         messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
         model,
+        agentMode,
       };
 
       if (isAgent || isLite) {
@@ -579,7 +611,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
-      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model };
+      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode };
       if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
@@ -711,6 +743,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const next = !prev;
       try { localStorage.setItem("ai-code-optimizations", String(next)); } catch {}
       updateAgentToolsConfig({ codeOptimizations: next });
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      fetch("/api/user/agent-preferences", {
+        method: "PUT", headers, credentials: "include",
+        body: JSON.stringify({ codeOptimizationsEnabled: next }),
+      }).catch(() => {});
       return next;
     });
   };
@@ -721,6 +760,18 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       updateAgentToolsConfig({ liteMode: next });
       return next;
     });
+  };
+
+  const handleAgentModeChange = (newMode: AgentMode) => {
+    setAgentMode(newMode);
+    try { localStorage.setItem("ai-agent-mode", newMode); } catch {}
+    const csrfToken = getCsrfToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+    fetch("/api/user/agent-preferences", {
+      method: "PUT", headers, credentials: "include",
+      body: JSON.stringify({ agentMode: newMode }),
+    }).catch(() => {});
   };
 
   const generateImage = async (prompt: string, size: string = "1024x1024", filename?: string) => {
@@ -1182,6 +1233,49 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${AGENT_MODE_LABELS[agentMode].color} bg-current/10 hover:opacity-80 transition-opacity`} data-testid="button-agent-mode-select">
+                <Gauge className="w-2.5 h-2.5" />
+                {AGENT_MODE_LABELS[agentMode].name}
+                <span className="text-[9px] opacity-60">({AGENT_MODE_LABELS[agentMode].cost}x)</span>
+                <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+              {(["economy", "power"] as AgentMode[]).map((m) => (
+                <DropdownMenuItem
+                  key={m}
+                  className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                  onClick={() => handleAgentModeChange(m)}
+                  data-testid={`agent-mode-${m}`}
+                >
+                  <div className="flex flex-col flex-1">
+                    <span className={`font-medium ${AGENT_MODE_LABELS[m].color}`}>{AGENT_MODE_LABELS[m].name}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]">{AGENT_MODE_LABELS[m].description}</span>
+                  </div>
+                  {agentMode === m && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                className={`gap-2.5 text-xs rounded-md px-2 py-1.5 ${userPlan === "free" ? "opacity-50 cursor-not-allowed" : "text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer"}`}
+                onClick={() => userPlan !== "free" && handleAgentModeChange("turbo")}
+                data-testid="agent-mode-turbo"
+              >
+                <div className="flex flex-col flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-medium ${AGENT_MODE_LABELS.turbo.color}`}>Turbo</span>
+                    {userPlan === "free" && (
+                      <span className="text-[8px] px-1 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B] font-semibold" data-testid="badge-turbo-pro">PRO</span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-[var(--ide-text-muted)]">{AGENT_MODE_LABELS.turbo.description}</span>
+                </div>
+                {agentMode === "turbo" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {projectId && (
             <Popover>
               <PopoverTrigger asChild>

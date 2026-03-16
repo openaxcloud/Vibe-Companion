@@ -236,12 +236,30 @@ export const userQuotas = pgTable("user_quotas", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   dailyExecutionsUsed: integer("daily_executions_used").notNull().default(0),
   dailyAiCallsUsed: integer("daily_ai_calls_used").notNull().default(0),
+  dailyCreditsUsed: integer("daily_credits_used").notNull().default(0),
   storageBytes: integer("storage_bytes").notNull().default(0),
   totalExecutions: integer("total_executions").notNull().default(0),
   totalAiCalls: integer("total_ai_calls").notNull().default(0),
+  agentMode: text("agent_mode").notNull().default("economy"),
+  codeOptimizationsEnabled: boolean("code_optimizations_enabled").notNull().default(false),
+  creditAlertThreshold: integer("credit_alert_threshold").notNull().default(80),
   lastResetAt: timestamp("last_reset_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const creditUsage = pgTable("credit_usage", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  mode: text("mode").notNull(),
+  model: text("model").notNull(),
+  creditCost: integer("credit_cost").notNull(),
+  endpoint: text("endpoint").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCreditUsageSchema = createInsertSchema(creditUsage).omit({ id: true, createdAt: true });
+export type InsertCreditUsage = z.infer<typeof insertCreditUsageSchema>;
+export type CreditUsage = typeof creditUsage.$inferSelect;
 
 export const insertUserQuotaSchema = createInsertSchema(userQuotas).pick({
   userId: true,
@@ -257,10 +275,24 @@ export const UPLOAD_LIMITS = {
 } as const;
 
 export const PLAN_LIMITS = {
-  free: { dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5, price: 0 },
-  pro: { dailyExecutions: 500, dailyAiCalls: 200, storageMb: 5000, maxProjects: 50, price: 1200 },
-  team: { dailyExecutions: 2000, dailyAiCalls: 1000, storageMb: 50000, maxProjects: 200, price: 2500 },
+  free: { dailyExecutions: 50, dailyAiCalls: 20, dailyCredits: 100, storageMb: 50, maxProjects: 5, price: 0 },
+  pro: { dailyExecutions: 500, dailyAiCalls: 200, dailyCredits: 1000, storageMb: 5000, maxProjects: 50, price: 1200 },
+  team: { dailyExecutions: 2000, dailyAiCalls: 1000, dailyCredits: 5000, storageMb: 50000, maxProjects: 200, price: 2500 },
 } as const;
+
+export const AGENT_MODE_COSTS = {
+  economy: 1,
+  power: 3,
+  turbo: 6,
+} as const;
+
+export type AgentMode = "economy" | "power" | "turbo";
+
+export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
+  economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash" },
+  power: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+  turbo: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+};
 
 export const customDomains = pgTable("custom_domains", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

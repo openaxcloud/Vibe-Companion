@@ -24,6 +24,7 @@ import {
   checkpoints, checkpointPositions,
   accountEnvVars, accountEnvVarLinks,
   tasks, taskSteps, taskMessages, taskFileSnapshots,
+  creditUsage,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -76,7 +77,10 @@ import {
   type TaskStep, type InsertTaskStep,
   type TaskMessage, type InsertTaskMessage,
   type TaskFileSnapshot, type InsertTaskFileSnapshot,
+  type CreditUsage,
+  type AgentMode,
   PLAN_LIMITS,
+  AGENT_MODE_COSTS,
 } from "@shared/schema";
 import { encrypt, decrypt, migrateToEncrypted } from "./encryption";
 
@@ -151,6 +155,9 @@ export interface IStorage {
   getUserQuota(userId: string): Promise<UserQuota>;
   incrementExecution(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
   incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
+  deductCredits(userId: string, mode: AgentMode, model: string, endpoint: string): Promise<{ allowed: boolean; quota: UserQuota; creditCost: number }>;
+  getCreditHistory(userId: string, days?: number): Promise<CreditUsage[]>;
+  updateAgentPreferences(userId: string, data: Partial<{ agentMode: string; codeOptimizationsEnabled: boolean; creditAlertThreshold: number }>): Promise<UserQuota>;
   checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
   updateStorageUsage(userId: string): Promise<number>;
   updateUserPlan(userId: string, plan: string, stripeCustomerId?: string, stripeSubscriptionId?: string): Promise<UserQuota | undefined>;
@@ -236,7 +243,7 @@ export interface IStorage {
   getAllPlanConfigs(): Promise<PlanConfig[]>;
   seedPlanConfigs(): Promise<void>;
 
-  getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; storageMb: number; maxProjects: number; price: number }>;
+  getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; dailyCredits: number; storageMb: number; maxProjects: number; price: number }>;
   getLandingStats(): Promise<{ label: string; value: string }[]>;
   getUserRecentLanguages(userId: string): Promise<string[]>;
 
@@ -777,7 +784,7 @@ export class DatabaseStorage implements IStorage {
     }
     if (this.resetIfNewDay(quota)) {
       [quota] = await db.update(userQuotas)
-        .set({ dailyExecutionsUsed: 0, dailyAiCallsUsed: 0, lastResetAt: new Date(), updatedAt: new Date() })
+        .set({ dailyExecutionsUsed: 0, dailyAiCallsUsed: 0, dailyCreditsUsed: 0, lastResetAt: new Date(), updatedAt: new Date() })
         .where(eq(userQuotas.userId, userId)).returning();
     }
     return quota;
@@ -801,6 +808,54 @@ export class DatabaseStorage implements IStorage {
       .set({ dailyAiCallsUsed: quota.dailyAiCallsUsed + 1, totalAiCalls: quota.totalAiCalls + 1, updatedAt: new Date() })
       .where(eq(userQuotas.userId, userId)).returning();
     return { allowed: true, quota: updated };
+  }
+
+  async deductCredits(userId: string, mode: AgentMode, model: string, endpoint: string): Promise<{ allowed: boolean; quota: UserQuota; creditCost: number }> {
+    const quota = await this.getUserQuota(userId);
+    const limits = await this.getPlanLimits(quota.plan || "free");
+    const creditCost = AGENT_MODE_COSTS[mode] || 1;
+
+    if (mode === "turbo" && (quota.plan === "free" || !quota.plan)) {
+      return { allowed: false, quota, creditCost };
+    }
+
+    const result = await db.update(userQuotas)
+      .set({
+        dailyCreditsUsed: sql`${userQuotas.dailyCreditsUsed} + ${creditCost}`,
+        dailyAiCallsUsed: sql`${userQuotas.dailyAiCallsUsed} + 1`,
+        totalAiCalls: sql`${userQuotas.totalAiCalls} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(userQuotas.userId, userId),
+        sql`${userQuotas.dailyCreditsUsed} + ${creditCost} <= ${limits.dailyCredits}`
+      ))
+      .returning();
+
+    if (result.length === 0) {
+      return { allowed: false, quota, creditCost };
+    }
+
+    await db.insert(creditUsage).values({ userId, mode, model, creditCost, endpoint });
+    return { allowed: true, quota: result[0], creditCost };
+  }
+
+  async getCreditHistory(userId: string, days: number = 7): Promise<CreditUsage[]> {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    return db.select().from(creditUsage)
+      .where(and(eq(creditUsage.userId, userId), gte(creditUsage.createdAt, since)))
+      .orderBy(desc(creditUsage.createdAt));
+  }
+
+  async updateAgentPreferences(userId: string, data: Partial<{ agentMode: string; codeOptimizationsEnabled: boolean; creditAlertThreshold: number }>): Promise<UserQuota> {
+    const quota = await this.getUserQuota(userId);
+    const updates: any = { updatedAt: new Date() };
+    if (data.agentMode !== undefined) updates.agentMode = data.agentMode;
+    if (data.codeOptimizationsEnabled !== undefined) updates.codeOptimizationsEnabled = data.codeOptimizationsEnabled;
+    if (data.creditAlertThreshold !== undefined) updates.creditAlertThreshold = data.creditAlertThreshold;
+    const [updated] = await db.update(userQuotas).set(updates).where(eq(userQuotas.userId, userId)).returning();
+    return updated;
   }
 
   async checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }> {
@@ -1295,10 +1350,12 @@ export class DatabaseStorage implements IStorage {
     ]);
   }
 
-  async getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; storageMb: number; maxProjects: number; price: number }> {
+  async getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; dailyCredits: number; storageMb: number; maxProjects: number; price: number }> {
     const config = await this.getPlanConfig(plan);
     if (config) {
-      return { dailyExecutions: config.dailyExecutions, dailyAiCalls: config.dailyAiCalls, storageMb: config.storageMb, maxProjects: config.maxProjects, price: config.price };
+      const planKey = plan as keyof typeof PLAN_LIMITS;
+      const credits = PLAN_LIMITS[planKey]?.dailyCredits || PLAN_LIMITS.free.dailyCredits;
+      return { dailyExecutions: config.dailyExecutions, dailyAiCalls: config.dailyAiCalls, dailyCredits: credits, storageMb: config.storageMb, maxProjects: config.maxProjects, price: config.price };
     }
     const fallback = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
     return { ...fallback };

@@ -33,11 +33,15 @@ import type { Project } from "@shared/schema";
 
 interface UsageData {
   plan: string;
-  daily: { executions: { used: number; limit: number }; aiCalls: { used: number; limit: number } };
+  daily: { executions: { used: number; limit: number }; aiCalls: { used: number; limit: number }; credits?: { used: number; limit: number } };
   storage: { usedMb: number; limitMb: number };
   projects: { count: number; limit: number };
   totals: { executions: number; aiCalls: number };
   resetsAt: string;
+  agentMode?: string;
+  codeOptimizationsEnabled?: boolean;
+  creditAlertThreshold?: number;
+  creditAlertTriggered?: boolean;
 }
 
 const LANG_ICONS: Record<string, { color: string; bg: string; label: string; borderAccent: string }> = {
@@ -726,11 +730,11 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
-                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Sparkles className="w-3 h-3" /> Credits</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.daily.credits?.used || 0}/{usageQuery.data.daily.credits?.limit || 100}</span>
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#7C65CB] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.aiCalls.used / usageQuery.data.daily.aiCalls.limit) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-gradient-to-r from-[#0CCE6B] to-[#7C65CB] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.daily.credits?.used || 0) / (usageQuery.data.daily.credits?.limit || 100)) * 100)}%` }} />
                 </div>
               </div>
               <div>
@@ -1074,11 +1078,11 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-ai-usage">{usageQuery.data.daily.aiCalls.used}/{usageQuery.data.daily.aiCalls.limit}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Sparkles className="w-3 h-3" /> Credits</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-ai-usage">{usageQuery.data.daily.credits?.used || 0}/{usageQuery.data.daily.credits?.limit || 100}</span>
                   </div>
                   <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
-                    <div className="h-full rounded-full bg-[#7C65CB] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.aiCalls.used / usageQuery.data.daily.aiCalls.limit) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-gradient-to-r from-[#0CCE6B] to-[#7C65CB] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.daily.credits?.used || 0) / (usageQuery.data.daily.credits?.limit || 100)) * 100)}%` }} />
                   </div>
                 </div>
                 <div>
