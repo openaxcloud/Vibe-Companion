@@ -5041,6 +5041,346 @@ Rules:
     return res.json(msg);
   });
 
+  function parsePlanFromResponse(content: string): { title: string; tasks: { title: string; description: string; complexity: string; dependsOn: number[] }[] } | null {
+    const validComplexities = ["simple", "medium", "complex"];
+
+    function validateParsed(parsed: Record<string, unknown>): { title: string; tasks: { title: string; description: string; complexity: string; dependsOn: number[] }[] } | null {
+      if (!parsed.tasks || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0) return null;
+      return {
+        title: typeof parsed.title === "string" ? parsed.title : "Untitled Plan",
+        tasks: parsed.tasks.map((t: Record<string, unknown>, i: number) => ({
+          title: typeof t.title === "string" ? t.title : `Task ${i + 1}`,
+          description: typeof t.description === "string" ? t.description : "",
+          complexity: typeof t.complexity === "string" && validComplexities.includes(t.complexity) ? t.complexity : "medium",
+          dependsOn: Array.isArray(t.dependsOn) ? t.dependsOn.filter((d): d is number => typeof d === "number") : [],
+        })),
+      };
+    }
+
+    try {
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[1].trim());
+        const result = validateParsed(parsed);
+        if (result) return result;
+      }
+    } catch {}
+
+    try {
+      const rawJsonMatch = content.match(/\{[\s\S]*"tasks"\s*:\s*\[[\s\S]*\]\s*[\s\S]*\}/);
+      if (rawJsonMatch) {
+        const parsed = JSON.parse(rawJsonMatch[0]);
+        return validateParsed(parsed);
+      }
+    } catch {}
+
+    return null;
+  }
+
+  app.post("/api/ai/plan", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { messages, projectId, model: requestedModel } = req.body;
+      if (!messages || !Array.isArray(messages) || !projectId) {
+        return res.status(400).json({ message: "messages array and projectId required" });
+      }
+
+      const msgError = validateAIMessages(messages);
+      if (msgError) {
+        return res.status(400).json({ message: msgError });
+      }
+
+      if (typeof projectId !== "string" || projectId.length > 100) {
+        return res.status(400).json({ message: "Invalid projectId" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const planQuota = await storage.incrementAiCall(req.session.userId!);
+      if (!planQuota.allowed) {
+        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+      }
+
+      const existingFiles = await storage.getFiles(projectId);
+      const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
+
+      const planSystemPrompt = `You are a senior software architect and project planner embedded in Replit IDE. Your role is to help users plan, brainstorm, and create structured task lists for their projects.
+
+Current project: "${project.name}" (${project.language})
+Existing files:
+${fileList || "(no files yet)"}
+
+IMPORTANT RULES:
+- NEVER generate code, file modifications, or implementation details
+- Focus on architecture, planning, trade-off analysis, risk assessment, and roadmap generation
+- Always produce a structured task list as part of your response
+- Support follow-up refinement (e.g., "add authentication to the plan", "split task 3")
+
+You MUST respond with a JSON block wrapped in \`\`\`json ... \`\`\` containing a "tasks" array. Each task object must have:
+- "title": short task name
+- "description": 1-3 sentence explanation of what to do
+- "complexity": one of "simple", "medium", "complex"
+- "dependsOn": array of task indices (0-based) this task depends on, or empty array
+
+Before the JSON block, provide a brief analysis/overview in plain text (2-4 paragraphs max). After the JSON block, you may add brief closing remarks.
+
+Example format:
+Here's my analysis of your request...
+
+\`\`\`json
+{
+  "title": "Plan Title",
+  "tasks": [
+    {"title": "Setup project structure", "description": "Create the folder layout and config files", "complexity": "simple", "dependsOn": []},
+    {"title": "Build data layer", "description": "Set up database schema and ORM", "complexity": "medium", "dependsOn": [0]}
+  ]
+}
+\`\`\`
+
+Any closing remarks...`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      let fullContent = "";
+
+      if (requestedModel === "gemini") {
+        const geminiContents = [
+          { role: "user" as const, parts: [{ text: planSystemPrompt }] },
+          { role: "model" as const, parts: [{ text: "Understood. I'll help plan and architect your project with structured task lists." }] },
+          ...messages.map((m: { role: string; content: string }) => ({
+            role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
+            parts: [{ text: m.content }],
+          })),
+        ];
+
+        const stream = await gemini.models.generateContentStream({
+          model: "gemini-2.5-flash",
+          contents: geminiContents,
+          config: { maxOutputTokens: 16384 },
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.text || "";
+          if (content) {
+            fullContent += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } else if (requestedModel === "gpt") {
+        const gptMessages = [
+          { role: "system" as const, content: planSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ];
+
+        const stream = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: gptMessages,
+          stream: true,
+          max_completion_tokens: 16384,
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            fullContent += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } else {
+        const stream = anthropic.messages.stream({
+          model: "claude-sonnet-4-6",
+          system: planSystemPrompt,
+          messages: messages.map((m: { role: string; content: string }) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+          max_tokens: 16384,
+        });
+
+        stream.on("text", (text) => {
+          fullContent += text;
+          res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+        });
+
+        await stream.finalMessage();
+      }
+
+      const userId = req.session.userId!;
+      const planData = parsePlanFromResponse(fullContent);
+      if (planData) {
+        const { plan, createdTasks } = await storage.replacePlanAtomically({
+          projectId,
+          userId,
+          title: planData.title,
+          model: requestedModel || "gpt",
+          tasks: planData.tasks.map(t => ({ ...t, dependsOn: t.dependsOn.map(String) })),
+          userMessage: messages[messages.length - 1]?.content || "",
+          assistantMessage: fullContent,
+        });
+
+        res.write(`data: ${JSON.stringify({
+          type: "plan_created",
+          plan: { id: plan.id, title: plan.title, status: plan.status, model: plan.model },
+          tasks: createdTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            complexity: t.complexity,
+            dependsOn: t.dependsOn,
+            status: t.status,
+            orderIndex: t.orderIndex,
+          })),
+        })}\n\n`);
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      log(`AI plan error: ${errMsg}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "AI service error" });
+      }
+    }
+  });
+
+  app.get("/api/ai/plans/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const plan = await storage.getLatestPlan(req.params.projectId, req.session.userId!);
+      if (!plan) {
+        return res.json({ plan: null, tasks: [], messages: [] });
+      }
+      const tasks = await storage.getPlanTasks(plan.id);
+
+      let planMessages: { id: string; role: string; content: string; model: string | null }[] = [];
+      const conv = await storage.getPlanConversation(req.params.projectId, req.session.userId!);
+      if (conv) {
+        const msgs = await storage.getMessages(conv.id);
+        planMessages = msgs.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          model: m.model,
+        }));
+      }
+
+      return res.json({ plan, tasks, messages: planMessages });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ message: errMsg });
+    }
+  });
+
+  app.put("/api/ai/plans/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const plan = await storage.getLatestPlan(req.params.projectId, req.session.userId!);
+      if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+      const { title, status } = req.body;
+      const updateData: Partial<{ title: string; status: string }> = {};
+      if (typeof title === "string") updateData.title = title;
+      if (typeof status === "string") updateData.status = status;
+
+      const updatedPlan = await storage.updatePlan(plan.id, updateData);
+      return res.json({ plan: updatedPlan });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ message: errMsg });
+    }
+  });
+
+  app.put("/api/ai/plans/:planId/tasks/:taskId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const plan = await storage.getPlan(req.params.planId);
+      if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+      const project = await storage.getProject(plan.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const planTasks = await storage.getPlanTasks(plan.id);
+      const taskBelongsToPlan = planTasks.some(t => t.id === req.params.taskId);
+      if (!taskBelongsToPlan) {
+        return res.status(404).json({ message: "Task not found in this plan" });
+      }
+
+      const { status } = req.body;
+      if (typeof status !== "string") return res.status(400).json({ message: "status required" });
+
+      const task = await storage.updatePlanTask(req.params.taskId, { status });
+      if (!task) return res.status(404).json({ message: "Task not found" });
+
+      return res.json({ task });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ message: errMsg });
+    }
+  });
+
+  app.post("/api/ai/plans/:planId/approve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const plan = await storage.getPlan(req.params.planId);
+      if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+      const project = await storage.getProject(plan.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const updatedPlan = await storage.updatePlan(plan.id, { status: "approved" });
+      const tasks = await storage.getPlanTasks(plan.id);
+
+      return res.json({ plan: updatedPlan, tasks });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ message: errMsg });
+    }
+  });
+
+  app.delete("/api/ai/plans/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const plan = await storage.getLatestPlan(req.params.projectId, req.session.userId!);
+      if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+      await storage.deletePlan(plan.id);
+
+      const conv = await storage.getPlanConversation(req.params.projectId, req.session.userId!);
+      if (conv) {
+        await storage.deleteConversation(conv.id);
+      }
+
+      return res.json({ message: "Plan deleted" });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ message: errMsg });
+    }
+  });
+
   app.post("/api/ai/complete", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
       const { code, cursorOffset, language } = req.body;
@@ -5301,7 +5641,8 @@ Rules:
     existingFiles: { id: string; filename: string; content: string }[],
     res: Response,
     modifiedFiles?: Set<string>,
-    mcpDefs?: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[]
+    mcpDefs?: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[],
+    onToolComplete?: () => Promise<void>
   ): Promise<string> => {
     try {
       if (toolName === "web_search") {
@@ -5543,10 +5884,11 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
         } else {
           const file = await storage.createFile(projectId, { filename: safeName, content: safeContent });
-          existingFiles.push(file);
+          existingFiles.push(file as { id: string; filename: string; content: string });
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
         }
         if (modifiedFiles) modifiedFiles.add(safeName);
+        if (onToolComplete) await onToolComplete();
         return "Done";
       }
       return "Unknown tool";
@@ -5665,6 +6007,18 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
 - Include proper app.json with Expo configuration
 - Include package.json with Expo dependencies (expo, react-native, react-native-web, react-dom)` : "";
 
+      const planUserId = req.session.userId!;
+      const approvedPlanForContext = await storage.getLatestPlan(projectId, planUserId);
+      let planContext = "";
+      if (approvedPlanForContext && approvedPlanForContext.status === "approved") {
+        const pTasks = await storage.getPlanTasks(approvedPlanForContext.id);
+        if (pTasks.length > 0) {
+          planContext = `\n\nAPPROVED PLAN: "${approvedPlanForContext.title}"\nTasks to implement (in order):\n` +
+            pTasks.map((t, i) => `${i + 1}. [${t.status.toUpperCase()}] ${t.title}: ${t.description}`).join("\n") +
+            `\n\nFollow this plan sequentially. Mark each task as complete by implementing all its requirements before moving to the next.`;
+        }
+      }
+
       const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
 Current project: "${project.name}" (${project.language}${isMobileProject ? ", mobile-app" : ""})
@@ -5696,7 +6050,7 @@ You have access to web search tools. Use them when:
 - The user asks you to research something or find specific information online
 
 Use \`web_search\` to search for information. Use \`fetch_url\` to read the full content of a specific URL when you need more detail than the search snippet provides.
-Always cite your sources in your response when using information from web searches.` : ""}${agentSkillsContext}${mcpToolsContext}`;
+Always cite your sources in your response when using information from web searches.` : ""}${agentSkillsContext}${mcpToolsContext}${planContext}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -5707,6 +6061,48 @@ Always cite your sources in your response when using information from web search
       }
 
       const agentTurboMaxTokens = agentModeVal === "turbo" ? 32768 : 16384;
+
+      const userId = req.session.userId!;
+      const approvedPlan = await storage.getLatestPlan(projectId, userId);
+      let planTasks: { id: string; title: string; description: string; status: string; orderIndex: number }[] = [];
+      let currentTaskIndex = 0;
+      if (approvedPlan && approvedPlan.status === "approved") {
+        const tasks = await storage.getPlanTasks(approvedPlan.id);
+        planTasks = tasks.map(t => ({ id: t.id, title: t.title, description: t.description, status: t.status, orderIndex: t.orderIndex }));
+        const firstPending = planTasks.findIndex(t => t.status === "pending");
+        currentTaskIndex = firstPending >= 0 ? firstPending : 0;
+      }
+
+      async function advancePlanTask() {
+        if (planTasks.length === 0 || !approvedPlan) return;
+        if (currentTaskIndex >= planTasks.length) return;
+
+        const task = planTasks[currentTaskIndex];
+        if (task.status === "pending") {
+          await storage.updatePlanTask(task.id, { status: "in-progress" });
+          task.status = "in-progress";
+          res.write(`data: ${JSON.stringify({ type: "task_progress", taskId: task.id, status: "in-progress", orderIndex: task.orderIndex })}\n\n`);
+        }
+      }
+
+      async function completePlanTask() {
+        if (planTasks.length === 0 || !approvedPlan) return;
+        if (currentTaskIndex >= planTasks.length) return;
+
+        const task = planTasks[currentTaskIndex];
+        await storage.updatePlanTask(task.id, { status: "done" });
+        task.status = "done";
+        res.write(`data: ${JSON.stringify({ type: "task_progress", taskId: task.id, status: "done", orderIndex: task.orderIndex })}\n\n`);
+        currentTaskIndex++;
+
+        if (currentTaskIndex < planTasks.length) {
+          await advancePlanTask();
+        }
+      }
+
+      if (planTasks.length > 0) {
+        await advancePlanTask();
+      }
 
       if (agentSelectedModel === "gemini") {
         const geminiToolDeclarations: FunctionDeclaration[] = [
@@ -5902,7 +6298,7 @@ Always cite your sources in your response when using information from web search
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
+              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
 
               toolResponseParts.push({
                 functionResponse: {
@@ -6143,7 +6539,7 @@ Always cite your sources in your response when using information from web search
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
 
               toolResultMessages.push({
                 role: "tool",
@@ -6347,7 +6743,7 @@ Always cite your sources in your response when using information from web search
               const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
+              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
               toolResultMap.set(block.id, result);
             }
           }

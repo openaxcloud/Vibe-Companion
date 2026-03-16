@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect, useCallback, Suspense } from "react
 import { Button } from "@/components/ui/button";
 import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
-  FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
+  FileCode, FilePlus, FileEdit, ChevronDown, ChevronRight, Zap, MessageSquare,
   FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield,
   Mic, MicOff, Paperclip, Image, FileText, XCircle, ImagePlus, Loader2, ToggleLeft, ToggleRight,
   Settings2, Search, FlaskConical, Brain, Globe,
-  Pause, GripVertical, Pencil, ListOrdered, ChevronUp
+  Pause, GripVertical, Pencil, ListOrdered, ChevronUp,
+  Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -61,6 +62,24 @@ interface QueuedMsg {
   status: string;
 }
 
+interface PlanTask {
+  id?: string;
+  title: string;
+  description: string;
+  complexity: "simple" | "medium" | "complex";
+  dependsOn: number[];
+  status: "pending" | "in-progress" | "done";
+  orderIndex: number;
+}
+
+interface Plan {
+  id: string;
+  title: string;
+  status: string;
+  model: string;
+  tasks: PlanTask[];
+}
+
 interface AIPanelProps {
   context?: { language: string; filename: string; code: string };
   onClose: () => void;
@@ -75,6 +94,7 @@ interface AIPanelProps {
 
 type AIModel = "claude" | "gpt" | "gemini";
 type AIMode = "chat" | "agent" | "plan";
+type TopMode = "plan" | "build";
 type AgentMode = "economy" | "power" | "turbo";
 
 interface AgentToolsConfig {
@@ -115,6 +135,12 @@ const LANG_COLORS: Record<string, { bg: string; text: string }> = {
   rust: { bg: "bg-orange-600/20", text: "text-orange-500" },
   go: { bg: "bg-cyan-600/20", text: "text-cyan-400" },
   java: { bg: "bg-red-500/20", text: "text-red-400" },
+};
+
+const COMPLEXITY_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  simple: { bg: "bg-green-500/15", text: "text-green-400", label: "Simple" },
+  medium: { bg: "bg-amber-500/15", text: "text-amber-400", label: "Medium" },
+  complex: { bg: "bg-red-500/15", text: "text-red-400", label: "Complex" },
 };
 
 function TypingIndicator() {
@@ -194,6 +220,124 @@ function WebSearchCitations({ results }: { results: WebSearchResult[] }) {
   );
 }
 
+function PlanTaskCard({ task, index, expanded, onToggle, onStatusChange }: {
+  task: PlanTask;
+  index: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onStatusChange?: (status: "pending" | "in-progress" | "done") => void;
+}) {
+  const complexity = COMPLEXITY_COLORS[task.complexity] || COMPLEXITY_COLORS.medium;
+  const statusIcon = task.status === "done"
+    ? <CheckCircle2 className="w-4 h-4 text-[#0CCE6B]" />
+    : task.status === "in-progress"
+    ? <Clock className="w-4 h-4 text-[#F59E0B] animate-pulse" />
+    : <Circle className="w-4 h-4 text-[var(--ide-text-muted)]" />;
+
+  return (
+    <div
+      className={`rounded-lg border transition-all ${
+        task.status === "done"
+          ? "border-[#0CCE6B]/20 bg-[#0CCE6B]/5"
+          : task.status === "in-progress"
+          ? "border-[#F59E0B]/20 bg-[#F59E0B]/5"
+          : "border-[var(--ide-border)] bg-[var(--ide-surface)]/50"
+      }`}
+      data-testid={`card-plan-task-${index}`}
+    >
+      <button
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+        onClick={onToggle}
+        data-testid={`button-toggle-task-${index}`}
+      >
+        {statusIcon}
+        <span className="flex-1 text-[12px] font-medium text-[var(--ide-text)] truncate">
+          {index + 1}. {task.title}
+        </span>
+        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${complexity.bg} ${complexity.text}`}>
+          {complexity.label}
+        </span>
+        <ChevronRight className={`w-3.5 h-3.5 text-[var(--ide-text-muted)] transition-transform ${expanded ? "rotate-90" : ""}`} />
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 pt-0 border-t border-[var(--ide-border)]/50">
+          <p className="text-[11px] text-[var(--ide-text-secondary)] leading-relaxed mt-2">
+            {task.description}
+          </p>
+          {task.dependsOn.length > 0 && (
+            <div className="flex items-center gap-1 mt-2">
+              <span className="text-[9px] text-[var(--ide-text-muted)]">Depends on:</span>
+              {task.dependsOn.map((dep) => (
+                <span key={dep} className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--ide-surface)] text-[var(--ide-text-secondary)] font-mono">
+                  Task {dep + 1}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlanTaskChecklist({ tasks, onTaskStatusChange }: {
+  tasks: PlanTask[];
+  onTaskStatusChange: (index: number, status: "pending" | "in-progress" | "done") => void;
+}) {
+  const completed = tasks.filter(t => t.status === "done").length;
+  const inProgress = tasks.filter(t => t.status === "in-progress").length;
+  const progress = tasks.length > 0 ? (completed / tasks.length) * 100 : 0;
+
+  return (
+    <div className="border-b border-[var(--ide-border)] bg-[var(--ide-bg)]/80 shrink-0">
+      <div className="px-3 py-2">
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-[#7C65CB]" />
+            <span className="text-[10px] font-semibold text-[var(--ide-text)] uppercase tracking-wider">Build Progress</span>
+          </div>
+          <span className="text-[10px] text-[var(--ide-text-muted)]">
+            {completed}/{tasks.length} done
+            {inProgress > 0 && ` · ${inProgress} active`}
+          </span>
+        </div>
+        <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#7C65CB] to-[#0CCE6B] transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+      <div className="px-3 pb-2 max-h-[120px] overflow-y-auto space-y-0.5">
+        {tasks.map((task, i) => (
+          <div key={i} className="flex items-center gap-2 py-0.5 text-[10px] group">
+            <button
+              className="shrink-0 hover:opacity-70 transition-opacity"
+              onClick={() => {
+                const nextStatus = task.status === "pending" ? "in-progress" : task.status === "in-progress" ? "done" : "pending";
+                onTaskStatusChange(i, nextStatus);
+              }}
+              title={`Click to change status (${task.status})`}
+              data-testid={`button-task-status-${i}`}
+            >
+              {task.status === "done" ? (
+                <CheckCircle2 className="w-3 h-3 text-[#0CCE6B]" />
+              ) : task.status === "in-progress" ? (
+                <Clock className="w-3 h-3 text-[#F59E0B] animate-pulse" />
+              ) : (
+                <Circle className="w-3 h-3 text-[var(--ide-text-muted)]" />
+              )}
+            </button>
+            <span className={`truncate ${task.status === "done" ? "text-[var(--ide-text-muted)] line-through" : "text-[var(--ide-text-secondary)]"}`}>
+              {task.title}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WebSearchIndicator({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 py-2 px-1" data-testid="web-search-indicator">
@@ -257,6 +401,28 @@ class AIPanelErrorBoundary extends React.Component<
   }
 }
 
+function parsePlanFromResponse(content: string): { title: string; tasks: PlanTask[] } | null {
+  try {
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[1].trim());
+    if (!parsed.tasks || !Array.isArray(parsed.tasks)) return null;
+    return {
+      title: parsed.title || "Untitled Plan",
+      tasks: parsed.tasks.map((t: any, i: number) => ({
+        title: t.title || `Task ${i + 1}`,
+        description: t.description || "",
+        complexity: ["simple", "medium", "complex"].includes(t.complexity) ? t.complexity : "medium",
+        dependsOn: Array.isArray(t.dependsOn) ? t.dependsOn : [],
+        status: "pending" as const,
+        orderIndex: i,
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -267,6 +433,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [agentMode, setAgentMode] = useState<AgentMode>(() => {
     try { return (localStorage.getItem("ai-agent-mode") as AgentMode) || "economy"; } catch { return "economy"; }
   });
+  const [topMode, setTopMode] = useState<TopMode>("build");
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const [conversationLoaded, setConversationLoaded] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -317,6 +484,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const pausedRef = useRef(false);
   const [ecodeStatus, setEcodeStatus] = useState<{ exists: boolean; fileId: string | null }>({ exists: false, fileId: null });
   const [ecodeGenerating, setEcodeGenerating] = useState(false);
+  const [planMessages, setPlanMessages] = useState<ChatMessage[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
+  const [approvedPlanTasks, setApprovedPlanTasks] = useState<PlanTask[] | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -368,11 +539,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         if (data.conversation) {
           if (data.conversation.model) setModel(data.conversation.model as AIModel);
           if (data.messages && data.messages.length > 0) {
-            setMessages(data.messages.map((m: any) => ({
+            setMessages(data.messages.map((m: { id: string; role: string; content: string; model?: string; fileOps?: { type: "created" | "updated"; filename: string }[] }) => ({
               id: m.id,
-              role: m.role,
+              role: m.role as "user" | "assistant",
               content: m.content,
-              model: m.model || undefined,
+              model: (m.model || undefined) as AIModel | undefined,
               fileOps: m.fileOps || undefined,
             })));
           }
@@ -387,12 +558,45 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     if (!projectId) return;
     (async () => {
       try {
-        const res = await fetch(`/api/ai/queue/${projectId}`, { credentials: "include" });
+        const queueRes = await fetch(`/api/ai/queue/${projectId}`, { credentials: "include" });
+        if (queueRes.ok) {
+          const queueData = await queueRes.json();
+          if (Array.isArray(queueData) && queueData.length > 0) {
+            setQueuedMessages(queueData.map((m: any) => ({ id: m.id, content: m.content, attachments: m.attachments, position: m.position, status: m.status })));
+            setIsQueueDrawerOpen(true);
+          }
+        }
+        const res = await fetch(`/api/ai/plans/${projectId}`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setQueuedMessages(data.map((m: any) => ({ id: m.id, content: m.content, attachments: m.attachments, position: m.position, status: m.status })));
-            setIsQueueDrawerOpen(true);
+          if (data.plan && data.tasks) {
+            const mappedTasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity: string; dependsOn: string[] | null; status: string; orderIndex: number }) => ({
+              id: t.id,
+              title: t.title,
+              description: t.description,
+              complexity: t.complexity as "simple" | "medium" | "complex",
+              dependsOn: (t.dependsOn || []).map(Number),
+              status: t.status as "pending" | "in-progress" | "done",
+              orderIndex: t.orderIndex,
+            }));
+            setCurrentPlan({
+              id: data.plan.id,
+              title: data.plan.title,
+              status: data.plan.status,
+              model: data.plan.model,
+              tasks: mappedTasks,
+            });
+            if (data.plan.status === "approved") {
+              setApprovedPlanTasks(mappedTasks);
+            }
+          }
+          if (data.messages && data.messages.length > 0) {
+            setPlanMessages(data.messages.map((m: { id: string; role: string; content: string; model: string | null }) => ({
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              model: (m.model || undefined) as AIModel | undefined,
+            })));
           }
         }
       } catch {}
@@ -486,7 +690,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
   }, [projectId]);
 
-  const persistMessage = useCallback(async (role: string, content: string, msgModel?: string, fileOps?: any) => {
+  const persistMessage = useCallback(async (role: string, content: string, msgModel?: string, fileOps?: { type: "created" | "updated"; filename: string }[] | null) => {
     if (!projectId || !content) return;
     try {
       const csrfToken = getCsrfToken();
@@ -503,11 +707,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  }, [messages, planMessages]);
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, [conversationLoaded]);
+  }, [conversationLoaded, topMode]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -526,7 +730,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const processSSEStream = useCallback(async (
     response: Response,
     assistantId: string,
-    isAgent: boolean
+    isAgent: boolean,
+    setMsgs: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   ) => {
     const reader = response.body?.getReader();
     if (!reader) throw new Error("No stream");
@@ -551,7 +756,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
           if (isAgent) {
             if (data.type === "text") {
-              setMessages((prev) =>
+              setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
               );
             } else if (data.type === "file_generated") {
@@ -595,7 +800,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 const opLabel = data.name === "create_file" ? "Creating" : "Editing";
                 toolMsg = `\n\n> ${opLabel} \`${data.input.filename}\`...\n`;
               }
-              setMessages((prev) =>
+              setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? {
                   ...m,
                   content: m.content + toolMsg
@@ -643,20 +848,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               }
               onFileUpdated?.(data.file);
             } else if (data.type === "skill_created") {
-              setMessages((prev) =>
+              setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? {
                   ...m,
                   content: m.content + `\n\n> Created skill: **${data.skill.name}**\n`
                 } : m)
               );
+            } else if (data.type === "task_progress" && data.taskId && data.status) {
+              const taskStatus = data.status as "pending" | "in-progress" | "done";
+              setCurrentPlan((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  tasks: prev.tasks.map((t) => t.id === data.taskId ? { ...t, status: taskStatus } : t),
+                };
+              });
+              setApprovedPlanTasks((prev) =>
+                (prev || []).map((t) => t.id === data.taskId ? { ...t, status: taskStatus } : t)
+              );
             } else if (data.type === "error") {
-              setMessages((prev) =>
+              setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\nError: ${data.message}` } : m)
               );
             }
           } else {
             if (data.content) {
-              setMessages((prev) =>
+              setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
               );
             }
@@ -666,7 +883,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
 
     if (fileOps.length > 0 || inlineImages.length > 0) {
-      setMessages((prev) =>
+      setMsgs((prev) =>
         prev.map((m) => m.id === assistantId ? {
           ...m,
           ...(fileOps.length > 0 ? { fileOps } : {}),
@@ -727,6 +944,100 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
+  const processPlanSSEStream = useCallback(async (
+    response: Response,
+    assistantId: string,
+  ) => {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No stream");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.content) {
+            setPlanMessages((prev) =>
+              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
+            );
+          } else if (data.type === "plan_created" && data.plan && data.tasks) {
+            const mappedTasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity: string; dependsOn: string[] | null; status: string; orderIndex: number }) => ({
+              id: t.id,
+              title: t.title,
+              description: t.description,
+              complexity: t.complexity as "simple" | "medium" | "complex",
+              dependsOn: (t.dependsOn || []).map(Number),
+              status: t.status as "pending" | "in-progress" | "done",
+              orderIndex: t.orderIndex,
+            }));
+            setCurrentPlan({
+              id: data.plan.id,
+              title: data.plan.title,
+              status: data.plan.status,
+              model: data.plan.model,
+              tasks: mappedTasks,
+            });
+          }
+        } catch {}
+      }
+    }
+  }, []);
+
+  const sendPlanMessage = async () => {
+    if (!input.trim() || isStreaming || !projectId) return;
+
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: input.trim() };
+    const allPlanMessages = [...planMessages, userMsg];
+    setPlanMessages(allPlanMessages);
+    setInput("");
+    setIsStreaming(true);
+
+    const assistantId = (Date.now() + 1).toString();
+    setPlanMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
+
+    abortRef.current = new AbortController();
+
+    try {
+      const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      const csrfToken = getCsrfToken();
+      if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
+
+      const res = await fetch("/api/ai/plan", {
+        method: "POST",
+        headers: fetchHeaders,
+        credentials: "include",
+        body: JSON.stringify({
+          messages: allPlanMessages.map((m) => ({ role: m.role, content: m.content })),
+          model,
+          projectId,
+        }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!res.ok) throw new Error("AI plan request failed");
+
+      await processPlanSSEStream(res, assistantId);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        setPlanMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m)
+        );
+      }
+    } finally {
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  };
+
   const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
     let fullContent = content;
 
@@ -743,6 +1054,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: fullContent, attachments: currentAttachments.length > 0 ? currentAttachments : undefined };
+    let agentContext = "";
+    if (approvedPlanTasks && mode === "agent") {
+      const taskList = approvedPlanTasks.map((t, i) => `${i + 1}. [${t.status.toUpperCase()}] ${t.title}: ${t.description}`).join("\n");
+      agentContext = `\n\n[APPROVED PLAN TASKS]\n${taskList}\n[END PLAN TASKS]`;
+    }
+
     let allMessages: ChatMessage[] = [];
     setMessages((prev) => {
       allMessages = [...prev, userMsg];
@@ -762,8 +1079,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
 
-      const body: any = {
-        messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+      const body: Record<string, unknown> = {
+        messages: allMessages.map((m) => ({
+          role: m.role,
+          content: m.role === "user" && m === userMsg && agentContext
+            ? m.content + agentContext
+            : m.content
+        })),
         model,
         agentMode,
       };
@@ -790,7 +1112,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       if (!res.ok) throw new Error("AI request failed");
 
-      await processSSEStream(res, assistantId, isAgent);
+      await processSSEStream(res, assistantId, isAgent, setMessages);
 
       setMessages((prev) => {
         const assistantMsg = prev.find((m) => m.id === assistantId);
@@ -800,8 +1122,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         return prev;
       });
       return true;
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
         setLastFailedInput(userMsg.content);
         setMessages((prev) =>
           prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m)
@@ -961,7 +1283,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
           if (!res.ok) throw new Error("AI request failed");
-          await processSSEStream(res, assistantId, isAgent);
+          await processSSEStream(res, assistantId, isAgent, setMessages);
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
             if (assistantMsg && assistantMsg.content) {
@@ -970,8 +1292,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             return prev;
           });
         })
-        .catch((err: any) => {
-          if (err.name !== "AbortError") {
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name !== "AbortError") {
             setLastFailedInput(retryInput);
             setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m));
           }
@@ -1196,7 +1518,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         signal: abortRef.current.signal,
       });
       if (!res.ok) throw new Error("Search failed");
-      await processSSEStream(res, assistantId, true);
+      await processSSEStream(res, assistantId, true, setMessages);
       setMessages((prev) => {
         const assistantMsg = prev.find((m) => m.id === assistantId);
         if (assistantMsg?.content) persistMessage("assistant", assistantMsg.content, model);
@@ -1398,21 +1720,75 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         }
       }
       if (part.startsWith("```")) {
+        const firstNewline = part.indexOf("\n");
+        const lang = part.slice(3, firstNewline).trim();
+
+        if (lang === "json" && topMode === "plan") {
+          try {
+            const jsonContent = part.slice(firstNewline + 1, part.length - 3);
+            const parsed = JSON.parse(jsonContent);
+            if (parsed.tasks && Array.isArray(parsed.tasks)) {
+              const displayTasks = currentPlan?.tasks && currentPlan.tasks.length > 0 ? currentPlan.tasks : parsed.tasks.map((t: Record<string, unknown>, idx: number) => ({
+                title: typeof t.title === "string" ? t.title : `Task ${idx + 1}`,
+                description: typeof t.description === "string" ? t.description : "",
+                complexity: typeof t.complexity === "string" && ["simple", "medium", "complex"].includes(t.complexity) ? t.complexity as "simple" | "medium" | "complex" : "medium",
+                dependsOn: Array.isArray(t.dependsOn) ? t.dependsOn : [],
+                status: "pending" as const,
+                orderIndex: idx,
+              }));
+
+              return (
+                <div key={i} className="my-3 space-y-2">
+                  {(currentPlan?.title || parsed.title) && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <Map className="w-4 h-4 text-[#7C65CB]" />
+                      <span className="text-[13px] font-semibold text-[var(--ide-text)]">{currentPlan?.title || parsed.title}</span>
+                    </div>
+                  )}
+                  {displayTasks.map((task: PlanTask, idx: number) => (
+                    <PlanTaskCard
+                      key={task.id || idx}
+                      task={task}
+                      index={idx}
+                      expanded={expandedTasks.has(idx)}
+                      onToggle={() => setExpandedTasks((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(idx)) next.delete(idx); else next.add(idx);
+                        return next;
+                      })}
+                    />
+                  ))}
+                  {currentPlan && currentPlan.status !== "approved" && (
+                    <button
+                      className="w-full flex items-center justify-center gap-2 mt-3 px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#7C65CB] to-[#6B56B8] hover:from-[#6B56B8] hover:to-[#5A47A0] text-white text-[12px] font-semibold transition-all shadow-lg shadow-[#7C65CB]/20"
+                      onClick={handleStartBuilding}
+                      data-testid="button-start-building"
+                    >
+                      <Play className="w-4 h-4" />
+                      Start building
+                    </button>
+                  )}
+                </div>
+              );
+            }
+          } catch {}
+        }
+
         const lines = part.slice(3, -3).split("\n");
-        const lang = lines[0]?.trim() || "";
+        const codeLang = lines[0]?.trim() || "";
         const code = lines.slice(1).join("\n");
         const blockKey = `${content.slice(0, 20)}-block-${i}`;
-        const targetFile = guessTargetFile(lang, code);
+        const targetFile = guessTargetFile(codeLang, code);
         const isApplied = appliedBlocks.has(blockKey);
-        const langColor = LANG_COLORS[lang.toLowerCase()] || { bg: "bg-[var(--ide-surface)]", text: "text-[var(--ide-text-secondary)]" };
+        const langColor = LANG_COLORS[codeLang.toLowerCase()] || { bg: "bg-[var(--ide-surface)]", text: "text-[var(--ide-text-secondary)]" };
         return (
           <div key={i} className="my-2.5 rounded-lg overflow-hidden border border-[var(--ide-border)] shadow-lg">
             <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]">
               <div className="flex items-center gap-2">
                 <Code2 className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
-                {lang && (
+                {codeLang && (
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${langColor.bg} ${langColor.text}`}>
-                    {lang}
+                    {codeLang}
                   </span>
                 )}
               </div>
@@ -1532,6 +1908,121 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     return rendered;
   };
 
+  const handleStartBuilding = async () => {
+    if (!currentPlan || !projectId) return;
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+      const res = await fetch(`/api/ai/plans/${currentPlan.id}/approve`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const tasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity: string; dependsOn: string[] | null; status: string; orderIndex: number }) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          complexity: t.complexity as "simple" | "medium" | "complex",
+          dependsOn: (t.dependsOn || []).map(Number),
+          status: t.status as "pending" | "in-progress" | "done",
+          orderIndex: t.orderIndex,
+        }));
+        setCurrentPlan({ ...currentPlan, status: "approved", tasks });
+        setApprovedPlanTasks(tasks);
+        setTopMode("build");
+        setMode("agent");
+
+        const taskSummary = tasks.map((t, i) =>
+          `${i + 1}. ${t.title}: ${t.description}`
+        ).join("\n");
+        const buildPrompt = `Please implement the following approved plan tasks:\n\n${taskSummary}\n\nStart with task 1 and work through them sequentially.`;
+
+        const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: buildPrompt };
+        const allMessages = [...messages, userMsg];
+        setMessages(allMessages);
+        setIsStreaming(true);
+        persistMessage("user", buildPrompt);
+
+        const assistantId = (Date.now() + 1).toString();
+        setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
+
+        abortRef.current = new AbortController();
+
+        const agentHeaders: Record<string, string> = { "Content-Type": "application/json" };
+        const agentCsrf = getCsrfToken();
+        if (agentCsrf) agentHeaders["X-CSRF-Token"] = agentCsrf;
+
+        const agentRes = await fetch("/api/ai/agent", {
+          method: "POST",
+          headers: agentHeaders,
+          credentials: "include",
+          body: JSON.stringify({
+            messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+            model,
+            projectId,
+          }),
+          signal: abortRef.current.signal,
+        });
+
+        if (!agentRes.ok) throw new Error("Agent request failed");
+
+        await processSSEStream(agentRes, assistantId, true, setMessages);
+
+        setMessages((prev) => {
+          const assistantMsg = prev.find((m) => m.id === assistantId);
+          if (assistantMsg?.content) {
+            persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
+          }
+          return prev;
+        });
+
+        setIsStreaming(false);
+        abortRef.current = null;
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "assistant" && !last.content) {
+            return prev.map((m) => m.id === last.id ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m);
+          }
+          return prev;
+        });
+      }
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  };
+
+  const handlePlanTaskStatusChange = async (index: number, status: "pending" | "in-progress" | "done") => {
+    if (!approvedPlanTasks || !currentPlan) return;
+    const task = approvedPlanTasks[index];
+    if (!task?.id) return;
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+      await fetch(`/api/ai/plans/${currentPlan.id}/tasks/${task.id}`, {
+        method: "PUT",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ status }),
+      });
+
+      setApprovedPlanTasks((prev) =>
+        prev?.map((t, i) => i === index ? { ...t, status } : t) || null
+      );
+    } catch {}
+  };
+
   const modelInfo = MODEL_LABELS[model];
   const ModelIcon = modelInfo.icon;
 
@@ -1547,6 +2038,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     { icon: Database, label: "Add a REST API endpoint", category: "Backend" },
     { icon: Wrench, label: "Create a utility functions file", category: "Utils" },
     { icon: Lightbulb, label: "Refactor this code for performance", category: "Refactor" },
+  ];
+
+  const defaultPlanSuggestions = [
+    { icon: Shield, label: "Plan a user authentication system", category: "Architecture" },
+    { icon: Layout, label: "Break down a dashboard feature", category: "Feature" },
+    { icon: Database, label: "Design a database schema", category: "Data" },
+    { icon: Lightbulb, label: "Evaluate tech stack options", category: "Analysis" },
   ];
 
   const [personalizedSuggestions, setPersonalizedSuggestions] = useState<{ chat: { label: string; category: string }[]; agent: { label: string; category: string }[] } | null>(null);
@@ -1597,15 +2095,29 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     ? personalizedSuggestions.agent.map((s, i) => ({ ...s, icon: suggestionIcons[(i + 4) % suggestionIcons.length] }))
     : defaultAgentSuggestions;
 
+  const activeMessages = topMode === "plan" ? planMessages : messages;
+  const activeSuggestions = topMode === "plan"
+    ? defaultPlanSuggestions
+    : mode === "agent" ? agentSuggestions : chatSuggestions;
+
   return (
     <div className="flex flex-col h-full bg-[var(--ide-panel)]">
       <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[#7C65CB]/30 to-[#7C65CB]/10 flex items-center justify-center ring-1 ring-[#7C65CB]/20">
-            <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" />
+          <div className={`w-6 h-6 rounded-md flex items-center justify-center ring-1 ${
+            topMode === "plan"
+              ? "bg-gradient-to-br from-[#F59E0B]/30 to-[#F59E0B]/10 ring-[#F59E0B]/20"
+              : "bg-gradient-to-br from-[#7C65CB]/30 to-[#7C65CB]/10 ring-[#7C65CB]/20"
+          }`}>
+            {topMode === "plan"
+              ? <Map className="w-3.5 h-3.5 text-[#F59E0B]" />
+              : <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" />
+            }
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-semibold text-[var(--ide-text)] tracking-tight">Agent</span>
+            <span className="text-[13px] font-semibold text-[var(--ide-text)] tracking-tight">
+              {topMode === "plan" ? "Plan" : "Agent"}
+            </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
@@ -1790,7 +2302,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </PopoverContent>
             </Popover>
           )}
-          {projectId && (
+          {projectId && topMode === "build" && (
             <div className="flex items-center mr-1 bg-[var(--ide-surface)]/30 rounded-lg p-0.5 ring-1 ring-[var(--ide-border)]/50">
               <button
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "chat" ? "bg-[var(--ide-surface)] text-[var(--ide-text)] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
@@ -1815,8 +2327,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </button>
             </div>
           )}
-          {messages.length > 0 && (
-            <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => { setMessages([]); if (projectId) { const ct = getCsrfToken(); const h: Record<string, string> = {}; if (ct) h["X-CSRF-Token"] = ct; fetch(`/api/ai/conversations/${projectId}`, { method: "DELETE", credentials: "include", headers: h }).catch(() => {}); } }} title="Clear chat" data-testid="button-clear-chat">
+          {activeMessages.length > 0 && (
+            <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => {
+              if (topMode === "plan") {
+                setPlanMessages([]);
+                if (currentPlan) {
+                  const csrfToken = getCsrfToken();
+                  const h: Record<string, string> = {};
+                  if (csrfToken) h["X-CSRF-Token"] = csrfToken;
+                  fetch(`/api/ai/plans/${projectId}`, { method: "DELETE", credentials: "include", headers: h }).catch(() => {});
+                  setCurrentPlan(null);
+                }
+              } else {
+                setMessages([]);
+                if (projectId) {
+                  const ct = getCsrfToken();
+                  const h: Record<string, string> = {};
+                  if (ct) h["X-CSRF-Token"] = ct;
+                  fetch(`/api/ai/conversations/${projectId}`, { method: "DELETE", credentials: "include", headers: h }).catch(() => {});
+                }
+              }
+            }} title="Clear chat" data-testid="button-clear-chat">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}
@@ -1826,7 +2357,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         </div>
       </div>
 
-      {context && mode === "chat" && (
+      {context && topMode === "build" && mode === "chat" && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--ide-border)] bg-[var(--ide-bg)]/50 text-[10px] text-[var(--ide-text-secondary)] shrink-0">
           <FileCode className="w-3 h-3 text-[var(--ide-text-muted)]" />
           <span className="px-1.5 py-0.5 rounded bg-[var(--ide-surface)] text-[var(--ide-text)] font-mono">{context.filename}</span>
@@ -1834,7 +2365,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         </div>
       )}
 
-      {mode === "agent" && (
+      {topMode === "build" && mode === "agent" && (
         <div className={`flex items-center gap-2 px-3 py-2 border-b text-[10px] shrink-0 ${
           liteMode
             ? "border-[#F5A623]/15 bg-gradient-to-r from-[#F5A623]/10 to-[#F5A623]/5 text-[#F5A623]"
@@ -1847,6 +2378,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           <span style={{ opacity: 0.6 }}>—</span>
           <span style={{ opacity: 0.7 }}>{liteMode ? "Quick, targeted changes only" : "AI can create and edit files in your project"}</span>
         </div>
+      )}
+
+      {topMode === "plan" && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#F59E0B]/15 bg-gradient-to-r from-[#F59E0B]/10 to-[#F59E0B]/5 text-[10px] text-[#F59E0B] shrink-0">
+          <div className="w-4 h-4 rounded bg-[#F59E0B]/20 flex items-center justify-center">
+            <Map className="w-2.5 h-2.5" />
+          </div>
+          <span className="font-medium">Plan mode</span>
+          <span className="text-[#F59E0B]/60">—</span>
+          <span className="text-[#F59E0B]/70">Brainstorm and create structured task lists</span>
+        </div>
+      )}
+
+      {topMode === "build" && approvedPlanTasks && approvedPlanTasks.length > 0 && (
+        <PlanTaskChecklist
+          tasks={approvedPlanTasks}
+          onTaskStatusChange={handlePlanTaskStatusChange}
+        />
       )}
 
       {mode === "plan" && showTaskBoard && projectId && (
@@ -1955,21 +2504,34 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 space-y-4 ${mode === "plan" ? "hidden" : ""}`}>
-        {messages.length === 0 && (
+        {activeMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7C65CB]/25 to-[#7C65CB]/5 flex items-center justify-center mb-5 ring-1 ring-[#7C65CB]/20 shadow-lg shadow-[#7C65CB]/10">
-              {mode === "agent" ? <Bot className="w-8 h-8 text-[#7C65CB]" /> : <Sparkles className="w-8 h-8 text-[#7C65CB]" />}
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-5 ring-1 shadow-lg ${
+              topMode === "plan"
+                ? "bg-gradient-to-br from-[#F59E0B]/25 to-[#F59E0B]/5 ring-[#F59E0B]/20 shadow-[#F59E0B]/10"
+                : "bg-gradient-to-br from-[#7C65CB]/25 to-[#7C65CB]/5 ring-[#7C65CB]/20 shadow-[#7C65CB]/10"
+            }`}>
+              {topMode === "plan"
+                ? <Map className="w-8 h-8 text-[#F59E0B]" />
+                : mode === "agent" ? <Bot className="w-8 h-8 text-[#7C65CB]" /> : <Sparkles className="w-8 h-8 text-[#7C65CB]" />
+              }
             </div>
             <p className="text-[17px] font-bold text-[var(--ide-text)] mb-1.5 tracking-tight" data-testid="text-ai-title">
-              {mode === "agent" ? "What do you want to build?" : "AI Assistant"}
+              {topMode === "plan"
+                ? "What do you want to plan?"
+                : mode === "agent" ? "What do you want to build?" : "AI Assistant"
+              }
             </p>
             <p className="text-[12px] text-[var(--ide-text-secondary)] max-w-[320px] leading-relaxed mb-6">
-              {mode === "agent"
+              {topMode === "plan"
+                ? "Describe your idea and I'll create a structured plan with tasks, dependencies, and complexity estimates."
+                : mode === "agent"
                 ? "Describe your idea and I'll build it — creating files, writing code, and setting up your project automatically."
-                : "I can help you write code, debug issues, explain concepts, and suggest improvements."}
+                : "I can help you write code, debug issues, explain concepts, and suggest improvements."
+              }
             </p>
             <div className="w-full max-w-[360px] grid grid-cols-2 gap-2.5">
-              {(mode === "agent" ? agentSuggestions : chatSuggestions).map((item) => {
+              {activeSuggestions.map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
@@ -1991,7 +2553,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             </div>
           </div>
         )}
-        {messages.map((msg, idx) => {
+        {activeMessages.map((msg, idx) => {
           const msgModel = msg.model ? MODEL_LABELS[msg.model] : null;
           const MsgModelIcon = msgModel?.icon || Sparkles;
           return (
@@ -2169,7 +2731,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             )}
           </div>
         )}
-        {attachments.length > 0 && (
+        {topMode === "build" && attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2 px-1">
             {attachments.map((a) => (
               <div key={a.id} className="relative group flex items-center gap-1.5 pl-2 pr-7 py-1.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-secondary)] max-w-[180px]">
@@ -2264,7 +2826,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === "plan" ? "Describe what to build in parallel..." : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : isStreaming ? "Type to queue a follow-up message..." : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."}
+            placeholder={
+              topMode === "plan"
+                ? "Describe what you want to plan..."
+                : mode === "plan" ? "Describe what to build in parallel..."
+                : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : isStreaming ? "Type to queue a follow-up message..." : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."
+            }
             rows={3}
             className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
             disabled={isTranscribing || isGeneratingImage}
@@ -2285,7 +2852,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 <Zap className="w-3.5 h-3.5" />
               </button>
             )}
-            {isStreaming && (
+            {isStreaming ? (
               <Button
                 onClick={queuedMessages.length > 0 ? pauseQueue : stopStreaming}
                 size="icon"
@@ -2295,75 +2862,140 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               >
                 {queuedMessages.length > 0 ? <Pause className="w-3.5 h-3.5 text-white" /> : <X className="w-3.5 h-3.5 text-white" />}
               </Button>
+            ) : (
+              <Button
+                onClick={sendMessage}
+                size="icon"
+                className={`w-7 h-7 rounded-full shadow-sm disabled:opacity-30 disabled:shadow-none ${
+                  topMode === "plan"
+                    ? "bg-[#F59E0B] hover:bg-[#D97706] shadow-[#F59E0B]/20"
+                    : "bg-[#7C65CB] hover:bg-[#6B56B8] shadow-[#7C65CB]/20"
+                }`}
+                disabled={!input.trim() && attachments.length === 0}
+                data-testid="button-ai-send"
+              >
+                <Send className="w-3.5 h-3.5 text-white" />
+              </Button>
             )}
-            <Button
-              onClick={sendMessage}
-              size="icon"
-              className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-full shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
-              disabled={!input.trim() && attachments.length === 0}
-              data-testid="button-ai-send"
-            >
-              <Send className="w-3.5 h-3.5 text-white" />
-            </Button>
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1.5">
           <div className="flex items-center gap-1">
-            <button
-              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                isRecording
-                  ? "bg-red-500 text-white animate-pulse"
-                  : isTranscribing
-                  ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
-                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
-              }`}
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isTranscribing}
-              title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
-              data-testid="button-ai-mic"
-            >
-              {isRecording ? <MicOff className="w-3 h-3" /> : isTranscribing ? <Mic className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-            </button>
-            <button
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
-              onClick={() => fileInputRef.current?.click()}
-              title="Attach files"
-              data-testid="button-ai-attach"
-            >
-              <Paperclip className="w-3 h-3" />
-            </button>
-            <button
-              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                isGeneratingImage
-                  ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
-                  : showImageDialog
-                  ? "bg-[#7C65CB]/20 text-[#7C65CB]"
-                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
-              }`}
-              onClick={() => setShowImageDialog(!showImageDialog)}
-              disabled={isStreaming || isGeneratingImage}
-              title={isGeneratingImage ? "Generating image..." : "Generate image (or type /image <prompt>)"}
-              data-testid="button-ai-generate-image"
-            >
-              {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
-            </button>
-            {mode === "agent" && projectId && !liteMode && (
-              <button
-                onClick={() => updateAgentToolsConfig({ webSearch: !agentToolsConfig.webSearch })}
-                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                  agentToolsConfig.webSearch
-                    ? "bg-[#0079F2] text-white shadow-sm shadow-[#0079F2]/30"
-                    : "text-[var(--ide-text-muted)] hover:text-[#0079F2] hover:bg-[#0079F2]/10"
-                }`}
-                title={agentToolsConfig.webSearch ? "Web Search enabled — click to disable" : "Enable Web Search for real-time information"}
-                data-testid="button-web-search-toggle"
-              >
-                <Globe className="w-3 h-3" />
-              </button>
+            {projectId && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                      topMode === "plan"
+                        ? "bg-[#F59E0B]/15 text-[#F59E0B] hover:bg-[#F59E0B]/25"
+                        : "bg-[#7C65CB]/15 text-[#7C65CB] hover:bg-[#7C65CB]/25"
+                    }`}
+                    data-testid="button-mode-selector"
+                  >
+                    {topMode === "plan" ? <Map className="w-3 h-3" /> : <Hammer className="w-3 h-3" />}
+                    {topMode === "plan" ? "Plan" : "Build"}
+                    <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                  <DropdownMenuItem
+                    className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => setTopMode("plan")}
+                    data-testid="mode-plan"
+                  >
+                    <div className="w-5 h-5 rounded bg-[#F59E0B]/15 flex items-center justify-center">
+                      <Map className="w-3 h-3 text-[#F59E0B]" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">Plan</span>
+                      <span className="text-[10px] text-[var(--ide-text-muted)]">Brainstorm & plan tasks</span>
+                    </div>
+                    {topMode === "plan" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => setTopMode("build")}
+                    data-testid="mode-build"
+                  >
+                    <div className="w-5 h-5 rounded bg-[#7C65CB]/15 flex items-center justify-center">
+                      <Hammer className="w-3 h-3 text-[#7C65CB]" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">Build</span>
+                      <span className="text-[10px] text-[var(--ide-text-muted)]">Chat & agent coding</span>
+                    </div>
+                    {topMode === "build" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-            <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
-              {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isGeneratingImage ? "Generating image..." : agentToolsConfig.webSearch ? "Shift+Enter · /image · /search" : "Shift+Enter · /image for AI images"}
-            </span>
+            {topMode === "build" && (
+              <>
+                <button
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                    isRecording
+                      ? "bg-red-500 text-white animate-pulse"
+                      : isTranscribing
+                      ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                  }`}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isStreaming || isTranscribing}
+                  title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
+                  data-testid="button-ai-mic"
+                >
+                  {isRecording ? <MicOff className="w-3 h-3" /> : isTranscribing ? <Mic className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                </button>
+                <button
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  title="Attach files"
+                  data-testid="button-ai-attach"
+                >
+                  <Paperclip className="w-3 h-3" />
+                </button>
+                <button
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                    isGeneratingImage
+                      ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                      : showImageDialog
+                      ? "bg-[#7C65CB]/20 text-[#7C65CB]"
+                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                  }`}
+                  onClick={() => setShowImageDialog(!showImageDialog)}
+                  disabled={isStreaming || isGeneratingImage}
+                  title={isGeneratingImage ? "Generating image..." : "Generate image (or type /image <prompt>)"}
+                  data-testid="button-ai-generate-image"
+                >
+                  {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+                </button>
+                {mode === "agent" && projectId && !liteMode && (
+                  <button
+                    onClick={() => updateAgentToolsConfig({ webSearch: !agentToolsConfig.webSearch })}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                      agentToolsConfig.webSearch
+                        ? "bg-[#0079F2] text-white shadow-sm shadow-[#0079F2]/30"
+                        : "text-[var(--ide-text-muted)] hover:text-[#0079F2] hover:bg-[#0079F2]/10"
+                    }`}
+                    title={agentToolsConfig.webSearch ? "Web Search enabled — click to disable" : "Enable Web Search for real-time information"}
+                    data-testid="button-web-search-toggle"
+                  >
+                    <Globe className="w-3 h-3" />
+                  </button>
+                )}
+              </>
+            )}
+            {topMode === "build" && (
+              <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
+                {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isGeneratingImage ? "Generating image..." : agentToolsConfig.webSearch ? "Shift+Enter · /image · /search" : "Shift+Enter · /image for AI images"}
+              </span>
+            )}
+            {topMode === "plan" && (
+              <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
+                Shift+Enter for new line
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {isPaused && queuedMessages.length > 0 ? (
@@ -2376,9 +3008,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 Paused — click to resume ({queuedMessages.length} queued)
               </button>
             ) : isStreaming ? (
-              <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />
-                Generating{queuedMessages.length > 0 ? ` · ${queuedMessages.length} queued` : ""}...
+              <span className={`flex items-center gap-1.5 text-[10px] ${topMode === "plan" ? "text-[#F59E0B]" : "text-[#7C65CB]"}`}>
+                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${topMode === "plan" ? "bg-[#F59E0B]" : "bg-[#7C65CB]"}`} />
+                {topMode === "plan" ? "Planning..." : `Generating${queuedMessages.length > 0 ? ` · ${queuedMessages.length} queued` : ""}...`}
               </span>
             ) : (
               <span className={`text-[9px] ${input.length > 3800 ? "text-red-400" : "text-[var(--ide-text-muted)]"}`} data-testid="text-char-count">

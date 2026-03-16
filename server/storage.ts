@@ -4,7 +4,7 @@ import {
   users, projects, files, runs, workspaces, workspaceSessions,
   commits, branches, executionLogs, userQuotas, gitRepoState,
   projectEnvVars,
-  aiConversations, aiMessages, queuedMessages,
+  aiConversations, aiMessages, queuedMessages, aiPlans, aiPlanTasks,
   passwordResetTokens, emailVerifications,
   teams, teamMembers, teamInvites,
   analyticsEvents, deployments,
@@ -38,6 +38,8 @@ import {
   type ProjectEnvVar,
   type AiConversation, type InsertAiConversation,
   type AiMessage, type InsertAiMessage,
+  type AiPlan, type InsertAiPlan,
+  type AiPlanTask, type InsertAiPlanTask,
   type PasswordResetToken,
   type EmailVerification,
   type Team, type InsertTeam,
@@ -189,6 +191,7 @@ export interface IStorage {
   migrateExistingEnvVarsToEncrypted(): Promise<void>;
 
   getConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
+  getPlanConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
   getConversationById(id: string): Promise<AiConversation | undefined>;
   createConversation(data: InsertAiConversation): Promise<AiConversation>;
   updateConversation(id: string, data: Partial<{ title: string; model: string }>): Promise<AiConversation | undefined>;
@@ -391,6 +394,27 @@ export interface IStorage {
   getMcpToolsByProject(projectId: string): Promise<(McpTool & { serverName: string })[]>;
   createMcpTool(data: InsertMcpTool): Promise<McpTool>;
   deleteMcpToolsByServer(serverId: string): Promise<number>;
+
+  getPlans(projectId: string): Promise<AiPlan[]>;
+  getPlan(id: string): Promise<AiPlan | undefined>;
+  getLatestPlan(projectId: string, userId: string): Promise<AiPlan | undefined>;
+  createPlan(data: InsertAiPlan): Promise<AiPlan>;
+  updatePlan(id: string, data: Partial<{ title: string; status: string }>): Promise<AiPlan | undefined>;
+  deletePlan(id: string): Promise<boolean>;
+  getPlanTasks(planId: string): Promise<AiPlanTask[]>;
+  createPlanTask(data: InsertAiPlanTask): Promise<AiPlanTask>;
+  createPlanTasks(data: InsertAiPlanTask[]): Promise<AiPlanTask[]>;
+  updatePlanTask(id: string, data: Partial<{ title: string; description: string; complexity: string; status: string; orderIndex: number }>): Promise<AiPlanTask | undefined>;
+  deletePlanTasks(planId: string): Promise<boolean>;
+  replacePlanAtomically(params: {
+    projectId: string;
+    userId: string;
+    title: string;
+    model: string;
+    tasks: Array<{ title: string; description: string; complexity: string; dependsOn: string[] }>;
+    userMessage: string;
+    assistantMessage: string;
+  }): Promise<{ plan: AiPlan; createdTasks: AiPlanTask[] }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1063,7 +1087,22 @@ export class DatabaseStorage implements IStorage {
 
   async getConversation(projectId: string, userId: string): Promise<AiConversation | undefined> {
     const [conv] = await db.select().from(aiConversations)
-      .where(and(eq(aiConversations.projectId, projectId), eq(aiConversations.userId, userId)))
+      .where(and(
+        eq(aiConversations.projectId, projectId),
+        eq(aiConversations.userId, userId),
+        sql`${aiConversations.title} != '__plan__'`
+      ))
+      .orderBy(desc(aiConversations.updatedAt)).limit(1);
+    return conv;
+  }
+
+  async getPlanConversation(projectId: string, userId: string): Promise<AiConversation | undefined> {
+    const [conv] = await db.select().from(aiConversations)
+      .where(and(
+        eq(aiConversations.projectId, projectId),
+        eq(aiConversations.userId, userId),
+        eq(aiConversations.title, "__plan__")
+      ))
       .orderBy(desc(aiConversations.updatedAt)).limit(1);
     return conv;
   }
@@ -2290,6 +2329,130 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTaskFileSnapshots(taskId: string): Promise<void> {
     await db.delete(taskFileSnapshots).where(eq(taskFileSnapshots.taskId, taskId));
+  }
+
+  async getPlans(projectId: string): Promise<AiPlan[]> {
+    return db.select().from(aiPlans).where(eq(aiPlans.projectId, projectId)).orderBy(desc(aiPlans.createdAt));
+  }
+
+  async getPlan(id: string): Promise<AiPlan | undefined> {
+    const [plan] = await db.select().from(aiPlans).where(eq(aiPlans.id, id)).limit(1);
+    return plan;
+  }
+
+  async getLatestPlan(projectId: string, userId: string): Promise<AiPlan | undefined> {
+    const [plan] = await db.select().from(aiPlans)
+      .where(and(eq(aiPlans.projectId, projectId), eq(aiPlans.userId, userId)))
+      .orderBy(desc(aiPlans.createdAt))
+      .limit(1);
+    return plan;
+  }
+
+  async createPlan(data: InsertAiPlan): Promise<AiPlan> {
+    const [plan] = await db.insert(aiPlans).values(data).returning();
+    return plan;
+  }
+
+  async updatePlan(id: string, data: Partial<{ title: string; status: string }>): Promise<AiPlan | undefined> {
+    const [plan] = await db.update(aiPlans).set({ ...data, updatedAt: new Date() }).where(eq(aiPlans.id, id)).returning();
+    return plan;
+  }
+
+  async deletePlan(id: string): Promise<boolean> {
+    await db.delete(aiPlanTasks).where(eq(aiPlanTasks.planId, id));
+    const result = await db.delete(aiPlans).where(eq(aiPlans.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getPlanTasks(planId: string): Promise<AiPlanTask[]> {
+    return db.select().from(aiPlanTasks).where(eq(aiPlanTasks.planId, planId)).orderBy(aiPlanTasks.orderIndex);
+  }
+
+  async createPlanTask(data: InsertAiPlanTask): Promise<AiPlanTask> {
+    const [task] = await db.insert(aiPlanTasks).values(data).returning();
+    return task;
+  }
+
+  async createPlanTasks(data: InsertAiPlanTask[]): Promise<AiPlanTask[]> {
+    if (data.length === 0) return [];
+    return db.insert(aiPlanTasks).values(data).returning();
+  }
+
+  async updatePlanTask(id: string, data: Partial<{ title: string; description: string; complexity: string; status: string; orderIndex: number }>): Promise<AiPlanTask | undefined> {
+    const [task] = await db.update(aiPlanTasks).set(data).where(eq(aiPlanTasks.id, id)).returning();
+    return task;
+  }
+
+  async deletePlanTasks(planId: string): Promise<boolean> {
+    const result = await db.delete(aiPlanTasks).where(eq(aiPlanTasks.planId, planId)).returning();
+    return result.length > 0;
+  }
+
+  async replacePlanAtomically(params: {
+    projectId: string;
+    userId: string;
+    title: string;
+    model: string;
+    tasks: Array<{ title: string; description: string; complexity: string; dependsOn: string[] }>;
+    userMessage: string;
+    assistantMessage: string;
+  }): Promise<{ plan: AiPlan; createdTasks: AiPlanTask[] }> {
+    return db.transaction(async (tx) => {
+      const existingPlans = await tx.select().from(aiPlans)
+        .where(and(eq(aiPlans.projectId, params.projectId), eq(aiPlans.userId, params.userId)));
+      for (const old of existingPlans) {
+        await tx.delete(aiPlanTasks).where(eq(aiPlanTasks.planId, old.id));
+        await tx.delete(aiPlans).where(eq(aiPlans.id, old.id));
+      }
+
+      const [plan] = await tx.insert(aiPlans).values({
+        projectId: params.projectId,
+        userId: params.userId,
+        title: params.title,
+        model: params.model,
+        status: "draft",
+      }).returning();
+
+      const createdTasks = params.tasks.length > 0
+        ? await tx.insert(aiPlanTasks).values(
+            params.tasks.map((t, i) => ({
+              planId: plan.id,
+              title: t.title,
+              description: t.description,
+              complexity: t.complexity,
+              dependsOn: t.dependsOn.map(String),
+              status: "pending" as const,
+              orderIndex: i,
+            }))
+          ).returning()
+        : [];
+
+      const existingConvs = await tx.select().from(aiConversations)
+        .where(and(
+          eq(aiConversations.projectId, params.projectId),
+          eq(aiConversations.userId, params.userId),
+          eq(aiConversations.title, "__plan__")
+        ));
+      let convId: string;
+      if (existingConvs.length > 0) {
+        convId = existingConvs[0].id;
+        await tx.delete(aiMessages).where(eq(aiMessages.conversationId, convId));
+      } else {
+        const [conv] = await tx.insert(aiConversations).values({
+          projectId: params.projectId,
+          userId: params.userId,
+          title: "__plan__",
+          model: params.model,
+        }).returning();
+        convId = conv.id;
+      }
+      await tx.insert(aiMessages).values([
+        { conversationId: convId, role: "user", content: params.userMessage },
+        { conversationId: convId, role: "assistant", content: params.assistantMessage, model: params.model },
+      ]);
+
+      return { plan, createdTasks };
+    });
   }
 }
 
