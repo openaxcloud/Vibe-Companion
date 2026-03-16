@@ -121,6 +121,7 @@
     "react-resizable-panels": "^2.1.9",
     "react-simple-code-editor": "^0.14.1",
     "recharts": "^2.15.4",
+    "smol-toml": "^1.6.0",
     "sonner": "^2.0.7",
     "ssh2": "^1.17.0",
     "stripe": "^20.4.1",

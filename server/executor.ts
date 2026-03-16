@@ -1,4 +1,4 @@
-import { spawn, execSync } from "child_process";
+import { spawn, execSync, ChildProcess } from "child_process";
 import { writeFile, mkdir, rm, chmod } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
@@ -6,6 +6,7 @@ import { log } from "./index";
 import { transformSync } from "esbuild";
 import * as acorn from "acorn";
 import * as walk from "acorn-walk";
+import { getProjectConfig, getEnvironmentMetadata, type ReplitConfig } from "./configParser";
 
 export interface ExecutionResult {
   stdout: string;
@@ -13,6 +14,62 @@ export interface ExecutionResult {
   exitCode: number;
   securityViolation?: string;
   durationMs?: number;
+}
+
+export interface InteractiveProcess {
+  process: ChildProcess;
+  sandboxDir: string;
+  abortController: AbortController;
+}
+
+const activeInteractiveProcesses = new Map<string, InteractiveProcess>();
+
+export function getActiveProcess(projectId: string): InteractiveProcess | undefined {
+  return activeInteractiveProcesses.get(projectId);
+}
+
+export function sendStdinToProcess(projectId: string, data: string): boolean {
+  const proc = activeInteractiveProcesses.get(projectId);
+  if (proc && proc.process.stdin && !proc.process.stdin.destroyed) {
+    proc.process.stdin.write(data);
+    return true;
+  }
+  return false;
+}
+
+export function killInteractiveProcess(projectId: string): boolean {
+  const proc = activeInteractiveProcesses.get(projectId);
+  if (proc) {
+    proc.abortController.abort();
+    proc.process.kill("SIGTERM");
+    setTimeout(() => {
+      try { proc.process.kill("SIGKILL"); } catch {}
+    }, 2000);
+    activeInteractiveProcesses.delete(projectId);
+    return true;
+  }
+  return false;
+}
+
+export async function resolveRunCommand(
+  projectId: string,
+  language: string,
+  code: string,
+  project?: { id: string; name: string; language: string; userId: string },
+): Promise<{ envVars: Record<string, string>; config: ReplitConfig }> {
+  const config = await getProjectConfig(projectId);
+  const envVars: Record<string, string> = {};
+
+  if (project) {
+    const metadata = getEnvironmentMetadata(project);
+    Object.assign(envVars, metadata);
+  }
+
+  if (config.runEnv) {
+    Object.assign(envVars, config.runEnv);
+  }
+
+  return { envVars, config };
 }
 
 const MAX_EXECUTION_TIME_MS = 10000;
@@ -534,8 +591,8 @@ export async function executeCode(
   code: string,
   language: string,
   onLog?: (message: string, type: "info" | "error" | "success") => void,
-  userId?: number,
-  projectId?: number,
+  userId?: number | string,
+  projectId?: number | string,
   envVars?: Record<string, string>,
   abortSignal?: AbortSignal,
 ): Promise<ExecutionResult> {
@@ -815,10 +872,24 @@ export async function executeCode(
         cwd: sandboxDir,
         timeout: MAX_EXECUTION_TIME_MS,
         env: minimalEnv,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"],
         uid: undefined,
         gid: undefined,
       });
+
+      if (projectId) {
+        const projectIdStr = String(projectId);
+        killInteractiveProcess(projectIdStr);
+        const ac = new AbortController();
+        activeInteractiveProcesses.set(projectIdStr, {
+          process: proc,
+          sandboxDir,
+          abortController: ac,
+        });
+        proc.on("close", () => {
+          activeInteractiveProcesses.delete(projectIdStr);
+        });
+      }
 
       if (abortSignal) {
         const onAbort = () => {

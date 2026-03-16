@@ -9,6 +9,7 @@ import express, { Request, Response, Router } from "express";
 import { storage } from "./storage";
 import { validateCronExpression } from "./automationScheduler";
 import http from "http";
+import { getProjectConfig } from "./configParser";
 
 const execAsync = promisify(exec);
 
@@ -127,7 +128,12 @@ function getMimeType(filename: string): string {
   return mimeTypes[ext] || "application/octet-stream";
 }
 
-function findEntryFile(language: string, files: ProjectFile[]): ProjectFile | undefined {
+function findEntryFile(language: string, files: ProjectFile[], config?: { entrypoint?: string; deployment?: { run?: string | string[] } }): ProjectFile | undefined {
+  if (config?.entrypoint) {
+    const f = files.find(f => f.filename === config.entrypoint);
+    if (f) return f;
+  }
+
   if (language === "javascript" || language === "typescript") {
     return files.find(f =>
       f.filename === "index.js" || f.filename === "index.ts" ||
@@ -519,10 +525,60 @@ export async function buildAndDeploy(
     }
 
     const isProcessDeploy = deploymentType === "autoscale" || deploymentType === "scheduled";
-    const entryFile = findEntryFile(language, files);
+    let projectConfig: import("./configParser").ReplitConfig = {};
+    try { projectConfig = await getProjectConfig(projectId); } catch {}
+
+    if (projectConfig.deployment?.build && !config?.buildCommand) {
+      const deployBuild = projectConfig.deployment.build;
+      addLog(`[build] Using .replit [deployment].build: ${deployBuild}`);
+      try {
+        const envVars = { ...getSandboxEnv(0), ...(config?.deploymentSecrets || {}) };
+        const { stdout, stderr } = await execAsync(deployBuild, {
+          cwd: outputDir,
+          timeout: 60000,
+          env: envVars,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        if (stdout) addLog(`[build:stdout] ${stdout.slice(0, 2000)}`);
+        if (stderr) addLog(`[build:stderr] ${stderr.slice(0, 2000)}`);
+        addLog(`[build] Deployment build command completed successfully`);
+      } catch (buildErr: unknown) {
+        const err = buildErr as { stderr?: string };
+        const errMsg = err.stderr?.slice(0, 1000) || "Unknown error";
+        addLog(`[build] Deployment build command failed: ${errMsg}`);
+        throw new Error(`Deployment build failed: ${errMsg}`);
+      }
+    }
+
+    if (projectConfig.deployment?.run && !config?.runCommand) {
+      let deployRun: string;
+      if (Array.isArray(projectConfig.deployment.run)) {
+        deployRun = projectConfig.deployment.run.map(arg =>
+          /["\s\\$`!#&|;()<>]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg
+        ).join(" ");
+      } else {
+        deployRun = projectConfig.deployment.run;
+      }
+      addLog(`[build] Using .replit [deployment].run: ${deployRun}`);
+      if (!config) {
+        config = { deploymentType: effectiveDeploymentType, runCommand: deployRun };
+      } else {
+        config.runCommand = deployRun;
+      }
+    }
+
+    const entryFile = findEntryFile(language, files, projectConfig);
 
     if (isProcessDeploy && !entryFile) {
       throw new Error(`No entry file found for ${deploymentType} deployment. Expected index.js, main.js, server.js, app.js (Node.js) or main.py, app.py, server.py (Python).`);
+    }
+
+    if (projectConfig.deployment?.ignorePorts && projectConfig.deployment.ignorePorts.length > 0) {
+      addLog(`[build] Ignoring ports from .replit config: ${projectConfig.deployment.ignorePorts.join(", ")}`);
+      if (config?.portMapping && projectConfig.deployment.ignorePorts.includes(config.portMapping)) {
+        addLog(`[build] Warning: configured portMapping ${config.portMapping} is in ignorePorts list, skipping`);
+        config.portMapping = undefined;
+      }
     }
 
     if (isProcessDeploy && entryFile) {

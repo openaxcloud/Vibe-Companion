@@ -178,7 +178,7 @@ class ExecutionPool {
         job.language,
         job.onLog,
         undefined,
-        undefined,
+        job.projectId,
         job.envVars,
         abortController.signal,
       );

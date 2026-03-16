@@ -32,6 +32,7 @@ interface ConsolePanelProps {
   onAskAI: (logContent: string) => void;
   activeFileName?: string;
   currentConsoleRunId?: string | null;
+  onSendStdin?: (data: string) => void;
 }
 
 function parseAnsi(text: string): React.ReactNode {
@@ -181,13 +182,16 @@ export default function ConsolePanel({
   onAskAI,
   activeFileName,
   currentConsoleRunId,
+  onSendStdin,
 }: ConsolePanelProps) {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stdinInputRef = useRef<HTMLInputElement>(null);
   const [showOnlyLatest, setShowOnlyLatest] = useState(false);
   const [collapsedRuns, setCollapsedRuns] = useState<Set<string>>(new Set());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [localLogs, setLocalLogs] = useState<LogEntry[]>([]);
+  const [stdinValue, setStdinValue] = useState("");
   const runStartTimeRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -358,6 +362,38 @@ export default function ConsolePanel({
           />
         ))}
       </div>
+
+      {isRunning && onSendStdin && (
+        <div className="flex items-center gap-1 px-2 py-1 border-t border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0" data-testid="stdin-input-area">
+          <span className="text-[10px] text-[#0CCE6B] font-mono shrink-0">&gt;</span>
+          <input
+            ref={stdinInputRef}
+            type="text"
+            value={stdinValue}
+            onChange={(e) => setStdinValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onSendStdin(stdinValue + "\n");
+                setStdinValue("");
+              }
+            }}
+            className="flex-1 bg-transparent text-[12px] text-[var(--ide-text)] font-mono outline-none placeholder:text-[var(--ide-text-muted)]"
+            placeholder="Type input for the running program..."
+            autoFocus
+            data-testid="input-stdin"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-5 h-5 text-[#0CCE6B] hover:bg-[#0CCE6B]/10 rounded shrink-0"
+            onClick={() => { onSendStdin(stdinValue + "\n"); setStdinValue(""); }}
+            data-testid="button-send-stdin"
+            title="Send input"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

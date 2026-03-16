@@ -10,7 +10,9 @@ import { storage } from "./storage";
 import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema } from "@shared/schema";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
-import { executeCode } from "./executor";
+import { executeCode, sendStdinToProcess, killInteractiveProcess, resolveRunCommand } from "./executor";
+import { getProjectConfig, parseReplitConfig, serializeReplitConfig, getEnvironmentMetadata, type ReplitConfig } from "./configParser";
+import { parseReplitNix, serializeReplitNix } from "./nixParser";
 import { executionPool } from "./executionPool";
 import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity } from "./terminal";
 import { log } from "./index";
@@ -2764,6 +2766,109 @@ export async function registerRoutes(
     return packages;
   }
 
+  app.get("/api/projects/:id/config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const files = await storage.getFiles(req.params.id);
+      const replitFile = files.find(f => f.filename === ".replit");
+      const nixFile = files.find(f => f.filename === "replit.nix");
+
+      let replitConfig: ReplitConfig = {};
+      let rawReplit = "";
+      if (replitFile?.content) {
+        rawReplit = replitFile.content;
+        try { replitConfig = parseReplitConfig(replitFile.content); } catch {}
+      }
+
+      let nixDeps: string[] = [];
+      let rawNix = "";
+      if (nixFile?.content) {
+        rawNix = nixFile.content;
+        try { nixDeps = parseReplitNix(nixFile.content).deps; } catch {}
+      }
+
+      return res.json({
+        replit: replitConfig,
+        nix: { deps: nixDeps },
+        raw: { replit: rawReplit, nix: rawNix },
+        hasReplitFile: !!replitFile,
+        hasNixFile: !!nixFile,
+      });
+    } catch {
+      return res.status(500).json({ message: "Failed to get config" });
+    }
+  });
+
+  app.put("/api/projects/:id/config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { replit, nix, rawReplit, rawNix } = req.body;
+      const files = await storage.getFiles(req.params.id);
+
+      if (rawReplit !== undefined) {
+        const existingFile = files.find(f => f.filename === ".replit");
+        if (existingFile) {
+          await storage.updateFileContent(existingFile.id, rawReplit);
+        } else {
+          await storage.createFile(req.params.id, { filename: ".replit", content: rawReplit });
+        }
+      } else if (replit) {
+        const content = serializeReplitConfig(replit);
+        const existingFile = files.find(f => f.filename === ".replit");
+        if (existingFile) {
+          await storage.updateFileContent(existingFile.id, content);
+        } else {
+          await storage.createFile(req.params.id, { filename: ".replit", content });
+        }
+      }
+
+      if (rawNix !== undefined) {
+        const existingFile = files.find(f => f.filename === "replit.nix");
+        if (existingFile) {
+          await storage.updateFileContent(existingFile.id, rawNix);
+        } else {
+          await storage.createFile(req.params.id, { filename: "replit.nix", content: rawNix });
+        }
+      } else if (nix && Array.isArray(nix.deps)) {
+        const content = serializeReplitNix(nix.deps);
+        const existingFile = files.find(f => f.filename === "replit.nix");
+        if (existingFile) {
+          await storage.updateFileContent(existingFile.id, content);
+        } else {
+          await storage.createFile(req.params.id, { filename: "replit.nix", content });
+        }
+      }
+
+      const updatedConfig = await getProjectConfig(req.params.id);
+      return res.json({ replit: updatedConfig, message: "Config updated" });
+    } catch {
+      return res.status(500).json({ message: "Failed to update config" });
+    }
+  });
+
+  app.post("/api/projects/:id/onboot", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const config = await getProjectConfig(req.params.id);
+      if (!config.onBoot) {
+        return res.json({ executed: false, message: "No onBoot command configured" });
+      }
+      const result = await executeCode(config.onBoot, "bash");
+      return res.json({ executed: true, command: config.onBoot, result });
+    } catch {
+      return res.status(500).json({ message: "Failed to execute onBoot" });
+    }
+  });
+
   app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
@@ -4360,13 +4465,25 @@ export async function registerRoutes(
       return res.status(202).json({ jobId, async: true });
     }
     try {
-      if (asyncMode) {
-        const jobId = startAsyncImport("github", req.session.userId!, { owner, repo, name, branch });
-        return res.status(202).json({ jobId, async: true });
-      }
       const result = await importFromGitHub(req.session.userId!, owner, repo, name, branch);
       await storage.trackEvent(req.session.userId!, "github_import", { repo: `${owner}/${repo}`, fileCount: result.fileCount });
       const files = await storage.getFiles(result.project.id);
+
+      const importedConfig = await getProjectConfig(result.project.id);
+      if (importedConfig.language && importedConfig.language !== result.project.language) {
+        await storage.updateProject(result.project.id, { language: importedConfig.language });
+      }
+
+      if (importedConfig.gitHubImport?.requiredFiles) {
+        const filenames = files.map(f => f.filename);
+        const missingFiles = importedConfig.gitHubImport.requiredFiles.filter(rf => !filenames.includes(rf));
+        if (missingFiles.length > 0) {
+          const warnings = result.warnings || [];
+          warnings.push(`Missing required files from .replit config: ${missingFiles.join(", ")}`);
+          return res.status(201).json({ project: result.project, files, warnings, fileCount: result.fileCount, jobId: result.jobId, missingRequiredFiles: missingFiles });
+        }
+      }
+
       return res.status(201).json({ project: result.project, files, warnings: result.warnings, fileCount: result.fileCount, jobId: result.jobId });
     } catch (err: any) {
       return res.status(502).json({ message: err.message || "Failed to import from GitHub" });
@@ -5537,13 +5654,69 @@ export async function registerRoutes(
 
     const startTime = Date.now();
 
+    let resolvedCode = code;
+    let resolvedLanguage = language;
+    let configRunCommand: string | undefined;
+
+    try {
+      const { config: replitConfig } = await resolveRunCommand(
+        project.id, language, code,
+        { id: project.id, name: project.name, language: project.language, userId: project.userId }
+      );
+
+      const preSteps: string[] = [];
+      if (replitConfig.compile) {
+        const compileCmd = Array.isArray(replitConfig.compile)
+          ? replitConfig.compile.join(" ") : replitConfig.compile;
+        preSteps.push(compileCmd);
+      }
+      if (replitConfig.build) {
+        const buildCmd = Array.isArray(replitConfig.build)
+          ? replitConfig.build.join(" ") : replitConfig.build;
+        preSteps.push(buildCmd);
+      }
+
+      if (replitConfig.run) {
+        let runCmd: string;
+        if (Array.isArray(replitConfig.run)) {
+          runCmd = replitConfig.run.map(arg =>
+            /["\s\\$`!#&|;()<>]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg
+          ).join(" ");
+        } else {
+          runCmd = replitConfig.run;
+        }
+        if (preSteps.length > 0) {
+          runCmd = preSteps.join(" && ") + " && " + runCmd;
+        }
+        configRunCommand = runCmd;
+        resolvedCode = runCmd;
+        resolvedLanguage = "bash";
+      } else if (preSteps.length > 0) {
+        configRunCommand = preSteps.join(" && ");
+      }
+    } catch {}
+
+    if (configRunCommand && resolvedLanguage !== "bash") {
+      try {
+        const buildResult = await executeCode(configRunCommand, "bash");
+        if (buildResult.exitCode !== 0) {
+          broadcastToProject(project.id, {
+            type: "run_log",
+            message: `Build/compile step failed: ${buildResult.stderr?.slice(0, 500) || "Unknown error"}`,
+            logType: "error",
+            timestamp: Date.now(),
+          });
+        }
+      } catch {}
+    }
+
     const run = await storage.createRun(userId, {
       projectId: project.id,
-      language,
-      code,
+      language: resolvedLanguage,
+      code: resolvedCode,
     });
 
-    const commandLabel = fileName ? `run ${fileName}` : `run ${language}`;
+    const commandLabel = configRunCommand || (fileName ? `run ${fileName}` : `run ${language}`);
     const consoleRun = await storage.createConsoleRun({
       projectId: project.id,
       command: commandLabel,
@@ -5558,7 +5731,7 @@ export async function registerRoutes(
 
     res.status(202).json({ runId: run.id, consoleRunId: consoleRun.id, status: "running" });
 
-    const codeHash = crypto.createHash("sha256").update(code).digest("hex").slice(0, 16);
+    const codeHash = crypto.createHash("sha256").update(resolvedCode).digest("hex").slice(0, 16);
 
     const projectEnvVarsList = await storage.getProjectEnvVars(project.id);
     const envVarsMap: Record<string, string> = {};
@@ -5579,6 +5752,18 @@ export async function registerRoutes(
     const user = await storage.getUser(userId);
     envVarsMap["REPLIT_USER"] = user?.displayName || user?.email || userId;
 
+    try {
+      const { envVars: configEnvVars } = await resolveRunCommand(
+        project.id, resolvedLanguage, resolvedCode,
+        { id: project.id, name: project.name, language: project.language, userId: project.userId }
+      );
+      for (const [k, v] of Object.entries(configEnvVars)) {
+        if (!(k in envVarsMap)) {
+          envVarsMap[k] = v;
+        }
+      }
+    } catch {}
+
     const consoleLogBuffer: { id: number; text: string; type: "info" | "error" | "success" }[] = [];
     let logIdCounter = 0;
     let lastFlushLen = 0;
@@ -5595,7 +5780,7 @@ export async function registerRoutes(
     const flushTimer = setInterval(flushLogs, LOG_FLUSH_INTERVAL);
 
     try {
-      const result = await executionPool.submit(userId, project.id, code, language, (message, type) => {
+      const result = await executionPool.submit(userId, project.id, resolvedCode, resolvedLanguage, (message, type) => {
         consoleLogBuffer.push({ id: logIdCounter++, text: message, type });
         broadcastToProject(project.id, {
           type: "run_log",
@@ -10374,10 +10559,26 @@ Based on the search results above, provide a comprehensive answer to the user's 
     }
     ipConnections.add(ws);
 
+    const isFirstClient = !wsClients.has(projectId) || wsClients.get(projectId)!.size === 0;
     if (!wsClients.has(projectId)) {
       wsClients.set(projectId, new Set());
     }
     wsClients.get(projectId)!.add(ws);
+
+    if (isFirstClient && projectId) {
+      (async () => {
+        try {
+          const config = await getProjectConfig(projectId);
+          if (config.onBoot) {
+            log(`Running onBoot for project ${projectId}: ${config.onBoot}`, "config");
+            const result = await executeCode(config.onBoot, "bash", undefined, undefined, projectId);
+            if (result.exitCode !== 0 && result.stderr) {
+              log(`onBoot failed for project ${projectId}: ${result.stderr.slice(0, 200)}`, "config");
+            }
+          }
+        } catch {}
+      })();
+    }
 
     if (userId) {
       ws.__userId = userId;
@@ -10406,6 +10607,13 @@ Based on the search results above, provide a comprehensive answer to the user's 
         const data = JSON.parse(rawData.toString());
         if (data.type === "ping") {
           ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+        } else if (data.type === "stdin" && data.data && projectId) {
+          const sent = sendStdinToProcess(projectId, data.data);
+          if (!sent) {
+            ws.send(JSON.stringify({ type: "stdin_error", message: "No active process to receive input" }));
+          }
+        } else if (data.type === "kill_process" && projectId) {
+          killInteractiveProcess(projectId);
         }
       } catch {}
     });
@@ -10846,19 +11054,28 @@ Based on the search results above, provide a comprehensive answer to the user's 
         .map((f) => f.filename);
 
       let framework = "none";
-      const hasPackageJson = files.find((f) => f.filename === "package.json");
-      if (hasPackageJson) {
-        try {
-          const pkg = JSON.parse(hasPackageJson.content || "{}");
-          const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-          if (allDeps.jest || allDeps["@jest/core"]) framework = "jest";
-          else if (allDeps.vitest) framework = "vitest";
-          else if (allDeps.mocha) framework = "mocha";
-          else if (allDeps["@testing-library/react"]) framework = "testing-library";
-          else framework = "node:test";
-        } catch {}
-      } else if (files.some((f) => f.filename.endsWith(".py"))) {
-        framework = "pytest";
+      const projectConfig = await getProjectConfig(req.params.id);
+      if (projectConfig.unitTest?.language) {
+        const unitLang = projectConfig.unitTest.language;
+        if (unitLang === "python") framework = "pytest";
+        else if (unitLang === "javascript" || unitLang === "nodejs") framework = "jest";
+        else if (unitLang === "typescript") framework = "vitest";
+        else framework = unitLang;
+      } else {
+        const hasPackageJson = files.find((f) => f.filename === "package.json");
+        if (hasPackageJson) {
+          try {
+            const pkg = JSON.parse(hasPackageJson.content || "{}");
+            const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+            if (allDeps.jest || allDeps["@jest/core"]) framework = "jest";
+            else if (allDeps.vitest) framework = "vitest";
+            else if (allDeps.mocha) framework = "mocha";
+            else if (allDeps["@testing-library/react"]) framework = "testing-library";
+            else framework = "node:test";
+          } catch {}
+        } else if (files.some((f) => f.filename.endsWith(".py"))) {
+          framework = "pytest";
+        }
       }
 
       res.json({ files: testFiles, framework });

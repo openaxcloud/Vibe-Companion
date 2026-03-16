@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
+import ConfigPanel from "@/components/ConfigPanel";
 import DatabasePanel from "@/components/DatabasePanel";
 import BackupRecoverySection from "@/components/BackupRecoverySection";
 import TestRunnerPanel from "@/components/TestRunnerPanel";
@@ -224,9 +225,9 @@ function _projectPage() {
   const projectId = params.id;
   const queryClient = useQueryClient();
 
-  const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__" } as const;
+  const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__", CONFIG: "__config__" } as const;
   const CONFLICT_TAB_PREFIX = "__conflict__";
-  const isSpecialTab = (id: string) => id === SPECIAL_TABS.WEBVIEW || id === SPECIAL_TABS.SHELL || id === SPECIAL_TABS.CONSOLE || id.startsWith(CONFLICT_TAB_PREFIX);
+  const isSpecialTab = (id: string) => id === SPECIAL_TABS.WEBVIEW || id === SPECIAL_TABS.SHELL || id === SPECIAL_TABS.CONSOLE || id === SPECIAL_TABS.CONFIG || id.startsWith(CONFLICT_TAB_PREFIX);
   const isFileTab = (id: string) => !isSpecialTab(id) && !id.startsWith(CONFLICT_TAB_PREFIX);
   const isConflictTab = (id: string) => id.startsWith(CONFLICT_TAB_PREFIX);
 
@@ -238,6 +239,7 @@ function _projectPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentConsoleRunId, setCurrentConsoleRunId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showHiddenFiles, setShowHiddenFiles] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
@@ -718,7 +720,7 @@ function _projectPage() {
   const hasAutoRun = useRef(false);
 
   const { user, logout: logoutMutation } = useAuth();
-  const { messages, connected, connectionQuality, retryWebSocket } = useProjectWebSocket(projectId);
+  const { messages, connected, connectionQuality, retryWebSocket, sendMessage: wsSendMessage } = useProjectWebSocket(projectId);
   const {
     remoteUsers,
     remoteAwareness,
@@ -842,6 +844,31 @@ function _projectPage() {
       return res.json();
     },
   });
+
+  const projectConfigQuery = useQuery<{
+    replit: {
+      entrypoint?: string; run?: string | string[]; build?: string | string[];
+      compile?: string | string[]; onBoot?: string; hidden?: string[];
+      audio?: boolean; language?: string; modules?: string[];
+      unitTest?: { language?: string }; packager?: any;
+      deployment?: any; ports?: { localPort: number; externalPort: number }[];
+      runEnv?: Record<string, string>; gitHubImport?: { requiredFiles?: string[] };
+    };
+    nix: { deps: string[] };
+    raw: { replit: string; nix: string };
+    hasReplitFile: boolean; hasNixFile: boolean;
+  }>({
+    queryKey: ["/api/projects", projectId, "config"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/config`, { credentials: "include" });
+      if (!res.ok) return { replit: {}, nix: { deps: [] }, raw: { replit: "", nix: "" }, hasReplitFile: false, hasNixFile: false };
+      return res.json();
+    },
+  });
+
+  const hiddenPatterns = useMemo(() => {
+    return projectConfigQuery.data?.replit?.hidden || [];
+  }, [projectConfigQuery.data?.replit?.hidden]);
 
   const gitCommitsQuery = useQuery<any[]>({
     queryKey: ["/api/projects", projectId, "git/commits", currentBranch],
@@ -985,12 +1012,17 @@ function _projectPage() {
 
   useEffect(() => {
     if (!useRunnerFS && filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0 && !layoutRestoredRef.current) {
-      const f = filesQuery.data[0];
-      setOpenTabs([f.id]);
-      setActiveFileId(f.id);
-      setFileContents((prev) => ({ ...prev, [f.id]: f.content }));
+      const entrypoint = projectConfigQuery.data?.replit?.entrypoint;
+      let targetFile = filesQuery.data[0];
+      if (entrypoint) {
+        const match = filesQuery.data.find((f: any) => f.filename === entrypoint || f.name === entrypoint);
+        if (match) targetFile = match;
+      }
+      setOpenTabs([targetFile.id]);
+      setActiveFileId(targetFile.id);
+      setFileContents((prev) => ({ ...prev, [targetFile.id]: targetFile.content }));
     }
-  }, [filesQuery.data, useRunnerFS]);
+  }, [filesQuery.data, useRunnerFS, projectConfigQuery.data]);
 
   useEffect(() => {
     if (projectQuery.data) {
@@ -2390,8 +2422,22 @@ function _projectPage() {
           return r.json();
         })
         .then((d) => {
-          setLivePreviewUrl(d.previewUrl);
-          if (d.previewUrl && userPrefs.automaticPreview) setPreviewPanelOpen(true);
+          let url = d.previewUrl;
+          const portsCfg = projectConfigQuery.data?.replit?.ports;
+          if (url && portsCfg && portsCfg.length > 0) {
+            const httpPort = portsCfg.find((p: { localPort: number; externalPort: number }) => p.externalPort === 80 || p.externalPort === 443);
+            if (httpPort) {
+              try {
+                const parsed = new URL(url);
+                if (parsed.port && Number(parsed.port) !== httpPort.localPort) {
+                  parsed.port = String(httpPort.localPort);
+                  url = parsed.toString();
+                }
+              } catch {}
+            }
+          }
+          setLivePreviewUrl(url);
+          if (url && userPrefs.automaticPreview) setPreviewPanelOpen(true);
         })
         .catch(() => setLivePreviewUrl(null));
     } else if (!userPrefs.forwardPorts) {
@@ -2399,7 +2445,7 @@ function _projectPage() {
     } else {
       setLivePreviewUrl(null);
     }
-  }, [wsStatus, projectId, userPrefs.forwardPorts]);
+  }, [wsStatus, projectId, userPrefs.forwardPorts, projectConfigQuery.data]);
 
   const initWorkspaceMutation = useMutation({
     mutationFn: async () => {
@@ -2834,6 +2880,18 @@ function _projectPage() {
           <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors duration-150 ${"text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`} onClick={() => invalidateFs()} title="Refresh">
             <RefreshCw className="w-3 h-3" />
           </Button>
+          {hiddenPatterns.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`w-6 h-6 rounded transition-colors duration-150 ${showHiddenFiles ? "text-[var(--ide-accent)] bg-[var(--ide-surface)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`}
+              onClick={() => setShowHiddenFiles(!showHiddenFiles)}
+              data-testid="button-toggle-hidden-files"
+              title={showHiddenFiles ? "Hide hidden files" : "Show hidden files"}
+            >
+              <Eye className="w-3 h-3" />
+            </Button>
+          )}
         </div>
       </div>
       {useRunnerFS && currentFsPath !== "/" && (
@@ -3011,7 +3069,17 @@ function _projectPage() {
               </div>
             )}
             {(() => {
-              const tree = buildFileTree(filesQuery.data || []);
+              const filteredFiles = showHiddenFiles ? (filesQuery.data || []) : (filesQuery.data || []).filter(f => {
+                if (hiddenPatterns.length === 0) return true;
+                return !hiddenPatterns.some(pattern => {
+                  if (pattern.includes("*")) {
+                    const regex = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
+                    return regex.test(f.filename) || f.filename.split("/").some(part => regex.test(part));
+                  }
+                  return f.filename === pattern || f.filename.startsWith(pattern + "/") || f.filename.split("/").includes(pattern);
+                });
+              });
+              const tree = buildFileTree(filteredFiles);
               const folderContextMenuItems = (folderPath: string) => (
                 <>
                   <ContextMenuItem
@@ -3259,6 +3327,7 @@ function _projectPage() {
     if (tabId === SPECIAL_TABS.WEBVIEW) return { name: "Webview", icon: <Monitor className="w-3.5 h-3.5 shrink-0 text-[#0079F2]" /> };
     if (tabId === SPECIAL_TABS.SHELL) return { name: "Shell", icon: <Hash className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" /> };
     if (tabId === SPECIAL_TABS.CONSOLE) return { name: "Console", icon: <Terminal className="w-3.5 h-3.5 shrink-0 text-[#F5A623]" /> };
+    if (tabId === SPECIAL_TABS.CONFIG) return { name: "Config", icon: <Settings className="w-3.5 h-3.5 shrink-0 text-[#F5A623]" /> };
     if (tabId.startsWith(CONFLICT_TAB_PREFIX)) return { name: `⚠ ${tabId.slice(CONFLICT_TAB_PREFIX.length)}`, icon: <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-400" /> };
     return null;
   };
@@ -3498,6 +3567,13 @@ function _projectPage() {
             data-testid="menu-open-webview-tab"
           >
             <Monitor className="w-3.5 h-3.5 text-[#0079F2]" /> Webview
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer"
+            onClick={() => openSpecialTab(SPECIAL_TABS.CONFIG)}
+            data-testid="menu-open-config-tab"
+          >
+            <Settings className="w-3.5 h-3.5 text-[#F5A623]" /> Config
           </DropdownMenuItem>
           <DropdownMenuSeparator className="bg-[var(--ide-border)]" />
           <DropdownMenuItem
@@ -3938,6 +4014,10 @@ function _projectPage() {
     </div>
   );
 
+  const handleSendStdin = useCallback((data: string) => {
+    wsSendMessage({ type: "stdin", data });
+  }, [wsSendMessage]);
+
   const consoleTabContent = (
     <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
       <ConsolePanel
@@ -3948,6 +4028,7 @@ function _projectPage() {
         onAskAI={handleAskAIFromConsole}
         activeFileName={activeFileName}
         currentConsoleRunId={currentConsoleRunId}
+        onSendStdin={handleSendStdin}
       />
     </div>
   );
@@ -4258,6 +4339,9 @@ function _projectPage() {
       {activeFileId === SPECIAL_TABS.WEBVIEW ? webviewTabContent
        : activeFileId === SPECIAL_TABS.SHELL ? shellTabContent
        : activeFileId === SPECIAL_TABS.CONSOLE ? consoleTabContent
+       : activeFileId === SPECIAL_TABS.CONFIG ? (
+        <ConfigPanel projectId={projectId!} onClose={() => { const idx = openTabs.indexOf(SPECIAL_TABS.CONFIG); if (idx >= 0) { const next = [...openTabs]; next.splice(idx, 1); setOpenTabs(next); setActiveFileId(next[Math.min(idx, next.length - 1)] || null); } }} />
+       )
        : activeFileId && isConflictTab(activeFileId) ? (
         <div className="flex-1 overflow-auto bg-[var(--ide-bg)] p-0">
           <div className="sticky top-0 z-10 bg-red-500/10 border-b border-red-500/30 px-4 py-2 flex items-center gap-2">
@@ -4572,6 +4656,7 @@ function _projectPage() {
       onAskAI={handleAskAIFromConsole}
       activeFileName={activeFileName}
       currentConsoleRunId={currentConsoleRunId}
+      onSendStdin={handleSendStdin}
     />
   );
 

@@ -196,6 +196,14 @@ export function useProjectWebSocket(projectId: string | undefined) {
 
   const clearMessages = useCallback(() => setMessages([]), []);
 
+  const sendMessage = useCallback((data: Record<string, unknown>) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+      return true;
+    }
+    return false;
+  }, []);
+
   const retryWebSocket = useCallback(() => {
     setUsePolling(false);
     usePollingRef.current = false;
@@ -206,5 +214,5 @@ export function useProjectWebSocket(projectId: string | undefined) {
     setTimeout(() => connectRef.current(), 100);
   }, []);
 
-  return { messages, connected: connected || usePolling, connectionQuality, clearMessages, retryWebSocket };
+  return { messages, connected: connected || usePolling, connectionQuality, clearMessages, retryWebSocket, sendMessage };
 }
