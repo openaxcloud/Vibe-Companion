@@ -13,14 +13,17 @@ export const openai = new OpenAI({
  */
 export async function generateImageBuffer(
   prompt: string,
-  size: "1024x1024" | "512x512" | "256x256" = "1024x1024"
+  size: "1024x1024" | "1024x1536" | "1536x1024" | "auto" = "1024x1024"
 ): Promise<Buffer> {
   const response = await openai.images.generate({
     model: "gpt-image-1",
     prompt,
     size,
   });
-  const base64 = response.data[0]?.b64_json ?? "";
+  const base64 = response.data[0]?.b64_json;
+  if (!base64) {
+    throw new Error("Image API returned no image data");
+  }
   return Buffer.from(base64, "base64");
 }
 
@@ -47,7 +50,10 @@ export async function editImages(
     prompt,
   });
 
-  const imageBase64 = response.data[0]?.b64_json ?? "";
+  const imageBase64 = response.data[0]?.b64_json;
+  if (!imageBase64) {
+    throw new Error("Image edit API returned no image data");
+  }
   const imageBytes = Buffer.from(imageBase64, "base64");
 
   if (outputPath) {

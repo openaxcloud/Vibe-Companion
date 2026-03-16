@@ -4,7 +4,7 @@ import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
   FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
   FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield,
-  Mic, MicOff, Paperclip, Image, FileText, XCircle
+  Mic, MicOff, Paperclip, Image, FileText, XCircle, ImagePlus, Loader2, ToggleLeft, ToggleRight
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -167,6 +167,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [codeOptimizations, setCodeOptimizations] = useState(() => {
+    try { return localStorage.getItem("ai-code-optimizations") === "true"; } catch { return false; }
+  });
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -313,6 +317,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const sendMessage = async () => {
     if ((!input.trim() && attachments.length === 0) || isStreaming) return;
 
+    const imageMatch = input.trim().match(/^\/image\s+(.+)$/i);
+    if (imageMatch) {
+      setInput("");
+      await generateImage(imageMatch[1]);
+      return;
+    }
+
     let fullContent = input.trim();
     const currentAttachments = [...attachments];
 
@@ -353,6 +364,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       if (isAgent) {
         body.projectId = projectId;
+        if (codeOptimizations) body.optimize = true;
       } else {
         body.context = context;
         if (projectId) body.projectId = projectId;
@@ -411,7 +423,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const endpoint = isAgent ? "/api/ai/agent" : "/api/ai/chat";
       const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model };
-      if (isAgent) body.projectId = projectId; else { body.context = context; if (projectId) body.projectId = projectId; }
+      if (isAgent) { body.projectId = projectId; if (codeOptimizations) body.optimize = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
       if (retryToken && isAgent) retryHeaders["X-CSRF-Token"] = retryToken;
@@ -537,6 +549,50 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const toggleCodeOptimizations = () => {
+    setCodeOptimizations((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("ai-code-optimizations", String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const generateImage = async (prompt: string) => {
+    if (!prompt.trim() || isGeneratingImage) return;
+    setIsGeneratingImage(true);
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: `🎨 Generate image: ${prompt}` };
+    setMessages((prev) => [...prev, userMsg]);
+    persistMessage("user", userMsg.content);
+
+    const assistantId = (Date.now() + 1).toString();
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      const res = await fetch("/api/ai/generate-image", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image generation failed");
+      const content = `Here's the generated image:\n\n![Generated image](${data.image})`;
+      setMessages((prev) =>
+        prev.map((m) => m.id === assistantId ? { ...m, content } : m)
+      );
+      persistMessage("assistant", content, model);
+    } catch (err: any) {
+      setMessages((prev) =>
+        prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Image generation failed: ${err.message}` } : m)
+      );
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
@@ -563,7 +619,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   const renderInlineMarkdown = (text: string): React.ReactNode[] => {
     const tokens: React.ReactNode[] = [];
-    const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+    const inlineRegex = /(!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
     let lastIndex = 0;
     let match;
     let tokenKey = 0;
@@ -572,20 +628,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (match.index > lastIndex) {
         tokens.push(<span key={tokenKey++}>{text.slice(lastIndex, match.index)}</span>);
       }
-      if (match[2]) {
-        tokens.push(<strong key={tokenKey++} className="font-semibold text-[var(--ide-text)]">{match[2]}</strong>);
-      } else if (match[3]) {
-        tokens.push(<em key={tokenKey++} className="italic text-[var(--ide-text)]">{match[3]}</em>);
+      if (match[2] !== undefined && match[3]) {
+        tokens.push(
+          <img key={tokenKey++} src={match[3]} alt={match[2] || "Generated image"} className="max-w-full rounded-lg border border-[var(--ide-border)] my-2" data-testid="img-generated" />
+        );
       } else if (match[4]) {
+        tokens.push(<strong key={tokenKey++} className="font-semibold text-[var(--ide-text)]">{match[4]}</strong>);
+      } else if (match[5]) {
+        tokens.push(<em key={tokenKey++} className="italic text-[var(--ide-text)]">{match[5]}</em>);
+      } else if (match[6]) {
         tokens.push(
           <code key={tokenKey++} className="bg-[var(--ide-bg)] px-1.5 py-0.5 rounded text-[#FF9940] font-mono text-[12px]">
-            {match[4]}
+            {match[6]}
           </code>
         );
-      } else if (match[5] && match[6]) {
+      } else if (match[7] && match[8]) {
         tokens.push(
-          <a key={tokenKey++} href={match[6]} target="_blank" rel="noopener noreferrer" className="text-[#0079F2] underline hover:text-[#3399FF] transition-colors">
-            {match[5]}
+          <a key={tokenKey++} href={match[8]} target="_blank" rel="noopener noreferrer" className="text-[#0079F2] underline hover:text-[#3399FF] transition-colors">
+            {match[7]}
           </a>
         );
       }
@@ -685,6 +745,30 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[]) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
     const rendered = parts.map((part, i) => {
+      if (part.includes("data:image/")) {
+        const imgParts = part.split(/(!\[[^\]]*\]\(data:image\/[^)]+\))/);
+        if (imgParts.length > 1) {
+        return imgParts.map((imgPart, j) => {
+          const imgMatch = imgPart.match(/^!\[([^\]]*)\]\((data:image\/[^)]+)\)$/);
+          if (imgMatch) {
+            return (
+              <div key={`${i}-img-${j}`} className="my-3">
+                <img
+                  src={imgMatch[2]}
+                  alt={imgMatch[1] || "Generated image"}
+                  className="max-w-full rounded-lg border border-[var(--ide-border)] shadow-md"
+                  data-testid="img-generated"
+                />
+              </div>
+            );
+          }
+          if (imgPart.trim()) {
+            return <span key={`${i}-txt-${j}`}>{renderMarkdownText(imgPart)}</span>;
+          }
+          return null;
+        });
+        }
+      }
       if (part.startsWith("```")) {
         const lines = part.slice(3, -3).split("\n");
         const lang = lines[0]?.trim() || "";
@@ -848,6 +932,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {mode === "agent" && (
+            <button
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all mr-1 ${
+                codeOptimizations
+                  ? "bg-[#0CCE6B]/15 text-[#0CCE6B] ring-1 ring-[#0CCE6B]/20"
+                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]"
+              }`}
+              onClick={toggleCodeOptimizations}
+              title={codeOptimizations ? "Code Optimizations: ON — AI will auto-review code after changes" : "Code Optimizations: OFF — Enable for automatic code review"}
+              data-testid="toggle-code-optimizations"
+            >
+              {codeOptimizations ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+              Code Optimizations
+            </button>
+          )}
           {projectId && (
             <div className="flex items-center mr-1 bg-[var(--ide-surface)]/30 rounded-lg p-0.5 ring-1 ring-[var(--ide-border)]/50">
               <button
@@ -1027,10 +1126,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : "Ask AI anything..."}
+            placeholder={isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : "Ask AI anything..."}
             rows={3}
             className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
-            disabled={isStreaming || isTranscribing}
+            disabled={isStreaming || isTranscribing || isGeneratingImage}
             data-testid="input-ai-chat"
           />
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
@@ -1082,8 +1181,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             >
               <Paperclip className="w-3 h-3" />
             </button>
+            <button
+              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                isGeneratingImage
+                  ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+              }`}
+              onClick={() => {
+                const prompt = window.prompt("Describe the image you want to generate:");
+                if (prompt) generateImage(prompt);
+              }}
+              disabled={isStreaming || isGeneratingImage}
+              title={isGeneratingImage ? "Generating image..." : "Generate image (or type /image <prompt>)"}
+              data-testid="button-ai-generate-image"
+            >
+              {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+            </button>
             <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
-              {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : "Shift+Enter for new line"}
+              {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isGeneratingImage ? "Generating image..." : "Shift+Enter · /image for AI images"}
             </span>
           </div>
           <div className="flex items-center gap-2">

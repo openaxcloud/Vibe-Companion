@@ -36,6 +36,8 @@ import * as runnerClient from "./runnerClient";
 import * as github from "./github";
 import * as gitService from "./git";
 import path, { posix as pathPosix } from "path";
+import { generateImageBuffer } from "./replit_integrations/image/client";
+import { registerImageRoutes } from "./replit_integrations/image";
 
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
@@ -3209,6 +3211,36 @@ Rules:
     }
   });
 
+  app.post("/api/ai/generate-image", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { prompt, size = "1024x1024" } = req.body;
+      if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+      if (prompt.length > 4000) {
+        return res.status(400).json({ error: "Prompt too long (max 4000 characters)" });
+      }
+      const validSizes = ["1024x1024", "1024x1536", "1536x1024", "auto"] as const;
+      type ImageSize = typeof validSizes[number];
+      const imageSize: ImageSize = (validSizes as readonly string[]).includes(size) ? (size as ImageSize) : "1024x1024";
+
+      const imageQuota = await storage.incrementAiCall(req.session.userId!);
+      if (!imageQuota.allowed) {
+        return res.status(429).json({ error: "Daily AI call limit reached. Upgrade to Pro for more." });
+      }
+
+      const imageBuffer = await generateImageBuffer(prompt, imageSize);
+      if (!imageBuffer || imageBuffer.length === 0) {
+        return res.status(502).json({ error: "Image generation returned empty result" });
+      }
+      const base64 = imageBuffer.toString("base64");
+      res.json({ image: `data:image/png;base64,${base64}` });
+    } catch (err: any) {
+      log(`Image generation error: ${err.message}`, "ai");
+      res.status(500).json({ error: "Image generation failed: " + (err.message || "unknown error") });
+    }
+  });
+
   app.get("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
@@ -3427,8 +3459,9 @@ Rules:
     toolInput: { filename: string; content: string; name?: string; description?: string },
     projectId: string,
     existingFiles: any[],
-    res: Response
-  ) => {
+    res: Response,
+    modifiedFiles?: Set<string>
+  ): Promise<void> => {
     try {
       if (toolName === "create_skill") {
         const skillName = toolInput.name || "Untitled Skill";
@@ -3461,6 +3494,7 @@ Rules:
           existingFiles.push(file);
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
         }
+        if (modifiedFiles) modifiedFiles.add(safeName);
       }
     } catch (err: any) {
       res.write(`data: ${JSON.stringify({ type: "error", message: `Failed to ${toolName}: ${err.message}` })}\n\n`);
@@ -3469,7 +3503,7 @@ Rules:
 
   app.post("/api/ai/agent", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
-      const { messages, projectId, model: requestedModel } = req.body;
+      const { messages, projectId, model: requestedModel, optimize } = req.body;
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -3494,6 +3528,7 @@ Rules:
       }
 
       const existingFiles = await storage.getFiles(projectId);
+      const agentModifiedFiles = new Set<string>();
       const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
 
       let agentSkillsContext = "";
@@ -3605,7 +3640,7 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
 
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
 
-              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res);
+              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles);
 
               toolResponseParts.push({
                 functionResponse: {
@@ -3714,7 +3749,7 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
 
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
 
-              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles);
 
               toolResultMessages.push({
                 role: "tool",
@@ -3805,7 +3840,7 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
 
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
 
-              await executeToolCall(block.name, input, projectId, existingFiles, res);
+              await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles);
             }
           }
 
@@ -3833,6 +3868,71 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
         }
       }
 
+      if (optimize && agentModifiedFiles.size > 0) {
+        const updatedFiles = await storage.getFiles(projectId);
+        const changedFiles = updatedFiles.filter(f => agentModifiedFiles.has(f.filename));
+        const changedFileSummary = changedFiles
+          .map(f => `### ${f.filename}\n\`\`\`\n${typeof f.content === "string" ? f.content.slice(0, 3000) : ""}\n\`\`\``)
+          .join("\n\n");
+
+        const optimizePrompt = `You just completed changes to the project "${project.name}". Review the modified files below for code quality, simplification opportunities, and potential issues. Provide a concise review with specific suggestions. Use markdown formatting.
+
+Modified files:
+${changedFileSummary}
+
+Review for:
+1. Code quality issues (unused variables, dead code, inconsistencies)
+2. Simplification opportunities (redundant logic, verbose patterns)
+3. Potential bugs or edge cases
+4. Performance improvements
+
+Be concise and actionable. Only mention real issues, not style preferences.`;
+
+        res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n---\n\n**🔍 Code Optimization Review**\n\n" })}\n\n`);
+
+        try {
+          if (requestedModel === "gemini") {
+            const reviewStream = await gemini.models.generateContentStream({
+              model: "gemini-2.5-flash",
+              contents: [{ role: "user", parts: [{ text: optimizePrompt }] }],
+              config: { maxOutputTokens: 4096 },
+            });
+            for await (const chunk of reviewStream) {
+              const content = chunk.text || "";
+              if (content) {
+                res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+              }
+            }
+          } else if (requestedModel === "gpt") {
+            const reviewStream = await openai.chat.completions.create({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: optimizePrompt }],
+              stream: true,
+              max_completion_tokens: 4096,
+            });
+            for await (const chunk of reviewStream) {
+              const content = chunk.choices[0]?.delta?.content || "";
+              if (content) {
+                res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+              }
+            }
+          } else {
+            const reviewStream = anthropic.messages.stream({
+              model: "claude-sonnet-4-6",
+              messages: [{ role: "user", content: optimizePrompt }],
+              max_tokens: 4096,
+            });
+            reviewStream.on("text", (text) => {
+              res.write(`data: ${JSON.stringify({ type: "text", content: text })}\n\n`);
+            });
+            await reviewStream.finalMessage();
+          }
+        } catch (reviewErr: any) {
+          log(`Code optimization review error: ${reviewErr.message}`, "ai");
+          res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n_Code optimization review could not be completed._" })}\n\n`);
+        }
+      }
+
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
@@ -3845,6 +3945,8 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
       }
     }
   });
+
+  registerImageRoutes(app, requireAuth, aiLimiter);
 
   // --- WebSocket ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
