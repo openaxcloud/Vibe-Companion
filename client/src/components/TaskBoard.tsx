@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, TouchEvent as ReactTouchEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, MoreHorizontal, CheckCircle2, Circle, Sparkles, Play,
-  X, ChevronRight, Clock, Zap, ArrowRight,
+  X, ChevronRight, Clock, Zap, ArrowRight, LayoutGrid, List,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -159,6 +159,142 @@ function TaskCard({
   );
 }
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
+
+function ThreadView({
+  tasks,
+  onAccept,
+  onApply,
+  onSelect,
+}: {
+  tasks: Task[];
+  onAccept: (id: string) => void;
+  onApply: (id: string) => void;
+  onSelect: (task: Task) => void;
+}) {
+  const grouped = useMemo(() => {
+    const groups: Record<string, Task[]> = { draft: [], active: [], ready: [], done: [] };
+    for (const t of tasks) {
+      const key = (t.status === "queued" || t.status === "applying") ? "active" : t.status;
+      if (groups[key]) groups[key].push(t);
+      else groups.draft.push(t);
+    }
+    return STATUS_COLUMNS.map(col => ({ ...col, tasks: groups[col.key] || [] })).filter(g => g.tasks.length > 0);
+  }, [tasks]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-2 space-y-3" data-testid="task-thread-view">
+      {grouped.map((group) => (
+        <div key={group.key}>
+          <div className="flex items-center gap-1.5 px-1 mb-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+            <span className="text-[10px] font-semibold text-[var(--ide-text)] uppercase tracking-wider">{group.label}</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">
+              {group.tasks.length}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {group.tasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] hover:border-[var(--ide-border-focus)] transition-all cursor-pointer group"
+                onClick={() => onSelect(task)}
+                data-testid={`thread-task-${task.id}`}
+              >
+                <div className="shrink-0">
+                  <TaskStatusIcon status={task.status} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[12px] font-medium text-[var(--ide-text)] truncate block" data-testid={`text-thread-title-${task.id}`}>
+                    {task.title}
+                  </span>
+                  {(task.status === "active" || task.status === "applying") && task.progress > 0 && (
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="h-1 flex-1 bg-[var(--ide-border)] rounded-full overflow-hidden">
+                        <div className="h-full bg-[#0079F2] rounded-full transition-all" style={{ width: `${task.progress}%` }} />
+                      </div>
+                      <span className="text-[9px] text-[var(--ide-text-muted)] shrink-0">{task.progress}%</span>
+                    </div>
+                  )}
+                  {task.status === "queued" && (
+                    <span className="inline-flex items-center gap-1 text-[9px] text-[#F5A623] mt-0.5">
+                      <Clock className="w-2.5 h-2.5" /> Queued
+                    </span>
+                  )}
+                </div>
+                <div className="shrink-0 flex items-center gap-1">
+                  {task.status === "draft" && (
+                    <button
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ide-hover)] opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); onAccept(task.id); }}
+                      data-testid={`button-thread-accept-${task.id}`}
+                    >
+                      <Play className="w-3 h-3 text-[#0CCE6B]" />
+                    </button>
+                  )}
+                  {task.status === "ready" && (
+                    <button
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ide-hover)] opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); onApply(task.id); }}
+                      data-testid={`button-thread-apply-${task.id}`}
+                    >
+                      <ArrowRight className="w-3 h-3 text-[#0CCE6B]" />
+                    </button>
+                  )}
+                  <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MobileColumnNav({
+  columns,
+  activeIndex,
+  onSelect,
+}: {
+  columns: { key: string; label: string; color: string; tasks: Task[] }[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div className="flex items-center border-b border-[var(--ide-border)] px-1 shrink-0" data-testid="mobile-column-nav">
+      {columns.map((col, i) => (
+        <button
+          key={col.key}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+            i === activeIndex
+              ? "text-[var(--ide-text)] border-b-2"
+              : "text-[var(--ide-text-muted)]"
+          }`}
+          style={i === activeIndex ? { borderColor: col.color } : {}}
+          onClick={() => onSelect(i)}
+          data-testid={`mobile-tab-${col.key}`}
+        >
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: col.color }} />
+          {col.label}
+          {col.tasks.length > 0 && (
+            <span className="text-[8px] px-1 py-0 rounded-full bg-[var(--ide-surface)]">{col.tasks.length}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function TaskBoard({
   projectId,
   onClose,
@@ -171,7 +307,10 @@ export default function TaskBoard({
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [viewMode, setViewMode] = useState<"board" | "thread">("board");
+  const [mobileColumnIndex, setMobileColumnIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isMobile = useIsMobile();
 
   const tasksQuery = useQuery<Task[]>({
     queryKey: ["/api/projects", projectId, "tasks"],
@@ -244,6 +383,23 @@ export default function TaskBoard({
 
   const draftTasks = tasks.filter(t => t.status === "draft");
 
+  const handleTouchStart = useCallback((e: ReactTouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+
+  const handleTouchEnd = useCallback((e: ReactTouchEvent) => {
+    if (!touchStartRef.current) return;
+    const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+    if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
+    if (dx < 0 && mobileColumnIndex < columns.length - 1) {
+      setMobileColumnIndex(i => i + 1);
+    } else if (dx > 0 && mobileColumnIndex > 0) {
+      setMobileColumnIndex(i => i - 1);
+    }
+  }, [mobileColumnIndex, columns.length]);
+
   if (selectedTask) {
     return (
       <TaskReviewDrawer
@@ -274,6 +430,24 @@ export default function TaskBoard({
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {tasks.length > 0 && (
+            <div className="flex items-center bg-[var(--ide-surface)] rounded-md p-0.5" data-testid="view-mode-toggle">
+              <button
+                className={`w-5 h-5 flex items-center justify-center rounded ${viewMode === "board" ? "bg-[var(--ide-bg)] shadow-sm" : ""}`}
+                onClick={() => setViewMode("board")}
+                data-testid="button-view-board"
+              >
+                <LayoutGrid className="w-3 h-3 text-[var(--ide-text-muted)]" />
+              </button>
+              <button
+                className={`w-5 h-5 flex items-center justify-center rounded ${viewMode === "thread" ? "bg-[var(--ide-bg)] shadow-sm" : ""}`}
+                onClick={() => setViewMode("thread")}
+                data-testid="button-view-thread"
+              >
+                <List className="w-3 h-3 text-[var(--ide-text-muted)]" />
+              </button>
+            </div>
+          )}
           {draftTasks.length > 0 && (
             <Button
               variant="ghost"
@@ -307,41 +481,79 @@ export default function TaskBoard({
             Use Plan mode in the AI panel to break your work into parallel tasks
           </p>
         </div>
+      ) : viewMode === "thread" ? (
+        <ThreadView
+          tasks={tasks}
+          onAccept={(id) => acceptMutation.mutate(id)}
+          onApply={(id) => applyMutation.mutate(id)}
+          onSelect={setSelectedTask}
+        />
       ) : (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden" ref={scrollRef}>
-          <div className="flex gap-2 p-2 h-full min-w-max">
-            {columns.map((col) => (
-              <div
-                key={col.key}
-                className="flex flex-col w-[220px] shrink-0 bg-[var(--ide-bg)] rounded-lg border border-[var(--ide-border)]"
-                data-testid={`column-${col.key}`}
-              >
-                <div className="flex items-center justify-between px-2.5 py-2 border-b border-[var(--ide-border)]">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
-                    <span className="text-[10px] font-semibold text-[var(--ide-text)] uppercase tracking-wider">{col.label}</span>
-                  </div>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">
-                    {col.tasks.length}
-                  </span>
-                </div>
-                <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5">
-                  {col.tasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      onAccept={(id) => acceptMutation.mutate(id)}
-                      onApply={(id) => applyMutation.mutate(id)}
-                      onDismiss={(id) => dismissMutation.mutate(id)}
-                      onDelete={(id) => deleteMutation.mutate(id)}
-                      onSelect={setSelectedTask}
-                    />
-                  ))}
-                </div>
+        <>
+          {isMobile && (
+            <MobileColumnNav columns={columns} activeIndex={mobileColumnIndex} onSelect={setMobileColumnIndex} />
+          )}
+          {isMobile ? (
+            <div
+              className="flex-1 overflow-y-auto p-2"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              data-testid="mobile-column-content"
+            >
+              <div className="space-y-1.5">
+                {columns[mobileColumnIndex]?.tasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onAccept={(id) => acceptMutation.mutate(id)}
+                    onApply={(id) => applyMutation.mutate(id)}
+                    onDismiss={(id) => dismissMutation.mutate(id)}
+                    onDelete={(id) => deleteMutation.mutate(id)}
+                    onSelect={setSelectedTask}
+                  />
+                ))}
+                {columns[mobileColumnIndex]?.tasks.length === 0 && (
+                  <p className="text-center text-[11px] text-[var(--ide-text-muted)] py-6">No tasks in this column</p>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-x-auto overflow-y-hidden" ref={scrollRef}>
+              <div className="flex gap-2 p-2 h-full min-w-max">
+                {columns.map((col) => (
+                  <div
+                    key={col.key}
+                    className="flex flex-col w-[220px] shrink-0 bg-[var(--ide-bg)] rounded-lg border border-[var(--ide-border)]"
+                    data-testid={`column-${col.key}`}
+                  >
+                    <div className="flex items-center justify-between px-2.5 py-2 border-b border-[var(--ide-border)]">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
+                        <span className="text-[10px] font-semibold text-[var(--ide-text)] uppercase tracking-wider">{col.label}</span>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">
+                        {col.tasks.length}
+                      </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5">
+                      {col.tasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onAccept={(id) => acceptMutation.mutate(id)}
+                          onApply={(id) => applyMutation.mutate(id)}
+                          onDismiss={(id) => dismissMutation.mutate(id)}
+                          onDelete={(id) => deleteMutation.mutate(id)}
+                          onSelect={setSelectedTask}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

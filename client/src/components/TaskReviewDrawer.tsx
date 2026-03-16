@@ -15,6 +15,7 @@ interface Task {
   description: string;
   plan: string[] | null;
   status: string;
+  priority: number;
   progress: number;
   result: string | null;
   errorMessage: string | null;

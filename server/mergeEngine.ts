@@ -110,11 +110,6 @@ export async function mergeTaskToMain(
       }
     }
 
-    for (const snapshot of snapshots) {
-      if (!snapshot.isModified) continue;
-      if (!mainFileMap.has(snapshot.filename)) continue;
-    }
-
     log(`Merged task ${taskId}: ${appliedFiles.length} files applied, ${conflicts.length} conflicts`, "task");
 
     return {

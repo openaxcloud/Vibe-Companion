@@ -10,12 +10,12 @@ interface TaskExecutorOptions {
 }
 
 const activeExecutions = new Map<string, AbortController>();
-const projectQueues = new Map<string, string[]>();
+const taskProjectMap = new Map<string, string>();
 
 export function getActiveTaskCount(projectId: string): number {
   let count = 0;
-  for (const [, controller] of activeExecutions) {
-    if (!controller.signal.aborted) count++;
+  for (const [taskId, controller] of activeExecutions) {
+    if (!controller.signal.aborted && taskProjectMap.get(taskId) === projectId) count++;
   }
   return count;
 }
@@ -80,6 +80,7 @@ export async function executeTask(
 
   const controller = new AbortController();
   activeExecutions.set(taskId, controller);
+  taskProjectMap.set(taskId, task.projectId);
 
   try {
     await storage.updateTask(taskId, { status: "active", startedAt: new Date() });
@@ -180,16 +181,25 @@ export async function executeTask(
     return { success: false, error: err.message };
   } finally {
     activeExecutions.delete(taskId);
+    taskProjectMap.delete(taskId);
   }
 }
 
 async function processQueuedTasks(projectId: string, options?: TaskExecutorOptions): Promise<void> {
   const allTasks = await storage.getProjectTasks(projectId);
   const queuedTasks = allTasks.filter(t => t.status === "queued");
+  const activeTasks = allTasks.filter(t => t.status === "active").length;
+  const userId = allTasks[0]?.userId;
+  if (!userId) return;
+
+  const maxParallel = await getMaxParallelTasks(userId);
+  let slotsAvailable = maxParallel - activeTasks;
 
   for (const task of queuedTasks) {
+    if (slotsAvailable <= 0) break;
     const depsMet = await checkDependenciesMet(task);
     if (depsMet) {
+      slotsAvailable--;
       executeTask(task.id, options).catch(err => {
         log(`Error executing queued task ${task.id}: ${err.message}`, "task");
       });
