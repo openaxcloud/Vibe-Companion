@@ -21,6 +21,7 @@ import VerifyEmail from "@/pages/VerifyEmail";
 import { useAuth } from "@/hooks/use-auth";
 import { Component, type ReactNode } from "react";
 import Project from "@/pages/Project";
+import Frameworks from "@/pages/Frameworks";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -105,6 +106,8 @@ function App() {
               <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
               <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
               <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
+              <Route path="/frameworks">{() => <ProtectedRoute component={Frameworks} />}</Route>
+              <Route path="/frameworks/:id">{() => <ProtectedRoute component={Frameworks} />}</Route>
               <Route path="/pricing" component={Pricing} />
               <Route path="/demo" component={DemoProject} />
               <Route path="/shared/:id" component={SharedProject} />

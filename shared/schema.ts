@@ -35,6 +35,11 @@ export const projects = pgTable("projects", {
   publishedSlug: text("published_slug"),
   customDomain: text("custom_domain"),
   githubRepo: text("github_repo"),
+  isDevFramework: boolean("is_dev_framework").notNull().default(false),
+  frameworkDescription: text("framework_description"),
+  frameworkCategory: text("framework_category"),
+  frameworkCoverUrl: text("framework_cover_url"),
+  isOfficialFramework: boolean("is_official_framework").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("projects_user_id_idx").on(table.userId),
@@ -46,6 +51,21 @@ export const insertProjectSchema = createInsertSchema(projects).pick({
 });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
+
+export const frameworkUpdates = pgTable("framework_updates", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  frameworkId: varchar("framework_id", { length: 36 }).notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("framework_updates_framework_idx").on(table.frameworkId),
+]);
+export const insertFrameworkUpdateSchema = createInsertSchema(frameworkUpdates).pick({
+  frameworkId: true,
+  message: true,
+});
+export type InsertFrameworkUpdate = z.infer<typeof insertFrameworkUpdateSchema>;
+export type FrameworkUpdate = typeof frameworkUpdates.$inferSelect;
 
 export const files = pgTable("files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

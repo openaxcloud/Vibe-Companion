@@ -7,7 +7,8 @@ import {
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
   Bell, CreditCard, Menu, X, Terminal, FileText, User,
-  Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw, LayoutGrid, List as ListIcon
+  Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw, LayoutGrid, List as ListIcon,
+  Box
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -438,6 +439,7 @@ export default function Dashboard() {
 
   const sidebarSecondaryLinks = [
     { icon: Compass, label: "Templates", action: () => setDialogOpen(true), testId: "nav-templates" },
+    { icon: Box, label: "Frameworks", action: () => setLocation("/frameworks"), testId: "nav-frameworks" },
     { icon: MessageSquare, label: "Community", action: () => window.open("https://ask.replit.com", "_blank"), testId: "nav-community-link" },
   ];
 

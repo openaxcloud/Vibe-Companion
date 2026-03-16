@@ -20,6 +20,7 @@ import {
   skills,
   portConfigs,
   deploymentAnalytics,
+  frameworkUpdates,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -63,6 +64,7 @@ import {
   type Skill, type InsertSkill,
   type PortConfig, type InsertPortConfig,
   type DeploymentAnalytic, type InsertDeploymentAnalytic,
+  type FrameworkUpdate, type InsertFrameworkUpdate,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -292,6 +294,14 @@ export interface IStorage {
   updateSkill(id: string, data: Partial<{ name: string; description: string; content: string; isActive: boolean }>): Promise<Skill | undefined>;
   deleteSkill(id: string): Promise<boolean>;
   getActiveSkills(projectId: string): Promise<Skill[]>;
+
+  getFrameworks(filters?: { search?: string; category?: string; language?: string }): Promise<(Project & { authorName?: string })[]>;
+  getFramework(id: string): Promise<(Project & { authorName?: string }) | undefined>;
+  publishAsFramework(id: string, userId: string, data: { description?: string; category?: string; coverUrl?: string }): Promise<Project | undefined>;
+  unpublishFramework(id: string, userId: string): Promise<Project | undefined>;
+  getFrameworkUpdates(frameworkId: string): Promise<FrameworkUpdate[]>;
+  createFrameworkUpdate(frameworkId: string, message: string): Promise<FrameworkUpdate>;
+  seedOfficialFrameworks(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -396,6 +406,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(workspaceSessions).where(eq(workspaceSessions.workspaceId, ws.id));
       await db.delete(workspaces).where(eq(workspaces.id, ws.id));
     }
+    await db.delete(frameworkUpdates).where(eq(frameworkUpdates.frameworkId, id));
     await db.delete(deployments).where(eq(deployments.projectId, id));
     await db.delete(projectEnvVars).where(eq(projectEnvVars.projectId, id));
     await db.delete(commits).where(eq(commits.projectId, id));
@@ -1593,6 +1604,136 @@ export class DatabaseStorage implements IStorage {
 
   async getActiveSkills(projectId: string): Promise<Skill[]> {
     return db.select().from(skills).where(and(eq(skills.projectId, projectId), eq(skills.isActive, true))).orderBy(skills.name);
+  }
+
+  async getFrameworks(filters?: { search?: string; category?: string; language?: string }): Promise<(Project & { authorName?: string })[]> {
+    const conditions = [eq(projects.isDevFramework, true)];
+    if (filters?.category && filters.category !== "all") {
+      conditions.push(eq(projects.frameworkCategory, filters.category));
+    }
+    if (filters?.language) {
+      conditions.push(eq(projects.language, filters.language));
+    }
+
+    let results = await db.select().from(projects).where(and(...conditions)).orderBy(desc(projects.updatedAt));
+
+    if (filters?.search) {
+      const term = filters.search.toLowerCase();
+      results = results.filter(p =>
+        p.name.toLowerCase().includes(term) ||
+        (p.frameworkDescription && p.frameworkDescription.toLowerCase().includes(term))
+      );
+    }
+
+    const enriched: (Project & { authorName?: string })[] = [];
+    for (const p of results) {
+      const user = await this.getUser(p.userId);
+      enriched.push({ ...p, authorName: user?.displayName || user?.email || "Unknown" });
+    }
+    return enriched;
+  }
+
+  async getFramework(id: string): Promise<(Project & { authorName?: string }) | undefined> {
+    const [project] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.isDevFramework, true))).limit(1);
+    if (!project) return undefined;
+    const user = await this.getUser(project.userId);
+    return { ...project, authorName: user?.displayName || user?.email || "Unknown" };
+  }
+
+  async publishAsFramework(id: string, userId: string, data: { description?: string; category?: string; coverUrl?: string }): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.userId, userId))).limit(1);
+    if (!project) return undefined;
+    const [updated] = await db.update(projects).set({
+      isDevFramework: true,
+      isPublished: true,
+      frameworkDescription: data.description || null,
+      frameworkCategory: data.category || null,
+      frameworkCoverUrl: data.coverUrl || null,
+      publishedSlug: project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + id.slice(0, 8),
+      updatedAt: new Date(),
+    }).where(eq(projects.id, id)).returning();
+    return updated;
+  }
+
+  async unpublishFramework(id: string, userId: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.userId, userId))).limit(1);
+    if (!project) return undefined;
+    const [updated] = await db.update(projects).set({
+      isDevFramework: false,
+      frameworkDescription: null,
+      frameworkCategory: null,
+      frameworkCoverUrl: null,
+      updatedAt: new Date(),
+    }).where(eq(projects.id, id)).returning();
+    return updated;
+  }
+
+  async getFrameworkUpdates(frameworkId: string): Promise<FrameworkUpdate[]> {
+    return db.select().from(frameworkUpdates).where(eq(frameworkUpdates.frameworkId, frameworkId)).orderBy(desc(frameworkUpdates.createdAt));
+  }
+
+  async createFrameworkUpdate(frameworkId: string, message: string): Promise<FrameworkUpdate> {
+    const [update] = await db.insert(frameworkUpdates).values({ frameworkId, message }).returning();
+    return update;
+  }
+
+  async seedOfficialFrameworks(): Promise<void> {
+    const { PROJECT_TEMPLATES } = await import("./templates");
+    const SYSTEM_USER_ID = "system";
+
+    let [systemUser] = await db.select().from(users).where(eq(users.id, SYSTEM_USER_ID)).limit(1);
+    if (!systemUser) {
+      [systemUser] = await db.insert(users).values({
+        id: SYSTEM_USER_ID,
+        email: "system@e-code.dev",
+        password: "",
+        displayName: "E-Code Official",
+        emailVerified: true,
+      }).onConflictDoNothing().returning();
+      if (!systemUser) {
+        [systemUser] = await db.select().from(users).where(eq(users.id, SYSTEM_USER_ID)).limit(1);
+      }
+    }
+
+    for (const tmpl of PROJECT_TEMPLATES) {
+      const existing = await db.select().from(projects).where(
+        and(eq(projects.name, tmpl.name), eq(projects.isOfficialFramework, true))
+      ).limit(1);
+      if (existing.length > 0) continue;
+
+      const [proj] = await db.insert(projects).values({
+        userId: SYSTEM_USER_ID,
+        name: tmpl.name,
+        language: tmpl.language,
+        isPublished: true,
+        isDevFramework: true,
+        isOfficialFramework: true,
+        frameworkDescription: tmpl.description,
+        frameworkCategory: this.inferCategory(tmpl.language),
+        publishedSlug: tmpl.id,
+      }).returning();
+
+      for (const f of tmpl.files) {
+        await db.insert(files).values({ projectId: proj.id, filename: f.filename, content: f.content });
+      }
+    }
+  }
+
+  private inferCategory(language: string): string {
+    const map: Record<string, string> = {
+      typescript: "frontend",
+      javascript: "backend",
+      python: "backend",
+      go: "backend",
+      rust: "systems",
+      cpp: "systems",
+      java: "backend",
+      ruby: "scripting",
+      bash: "scripting",
+      html: "frontend",
+      c: "systems",
+    };
+    return map[language.toLowerCase()] || "other";
   }
 }
 

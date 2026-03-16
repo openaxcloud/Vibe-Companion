@@ -29,10 +29,12 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Config Status API**: `GET /api/config/status` — reports Stripe and email configuration state for frontend UI adaptation.
 - **Homepage Prompt Input**: Landing page has a Replit-style prompt input with example suggestions. Creates a project and redirects to the IDE. Unauthenticated users are sent to login with prompt preserved in query params.
 - **Git Integration**: Real git operations via `isomorphic-git` (`server/git.ts`). Each project gets a temp directory with a real `.git` repo. Git operations: init, add, commit, log, branch, checkout, diff, status, blame. DB snapshots kept for backward compatibility. GitHub sync via connector proxy API — push (with deletion propagation), pull, clone, connect/disconnect remote. UI: Source Control panel has push/pull buttons and GitHub connect flow.
+- **Developer Frameworks**: Users can publish projects as reusable frameworks (`/frameworks` route, `Frameworks.tsx`). Official templates are seeded as verified frameworks. Features: search, category/language filtering, fork with one click, update messages. API: `GET/POST /api/frameworks`, `GET /api/frameworks/:id`, `POST /api/projects/:id/publish-as-framework`, `POST /api/frameworks/:id/updates`. Categories: frontend, backend, fullstack, systems, scripting, other.
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id
-- `projects`: id, user_id (indexed), team_id, name, language, is_demo, is_published, published_slug, custom_domain, github_repo, updated_at
+- `projects`: id, user_id (indexed), team_id, name, language, is_demo, is_published, published_slug, custom_domain, github_repo, is_dev_framework, framework_description, framework_category, framework_cover_url, is_official_framework, updated_at
+- `framework_updates`: id, framework_id (indexed), message, created_at
 - `files`: id, project_id (indexed), filename, content, updated_at
 - `runs`: id, project_id (indexed), user_id (indexed), status, language, code, stdout, stderr, exit_code, started_at, finished_at
 - `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
