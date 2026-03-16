@@ -1,0 +1,203 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Lite Mode
+
+> Learn how to use Lite mode to make targeted changes faster and more cost-efficiently than autonomous mode.
+
+export const YouTubeEmbed = ({videoId, title = "YouTube video", startAt}) => {
+  if (!videoId) {
+    return null;
+  }
+  let url = "https://www.youtube.com/embed/" + videoId;
+  if (startAt) {
+    url = url + "?start=" + startAt;
+  }
+  return <Frame>
+      <iframe src={url} title={title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen></iframe>
+    </Frame>;
+};
+
+Lite mode is a lightning-quick version of Replit Agent optimized for targeted changes. Get visual tweaks, bug fixes, and reasonable-sized features in 10-60 seconds instead of waiting minutes. Perfect for rapid iteration and pair programming.
+
+## What is Lite Mode?
+
+Lite mode is a specialized Agent experience designed for speed and precision. While the full Agent excels at creating comprehensive applications and implementing complex features, Lite mode focuses on quick, scoped changes that don't require extensive planning or testing.
+
+Think of Lite mode as your pair programming partner for those moments when you need focused changes within your existing app. It's built to keep you in flow without having to step away from your computer while waiting for longer builds to complete.
+
+Lite mode is primarily accessed via the lightning bolt (⚡) icon in the Agent prompt box, and can also be toggled through the Agent Tools control.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/fUBynrgsw7g2R6xj/images/replitai/fast-mode-disabled.png?fit=max&auto=format&n=fUBynrgsw7g2R6xj&q=85&s=069f37aceb5107f5b7179918f49d04d5" alt="Agent input box showing the lightning bolt Lite mode icon available for selection" width="1377" height="276" data-path="images/replitai/fast-mode-disabled.png" />
+</Frame>
+
+## When to Use Lite Mode
+
+Lite mode is ideal for:
+
+* **Visual tweaks**: Adjusting colors, spacing, fonts, or layout elements
+* **Reasonable-sized features**: Adding search bars, creating loading states, building form validation, or adding sorting functionality
+* **Quick fixes**: Correcting typos, fixing broken links, or addressing minor bugs
+* **Rapid iteration**: Making a series of focused changes while actively developing
+* **Scoped updates**: When you know exactly what you want changed and don't need extensive planning
+
+Lite mode may not be suitable for:
+
+* **Creating new apps**: Lite mode only works within existing apps—use full Agent to start from scratch
+* **Complex features**: Multi-file changes that require architectural decisions
+* **Large-scale refactoring**: Restructuring code across multiple components
+* **New integrations**: Adding third-party APIs or services
+* **Database schema changes**: Modifying data structures or relationships
+
+For these larger tasks, use the full Agent experience which includes comprehensive planning, testing, and validation.
+
+## Features
+
+Lite mode delivers a streamlined development experience with the following capabilities:
+
+* **Lightning-fast execution**: Complete most changes in 10-60 seconds
+* **Targeted modifications**: Makes only the changes you request without expanding scope
+* **Cost-effective development**: Typically more cost-efficient per prompt than autonomous mode
+* **Real-time pair programming**: Stay at your computer and keep building without long waits
+* **Predictable results**: Focused changes mean fewer surprises and more control
+
+## How to Use Lite Mode
+
+### Primary Access: Lightning Bolt Button
+
+The quickest way to toggle Lite mode is using the lightning bolt (⚡) icon in the Agent prompt box:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/fUBynrgsw7g2R6xj/images/replitai/fast-mode-enabled-input-box.png?fit=max&auto=format&n=fUBynrgsw7g2R6xj&q=85&s=b0bf5f5634bb2a29767062db68f4a92a" alt="Agent input box with Lite mode enabled, showing 'Quick, lightweight changes' text and highlighted lightning bolt icon" width="1377" height="264" data-path="images/replitai/fast-mode-enabled-input-box.png" />
+</Frame>
+
+1. Open Agent in your Replit App
+2. Click the ⚡ icon in the prompt box to enable Lite mode
+3. Make your request—keep it focused and specific
+4. Toggle off when you need full Agent for complex tasks
+
+### Alternative Access: Agent Tools
+
+You can also access Lite mode from Agent Tools. Open the Agent Tools panel and select **Lite** from the options. Lite mode and Autonomous mode are two distinct approaches: choose Lite when you want quick results while staying at your computer, or Autonomous when you prefer more reliable, longer builds and can step away for a few minutes or more.
+
+### Example Prompts
+
+**Good for Lite mode:**
+
+* "Change the submit button text from 'Send' to 'Submit Application'"
+* "Increase the padding in the card component to 24px"
+* "Add email validation to the signup form"
+* "Make the sidebar background color darker"
+* "Add a search bar to filter the product list"
+* "Create a loading spinner when data is fetching"
+
+**Use full Agent for:**
+
+* "Build a new todo app from scratch"
+* "Redesign the entire user dashboard"
+* "Add user authentication with Replit Auth"
+* "Integrate Stripe payment processing"
+* "Add a Linear connector"
+
+## How Lite Mode Works
+
+Lite mode uses a streamlined version of Agent's AI technology that's optimized for speed and scoped changes:
+
+1. **Focused analysis**: Lite mode analyzes only the relevant files for your specific request
+2. **Direct implementation**: Makes changes immediately without extensive planning phases
+3. **Streamlined execution**: Skips comprehensive testing and architecture review for faster results
+4. **Quick validation**: Performs basic checks to ensure changes don't break existing functionality
+
+This approach allows Lite mode to deliver results up to 5x faster for scoped requests while maintaining quality for the types of focused, well-defined changes it's designed to handle.
+
+### What's Different in Lite Mode
+
+To achieve faster speeds, Lite mode disables certain features:
+
+**Disabled in Lite mode:**
+
+* **Code Optimizations**: Lite mode and Autonomous mode are mutually exclusive—choose Lite for speed or Autonomous for reliability
+* **App Testing**: No automated browser testing
+* **Architect**: No architectural analysis
+
+**Still available:**
+
+* **Web search**: Access real-time information
+* **Other Agent tools**: File operations, code editing, image generation, and more
+
+<Note>
+  **Starter plan users can only use Lite Mode**: To try the full Autonomous mode, you will need to be on a paid plan.
+</Note>
+
+## Pricing
+
+Lite mode offers cost-effective pricing that's typically more cost-efficient per prompt than using autonomous mode. The exact cost depends on the complexity and scope of your request, but Lite mode's streamlined approach means you'll generally pay less for focused, scoped changes.
+
+<Note>
+  **Effort-based pricing**: Lite mode uses the same effort-based pricing model as full Agent. Because Lite mode completes tasks more quickly and with a more focused scope, the total cost per request is typically lower than using autonomous mode for the same change.
+</Note>
+
+For detailed information about AI pricing and how effort is calculated, see [AI billing](/billing/ai-billing).
+
+## Use Cases
+
+**Visual iteration**: Quickly try different colors, spacing, and layouts while actively designing
+
+**Reasonable-sized features**: Add scoped functionality like search filters, form validation, or loading states
+
+**Bug fixes**: Polish details rapidly before launch
+
+## Comparison: Lite Mode vs. Full Agent
+
+| Feature         | Lite Mode                                | Full Agent                        |
+| --------------- | ---------------------------------------- | --------------------------------- |
+| **Speed**       | 10-60 seconds                            | 3-10+ minutes                     |
+| **Best for**    | Targeted, scoped changes                 | Complex features and full apps    |
+| **Scope**       | Focused, well-defined requests           | Multi-file, architectural changes |
+| **Testing**     | Basic validation                         | Comprehensive App Testing         |
+| **Code Review** | None                                     | Available with Code Optimizations |
+| **Planning**    | Minimal                                  | Detailed task lists and proposals |
+| **Cost**        | Typically more cost-efficient per prompt | Higher but more capable           |
+
+## Tips for Success
+
+* **Use Lite mode for iteration** and full Agent for new features
+* **Keep requests specific** for the fastest results
+* **Switch modes when needed**: If your change requires multiple files or complex logic, toggle off Lite mode
+* **Review changes immediately** while context is fresh
+
+## Frequently Asked Questions
+
+<AccordionGroup>
+  <Accordion title="Can I use Lite mode with full Agent in the same project?">
+    Absolutely! Toggle Lite mode on for quick changes and off for complex features. You can switch between them at any time based on what you need.
+  </Accordion>
+
+  <Accordion title="What if my Lite mode request is too complex?">
+    Agent will let you know if a request needs full Agent mode. You can then either simplify your request or toggle off Lite mode for that task.
+  </Accordion>
+
+  <Accordion title="Does Lite mode work with all programming languages and frameworks?">
+    Yes! Lite mode supports the same languages and frameworks as full Agent.
+  </Accordion>
+
+  <Accordion title="How much does Lite mode cost compared to autonomous mode?">
+    Lite mode typically costs less per prompt than using autonomous mode because it completes tasks more quickly with a focused scope. Both use effort-based pricing, but Lite mode's streamlined approach means lower costs for targeted changes. See [AI billing](/billing/ai-billing) for more details.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Ready to experience faster development with Lite mode?
+
+1. **Try Lite mode now**: Open any Replit App and enable Lite mode to make your first quick change
+2. **Learn effective prompting**: Review the [vibe coding guide](/tutorials/how-to-vibe-code) for tips on working with AI
+3. **Explore Agent capabilities**: Learn about [full Agent mode](/replitai/agent) for building comprehensive features
+4. **Understand pricing**: Review [AI billing](/billing/ai-billing) to understand how effort-based pricing works
+
+Start building faster today with Lite mode!
+
+
+Built with [Mintlify](https://mintlify.com).

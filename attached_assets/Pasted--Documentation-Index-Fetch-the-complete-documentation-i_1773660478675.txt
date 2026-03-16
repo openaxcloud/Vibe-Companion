@@ -1,0 +1,47 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Code Optimizations
+
+> Learn how to control whether Agent reviews and simplifies its own code after building.
+
+export const YouTubeEmbed = ({videoId, title = "YouTube video", startAt}) => {
+  if (!videoId) {
+    return null;
+  }
+  let url = "https://www.youtube.com/embed/" + videoId;
+  if (startAt) {
+    url = url + "?start=" + startAt;
+  }
+  return <Frame>
+      <iframe src={url} title={title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen></iframe>
+    </Frame>;
+};
+
+**Code Optimizations** (formerly Autonomy Level) is an on/off setting in Agent Tools. When **on**, Agent reviews its own code and simplifies future work—improving accuracy and saving costs by avoiding mistakes. When **off**, you get minimal or no AI code review and maximum hands-on control. Available on [paid plans](https://replit.com/pricing).
+
+We recommend turning Code Optimizations **on** for most projects to get better code quality and fewer costly rework cycles.
+
+## Usage
+
+Access Code Optimizations through Agent's tools interface when working on any project. The setting applies to your current conversation and affects how Agent approaches subsequent tasks.
+
+<Accordion title="How to access Code Optimizations">
+  1. Open Agent in your project workspace
+  2. Look for the Agent tools dropdown in the bottom right of the input box
+  3. Locate the Code Optimizations control
+  4. Turn it **on** or **off** based on your preference
+</Accordion>
+
+<YouTubeEmbed videoId="dAWTJmRjfrQ" title="Code Optimizations overview" />
+
+### When to use it
+
+* **On**: Recommended for most work. Agent reviews its own code, catches mistakes, and can reduce rework. Slightly longer per task but better quality.
+* **Off**: Use when you want the fastest, most hands-on experience—e.g. quick edits or when you prefer to review every change yourself.
+
+Learn more about other [Agent features](/replitai/agent) and [App Testing](/replitai/app-testing).
+
+
+Built with [Mintlify](https://mintlify.com).

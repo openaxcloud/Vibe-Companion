@@ -1,0 +1,50 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Agent Modes
+
+> Learn how to choose between Economy and Power mode, and when to use Turbo for faster responses.
+
+Agent modes let you control the balance between cost and capability when using Agent. Switch between **Economy** and **Power** as needed (both available on all paid plans). **Turbo** is a separate toggle—turn it on for 2.5x faster responses; it's available on Pro and Enterprise only.
+
+## Economy mode
+
+**Optimized for cost.** Economy uses fewer credits per task; prompts cost roughly a third of Power mode, so you can send significantly more prompts for the same price.
+
+**Best for:** High volume, learning, or when budget is the priority.
+
+## Power mode
+
+**Optimized for performance.** Power uses more capable models for complex tasks, larger codebases, and harder problems.
+
+**Best for:** Production-grade projects, complex features, and when you want the best results from Agent.
+
+## Turbo mode
+
+**Turbo is a separate toggle** from the Economy/Power mode selector—turn it on when you want **2.5x faster** responses than Power, using the same models. Requests cost up to 6× more than Power, so Turbo is recommended for experienced builders who need speed.
+
+**Availability:** **Pro and Enterprise only.**
+
+**Best for:** When you need the fastest possible Agent response and are on a Pro or Enterprise plan.
+
+## Which mode should I use?
+
+Use the following as a guide:
+
+| Goal                                       | Recommended mode       |
+| ------------------------------------------ | ---------------------- |
+| Maximize number of prompts per credit      | Economy                |
+| Balance cost and quality for most projects | Power                  |
+| Fastest response, production work          | Turbo (Pro/Enterprise) |
+
+You can change modes at any time from Agent Tools. Economy and Power are selected via the mode dropdown; Turbo is its own toggle and can be turned on or off independently. No single mode is "best"—choose based on your current task and plan.
+
+## Related
+
+* [Code Optimizations](/replitai/code-optimizations): Control how Agent reviews its own code (separate from mode and Turbo).
+* [Managing your spend](/billing/managing-spend): Set alerts, budgets, and use Plan Mode for cost control.
+* [Replit Pro](/billing/plans/replit-pro): Unlock Turbo Mode and tiered credits.
+
+
+Built with [Mintlify](https://mintlify.com).
