@@ -3504,6 +3504,15 @@ export async function registerRoutes(
         language: sourceProject.language,
         visibility: requestedVisibility,
       });
+      if (req.body.teamId) {
+        const userTeams = await storage.getUserTeams(req.session.userId!);
+        const isMember = userTeams.some(t => t.id === req.body.teamId);
+        if (isMember) {
+          await storage.updateProject(newProject.id, { teamId: req.body.teamId });
+        } else {
+          return res.status(403).json({ message: "You are not a member of the specified team" });
+        }
+      }
       for (const file of sourceFiles) {
         if (file.filename === "ecode.md") continue;
         await storage.createFile(newProject.id, {
@@ -4702,11 +4711,11 @@ export async function registerRoutes(
   });
 
   app.delete("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
-    const deleted = await storage.deleteProject(req.params.id, req.session.userId!);
+    const deleted = await storage.softDeleteProject(req.params.id, req.session.userId!);
     if (!deleted) {
       return res.status(404).json({ message: "Project not found or not owned" });
     }
-    return res.json({ message: "Project deleted" });
+    return res.json({ message: "Project moved to trash" });
   });
 
   app.post("/api/projects/:id/duplicate", requireAuth, async (req: Request, res: Response) => {
@@ -14966,6 +14975,94 @@ Respond ONLY with the JSON array, no other text.`;
       return res.status(500).json({ message: "Failed to delete SSH key" });
     }
   });
+
+  // --- TRASH / SOFT-DELETE ---
+  app.get("/api/trash", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.getDeletedProjects(req.session.userId!);
+      return res.json(deleted);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch trash" });
+    }
+  });
+
+  app.post("/api/trash/restore/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const restored = await storage.restoreProject(req.params.id, req.session.userId!);
+      if (!restored) return res.status(404).json({ message: "Project not found in trash" });
+      return res.json(restored);
+    } catch {
+      return res.status(500).json({ message: "Failed to restore project" });
+    }
+  });
+
+  app.post("/api/trash/restore-by-title", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { title } = z.object({ title: z.string().min(1) }).parse(req.body);
+      const restored = await storage.restoreProjectByTitle(title, req.session.userId!);
+      if (!restored) return res.status(404).json({ message: "No deleted project found with that title" });
+      return res.json(restored);
+    } catch (err: any) {
+      if (err.name === "ZodError") return res.status(400).json({ message: "Title is required" });
+      return res.status(500).json({ message: "Failed to restore project" });
+    }
+  });
+
+  // --- ACCOUNT WARNINGS ---
+  app.get("/api/account/warnings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const warnings = await storage.getAccountWarnings(req.session.userId!);
+      return res.json(warnings);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch warnings" });
+    }
+  });
+
+  // --- USERNAME ---
+  app.put("/api/user/username", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { username } = z.object({ username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/) }).parse(req.body);
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.usernameChangedAt) return res.status(400).json({ message: "Username can only be changed once" });
+      const existing = await storage.getUserByUsername(username);
+      if (existing && existing.id !== req.session.userId) return res.status(409).json({ message: "Username already taken" });
+      const updated = await storage.changeUsername(req.session.userId!, username);
+      if (!updated) return res.status(400).json({ message: "Failed to change username" });
+      return res.json({ username: updated.username, usernameChangedAt: updated.usernameChangedAt });
+    } catch (err: any) {
+      if (err.name === "ZodError") return res.status(400).json({ message: "Username must be 3-30 characters, alphanumeric, hyphens, or underscores" });
+      return res.status(500).json({ message: "Failed to change username" });
+    }
+  });
+
+  // --- GLOBAL SEARCH ---
+  app.get("/api/search", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const q = String(req.query.q || "").trim();
+      const type = String(req.query.type || "all");
+      if (!q) return res.json({ projects: [], templates: [], code: [], users: [] });
+      const results: any = {};
+      if (type === "all" || type === "projects") {
+        results.projects = await storage.searchProjects(req.session.userId!, q);
+      }
+      if (type === "all" || type === "templates") {
+        results.templates = await storage.searchTemplates(q);
+      }
+      if (type === "all" || type === "code") {
+        results.code = await storage.searchCodeAcrossProjects(req.session.userId!, q);
+      }
+      if (type === "all" || type === "users") {
+        results.users = await storage.searchUsers(q);
+      }
+      return res.json(results);
+    } catch {
+      return res.status(500).json({ message: "Search failed" });
+    }
+  });
+
+  // --- FORK TO TEAM (extension) ---
+  // The existing fork endpoint at /api/projects/:id/fork is extended inline above to accept teamId
 
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");

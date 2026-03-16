@@ -119,6 +119,8 @@ import {
   mergeStates,
   type MergeState, type InsertMergeState,
   type MergeConflictFile, type MergeResolution,
+  accountWarnings,
+  type AccountWarning, type InsertAccountWarning,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -572,6 +574,23 @@ export interface IStorage {
   saveMergeState(data: InsertMergeState): Promise<MergeState>;
   updateMergeResolution(projectId: string, resolution: MergeResolution): Promise<MergeState | undefined>;
   deleteMergeState(projectId: string): Promise<boolean>;
+
+  getDeletedProjects(userId: string): Promise<Project[]>;
+  softDeleteProject(id: string, userId: string): Promise<boolean>;
+  restoreProject(id: string, userId: string): Promise<Project | undefined>;
+  restoreProjectByTitle(title: string, userId: string): Promise<Project | undefined>;
+  purgeOldDeletedProjects(daysOld: number): Promise<number>;
+
+  getAccountWarnings(userId: string): Promise<AccountWarning[]>;
+  createAccountWarning(data: InsertAccountWarning): Promise<AccountWarning>;
+
+  getUserByUsername(username: string): Promise<User | undefined>;
+  changeUsername(userId: string, username: string): Promise<User | undefined>;
+
+  searchProjects(userId: string, query: string): Promise<Project[]>;
+  searchTemplates(query: string): Promise<{ id: string; name: string; language: string }[]>;
+  searchCodeAcrossProjects(userId: string, query: string): Promise<{ projectId: string; projectName: string; filename: string; line: string }[]>;
+  searchUsers(query: string): Promise<Pick<User, 'id' | 'displayName' | 'username' | 'avatarUrl'>[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -739,11 +758,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProjects(userId: string): Promise<Project[]> {
-    return db.select().from(projects).where(eq(projects.userId, userId)).orderBy(desc(projects.updatedAt));
+    return db.select().from(projects).where(and(eq(projects.userId, userId), sql`${projects.deletedAt} IS NULL`)).orderBy(desc(projects.updatedAt));
   }
 
   async getProject(id: string): Promise<Project | undefined> {
-    const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    const [project] = await db.select().from(projects).where(
+      and(eq(projects.id, id), sql`${projects.deletedAt} IS NULL`)
+    ).limit(1);
     return project;
   }
 
@@ -3449,6 +3470,116 @@ export class DatabaseStorage implements IStorage {
   async deleteMergeState(projectId: string): Promise<boolean> {
     const result = await db.delete(mergeStates).where(eq(mergeStates.projectId, projectId));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getDeletedProjects(userId: string): Promise<Project[]> {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return db.select().from(projects).where(
+      and(eq(projects.userId, userId), sql`${projects.deletedAt} IS NOT NULL`, gte(projects.deletedAt, thirtyDaysAgo))
+    ).orderBy(desc(projects.deletedAt));
+  }
+
+  async softDeleteProject(id: string, userId: string): Promise<boolean> {
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.id, id), eq(projects.userId, userId))).limit(1);
+    if (!project) return false;
+    await db.update(projects).set({ deletedAt: new Date() }).where(eq(projects.id, id));
+    return true;
+  }
+
+  async restoreProject(id: string, userId: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.id, id), eq(projects.userId, userId), sql`${projects.deletedAt} IS NOT NULL`)).limit(1);
+    if (!project) return undefined;
+    const [restored] = await db.update(projects).set({ deletedAt: null }).where(eq(projects.id, id)).returning();
+    return restored;
+  }
+
+  async restoreProjectByTitle(title: string, userId: string): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.userId, userId), sql`${projects.deletedAt} IS NOT NULL`, sql`LOWER(${projects.name}) = LOWER(${title})`))
+      .orderBy(desc(projects.deletedAt)).limit(1);
+    if (!project) return undefined;
+    const [restored] = await db.update(projects).set({ deletedAt: null }).where(eq(projects.id, project.id)).returning();
+    return restored;
+  }
+
+  async purgeOldDeletedProjects(daysOld: number): Promise<number> {
+    const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
+    const toDelete = await db.select().from(projects).where(
+      and(sql`${projects.deletedAt} IS NOT NULL`, sql`${projects.deletedAt} < ${cutoff}`)
+    );
+    for (const p of toDelete) {
+      await this.deleteProject(p.id, p.userId);
+    }
+    return toDelete.length;
+  }
+
+  async getAccountWarnings(userId: string): Promise<AccountWarning[]> {
+    return db.select().from(accountWarnings).where(eq(accountWarnings.userId, userId)).orderBy(desc(accountWarnings.issuedAt));
+  }
+
+  async createAccountWarning(data: InsertAccountWarning): Promise<AccountWarning> {
+    const [warning] = await db.insert(accountWarnings).values(data).returning();
+    return warning;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(sql`LOWER(${users.username}) = LOWER(${username})`).limit(1);
+    return user;
+  }
+
+  async changeUsername(userId: string, username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) return undefined;
+    if (user.usernameChangedAt) return undefined;
+    const existing = await this.getUserByUsername(username);
+    if (existing && existing.id !== userId) return undefined;
+    const [updated] = await db.update(users).set({ username, usernameChangedAt: new Date() }).where(eq(users.id, userId)).returning();
+    return updated;
+  }
+
+  async searchProjects(userId: string, query: string): Promise<Project[]> {
+    return db.select().from(projects).where(
+      and(eq(projects.userId, userId), sql`${projects.deletedAt} IS NULL`, sql`${projects.name} ILIKE ${'%' + query + '%'}`)
+    ).limit(20);
+  }
+
+  async searchTemplates(query: string): Promise<{ id: string; name: string; language: string }[]> {
+    const { getAllTemplates } = await import("./templates");
+    const all = getAllTemplates();
+    const q = query.toLowerCase();
+    return all
+      .filter((t: any) => t.name.toLowerCase().includes(q) || t.language?.toLowerCase().includes(q))
+      .slice(0, 20)
+      .map((t: any) => ({ id: t.id, name: t.name, language: t.language || "javascript" }));
+  }
+
+  async searchCodeAcrossProjects(userId: string, query: string): Promise<{ projectId: string; projectName: string; filename: string; line: string }[]> {
+    const userProjects = await this.getProjects(userId);
+    const results: { projectId: string; projectName: string; filename: string; line: string }[] = [];
+    for (const p of userProjects.slice(0, 50)) {
+      const projectFiles = await db.select().from(files).where(
+        and(eq(files.projectId, p.id), sql`${files.content} ILIKE ${'%' + query + '%'}`)
+      ).limit(5);
+      for (const f of projectFiles) {
+        const lines = f.content.split('\n');
+        const matchLine = lines.find(l => l.toLowerCase().includes(query.toLowerCase()));
+        results.push({ projectId: p.id, projectName: p.name, filename: f.filename, line: matchLine?.trim() || '' });
+      }
+      if (results.length >= 30) break;
+    }
+    return results.slice(0, 30);
+  }
+
+  async searchUsers(query: string): Promise<Pick<User, 'id' | 'displayName' | 'username' | 'avatarUrl'>[]> {
+    return db.select({ id: users.id, displayName: users.displayName, username: users.username, avatarUrl: users.avatarUrl })
+      .from(users)
+      .where(or(
+        sql`${users.displayName} ILIKE ${'%' + query + '%'}`,
+        sql`${users.username} ILIKE ${'%' + query + '%'}`
+      ))
+      .limit(20);
   }
 }
 

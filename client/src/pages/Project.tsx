@@ -8121,6 +8121,7 @@ function _projectPage() {
         onToggleMinimap={() => setShowMinimap(prev => !prev)}
         onForkProject={() => forkMutation.mutate()}
         getShortcutDisplay={getShortcutDisplay}
+        projectId={projectId}
       />
 
       {showDiffModal && diffFile && (

@@ -137,6 +137,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull().default(""),
   displayName: text("display_name"),
+  username: text("username").unique(),
+  usernameChangedAt: timestamp("username_changed_at"),
   avatarUrl: text("avatar_url"),
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
@@ -191,6 +193,7 @@ export const projects = pgTable("projects", {
   viewCount: integer("view_count").notNull().default(0),
   forkCount: integer("fork_count").notNull().default(0),
   devUrlPublic: boolean("dev_url_public").notNull().default(true),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
@@ -1979,6 +1982,19 @@ export const mergeStates = pgTable("merge_states", {
 export const insertMergeStateSchema = createInsertSchema(mergeStates).omit({ id: true, createdAt: true });
 export type InsertMergeState = z.infer<typeof insertMergeStateSchema>;
 export type MergeState = typeof mergeStates.$inferSelect;
+
+export const accountWarnings = pgTable("account_warnings", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  reason: text("reason").notNull(),
+  severity: text("severity").notNull().default("low"),
+  issuedAt: timestamp("issued_at").notNull().defaultNow(),
+}, (table) => [
+  index("account_warnings_user_idx").on(table.userId),
+]);
+export const insertAccountWarningSchema = createInsertSchema(accountWarnings).omit({ id: true, issuedAt: true });
+export type InsertAccountWarning = z.infer<typeof insertAccountWarningSchema>;
+export type AccountWarning = typeof accountWarnings.$inferSelect;
 
 export const systemModules = pgTable("system_modules", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

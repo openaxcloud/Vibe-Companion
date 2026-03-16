@@ -26,7 +26,9 @@ import Frameworks from "@/pages/Frameworks";
 import ThemeEditor from "@/pages/ThemeEditor";
 import ThemesExplore from "@/pages/ThemesExplore";
 import Import from "@/pages/Import";
+import AccountCLI from "@/pages/AccountCLI";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import GlobalShortcuts from "@/components/GlobalShortcuts";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -116,6 +118,7 @@ function App() {
                 <Route path="/themes/editor">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
                 <Route path="/themes/editor/:id">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
                 <Route path="/import">{() => <ProtectedRoute component={Import} />}</Route>
+                <Route path="/cli">{() => <ProtectedRoute component={AccountCLI} />}</Route>
                 <Route path="/pricing" component={Pricing} />
                 <Route path="/demo" component={DemoProject} />
                 <Route path="/shared/:id" component={SharedProject} />
@@ -128,6 +131,7 @@ function App() {
                 <Route component={NotFound} />
               </Switch>
             </div>
+            <GlobalShortcuts />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
