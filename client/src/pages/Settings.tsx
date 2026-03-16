@@ -81,6 +81,77 @@ interface NotificationPrefs {
   system: boolean;
 }
 
+function KeyboardSettingsSection() {
+  const { toast } = useToast();
+  const [keyboardMode, setKeyboardModeLocal] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user/preferences", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(prefs => {
+        if (prefs) {
+          setKeyboardModeLocal(!!prefs.keyboardMode);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const toggleKeyboardMode = async (enabled: boolean) => {
+    setKeyboardModeLocal(enabled);
+    try {
+      const res = await fetch("/api/user/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ keyboardMode: enabled }),
+      });
+      if (!res.ok) throw new Error("Server error");
+      toast({ title: enabled ? "Keyboard Mode enabled" : "Keyboard Mode disabled" });
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+      setKeyboardModeLocal(!enabled);
+    }
+  };
+
+  return (
+    <div className="space-y-3" data-testid="section-keyboard-settings">
+      <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider px-1 flex items-center gap-1.5">
+        <Keyboard className="w-3 h-3" /> Keyboard Settings
+      </h2>
+      <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)]">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[var(--ide-surface)] flex items-center justify-center">
+                <Keyboard className="w-4 h-4 text-[#0079F2]" />
+              </div>
+              <div>
+                <span className="text-sm text-[var(--ide-text)] font-medium">Keyboard Mode</span>
+                <p className="text-[11px] text-[var(--ide-text-muted)]">
+                  Desktop-like layout when an external keyboard is connected to your tablet
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={keyboardMode}
+              onCheckedChange={toggleKeyboardMode}
+              disabled={!loaded}
+              data-testid="switch-keyboard-mode"
+            />
+          </div>
+          <div className="mt-3 p-3 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+            <p className="text-[11px] text-[var(--ide-text-muted)] leading-relaxed">
+              When enabled and an external keyboard is detected on a tablet, the workspace switches to a desktop-like layout with wider sidebar panels, full toolbar, and keyboard shortcut hints visible in the status bar.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
@@ -689,6 +760,10 @@ export default function Settings() {
               </div>
             </div>
           </div>
+
+          <div className="h-px bg-[var(--ide-surface)]/60" />
+
+          <KeyboardSettingsSection />
 
           <div className="h-px bg-[var(--ide-surface)]/60" />
 

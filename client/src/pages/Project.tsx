@@ -44,6 +44,7 @@ import type { DevicePreset } from "@/components/PreviewDevTools";
 import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getCsrfToken } from "@/lib/queryClient";
+import { useExternalKeyboardDetection } from "@/hooks/use-keyboard-detection";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
 import { useCollaboration, type RemoteUser } from "@/hooks/use-collaboration";
 import { toast } from "@/hooks/use-toast";
@@ -2709,6 +2710,40 @@ function _projectPage() {
 
   const isMobile = viewMode === "mobile";
   const isTablet = viewMode === "tablet";
+  const { hasExternalKeyboard, isTabletDevice } = useExternalKeyboardDetection();
+  const [keyboardModePromptOpen, setKeyboardModePromptOpen] = useState(false);
+  const keyboardPromptShownRef = useRef(false);
+  const keyboardReminderShownRef = useRef(false);
+  const isOnTabletDevice = isTablet || (viewMode === "desktop" && isTabletDevice());
+  const isKeyboardModeActive = isOnTabletDevice && userPrefs.keyboardMode && hasExternalKeyboard;
+
+  useEffect(() => {
+    if (
+      hasExternalKeyboard &&
+      isOnTabletDevice &&
+      !userPrefs.keyboardMode &&
+      !userPrefs.keyboardModePromptDismissed &&
+      prefsLoaded &&
+      !keyboardPromptShownRef.current
+    ) {
+      keyboardPromptShownRef.current = true;
+      setKeyboardModePromptOpen(true);
+    }
+  }, [hasExternalKeyboard, isOnTabletDevice, userPrefs.keyboardMode, userPrefs.keyboardModePromptDismissed, prefsLoaded]);
+
+  useEffect(() => {
+    if (
+      hasExternalKeyboard &&
+      isOnTabletDevice &&
+      !userPrefs.keyboardMode &&
+      userPrefs.keyboardModePromptDismissed &&
+      prefsLoaded &&
+      !keyboardReminderShownRef.current
+    ) {
+      keyboardReminderShownRef.current = true;
+      toast({ title: "External keyboard detected", description: "Enable Keyboard Mode in Settings for a desktop-like experience." });
+    }
+  }, [hasExternalKeyboard, isOnTabletDevice, userPrefs.keyboardMode, userPrefs.keyboardModePromptDismissed, prefsLoaded]);
 
   const sidebarContent = (
     <div className={`${isMobile ? "flex-1 bg-[var(--ide-panel)]" : "h-full bg-[var(--ide-panel)]"} flex flex-col ${isMobile ? "" : "border-r border-[var(--ide-border)]"} overflow-hidden`}>
@@ -5974,7 +6009,7 @@ function _projectPage() {
 
             {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
             {aiPanelOpen && (
-              <div className={`${isTablet ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[var(--ide-border)]`} data-testid="ai-agent-panel">
+              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[var(--ide-border)]`} data-testid="ai-agent-panel">
                 <AIPanel
                   key={`ai-desktop-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
@@ -6014,7 +6049,7 @@ function _projectPage() {
 
             {/* TABBED TOOL PANELS */}
             {openPanelTabs.length > 0 && !aiPanelOpen && (
-              <div className={`${isTablet ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="tool-panel-container">
+              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="tool-panel-container">
                 <div className="flex items-center h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0 overflow-hidden" data-testid="panel-tab-bar">
                   <div className="flex items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide h-full"
                     onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
@@ -7397,8 +7432,8 @@ function _projectPage() {
             )}
 
             {/* FILE EXPLORER SIDEBAR */}
-            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0 ? (isTablet ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
-              <div className={`${isTablet ? "w-[200px]" : "w-[240px]"} h-full`}>
+            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0 ? ((isTablet && !isKeyboardModeActive) ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
+              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[200px]" : "w-[240px]"} h-full`}>
                 {sidebarContent}
               </div>
             </div>
@@ -7613,6 +7648,21 @@ function _projectPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {isKeyboardModeActive && (
+                <div className="flex items-center gap-1.5 mr-2" data-testid="keyboard-shortcut-hints">
+                  <Keyboard className="w-3 h-3 text-[#0079F2]" />
+                  <span className="text-[9px] text-[var(--ide-text-muted)]">
+                    <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[8px]">⌘K</kbd> Cmds
+                  </span>
+                  <span className="text-[9px] text-[var(--ide-text-muted)]">
+                    <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[8px]">⌘S</kbd> Save
+                  </span>
+                  <span className="text-[9px] text-[var(--ide-text-muted)]">
+                    <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[8px]">⌘P</kbd> Files
+                  </span>
+                  <span className="w-px h-3 bg-[var(--ide-surface)]" />
+                </div>
+              )}
               {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
               {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-tab-size">Spaces: {editorTabSize}</span>}
               {activeFileName && (
@@ -8149,6 +8199,43 @@ function _projectPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={keyboardModePromptOpen} onOpenChange={setKeyboardModePromptOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base flex items-center gap-2">
+              <Keyboard className="w-5 h-5 text-[#0079F2]" /> Enable Keyboard Mode?
+            </DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs leading-relaxed mt-2">
+              We detected an external keyboard connected to your tablet. Keyboard Mode provides a desktop-like experience with wider panels, full toolbar, and keyboard shortcut hints. You can change this anytime in Settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-3">
+            <Button
+              variant="ghost"
+              className="flex-1 h-9 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-lg"
+              onClick={() => {
+                setKeyboardModePromptOpen(false);
+                savePrefs({ keyboardModePromptDismissed: true });
+              }}
+              data-testid="button-keyboard-mode-dismiss"
+            >
+              Not now
+            </Button>
+            <Button
+              className="flex-1 h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium"
+              onClick={() => {
+                setKeyboardModePromptOpen(false);
+                savePrefs({ keyboardMode: true, keyboardModePromptDismissed: true });
+                toast({ title: "Keyboard Mode enabled", description: "Enjoying a desktop-like experience on your tablet." });
+              }}
+              data-testid="button-keyboard-mode-enable"
+            >
+              Enable
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

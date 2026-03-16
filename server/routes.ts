@@ -2117,6 +2117,8 @@ export async function registerRoutes(
         accessibleTerminal: z.boolean().optional(),
         customTheme: customThemeSchema.nullable().optional(),
         communityTheme: z.string().nullable().optional(),
+        keyboardMode: z.boolean().optional(),
+        keyboardModePromptDismissed: z.boolean().optional(),
       });
       const prefs = schema.parse(req.body);
       const updated = await storage.updateUserPreferences(req.session.userId!, prefs);

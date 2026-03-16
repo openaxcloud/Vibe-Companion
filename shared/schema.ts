@@ -47,6 +47,8 @@ export interface UserPreferencesStored {
   customTheme?: CustomTheme | null;
   communityTheme?: string | null;
   keyboardShortcuts?: Record<string, string | null>;
+  keyboardMode?: boolean;
+  keyboardModePromptDismissed?: boolean;
 }
 
 export interface UserPreferences extends Required<Omit<UserPreferencesStored, 'customTheme' | 'communityTheme' | 'agentToolsConfig' | 'keyboardShortcuts'>> {
@@ -54,6 +56,8 @@ export interface UserPreferences extends Required<Omit<UserPreferencesStored, 'c
   communityTheme: string | null;
   agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean };
   keyboardShortcuts: Record<string, string | null>;
+  keyboardMode: boolean;
+  keyboardModePromptDismissed: boolean;
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -82,6 +86,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   customTheme: null,
   communityTheme: null,
   keyboardShortcuts: {},
+  keyboardMode: false,
+  keyboardModePromptDismissed: false,
 };
 
 export interface CommunityThemeDefinition {
