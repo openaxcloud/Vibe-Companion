@@ -17,6 +17,7 @@ import {
   workflows, workflowSteps, workflowRuns,
   monitoringMetrics, monitoringAlerts,
   codeThreads, threadComments,
+  skills,
   portConfigs,
   type User, type InsertUser,
   type Project, type InsertProject,
@@ -58,6 +59,7 @@ import {
   type MonitoringAlert, type InsertMonitoringAlert,
   type CodeThread, type InsertCodeThread,
   type ThreadComment, type InsertThreadComment,
+  type Skill, type InsertSkill,
   type PortConfig, type InsertPortConfig,
   PLAN_LIMITS,
 } from "@shared/schema";
@@ -277,6 +279,13 @@ export interface IStorage {
   createPortConfig(data: InsertPortConfig): Promise<PortConfig>;
   updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean }>): Promise<PortConfig | undefined>;
   deletePortConfig(id: string): Promise<boolean>;
+
+  getSkills(projectId: string): Promise<Skill[]>;
+  getSkill(id: string): Promise<Skill | undefined>;
+  createSkill(data: InsertSkill): Promise<Skill>;
+  updateSkill(id: string, data: Partial<{ name: string; description: string; content: string; isActive: boolean }>): Promise<Skill | undefined>;
+  deleteSkill(id: string): Promise<boolean>;
+  getActiveSkills(projectId: string): Promise<Skill[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1485,6 +1494,34 @@ export class DatabaseStorage implements IStorage {
   async deletePortConfig(id: string): Promise<boolean> {
     const result = await db.delete(portConfigs).where(eq(portConfigs.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getSkills(projectId: string): Promise<Skill[]> {
+    return db.select().from(skills).where(eq(skills.projectId, projectId)).orderBy(desc(skills.createdAt));
+  }
+
+  async getSkill(id: string): Promise<Skill | undefined> {
+    const [s] = await db.select().from(skills).where(eq(skills.id, id)).limit(1);
+    return s;
+  }
+
+  async createSkill(data: InsertSkill): Promise<Skill> {
+    const [s] = await db.insert(skills).values(data).returning();
+    return s;
+  }
+
+  async updateSkill(id: string, data: Partial<{ name: string; description: string; content: string; isActive: boolean }>): Promise<Skill | undefined> {
+    const [s] = await db.update(skills).set(data).where(eq(skills.id, id)).returning();
+    return s;
+  }
+
+  async deleteSkill(id: string): Promise<boolean> {
+    const result = await db.delete(skills).where(eq(skills.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getActiveSkills(projectId: string): Promise<Skill[]> {
+    return db.select().from(skills).where(and(eq(skills.projectId, projectId), eq(skills.isActive, true))).orderBy(skills.name);
   }
 }
 

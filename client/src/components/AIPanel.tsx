@@ -261,11 +261,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
               );
             } else if (data.type === "tool_use") {
-              const opLabel = data.name === "create_file" ? "Creating" : "Editing";
+              let toolMsg: string;
+              if (data.name === "create_skill") {
+                toolMsg = `\n\n> Creating skill...\n`;
+              } else {
+                const opLabel = data.name === "create_file" ? "Creating" : "Editing";
+                toolMsg = `\n\n> ${opLabel} \`${data.input.filename}\`...\n`;
+              }
               setMessages((prev) =>
                 prev.map((m) => m.id === assistantId ? {
                   ...m,
-                  content: m.content + `\n\n> ${opLabel} \`${data.input.filename}\`...\n`
+                  content: m.content + toolMsg
                 } : m)
               );
             } else if (data.type === "file_created") {
@@ -274,6 +280,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             } else if (data.type === "file_updated") {
               fileOps.push({ type: "updated", filename: data.file.filename });
               onFileUpdated?.(data.file);
+            } else if (data.type === "skill_created") {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  content: m.content + `\n\n> Created skill: **${data.skill.name}**\n`
+                } : m)
+              );
             } else if (data.type === "error") {
               setMessages((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\nError: ${data.message}` } : m)
@@ -342,6 +355,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         body.projectId = projectId;
       } else {
         body.context = context;
+        if (projectId) body.projectId = projectId;
       }
 
       const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
@@ -397,7 +411,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const endpoint = isAgent ? "/api/ai/agent" : "/api/ai/chat";
       const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model };
-      if (isAgent) body.projectId = projectId; else body.context = context;
+      if (isAgent) body.projectId = projectId; else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
       if (retryToken && isAgent) retryHeaders["X-CSRF-Token"] = retryToken;

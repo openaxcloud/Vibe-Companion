@@ -21,7 +21,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Custom Domains**: Domain manager (`domainManager.ts`) — DNS TXT verification, SSL provisioning simulation, domain-to-project mapping, CRUD API with ownership checks, persisted in PostgreSQL `custom_domains` table
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
-- **AI Agent**: Tool-use endpoint that can create/edit files directly in the project
+- **AI Agent**: Tool-use endpoint that can create/edit files and create skills directly in the project
+- **Agent Skills**: Per-project reusable skills (patterns, conventions, domain knowledge) that are automatically injected into AI context. CRUD via REST API + Skills panel in sidebar. AI agent has a `create_skill` tool. Skills stored in `skills` table.
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
 - **Email**: Nodemailer with SMTP support (env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, APP_URL). Falls back to console logging when SMTP not configured.
 - **Stripe Billing**: Stripe checkout, portal, and webhook integration. Env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRO_PRICE_ID, STRIPE_TEAM_PRICE_ID. Webhook uses raw body for signature verification. Graceful degradation when not configured.
@@ -66,6 +67,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `monitoring_alerts`: id (uuid), project_id (indexed), name, metric_type, condition, threshold, enabled, last_triggered_at, created_at
 - `code_threads`: id (uuid), project_id (indexed), user_id, filename (indexed), line_number, title, status, created_at, resolved_at
 - `thread_comments`: id (uuid), thread_id (indexed), user_id, content, created_at
+- `skills`: id (uuid), project_id (indexed), name, description, content (markdown), is_active, created_at
 - `port_configs`: id (uuid), project_id (indexed), port, label, protocol, is_public, created_at — unique(project_id, port)
 - `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)

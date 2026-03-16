@@ -3314,6 +3314,20 @@ Rules:
         }
       }
 
+      let skillsContext = "";
+      if (req.body.projectId && typeof req.body.projectId === "string") {
+        try {
+          const chatProject = await storage.getProject(req.body.projectId);
+          if (chatProject && await verifyProjectAccess(chatProject.id, req.session.userId!)) {
+            const activeSkills = await storage.getActiveSkills(chatProject.id);
+            if (activeSkills.length > 0) {
+              skillsContext = "\n\n## Project Skills\nThe following skills define project-specific patterns and conventions. Follow them when applicable:\n\n" +
+                activeSkills.map(s => `### ${s.name}\n${s.description ? s.description + "\n" : ""}${s.content}`).join("\n\n");
+            }
+          }
+        } catch {}
+      }
+
       const systemPrompt = `You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code.
 
 Rules:
@@ -3321,7 +3335,7 @@ Rules:
 - When showing code, use markdown code blocks with the language tag and filename as a comment on the first line.
 - If the user asks to build or create something, provide the full implementation, not just snippets.
 - Include all imports, all functions, and all necessary code for the file to work standalone.
-- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}`;
+- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${skillsContext}`;
 
       const chatAiQuota = await storage.incrementAiCall(req.session.userId!);
       if (!chatAiQuota.allowed) {
@@ -3403,12 +3417,26 @@ Rules:
 
   const executeToolCall = async (
     toolName: string,
-    toolInput: { filename: string; content: string },
+    toolInput: { filename: string; content: string; name?: string; description?: string },
     projectId: string,
     existingFiles: any[],
     res: Response
   ) => {
     try {
+      if (toolName === "create_skill") {
+        const skillName = toolInput.name || "Untitled Skill";
+        const skillContent = toolInput.content || "";
+        const skillDescription = toolInput.description || "";
+        const skill = await storage.createSkill({
+          projectId,
+          name: skillName.slice(0, 200),
+          description: skillDescription.slice(0, 1000),
+          content: skillContent.slice(0, 50000),
+          isActive: true,
+        });
+        res.write(`data: ${JSON.stringify({ type: "skill_created", skill })}\n\n`);
+        return;
+      }
       if (toolName === "create_file" || toolName === "edit_file") {
         const safeName = sanitizeAIFilename(toolInput.filename);
         if (!safeName) {
@@ -3449,7 +3477,7 @@ Rules:
       }
 
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -3460,6 +3488,15 @@ Rules:
 
       const existingFiles = await storage.getFiles(projectId);
       const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
+
+      let agentSkillsContext = "";
+      try {
+        const activeSkills = await storage.getActiveSkills(projectId);
+        if (activeSkills.length > 0) {
+          agentSkillsContext = "\n\n## Project Skills\nThe following skills define project-specific patterns and conventions. Follow them when applicable:\n\n" +
+            activeSkills.map(s => `### ${s.name}\n${s.description ? s.description + "\n" : ""}${s.content}`).join("\n\n");
+        }
+      } catch {}
 
       const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
@@ -3472,7 +3509,9 @@ When the user asks you to build something, create files, or make changes:
 2. Use the provided tools to create or update files
 3. Explain what you're doing as you work
 
-Always write complete, working code. Never use placeholders or TODOs.`;
+When the user asks you to create a skill, use the create_skill tool to persist it.
+
+Always write complete, working code. Never use placeholders or TODOs.${agentSkillsContext}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -3503,6 +3542,19 @@ Always write complete, working code. Never use placeholders or TODOs.`;
                   content: { type: Type.STRING, description: "The new full file content" },
                 },
                 required: ["filename", "content"],
+              },
+            },
+            {
+              name: "create_skill",
+              description: "Create a reusable skill that teaches the AI agent project-specific patterns, conventions, or domain knowledge",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING, description: "The skill name" },
+                  description: { type: Type.STRING, description: "A short description of what the skill teaches" },
+                  content: { type: Type.STRING, description: "The full skill content in markdown" },
+                },
+                required: ["name", "content"],
               },
             },
           ],
@@ -3603,6 +3655,22 @@ Always write complete, working code. Never use placeholders or TODOs.`;
               },
             },
           },
+          {
+            type: "function",
+            function: {
+              name: "create_skill",
+              description: "Create a reusable skill that teaches the AI agent project-specific patterns, conventions, or domain knowledge",
+              parameters: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "The skill name" },
+                  description: { type: "string", description: "A short description of what the skill teaches" },
+                  content: { type: "string", description: "The full skill content in markdown" },
+                },
+                required: ["name", "content"],
+              },
+            },
+          },
         ];
 
         let gptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -3687,6 +3755,19 @@ Always write complete, working code. Never use placeholders or TODOs.`;
                 content: { type: "string", description: "The new full file content" },
               },
               required: ["filename", "content"],
+            },
+          },
+          {
+            name: "create_skill",
+            description: "Create a reusable skill that teaches the AI agent project-specific patterns, conventions, or domain knowledge",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                name: { type: "string", description: "The skill name" },
+                description: { type: "string", description: "A short description of what the skill teaches" },
+                content: { type: "string", description: "The full skill content in markdown" },
+              },
+              required: ["name", "content"],
             },
           },
         ];
@@ -5326,6 +5407,83 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const author = await storage.getUser(req.session.userId!);
       res.status(201).json({ ...comment, authorName: author?.displayName || author?.email || "User" });
     } catch { res.status(500).json({ message: "Failed to add comment" }); }
+  });
+
+  // ===================== SKILLS ROUTES =====================
+  app.get("/api/skills/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const skillsList = await storage.getSkills(project.id);
+      res.json(skillsList);
+    } catch { res.status(500).json({ message: "Failed to load skills" }); }
+  });
+
+  app.post("/api/skills/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { name, description, content } = req.body;
+      if (!name || typeof name !== "string") return res.status(400).json({ message: "Name is required" });
+      const skill = await storage.createSkill({
+        projectId: project.id,
+        name: name.slice(0, 200),
+        description: (description || "").slice(0, 1000),
+        content: (content || "").slice(0, 50000),
+        isActive: true,
+      });
+      res.status(201).json(skill);
+    } catch { res.status(500).json({ message: "Failed to create skill" }); }
+  });
+
+  app.put("/api/skills/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const skill = await storage.getSkill(req.params.id);
+      if (!skill) return res.status(404).json({ message: "Skill not found" });
+      const project = await storage.getProject(skill.projectId);
+      if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { name, description, content, isActive } = req.body;
+      const updateData: Partial<{ name: string; description: string; content: string; isActive: boolean }> = {};
+      if (name !== undefined) updateData.name = String(name).slice(0, 200);
+      if (description !== undefined) updateData.description = String(description).slice(0, 1000);
+      if (content !== undefined) updateData.content = String(content).slice(0, 50000);
+      if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+      const updated = await storage.updateSkill(req.params.id, updateData);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update skill" }); }
+  });
+
+  app.delete("/api/skills/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const skill = await storage.getSkill(req.params.id);
+      if (!skill) return res.status(404).json({ message: "Skill not found" });
+      const project = await storage.getProject(skill.projectId);
+      if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      await storage.deleteSkill(req.params.id);
+      res.json({ message: "Skill deleted" });
+    } catch { res.status(500).json({ message: "Failed to delete skill" }); }
+  });
+
+  app.post("/api/skills/:projectId/upload", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { filename, content } = req.body;
+      if (!filename || !content) return res.status(400).json({ message: "filename and content required" });
+      if (!String(filename).endsWith(".md")) return res.status(400).json({ message: "Only .md files are supported" });
+      const name = String(filename).replace(/\.md$/, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const skill = await storage.createSkill({
+        projectId: project.id,
+        name: name.slice(0, 200),
+        description: `Imported from ${filename}`,
+        content: String(content).slice(0, 50000),
+        isActive: true,
+      });
+      res.status(201).json(skill);
+    } catch { res.status(500).json({ message: "Failed to upload skill" }); }
   });
 
   // ===================== NETWORKING ROUTES =====================

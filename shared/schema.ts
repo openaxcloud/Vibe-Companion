@@ -773,6 +773,24 @@ export const insertThreadCommentSchema = createInsertSchema(threadComments).pick
 export type InsertThreadComment = z.infer<typeof insertThreadCommentSchema>;
 export type ThreadComment = typeof threadComments.$inferSelect;
 
+export const skills = pgTable("skills", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  content: text("content").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("skills_project_idx").on(table.projectId),
+]);
+export const insertSkillSchema = createInsertSchema(skills).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSkill = z.infer<typeof insertSkillSchema>;
+export type Skill = typeof skills.$inferSelect;
+
 export const portConfigs = pgTable("port_configs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
