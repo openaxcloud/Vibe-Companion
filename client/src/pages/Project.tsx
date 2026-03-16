@@ -29,6 +29,8 @@ import ThreadsPanel from "@/components/ThreadsPanel";
 import NetworkingPanel from "@/components/NetworkingPanel";
 import SkillsPanel from "@/components/SkillsPanel";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
+import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
+import type { DevicePreset } from "@/components/PreviewDevTools";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
@@ -202,6 +204,8 @@ function _projectPage() {
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [webviewUrlInput, setWebviewUrlInput] = useState("");
+  const [selectedDevicePreset, setSelectedDevicePreset] = useState("responsive");
+  const [devToolsActive, setDevToolsActive] = useState(false);
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [newFileParentFolder, setNewFileParentFolder] = useState<string | null>(null);
@@ -296,6 +300,21 @@ function _projectPage() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const swipingFileId = useRef<string | null>(null);
   useEffect(() => { if (wsStatus !== "running") setMobileShellMode("console"); }, [wsStatus]);
+
+  const previewProxyUrl = useMemo(() => {
+    if (!devToolsActive || !livePreviewUrl || !projectId) return null;
+    return `/api/workspaces/${projectId}/preview-proxy/`;
+  }, [devToolsActive, livePreviewUrl, projectId]);
+
+  const effectivePreviewUrl = devToolsActive && previewProxyUrl ? previewProxyUrl : livePreviewUrl;
+
+  useErudaInjection("webview-tab-iframe", devToolsActive && !previewProxyUrl, previewHtml, livePreviewUrl);
+  useErudaInjection("preview-panel-iframe", devToolsActive && !previewProxyUrl, previewHtml, livePreviewUrl);
+  useErudaInjection("live-preview-iframe", devToolsActive && !previewProxyUrl, previewHtml, livePreviewUrl);
+
+  const handleDevicePresetSelect = useCallback((preset: DevicePreset) => {
+    setSelectedDevicePreset(preset.id);
+  }, []);
 
   const handleMobileTabChange = useCallback((newTab: typeof mobileTab) => {
     const oldIdx = tabOrder.indexOf(mobileTab);
@@ -2774,6 +2793,8 @@ function _projectPage() {
           </form>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
+          <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+          <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
           {livePreviewUrl && (
             <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
               onClick={() => window.open(livePreviewUrl, "_blank")}
@@ -2781,11 +2802,11 @@ function _projectPage() {
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <DeviceFrame selectedPreset={selectedDevicePreset}>
         {wsStatus === "running" && livePreviewUrl ? (
-          <iframe id="webview-tab-iframe" src={livePreviewUrl} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
+          <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
         ) : previewHtml ? (
-          <iframe srcDoc={previewHtml} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
+          <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
             <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
@@ -2802,7 +2823,7 @@ function _projectPage() {
             )}
           </div>
         )}
-      </div>
+      </DeviceFrame>
     </div>
   );
 
@@ -3138,14 +3159,18 @@ function _projectPage() {
               <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">{livePreviewUrl}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+              <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
               <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
-                onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = livePreviewUrl; }}
+                onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = effectivePreviewUrl || livePreviewUrl; }}
                 title="Refresh" data-testid="button-preview-refresh"><RefreshCw className="w-3 h-3" /></Button>
               <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] gap-1"
                 onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
             </div>
           </div>
-          <iframe id="live-preview-iframe" src={livePreviewUrl} className="flex-1 w-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
+          <DeviceFrame selectedPreset={selectedDevicePreset}>
+            <iframe id="live-preview-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
+          </DeviceFrame>
         </>
       ) : previewHtml ? (
         <>
@@ -3155,12 +3180,16 @@ function _projectPage() {
               <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">HTML Preview</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+              <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
               <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
                 onClick={() => { const html = generateHtmlPreview(); if (html) setPreviewHtml(html); }}
                 title="Refresh" data-testid="button-preview-refresh-html"><RefreshCw className="w-3 h-3" /></Button>
             </div>
           </div>
-          <iframe srcDoc={previewHtml} className="flex-1 w-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
+          <DeviceFrame selectedPreset={selectedDevicePreset}>
+            <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
+          </DeviceFrame>
         </>
       ) : (
         <>
@@ -3447,7 +3476,7 @@ function _projectPage() {
                       <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => {
                         if (wsStatus === "running" && livePreviewUrl) {
                           const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement;
-                          if (iframe) iframe.src = livePreviewUrl;
+                          if (iframe) iframe.src = effectivePreviewUrl || livePreviewUrl;
                         } else {
                           const html = generateHtmlPreview();
                           if (html) setPreviewHtml(html);
@@ -3471,6 +3500,8 @@ function _projectPage() {
                           data-testid="input-webview-url"
                         />
                       </form>
+                      <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+                      <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
                       {livePreviewUrl && (
                         <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
                       )}
@@ -5737,6 +5768,8 @@ function _projectPage() {
                         </form>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
+                        <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+                        <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
                         {(livePreviewUrl || previewHtml) && (
                           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
                             onClick={() => { if (livePreviewUrl) window.open(livePreviewUrl, "_blank"); else if (previewHtml) { const blob = new Blob([previewHtml], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); } }}
@@ -5747,11 +5780,11 @@ function _projectPage() {
                           title="Close preview" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
                       </div>
                     </div>
-                    <div className="flex-1 overflow-hidden bg-white">
+                    <DeviceFrame selectedPreset={selectedDevicePreset} className="bg-white">
                       {wsStatus === "running" && livePreviewUrl ? (
-                        <iframe id="preview-panel-iframe" src={livePreviewUrl} className="w-full h-full border-0" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
+                        <iframe id="preview-panel-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
                       ) : previewHtml ? (
-                        <iframe srcDoc={previewHtml} className="w-full h-full border-0" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-preview-panel-html" />
+                        <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-preview-panel-html" />
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] text-[var(--ide-text-muted)] gap-3">
                           <Globe className="w-8 h-8" />
@@ -5763,7 +5796,7 @@ function _projectPage() {
                           )}
                         </div>
                       )}
-                    </div>
+                    </DeviceFrame>
                   </div>
                 </>
               )}

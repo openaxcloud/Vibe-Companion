@@ -1,4 +1,3 @@
-import { log } from "./index";
 import jwt from "jsonwebtoken";
 
 const RUNNER_BASE_URL = process.env.RUNNER_BASE_URL || "https://runner.e-code.ai";
@@ -125,6 +124,24 @@ export function generateToken(workspaceId: string, userId: string): string {
 
 export function getBaseUrl(): string {
   return RUNNER_BASE_URL;
+}
+
+export async function fetchPreviewContent(workspaceId: string, port: number, subpath: string = "/"): Promise<{ status: number; headers: Record<string, string>; body: Buffer; contentType: string }> {
+  const url = `${RUNNER_BASE_URL}/preview/${workspaceId}/${port}${subpath}`;
+  const headers: Record<string, string> = {};
+  if (RUNNER_JWT_SECRET) {
+    headers["Authorization"] = `Bearer ${signToken({ workspaceId, userId: "system" })}`;
+  }
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+  const contentType = res.headers.get("content-type") || "text/html";
+  const buf = Buffer.from(await res.arrayBuffer());
+  const responseHeaders: Record<string, string> = {};
+  res.headers.forEach((value, key) => {
+    if (!["transfer-encoding", "content-encoding", "connection"].includes(key.toLowerCase())) {
+      responseHeaders[key] = value;
+    }
+  });
+  return { status: res.status, headers: responseHeaders, body: buf, contentType };
 }
 
 export async function execInWorkspace(workspaceId: string, command: string, args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string } | null> {

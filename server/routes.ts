@@ -3821,6 +3821,74 @@ export async function registerRoutes(
     return res.json({ previewUrl: url, workspaceId: workspace.id, port });
   });
 
+  app.get("/api/workspaces/:projectId/preview-proxy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const workspace = await storage.getWorkspaceByProject(project.id);
+      if (!workspace) {
+        return res.status(404).json({ message: "Workspace not initialized" });
+      }
+      const rawPort = parseInt(req.query.port as string);
+      const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
+      const subpath = (req.query.path as string) || "/";
+      const result = await runnerClient.fetchPreviewContent(workspace.id, port, subpath);
+      const isHtml = result.contentType.includes("text/html");
+      if (isHtml) {
+        let html = result.body.toString("utf-8");
+        const erudaCdn = "https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js";
+        const snippet = `<script src="${erudaCdn}"></script><script>if(typeof eruda!=='undefined'){eruda.init();eruda.show();}</script>`;
+        if (!html.includes("eruda")) {
+          const bodyIdx = html.lastIndexOf("</body>");
+          if (bodyIdx !== -1) {
+            html = html.slice(0, bodyIdx) + snippet + html.slice(bodyIdx);
+          } else {
+            html += snippet;
+          }
+        }
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(result.status).send(html);
+      }
+      for (const [key, value] of Object.entries(result.headers)) {
+        if (key.toLowerCase() !== "content-length") {
+          res.setHeader(key, value);
+        }
+      }
+      return res.status(result.status).send(result.body);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Preview proxy failed";
+      return res.status(502).json({ message });
+    }
+  });
+
+  app.get("/api/workspaces/:projectId/preview-proxy/*", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const workspace = await storage.getWorkspaceByProject(project.id);
+      if (!workspace) {
+        return res.status(404).json({ message: "Workspace not initialized" });
+      }
+      const rawPort = parseInt(req.query.port as string);
+      const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
+      const subpath = "/" + (req.params[0] || "");
+      const result = await runnerClient.fetchPreviewContent(workspace.id, port, subpath);
+      for (const [key, value] of Object.entries(result.headers)) {
+        if (key.toLowerCase() !== "content-length") {
+          res.setHeader(key, value);
+        }
+      }
+      return res.status(result.status).send(result.body);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Preview proxy failed";
+      return res.status(502).json({ message });
+    }
+  });
+
   // --- AI ASSISTANT ---
   const anthropic = new Anthropic({
     apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
