@@ -38,7 +38,7 @@ import * as runnerClient from "./runnerClient";
 import * as github from "./github";
 import * as gitService from "./git";
 import path, { posix as pathPosix } from "path";
-import { generateImageBuffer } from "./replit_integrations/image/client";
+import { generateImageBuffer, editImages } from "./replit_integrations/image/client";
 import { registerImageRoutes } from "./replit_integrations/image";
 
 async function loadCommitHistoryForRepo(projectId: string) {
@@ -4493,12 +4493,12 @@ Rules:
 
   const executeToolCall = async (
     toolName: string,
-    toolInput: { filename: string; content: string; name?: string; description?: string },
+    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string },
     projectId: string,
     existingFiles: any[],
     res: Response,
     modifiedFiles?: Set<string>
-  ): Promise<void> => {
+  ): Promise<string> => {
     try {
       if (toolName === "create_skill") {
         const skillName = toolInput.name || "Untitled Skill";
@@ -4512,7 +4512,80 @@ Rules:
           isActive: true,
         });
         res.write(`data: ${JSON.stringify({ type: "skill_created", skill })}\n\n`);
-        return;
+        return "Done";
+      }
+      if (toolName === "generate_image") {
+        const prompt = toolInput.prompt;
+        const filename = toolInput.filename || "generated-image.png";
+        const size = toolInput.size as "1024x1024" | "1024x1536" | "1536x1024" | "auto" || "1024x1024";
+        if (!prompt) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Image prompt is required" })}\n\n`);
+          return "Error: prompt required";
+        }
+        const safeName = sanitizeAIFilename(filename);
+        if (!safeName) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid filename for image" })}\n\n`);
+          return "Error: invalid filename";
+        }
+        const imageBuffer = await generateImageBuffer(prompt, size);
+        const base64Content = imageBuffer.toString("base64");
+        const dataUri = `data:image/png;base64,${base64Content}`;
+        const existingFile = existingFiles.find(f => f.filename === safeName);
+        if (existingFile) {
+          const file = await storage.updateFileContent(existingFile.id, dataUri);
+          res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: dataUri })}\n\n`);
+          broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+        } else {
+          const file = await storage.createFile(projectId, { filename: safeName, content: dataUri });
+          existingFiles.push(file);
+          res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: dataUri })}\n\n`);
+          broadcastToProject(projectId, { type: "file_created", filename: safeName });
+        }
+        if (modifiedFiles) modifiedFiles.add(safeName);
+        return `Image generated and saved as ${safeName}`;
+      }
+      if (toolName === "edit_image") {
+        const filename = toolInput.filename;
+        const modPrompt = toolInput.modification_prompt || toolInput.prompt;
+        if (!filename || !modPrompt) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Filename and modification prompt are required" })}\n\n`);
+          return "Error: filename and modification_prompt required";
+        }
+        const safeName = sanitizeAIFilename(filename);
+        if (!safeName) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid filename" })}\n\n`);
+          return "Error: invalid filename";
+        }
+        const existingFile = existingFiles.find(f => f.filename === safeName);
+        if (!existingFile) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: `File "${safeName}" not found in project` })}\n\n`);
+          return "Error: file not found";
+        }
+        const existingContent = existingFile.content || "";
+        let inputBuffer: Buffer;
+        if (existingContent.startsWith("data:image/")) {
+          const base64Data = existingContent.split(",")[1] || existingContent;
+          inputBuffer = Buffer.from(base64Data, "base64");
+        } else {
+          res.write(`data: ${JSON.stringify({ type: "error", message: `File "${safeName}" is not an image` })}\n\n`);
+          return "Error: file is not an image";
+        }
+        const fs = await import("fs");
+        const os = await import("os");
+        const tmpPath = path.join(os.tmpdir(), `edit-${Date.now()}-${path.basename(safeName)}`);
+        fs.writeFileSync(tmpPath, inputBuffer);
+        try {
+          const editedBuffer = await editImages([tmpPath], modPrompt);
+          const base64Content = editedBuffer.toString("base64");
+          const dataUri = `data:image/png;base64,${base64Content}`;
+          const file = await storage.updateFileContent(existingFile.id, dataUri);
+          res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: dataUri })}\n\n`);
+          if (modifiedFiles) modifiedFiles.add(safeName);
+          broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+          return `Image "${safeName}" edited successfully`;
+        } finally {
+          try { fs.unlinkSync(tmpPath); } catch {}
+        }
       }
       if (toolName === "create_file" || toolName === "edit_file") {
         agentFileOpsCount.value++;
@@ -4520,7 +4593,7 @@ Rules:
         if (!safeName) {
           log(`AI agent: blocked invalid filename "${toolInput.filename}"`, "ai");
           res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid or forbidden filename" })}\n\n`);
-          return;
+          return "Error: invalid filename";
         }
         const safeContent = sanitizeAIFileContent(toolInput.content);
         const existingFile = existingFiles.find(f => f.filename === safeName);
@@ -4533,9 +4606,12 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
         }
         if (modifiedFiles) modifiedFiles.add(safeName);
+        return "Done";
       }
+      return "Unknown tool";
     } catch (err: any) {
       res.write(`data: ${JSON.stringify({ type: "error", message: `Failed to ${toolName}: ${err.message}` })}\n\n`);
+      return `Error: ${err.message}`;
     }
   };
 
@@ -4591,6 +4667,10 @@ When the user asks you to build something, create files, or make changes:
 
 When the user asks you to create a skill, use the create_skill tool to persist it.
 
+When the user asks you to generate an image, use the generate_image tool. Choose an appropriate filename (e.g. 'assets/logo.png', 'images/hero.png'). Available sizes: 1024x1024 (square), 1024x1536 (portrait), 1536x1024 (landscape), auto.
+
+When the user asks you to modify or refine an existing generated image, use the edit_image tool with the existing filename and a description of the changes.
+
 Always write complete, working code. Never use placeholders or TODOs.${agentSkillsContext}`;
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -4637,6 +4717,31 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
                 required: ["name", "content"],
               },
             },
+            {
+              name: "generate_image",
+              description: "Generate an AI image using DALL-E and save it as a project file",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  prompt: { type: Type.STRING, description: "A detailed description of the image to generate" },
+                  filename: { type: Type.STRING, description: "The filename to save the image as (e.g. 'assets/logo.png')" },
+                  size: { type: Type.STRING, description: "Image size: '1024x1024' (square), '1024x1536' (portrait), '1536x1024' (landscape), or 'auto'" },
+                },
+                required: ["prompt", "filename"],
+              },
+            },
+            {
+              name: "edit_image",
+              description: "Modify an existing generated image in the project using AI",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  filename: { type: Type.STRING, description: "The filename of the existing image to edit" },
+                  modification_prompt: { type: Type.STRING, description: "Description of the changes to make to the image" },
+                },
+                required: ["filename", "modification_prompt"],
+              },
+            },
           ],
         }];
 
@@ -4674,16 +4779,17 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
             if (part.functionCall) {
               hasToolCall = true;
               const fn = part.functionCall;
-              const toolInput = fn.args as { filename: string; content: string };
+              const toolInput = fn.args as any;
 
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : undefined;
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles);
+              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles);
 
               toolResponseParts.push({
                 functionResponse: {
                   name: fn.name,
-                  response: { result: "Done" },
+                  response: { result },
                 },
               });
             }
@@ -4751,6 +4857,37 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               },
             },
           },
+          {
+            type: "function",
+            function: {
+              name: "generate_image",
+              description: "Generate an AI image using DALL-E and save it as a project file",
+              parameters: {
+                type: "object",
+                properties: {
+                  prompt: { type: "string", description: "A detailed description of the image to generate" },
+                  filename: { type: "string", description: "The filename to save the image as (e.g. 'assets/logo.png')" },
+                  size: { type: "string", enum: ["1024x1024", "1024x1536", "1536x1024", "auto"], description: "Image size" },
+                },
+                required: ["prompt", "filename"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "edit_image",
+              description: "Modify an existing generated image in the project using AI",
+              parameters: {
+                type: "object",
+                properties: {
+                  filename: { type: "string", description: "The filename of the existing image to edit" },
+                  modification_prompt: { type: "string", description: "Description of the changes to make to the image" },
+                },
+                required: ["filename", "modification_prompt"],
+              },
+            },
+          },
         ];
 
         let gptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -4783,16 +4920,17 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
             for (const toolCall of message.tool_calls) {
               if (toolCall.type !== "function") continue;
               const fn = toolCall.function;
-              const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
+              const toolInput = JSON.parse(fn.arguments) as any;
 
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : undefined;
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles);
 
               toolResultMessages.push({
                 role: "tool",
                 tool_call_id: toolCall.id,
-                content: "Done",
+                content: result,
               });
             }
 
@@ -4850,6 +4988,31 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               required: ["name", "content"],
             },
           },
+          {
+            name: "generate_image",
+            description: "Generate an AI image using DALL-E and save it as a project file",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                prompt: { type: "string", description: "A detailed description of the image to generate" },
+                filename: { type: "string", description: "The filename to save the image as (e.g. 'assets/logo.png')" },
+                size: { type: "string", enum: ["1024x1024", "1024x1536", "1536x1024", "auto"], description: "Image size" },
+              },
+              required: ["prompt", "filename"],
+            },
+          },
+          {
+            name: "edit_image",
+            description: "Modify an existing generated image in the project using AI",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                filename: { type: "string", description: "The filename of the existing image to edit" },
+                modification_prompt: { type: "string", description: "Description of the changes to make to the image" },
+              },
+              required: ["filename", "modification_prompt"],
+            },
+          },
         ];
 
         let currentMessages = messages.map((m: any) => ({
@@ -4870,15 +5033,18 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
             tools,
           });
 
+          const toolResultMap = new Map<string, string>();
           for (const block of response.content) {
             if (block.type === "text") {
               res.write(`data: ${JSON.stringify({ type: "text", content: block.text })}\n\n`);
             } else if (block.type === "tool_use") {
-              const input = block.input as { filename: string; content: string };
+              const input = block.input as any;
 
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
+              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : undefined;
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles);
+              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles);
+              toolResultMap.set(block.id, result);
             }
           }
 
@@ -4888,7 +5054,7 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               .map((b) => ({
                 type: "tool_result" as const,
                 tool_use_id: b.id,
-                content: "Done",
+                content: toolResultMap.get(b.id) || "Done",
               }));
 
             currentMessages = [
@@ -7482,6 +7648,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       return res.status(500).json({ message: "Failed to delete checkpoint" });
     }
   });
+
+  registerImageRoutes(app, requireAuth);
+  log("Integration routes registered (image)", "express");
 
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");

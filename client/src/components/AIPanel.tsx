@@ -33,6 +33,7 @@ interface ChatMessage {
   model?: AIModel;
   fileOps?: { type: "created" | "updated"; filename: string }[];
   attachments?: Attachment[];
+  inlineImages?: { filename: string; dataUri: string }[];
 }
 
 interface AIPanelProps {
@@ -189,6 +190,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false,
   });
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageSize, setImageSize] = useState<string>("1024x1024");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -302,6 +306,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     const decoder = new TextDecoder();
     let buffer = "";
     const fileOps: { type: "created" | "updated"; filename: string }[] = [];
+    const inlineImages: { filename: string; dataUri: string }[] = [];
 
     while (true) {
       const { done, value } = await reader.read();
@@ -324,6 +329,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               let toolMsg: string;
               if (data.name === "create_skill") {
                 toolMsg = `\n\n> Creating skill...\n`;
+              } else if (data.name === "generate_image") {
+                toolMsg = `\n\n> Generating image \`${data.input.filename}\`...\n`;
+              } else if (data.name === "edit_image") {
+                toolMsg = `\n\n> Editing image \`${data.input.filename}\`...\n`;
               } else {
                 const opLabel = data.name === "create_file" ? "Creating" : "Editing";
                 toolMsg = `\n\n> ${opLabel} \`${data.input.filename}\`...\n`;
@@ -336,9 +345,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               );
             } else if (data.type === "file_created") {
               fileOps.push({ type: "created", filename: data.file.filename });
+              if (data.imageData) {
+                inlineImages.push({ filename: data.file.filename, dataUri: data.imageData });
+              }
               onFileCreated?.(data.file);
             } else if (data.type === "file_updated") {
               fileOps.push({ type: "updated", filename: data.file.filename });
+              if (data.imageData) {
+                inlineImages.push({ filename: data.file.filename, dataUri: data.imageData });
+              }
               onFileUpdated?.(data.file);
             } else if (data.type === "skill_created") {
               setMessages((prev) =>
@@ -363,9 +378,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
     }
 
-    if (fileOps.length > 0) {
+    if (fileOps.length > 0 || inlineImages.length > 0) {
       setMessages((prev) =>
-        prev.map((m) => m.id === assistantId ? { ...m, fileOps } : m)
+        prev.map((m) => m.id === assistantId ? {
+          ...m,
+          ...(fileOps.length > 0 ? { fileOps } : {}),
+          ...(inlineImages.length > 0 ? { inlineImages } : {}),
+        } : m)
       );
     }
   }, [onFileCreated, onFileUpdated]);
@@ -376,7 +395,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     const imageMatch = input.trim().match(/^\/image\s+(.+)$/i);
     if (imageMatch) {
       setInput("");
-      await generateImage(imageMatch[1]);
+      const imgText = imageMatch[1];
+      const sizeMatch = imgText.match(/^(1024x1024|1024x1536|1536x1024|auto)\s+(.+)$/i);
+      if (sizeMatch) {
+        await generateImage(sizeMatch[2], sizeMatch[1]);
+      } else {
+        await generateImage(imgText);
+      }
       return;
     }
 
@@ -646,15 +671,16 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     });
   };
 
-  const generateImage = async (prompt: string) => {
+  const generateImage = async (prompt: string, size: string = "1024x1024", filename?: string) => {
     if (!prompt.trim() || isGeneratingImage) return;
     setIsGeneratingImage(true);
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: `🎨 Generate image: ${prompt}` };
+    const sizeLabel = size === "1024x1536" ? " (portrait)" : size === "1536x1024" ? " (landscape)" : size === "auto" ? " (auto)" : "";
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: `Generate image${sizeLabel}: ${prompt}` };
     setMessages((prev) => [...prev, userMsg]);
     persistMessage("user", userMsg.content);
 
     const assistantId = (Date.now() + 1).toString();
-    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "Generating image...", model }]);
 
     try {
       const csrfToken = getCsrfToken();
@@ -664,18 +690,38 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         method: "POST",
         headers,
         credentials: "include",
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify({ prompt: prompt.trim(), size }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Image generation failed");
-      const content = `Here's the generated image:\n\n![Generated image](${data.image})`;
+      const imgDataUri = data.image;
+      const safeFilename = filename || `generated-${Date.now()}.png`;
+      const content = `Here's the generated image:\n\n![Generated image](${imgDataUri})`;
+      const inlineImgs: { filename: string; dataUri: string }[] = [{ filename: safeFilename, dataUri: imgDataUri }];
       setMessages((prev) =>
-        prev.map((m) => m.id === assistantId ? { ...m, content } : m)
+        prev.map((m) => m.id === assistantId ? { ...m, content, inlineImages: inlineImgs } : m)
       );
-      persistMessage("assistant", content, model);
+      persistMessage("assistant", `Generated image saved as ${safeFilename}`, model);
+
+      if (projectId) {
+        try {
+          const fileHeaders: Record<string, string> = { "Content-Type": "application/json" };
+          if (csrfToken) fileHeaders["X-CSRF-Token"] = csrfToken;
+          const fileRes = await fetch(`/api/projects/${projectId}/files`, {
+            method: "POST",
+            headers: fileHeaders,
+            credentials: "include",
+            body: JSON.stringify({ filename: safeFilename, content: imgDataUri }),
+          });
+          if (fileRes.ok) {
+            const file = await fileRes.json();
+            onFileCreated?.(file);
+          }
+        } catch {}
+      }
     } catch (err: any) {
       setMessages((prev) =>
-        prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Image generation failed: ${err.message}` } : m)
+        prev.map((m) => m.id === assistantId ? { ...m, content: `Image generation failed: ${err.message}` } : m)
       );
     } finally {
       setIsGeneratingImage(false);
@@ -873,7 +919,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     return elements;
   };
 
-  const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[]) => {
+  const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[], inlineImages?: { filename: string; dataUri: string }[]) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
     const rendered = parts.map((part, i) => {
       if (part.includes("data:image/")) {
@@ -964,6 +1010,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
       return <span key={i}>{renderMarkdownText(part)}</span>;
     });
+
+    if (inlineImages && inlineImages.length > 0) {
+      rendered.push(
+        <div key="inline-images" className="mt-3 space-y-3">
+          {inlineImages.map((img, i) => (
+            <div key={`inline-img-${i}`} className="rounded-lg overflow-hidden border border-[var(--ide-border)] shadow-lg">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]">
+                <Image className="w-3.5 h-3.5 text-[#7C65CB]" />
+                <span className="text-[10px] font-mono text-[var(--ide-text-secondary)]">{img.filename}</span>
+              </div>
+              <img
+                src={img.dataUri}
+                alt={img.filename}
+                className="max-w-full bg-[var(--ide-bg)]"
+                data-testid={`img-generated-${img.filename}`}
+              />
+            </div>
+          ))}
+        </div>
+      );
+    }
 
     if (fileOps && fileOps.length > 0) {
       rendered.push(<FileOpProgress key="file-ops-summary" ops={fileOps} />);
@@ -1257,7 +1324,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     ))}
                   </div>
                 )}
-                {msg.content ? renderContent(msg.content, msg.fileOps) : <TypingIndicator />}
+                {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages) : <TypingIndicator />}
                 {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
                   <div className="mt-2 flex items-center gap-2">
                     <button
@@ -1308,6 +1375,64 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           onChange={handleFileAttachment}
           data-testid="input-file-attachment"
         />
+        {showImageDialog && (
+          <div className="mb-2 rounded-lg border border-[#7C65CB]/30 bg-[var(--ide-bg)] p-3 animate-[slide-in_0.2s_ease-out]">
+            <div className="flex items-center gap-2 mb-2">
+              <ImagePlus className="w-4 h-4 text-[#7C65CB]" />
+              <span className="text-[12px] font-medium text-[var(--ide-text)]">Generate Image</span>
+              <button
+                className="ml-auto text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
+                onClick={() => setShowImageDialog(false)}
+                data-testid="button-close-image-dialog"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={imagePrompt}
+              onChange={(e) => setImagePrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && imagePrompt.trim()) {
+                  generateImage(imagePrompt.trim(), imageSize);
+                  setImagePrompt("");
+                  setShowImageDialog(false);
+                }
+              }}
+              placeholder="Describe the image you want..."
+              className="w-full bg-[var(--ide-surface)] text-[12px] text-[var(--ide-text)] rounded-md px-3 py-2 mb-2 placeholder:text-[var(--ide-text-muted)]/70 focus:outline-none focus:ring-1 focus:ring-[#7C65CB]/30 border border-[var(--ide-border)]"
+              data-testid="input-image-prompt"
+            />
+            <div className="flex items-center gap-2">
+              <select
+                value={imageSize}
+                onChange={(e) => setImageSize(e.target.value)}
+                className="bg-[var(--ide-surface)] text-[11px] text-[var(--ide-text-secondary)] rounded-md px-2 py-1.5 border border-[var(--ide-border)] focus:outline-none focus:ring-1 focus:ring-[#7C65CB]/30"
+                data-testid="select-image-size"
+              >
+                <option value="1024x1024">Square (1024x1024)</option>
+                <option value="1024x1536">Portrait (1024x1536)</option>
+                <option value="1536x1024">Landscape (1536x1024)</option>
+                <option value="auto">Auto</option>
+              </select>
+              <button
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#7C65CB] hover:bg-[#6B56B8] text-white text-[11px] font-medium transition-colors disabled:opacity-40"
+                disabled={!imagePrompt.trim() || isGeneratingImage}
+                onClick={() => {
+                  if (imagePrompt.trim()) {
+                    generateImage(imagePrompt.trim(), imageSize);
+                    setImagePrompt("");
+                    setShowImageDialog(false);
+                  }
+                }}
+                data-testid="button-submit-image"
+              >
+                {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+                Generate
+              </button>
+            </div>
+          </div>
+        )}
         <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 focus-within:border-[#7C65CB]/40 focus-within:ring-1 focus-within:ring-[#7C65CB]/15 transition-all">
           <textarea
             ref={inputRef}
@@ -1387,12 +1512,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                 isGeneratingImage
                   ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                  : showImageDialog
+                  ? "bg-[#7C65CB]/20 text-[#7C65CB]"
                   : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
               }`}
-              onClick={() => {
-                const prompt = window.prompt("Describe the image you want to generate:");
-                if (prompt) generateImage(prompt);
-              }}
+              onClick={() => setShowImageDialog(!showImageDialog)}
               disabled={isStreaming || isGeneratingImage}
               title={isGeneratingImage ? "Generating image..." : "Generate image (or type /image <prompt>)"}
               data-testid="button-ai-generate-image"
