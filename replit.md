@@ -45,7 +45,9 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, storage_bytes, total_executions, total_ai_calls, stripe_customer_id, stripe_subscription_id, last_reset_at, updated_at
 - `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
 - `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
-- `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value, created_at
+- `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at
+- `account_env_vars`: id (uuid), user_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at — user-level secrets shared across projects
+- `account_env_var_links`: id (uuid), account_env_var_id, project_id (indexed) — links account secrets to specific projects
 - `password_reset_tokens`: id, user_id, token, expires_at, used
 - `email_verifications`: id, user_id, token, expires_at, used
 - `teams`: id, name, slug, owner_id, created_at

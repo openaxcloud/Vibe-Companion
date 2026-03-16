@@ -3,6 +3,7 @@ import helmet from "helmet";
 import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
+import { storage } from "./storage";
 import { createServer } from "http";
 
 const app = express();
@@ -109,6 +110,8 @@ app.use((req, res, next) => {
 
     return res.status(status).json({ message });
   });
+
+  await storage.migrateExistingEnvVarsToEncrypted();
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

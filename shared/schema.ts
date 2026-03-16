@@ -948,3 +948,39 @@ export const checkpointPositions = pgTable("checkpoint_positions", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 export type CheckpointPosition = typeof checkpointPositions.$inferSelect;
+
+export const accountEnvVars = pgTable("account_env_vars", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  key: text("key").notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("account_env_vars_user_id_idx").on(table.userId),
+  uniqueIndex("account_env_vars_user_key_unique").on(table.userId, table.key),
+]);
+
+export const insertAccountEnvVarSchema = createInsertSchema(accountEnvVars).pick({
+  userId: true,
+  key: true,
+  encryptedValue: true,
+});
+export type InsertAccountEnvVar = z.infer<typeof insertAccountEnvVarSchema>;
+export type AccountEnvVar = typeof accountEnvVars.$inferSelect;
+
+export const accountEnvVarLinks = pgTable("account_env_var_links", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  accountEnvVarId: varchar("account_env_var_id", { length: 36 }).notNull(),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("account_env_var_links_project_idx").on(table.projectId),
+  uniqueIndex("account_env_var_links_unique").on(table.accountEnvVarId, table.projectId),
+]);
+
+export const insertAccountEnvVarLinkSchema = createInsertSchema(accountEnvVarLinks).pick({
+  accountEnvVarId: true,
+  projectId: true,
+});
+export type InsertAccountEnvVarLink = z.infer<typeof insertAccountEnvVarLinkSchema>;
+export type AccountEnvVarLink = typeof accountEnvVarLinks.$inferSelect;

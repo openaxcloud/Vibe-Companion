@@ -22,6 +22,7 @@ import {
   deploymentAnalytics,
   frameworkUpdates,
   checkpoints, checkpointPositions,
+  accountEnvVars, accountEnvVarLinks,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -67,8 +68,10 @@ import {
   type DeploymentAnalytic, type InsertDeploymentAnalytic,
   type FrameworkUpdate, type InsertFrameworkUpdate,
   type Checkpoint, type InsertCheckpoint, type CheckpointPosition,
+  type AccountEnvVar, type AccountEnvVarLink,
   PLAN_LIMITS,
 } from "@shared/schema";
+import { encrypt, decrypt, migrateToEncrypted } from "./encryption";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -141,9 +144,23 @@ export interface IStorage {
 
   getProjectEnvVars(projectId: string): Promise<ProjectEnvVar[]>;
   getProjectEnvVar(id: string): Promise<ProjectEnvVar | undefined>;
-  createProjectEnvVar(projectId: string, key: string, encryptedValue: string): Promise<ProjectEnvVar>;
-  updateProjectEnvVar(id: string, encryptedValue: string): Promise<ProjectEnvVar | undefined>;
+  createProjectEnvVar(projectId: string, key: string, value: string): Promise<ProjectEnvVar>;
+  updateProjectEnvVar(id: string, value: string): Promise<ProjectEnvVar | undefined>;
   deleteProjectEnvVar(id: string): Promise<boolean>;
+  deleteProjectEnvVarsByProject(projectId: string): Promise<number>;
+  bulkUpsertProjectEnvVars(projectId: string, vars: Record<string, string>): Promise<ProjectEnvVar[]>;
+
+  getAccountEnvVars(userId: string): Promise<AccountEnvVar[]>;
+  getAccountEnvVar(id: string): Promise<AccountEnvVar | undefined>;
+  createAccountEnvVar(userId: string, key: string, value: string): Promise<AccountEnvVar>;
+  updateAccountEnvVar(id: string, value: string): Promise<AccountEnvVar | undefined>;
+  deleteAccountEnvVar(id: string): Promise<boolean>;
+
+  getAccountEnvVarLinks(projectId: string): Promise<(AccountEnvVarLink & { key: string; encryptedValue: string })[]>;
+  linkAccountEnvVar(accountEnvVarId: string, projectId: string): Promise<AccountEnvVarLink>;
+  unlinkAccountEnvVar(accountEnvVarId: string, projectId: string): Promise<boolean>;
+  getLinkedProjectIds(accountEnvVarId: string): Promise<string[]>;
+  migrateExistingEnvVarsToEncrypted(): Promise<void>;
 
   getConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
   getConversationById(id: string): Promise<AiConversation | undefined>;
@@ -750,12 +767,14 @@ export class DatabaseStorage implements IStorage {
     return envVar;
   }
 
-  async createProjectEnvVar(projectId: string, key: string, encryptedValue: string): Promise<ProjectEnvVar> {
+  async createProjectEnvVar(projectId: string, key: string, value: string): Promise<ProjectEnvVar> {
+    const encryptedValue = encrypt(value);
     const [envVar] = await db.insert(projectEnvVars).values({ projectId, key, encryptedValue }).returning();
     return envVar;
   }
 
-  async updateProjectEnvVar(id: string, encryptedValue: string): Promise<ProjectEnvVar | undefined> {
+  async updateProjectEnvVar(id: string, value: string): Promise<ProjectEnvVar | undefined> {
+    const encryptedValue = encrypt(value);
     const [envVar] = await db.update(projectEnvVars).set({ encryptedValue }).where(eq(projectEnvVars.id, id)).returning();
     return envVar;
   }
@@ -763,6 +782,95 @@ export class DatabaseStorage implements IStorage {
   async deleteProjectEnvVar(id: string): Promise<boolean> {
     const result = await db.delete(projectEnvVars).where(eq(projectEnvVars.id, id)).returning();
     return result.length > 0;
+  }
+
+  async deleteProjectEnvVarsByProject(projectId: string): Promise<number> {
+    const result = await db.delete(projectEnvVars).where(eq(projectEnvVars.projectId, projectId)).returning();
+    return result.length;
+  }
+
+  async bulkUpsertProjectEnvVars(projectId: string, vars: Record<string, string>): Promise<ProjectEnvVar[]> {
+    const results: ProjectEnvVar[] = [];
+    for (const [key, value] of Object.entries(vars)) {
+      const encryptedValue = encrypt(value);
+      const existing = await db.select().from(projectEnvVars)
+        .where(and(eq(projectEnvVars.projectId, projectId), eq(projectEnvVars.key, key)))
+        .limit(1);
+      if (existing.length > 0) {
+        const [updated] = await db.update(projectEnvVars)
+          .set({ encryptedValue })
+          .where(eq(projectEnvVars.id, existing[0].id))
+          .returning();
+        results.push(updated);
+      } else {
+        const [created] = await db.insert(projectEnvVars)
+          .values({ projectId, key, encryptedValue })
+          .returning();
+        results.push(created);
+      }
+    }
+    return results;
+  }
+
+  async getAccountEnvVars(userId: string): Promise<AccountEnvVar[]> {
+    return db.select().from(accountEnvVars).where(eq(accountEnvVars.userId, userId));
+  }
+
+  async getAccountEnvVar(id: string): Promise<AccountEnvVar | undefined> {
+    const [envVar] = await db.select().from(accountEnvVars).where(eq(accountEnvVars.id, id)).limit(1);
+    return envVar;
+  }
+
+  async createAccountEnvVar(userId: string, key: string, value: string): Promise<AccountEnvVar> {
+    const encryptedValue = encrypt(value);
+    const [envVar] = await db.insert(accountEnvVars).values({ userId, key, encryptedValue }).returning();
+    return envVar;
+  }
+
+  async updateAccountEnvVar(id: string, value: string): Promise<AccountEnvVar | undefined> {
+    const encryptedValue = encrypt(value);
+    const [envVar] = await db.update(accountEnvVars).set({ encryptedValue }).where(eq(accountEnvVars.id, id)).returning();
+    return envVar;
+  }
+
+  async deleteAccountEnvVar(id: string): Promise<boolean> {
+    await db.delete(accountEnvVarLinks).where(eq(accountEnvVarLinks.accountEnvVarId, id));
+    const result = await db.delete(accountEnvVars).where(eq(accountEnvVars.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAccountEnvVarLinks(projectId: string): Promise<(AccountEnvVarLink & { key: string; encryptedValue: string })[]> {
+    const links = await db.select({
+      id: accountEnvVarLinks.id,
+      accountEnvVarId: accountEnvVarLinks.accountEnvVarId,
+      projectId: accountEnvVarLinks.projectId,
+      createdAt: accountEnvVarLinks.createdAt,
+      key: accountEnvVars.key,
+      encryptedValue: accountEnvVars.encryptedValue,
+    })
+      .from(accountEnvVarLinks)
+      .innerJoin(accountEnvVars, eq(accountEnvVarLinks.accountEnvVarId, accountEnvVars.id))
+      .where(eq(accountEnvVarLinks.projectId, projectId));
+    return links;
+  }
+
+  async linkAccountEnvVar(accountEnvVarId: string, projectId: string): Promise<AccountEnvVarLink> {
+    const [link] = await db.insert(accountEnvVarLinks).values({ accountEnvVarId, projectId }).returning();
+    return link;
+  }
+
+  async unlinkAccountEnvVar(accountEnvVarId: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(accountEnvVarLinks)
+      .where(and(eq(accountEnvVarLinks.accountEnvVarId, accountEnvVarId), eq(accountEnvVarLinks.projectId, projectId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async getLinkedProjectIds(accountEnvVarId: string): Promise<string[]> {
+    const links = await db.select({ projectId: accountEnvVarLinks.projectId })
+      .from(accountEnvVarLinks)
+      .where(eq(accountEnvVarLinks.accountEnvVarId, accountEnvVarId));
+    return links.map(l => l.projectId);
   }
 
   async getConversation(projectId: string, userId: string): Promise<AiConversation | undefined> {
@@ -1779,6 +1887,38 @@ export class DatabaseStorage implements IStorage {
       await db.update(checkpointPositions).set(updateData).where(eq(checkpointPositions.projectId, projectId));
     } else {
       await db.insert(checkpointPositions).values({ projectId, currentCheckpointId: checkpointId, divergedFromId: divergedFromId ?? null });
+    }
+  }
+
+  async migrateExistingEnvVarsToEncrypted(): Promise<void> {
+    try {
+      const allProjectEnvVars = await db.select().from(projectEnvVars);
+      let migratedCount = 0;
+      for (const ev of allProjectEnvVars) {
+        const migrated = migrateToEncrypted(ev.encryptedValue);
+        if (migrated !== ev.encryptedValue) {
+          await db.update(projectEnvVars).set({ encryptedValue: migrated }).where(eq(projectEnvVars.id, ev.id));
+          migratedCount++;
+        }
+      }
+
+      try {
+        const allAccountEnvVars = await db.select().from(accountEnvVars);
+        for (const ev of allAccountEnvVars) {
+          const migrated = migrateToEncrypted(ev.encryptedValue);
+          if (migrated !== ev.encryptedValue) {
+            await db.update(accountEnvVars).set({ encryptedValue: migrated }).where(eq(accountEnvVars.id, ev.id));
+            migratedCount++;
+          }
+        }
+      } catch {
+      }
+
+      if (migratedCount > 0) {
+        console.log(`[migration] Migrated ${migratedCount} env vars to encrypted format`);
+      }
+    } catch (err: any) {
+      console.error(`[migration] Failed to migrate env vars: ${err.message}`);
     }
   }
 }

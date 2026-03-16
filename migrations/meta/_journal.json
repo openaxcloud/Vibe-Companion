@@ -36,6 +36,13 @@
       "when": 1773960000000,
       "tag": "0004_deployment_parity",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773970000000,
+      "tag": "0005_account_env_vars",
+      "breakpoints": true
     }
   ]
 }

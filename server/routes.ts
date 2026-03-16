@@ -8,6 +8,7 @@ import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
 import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, type InsertDeployment, type CheckpointStateSnapshot } from "@shared/schema";
+import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { executionPool } from "./executionPool";
@@ -2464,13 +2465,50 @@ export async function registerRoutes(
   });
 
   // --- ENV VARS ---
+  async function getEnvVarAccessLevel(projectId: string, userId: string | undefined): Promise<"owner" | "collaborator" | "readonly" | "none"> {
+    const project = await storage.getProject(projectId);
+    if (!project) return "none";
+    if (!userId) return "none";
+    if (project.userId === userId) return "owner";
+    if (project.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      const teamMatch = teams.find(t => t.id === project.teamId);
+      if (teamMatch) {
+        if (teamMatch.role === "owner" || teamMatch.role === "admin" || teamMatch.role === "member") {
+          return "collaborator";
+        }
+        return "readonly";
+      }
+    }
+    if (project.isPublished) return "readonly";
+    return "none";
+  }
+
   app.get("/api/projects/:projectId/env-vars", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const userId = req.session.userId!;
+    const accessLevel = await getEnvVarAccessLevel(req.params.projectId, userId);
+    if (accessLevel === "none") {
       return res.status(403).json({ message: "Access denied" });
     }
     const envVars = await storage.getProjectEnvVars(req.params.projectId);
-    return res.json(envVars);
+    if (accessLevel === "readonly") {
+      return res.json(envVars.map(ev => ({
+        id: ev.id,
+        projectId: ev.projectId,
+        key: ev.key,
+        encryptedValue: "••••••••",
+        createdAt: ev.createdAt,
+      })));
+    }
+    const decrypted = envVars.map(ev => ({
+      ...ev,
+      encryptedValue: decrypt(ev.encryptedValue),
+    }));
+    return res.json(decrypted);
   });
 
   app.post("/api/projects/:projectId/env-vars", requireAuth, async (req: Request, res: Response) => {
@@ -2491,7 +2529,7 @@ export async function registerRoutes(
     }
     try {
       const envVar = await storage.createProjectEnvVar(req.params.projectId, sanitizedKey, value);
-      return res.status(201).json(envVar);
+      return res.status(201).json({ ...envVar, encryptedValue: value });
     } catch (err: any) {
       if (err.message?.includes("unique") || err.code === "23505") {
         return res.status(409).json({ message: `Variable "${sanitizedKey}" already exists` });
@@ -2517,7 +2555,7 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Value too long" });
     }
     const updated = await storage.updateProjectEnvVar(req.params.id, value);
-    return res.json(updated);
+    return res.json(updated ? { ...updated, encryptedValue: value } : updated);
   });
 
   app.delete("/api/projects/:projectId/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
@@ -2531,6 +2569,187 @@ export async function registerRoutes(
     }
     await storage.deleteProjectEnvVar(req.params.id);
     return res.json({ message: "Env var deleted" });
+  });
+
+  app.put("/api/projects/:projectId/env-vars/bulk", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { vars } = req.body;
+    if (!vars || typeof vars !== "object") {
+      return res.status(400).json({ message: "vars object is required" });
+    }
+    for (const [key, value] of Object.entries(vars)) {
+      if (typeof value !== "string") {
+        return res.status(400).json({ message: `Invalid value for key "${key}"` });
+      }
+      const sanitizedKey = key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+      if (!sanitizedKey || sanitizedKey.length > 100) {
+        return res.status(400).json({ message: `Invalid key name: "${key}"` });
+      }
+    }
+    try {
+      const sanitizedVars: Record<string, string> = {};
+      for (const [key, value] of Object.entries(vars)) {
+        sanitizedVars[key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "")] = value as string;
+      }
+      const results = await storage.bulkUpsertProjectEnvVars(req.params.projectId, sanitizedVars);
+      const decrypted = results.map(ev => ({ ...ev, encryptedValue: decrypt(ev.encryptedValue) }));
+      return res.json(decrypted);
+    } catch (err: any) {
+      return res.status(500).json({ message: "Failed to bulk update env vars" });
+    }
+  });
+
+  // --- ACCOUNT ENV VARS ---
+  app.get("/api/account/env-vars", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const envVars = await storage.getAccountEnvVars(userId);
+    const decrypted = envVars.map(ev => ({
+      ...ev,
+      encryptedValue: decrypt(ev.encryptedValue),
+    }));
+    return res.json(decrypted);
+  });
+
+  app.post("/api/account/env-vars", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const { key, value } = req.body;
+    if (!key || typeof key !== "string" || !value || typeof value !== "string") {
+      return res.status(400).json({ message: "key and value are required" });
+    }
+    const sanitizedKey = key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+    if (!sanitizedKey || sanitizedKey.length > 100) {
+      return res.status(400).json({ message: "Invalid key name" });
+    }
+    if (value.length > 10000) {
+      return res.status(400).json({ message: "Value too long" });
+    }
+    try {
+      const envVar = await storage.createAccountEnvVar(userId, sanitizedKey, value);
+      return res.status(201).json({ ...envVar, encryptedValue: value });
+    } catch (err: any) {
+      if (err.message?.includes("unique") || err.code === "23505") {
+        return res.status(409).json({ message: `Account variable "${sanitizedKey}" already exists` });
+      }
+      return res.status(500).json({ message: "Failed to create account env var" });
+    }
+  });
+
+  app.patch("/api/account/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const envVar = await storage.getAccountEnvVar(req.params.id);
+    if (!envVar || envVar.userId !== userId) {
+      return res.status(404).json({ message: "Account env var not found" });
+    }
+    const { value } = req.body;
+    if (!value || typeof value !== "string") {
+      return res.status(400).json({ message: "value is required" });
+    }
+    if (value.length > 10000) {
+      return res.status(400).json({ message: "Value too long" });
+    }
+    const updated = await storage.updateAccountEnvVar(req.params.id, value);
+    return res.json(updated ? { ...updated, encryptedValue: value } : updated);
+  });
+
+  app.delete("/api/account/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const envVar = await storage.getAccountEnvVar(req.params.id);
+    if (!envVar || envVar.userId !== userId) {
+      return res.status(404).json({ message: "Account env var not found" });
+    }
+    await storage.deleteAccountEnvVar(req.params.id);
+    return res.json({ message: "Account env var deleted" });
+  });
+
+  app.get("/api/account/env-vars/:id/links", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const envVar = await storage.getAccountEnvVar(req.params.id);
+    if (!envVar || envVar.userId !== userId) {
+      return res.status(404).json({ message: "Account env var not found" });
+    }
+    const projectIds = await storage.getLinkedProjectIds(req.params.id);
+    return res.json(projectIds);
+  });
+
+  app.post("/api/account/env-vars/:id/link", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const envVar = await storage.getAccountEnvVar(req.params.id);
+    if (!envVar || envVar.userId !== userId) {
+      return res.status(404).json({ message: "Account env var not found" });
+    }
+    const { projectId } = req.body;
+    if (!projectId) {
+      return res.status(400).json({ message: "projectId is required" });
+    }
+    const project = await storage.getProject(projectId);
+    if (!project || project.userId !== userId) {
+      return res.status(403).json({ message: "Access denied to project" });
+    }
+    try {
+      const link = await storage.linkAccountEnvVar(req.params.id, projectId);
+      return res.status(201).json(link);
+    } catch (err: any) {
+      if (err.message?.includes("unique") || err.code === "23505") {
+        return res.status(409).json({ message: "Already linked to this project" });
+      }
+      return res.status(500).json({ message: "Failed to link" });
+    }
+  });
+
+  app.delete("/api/account/env-vars/:id/link/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const envVar = await storage.getAccountEnvVar(req.params.id);
+    if (!envVar || envVar.userId !== userId) {
+      return res.status(404).json({ message: "Account env var not found" });
+    }
+    await storage.unlinkAccountEnvVar(req.params.id, req.params.projectId);
+    return res.json({ message: "Unlinked" });
+  });
+
+  app.get("/api/projects/:projectId/linked-account-vars", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const links = await storage.getAccountEnvVarLinks(req.params.projectId);
+    const decrypted = links.map(l => ({
+      ...l,
+      encryptedValue: decrypt(l.encryptedValue),
+    }));
+    return res.json(decrypted);
+  });
+
+  app.post("/api/projects/:projectId/provision-database-secrets", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { databaseUrl } = req.body;
+    if (!databaseUrl || typeof databaseUrl !== "string") {
+      return res.status(400).json({ message: "databaseUrl is required in request body" });
+    }
+    try {
+      const url = new URL(databaseUrl);
+      const dbSecrets: Record<string, string> = {
+        DATABASE_URL: databaseUrl,
+        PGHOST: url.hostname,
+        PGUSER: url.username,
+        PGPASSWORD: decodeURIComponent(url.password),
+        PGDATABASE: url.pathname.slice(1),
+        PGPORT: url.port || "5432",
+      };
+      const results = await storage.bulkUpsertProjectEnvVars(req.params.projectId, dbSecrets);
+      const decrypted = results.map(ev => ({ ...ev, encryptedValue: decrypt(ev.encryptedValue) }));
+      return res.json(decrypted);
+    } catch (err: any) {
+      if (err instanceof TypeError && err.message.includes("URL")) {
+        return res.status(400).json({ message: "Invalid database URL format" });
+      }
+      return res.status(500).json({ message: "Failed to provision database secrets" });
+    }
   });
 
   // --- RUNS ---
@@ -2599,10 +2818,21 @@ export async function registerRoutes(
     const projectEnvVarsList = await storage.getProjectEnvVars(project.id);
     const envVarsMap: Record<string, string> = {};
     for (const ev of projectEnvVarsList) {
-      envVarsMap[ev.key] = ev.encryptedValue;
+      envVarsMap[ev.key] = decrypt(ev.encryptedValue);
     }
     const integrationEnvVars = await getIntegrationEnvVars(project.id);
     Object.assign(envVarsMap, integrationEnvVars);
+
+    const linkedAccountVars = await storage.getAccountEnvVarLinks(project.id);
+    for (const link of linkedAccountVars) {
+      if (!(link.key in envVarsMap)) {
+        envVarsMap[link.key] = decrypt(link.encryptedValue);
+      }
+    }
+
+    envVarsMap["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
+    const user = await storage.getUser(userId);
+    envVarsMap["REPLIT_USER"] = user?.displayName || user?.email || userId;
 
     try {
       const result = await executionPool.submit(userId, project.id, code, language, (message, type) => {
@@ -2745,8 +2975,11 @@ export async function registerRoutes(
 
     const startTime = Date.now();
     const codeHash = crypto.createHash("sha256").update(code).digest("hex").slice(0, 16);
+    const demoEnvVars: Record<string, string> = {
+      REPLIT_DOMAINS: process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost",
+    };
     try {
-      const result = await executeCode(code, language);
+      const result = await executeCode(code, language, undefined, undefined, undefined, demoEnvVars);
       const durationMs = Date.now() - startTime;
       recordExecution(demoUserId, clientIp, durationMs, result.exitCode !== 0);
 
@@ -4753,10 +4986,19 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       const projectEnvVarsList = await storage.getProjectEnvVars(projectId);
       const envVarsMap: Record<string, string> = {};
       for (const ev of projectEnvVarsList) {
-        envVarsMap[ev.key] = ev.encryptedValue;
+        envVarsMap[ev.key] = decrypt(ev.encryptedValue);
       }
       const termIntegrationEnvVars = await getIntegrationEnvVars(projectId);
       Object.assign(envVarsMap, termIntegrationEnvVars);
+      const linkedAccountVars = await storage.getAccountEnvVarLinks(projectId);
+      for (const link of linkedAccountVars) {
+        if (!(link.key in envVarsMap)) {
+          envVarsMap[link.key] = decrypt(link.encryptedValue);
+        }
+      }
+      envVarsMap["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
+      const termUser = await storage.getUser(userId);
+      envVarsMap["REPLIT_USER"] = termUser?.displayName || termUser?.email || userId;
       const term = getOrCreateTerminal(projectId, userId, envVarsMap);
 
       const dataHandler = term.onData((data: string) => {
@@ -4950,7 +5192,21 @@ print(json.dumps({"results":tests,"duration":dur}))`;
           }
 
           const lang = isJs ? (tf.filename.endsWith(".ts") || tf.filename.endsWith(".tsx") ? "typescript" : "javascript") : "python";
-          const result = await executeCode(testCode, lang);
+          const testEnvVars: Record<string, string> = {};
+          const testProjectEnvVars = await storage.getProjectEnvVars(project.id);
+          for (const ev of testProjectEnvVars) {
+            testEnvVars[ev.key] = decrypt(ev.encryptedValue);
+          }
+          const testLinkedVars = await storage.getAccountEnvVarLinks(project.id);
+          for (const link of testLinkedVars) {
+            if (!(link.key in testEnvVars)) {
+              testEnvVars[link.key] = decrypt(link.encryptedValue);
+            }
+          }
+          testEnvVars["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
+          const testUser = await storage.getUser(userId);
+          testEnvVars["REPLIT_USER"] = testUser?.displayName || testUser?.email || userId;
+          const result = await executeCode(testCode, lang, undefined, undefined, undefined, testEnvVars);
           fullOutput += `--- ${tf.filename} ---\n${result.stdout || ""}${result.stderr ? "\n" + result.stderr : ""}\n\n`;
 
           try {
