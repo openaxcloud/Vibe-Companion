@@ -5911,30 +5911,88 @@ Rules:
   });
 
   async function fetchSearchResults(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
-    try {
-      const encoded = encodeURIComponent(query);
-      const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encoded}`, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; ReplitIDE/1.0)" },
-      });
-      if (!ddgRes.ok) return [];
-      const html = await ddgRes.text();
-      const results: { title: string; url: string; snippet: string }[] = [];
-      const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-      let match;
-      while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
-        const rawUrl = match[1];
-        let url = rawUrl;
-        const uddgMatch = rawUrl.match(/uddg=([^&]+)/);
-        if (uddgMatch) url = decodeURIComponent(uddgMatch[1]);
-        const title = match[2].replace(/<[^>]*>/g, "").trim();
-        const snippet = match[3].replace(/<[^>]*>/g, "").trim();
+    const engines = [fetchGoogleResults, fetchBingResults];
+    for (const engine of engines) {
+      try {
+        const results = await engine(query);
+        if (results.length > 0) return results;
+      } catch (err: any) {
+        log(`Search engine fallback: ${err.message}`, "ai");
+      }
+    }
+    return [];
+  }
+
+  async function fetchGoogleResults(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+    const encoded = encodeURIComponent(query);
+    const res = await fetch(`https://www.google.com/search?q=${encoded}&num=8&hl=en`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const results: { title: string; url: string; snippet: string }[] = [];
+    const blockRegex = /<div class="[^"]*(?:tF2Cxc|g)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
+    let block;
+    while ((block = blockRegex.exec(html)) !== null && results.length < 8) {
+      const content = block[1];
+      const urlMatch = content.match(/<a[^>]*href="(https?:\/\/[^"]+)"/);
+      const titleMatch = content.match(/<h3[^>]*>([\s\S]*?)<\/h3>/);
+      const snippetMatch = content.match(/<span[^>]*class="[^"]*(?:aCOpRe|st)[^"]*"[^>]*>([\s\S]*?)<\/span>/)
+        || content.match(/<div[^>]*class="[^"]*VwiC3b[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+      if (urlMatch && titleMatch) {
+        const url = urlMatch[1];
+        const title = titleMatch[1].replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+        const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim() : "";
+        if (title && url && !url.includes("google.com")) results.push({ title, url, snippet });
+      }
+    }
+    if (results.length === 0) {
+      const linkRegex = /<a[^>]*href="\/url\?q=(https?:\/\/[^&"]+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+      let linkMatch;
+      while ((linkMatch = linkRegex.exec(html)) !== null && results.length < 8) {
+        const url = decodeURIComponent(linkMatch[1]);
+        const title = linkMatch[2].replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").trim();
+        if (title && url && !url.includes("google.com") && title.length > 3) {
+          results.push({ title, url, snippet: "" });
+        }
+      }
+    }
+    return results;
+  }
+
+  async function fetchBingResults(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+    const encoded = encodeURIComponent(query);
+    const res = await fetch(`https://www.bing.com/search?q=${encoded}&count=8`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const results: { title: string; url: string; snippet: string }[] = [];
+    const blockRegex = /<li class="b_algo"[^>]*>([\s\S]*?)<\/li>/g;
+    let block;
+    while ((block = blockRegex.exec(html)) !== null && results.length < 8) {
+      const content = block[1];
+      const urlMatch = content.match(/<a[^>]*href="(https?:\/\/[^"]+)"/);
+      const titleMatch = content.match(/<a[^>]*>([\s\S]*?)<\/a>/);
+      const snippetMatch = content.match(/<p[^>]*>([\s\S]*?)<\/p>/) || content.match(/<div class="b_caption"[^>]*>([\s\S]*?)<\/div>/);
+      if (urlMatch && titleMatch) {
+        const url = urlMatch[1];
+        const title = titleMatch[1].replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').trim();
+        const snippet = snippetMatch ? (snippetMatch[1] || snippetMatch[2] || "").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").trim() : "";
         if (title && url) results.push({ title, url, snippet });
       }
-      return results;
-    } catch (err: any) {
-      log(`Search fetch error: ${err.message}`, "ai");
-      return [];
     }
+    return results;
   }
 
   function isPrivateIP(ip: string): boolean {
