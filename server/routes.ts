@@ -4789,17 +4789,61 @@ Rules:
     }
   });
 
+  function convertJsonSchemaToGemini(schema: Record<string, any>): any {
+    const typeMap: Record<string, any> = { string: Type.STRING, number: Type.NUMBER, boolean: Type.BOOLEAN, integer: Type.NUMBER, object: Type.OBJECT, array: Type.ARRAY };
+    const result: any = { type: typeMap[schema.type] || Type.STRING };
+    if (schema.properties) {
+      result.properties = {};
+      for (const [k, v] of Object.entries(schema.properties)) {
+        const prop = v as Record<string, any>;
+        result.properties[k] = { type: typeMap[prop.type] || Type.STRING, description: prop.description || "" };
+      }
+    }
+    if (schema.required) result.required = schema.required;
+    return result;
+  }
+
   const agentFileOpsCount = { value: 0 };
 
   const executeToolCall = async (
     toolName: string,
-    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string },
+    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string; [key: string]: any },
     projectId: string,
     existingFiles: any[],
     res: Response,
-    modifiedFiles?: Set<string>
+    modifiedFiles?: Set<string>,
+    mcpDefs?: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[]
   ): Promise<string> => {
     try {
+      if (toolName.startsWith("mcp__") && mcpDefs) {
+        const mcpDef = mcpDefs.find(d => d.name === toolName);
+        if (mcpDef) {
+          const mcpClientModule = await import("./mcpClient");
+          let client = mcpClientModule.getClient(mcpDef.serverId);
+          if (!client || client.status !== "running") {
+            try {
+              const server = await storage.getMcpServer(mcpDef.serverId);
+              if (server) {
+                client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
+                await storage.updateMcpServer(server.id, { status: "running" });
+              }
+            } catch (startErr: any) {
+              const errorMsg = `Failed to start MCP server: ${startErr.message}`;
+              res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", name: toolName, error: errorMsg })}\n\n`);
+              return errorMsg;
+            }
+          }
+          if (!client || client.status !== "running") {
+            const errorMsg = "MCP server not available";
+            res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", name: toolName, error: errorMsg })}\n\n`);
+            return errorMsg;
+          }
+          const result = await client.callTool(mcpDef.originalName, toolInput);
+          const resultText = result.content.map(c => c.text || "").join("\n");
+          res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", name: toolName, result: resultText.slice(0, 5000) })}\n\n`);
+          return resultText;
+        }
+      }
       if (toolName === "create_skill") {
         const skillName = toolInput.name || "Untitled Skill";
         const skillContent = toolInput.content || "";
@@ -4964,6 +5008,44 @@ Rules:
         }
       } catch {}
 
+      let mcpToolsContext = "";
+      let mcpToolDefinitions: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[] = [];
+      try {
+        const mcpServers = await storage.getMcpServers(projectId);
+        const mcpClientModule = await import("./mcpClient");
+        for (const server of mcpServers) {
+          let client = mcpClientModule.getClient(server.id);
+          if (!client || client.status !== "running") {
+            try {
+              client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
+              await storage.updateMcpServer(server.id, { status: "running" });
+              const discoveredTools = await client.listTools();
+              await storage.deleteMcpToolsByServer(server.id);
+              for (const tool of discoveredTools) {
+                await storage.createMcpTool({ serverId: server.id, name: tool.name, description: tool.description, inputSchema: tool.inputSchema });
+              }
+            } catch (startErr: any) {
+              log(`MCP server '${server.name}' (${server.id}) failed to start/discover: ${startErr.message}`, "mcp");
+              await storage.updateMcpServer(server.id, { status: "error" });
+            }
+          }
+        }
+        const mcpProjectTools = await storage.getMcpToolsByProject(projectId);
+        if (mcpProjectTools.length > 0) {
+          const safeName = (s: string) => s.replace(/[^a-zA-Z0-9]/g, "_");
+          mcpToolDefinitions = mcpProjectTools.map(t => ({
+            name: `mcp__${safeName(t.serverName)}__${safeName(t.name)}`,
+            originalName: t.name,
+            description: `[MCP: ${t.serverName}] ${t.description}`,
+            inputSchema: t.inputSchema,
+            serverId: t.serverId,
+          }));
+          mcpToolsContext = "\n\nYou also have access to MCP tools from configured servers. Use them when relevant to the user's request.";
+        }
+      } catch (mcpErr: any) {
+        log(`MCP initialization error: ${mcpErr.message}`, "mcp");
+      }
+
       const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
 Current project: "${project.name}" (${project.language})
@@ -4981,7 +5063,7 @@ When the user asks you to generate an image, use the generate_image tool. Choose
 
 When the user asks you to modify or refine an existing generated image, use the edit_image tool with the existing filename and a description of the changes.
 
-Always write complete, working code. Never use placeholders or TODOs.${agentSkillsContext}`;
+Always write complete, working code. Never use placeholders or TODOs.${agentSkillsContext}${mcpToolsContext}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -5054,6 +5136,11 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
                 required: ["filename", "modification_prompt"],
               },
             },
+            ...mcpToolDefinitions.map(t => ({
+              name: t.name,
+              description: t.description,
+              parameters: convertJsonSchemaToGemini(t.inputSchema),
+            })),
           ],
         }];
 
@@ -5094,14 +5181,14 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               const toolInput = fn.args as any;
 
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : undefined;
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles);
+              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
 
               toolResponseParts.push({
                 functionResponse: {
                   name: fn.name,
-                  response: { result },
+                  response: { result: result || "Done" },
                 },
               });
             }
@@ -5200,6 +5287,10 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               },
             },
           },
+          ...mcpToolDefinitions.map(t => ({
+            type: "function" as const,
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          })),
         ];
 
         let gptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -5235,14 +5326,14 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               const toolInput = JSON.parse(fn.arguments) as any;
 
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : undefined;
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
 
               toolResultMessages.push({
                 role: "tool",
                 tool_call_id: toolCall.id,
-                content: result,
+                content: result || "Done",
               });
             }
 
@@ -5325,6 +5416,11 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               required: ["filename", "modification_prompt"],
             },
           },
+          ...mcpToolDefinitions.map(t => ({
+            name: t.name,
+            description: t.description,
+            input_schema: { type: "object" as const, ...t.inputSchema },
+          })),
         ];
 
         let currentMessages = messages.map((m: any) => ({
@@ -5353,9 +5449,9 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               const input = block.input as any;
 
               const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : undefined;
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles);
+              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
               toolResultMap.set(block.id, result);
             }
           }
@@ -8305,6 +8401,258 @@ Respond ONLY with the JSON array, no other text.`;
       const result = await bulkAcceptTasks(validatedIds, req.session.userId!, taskExecutorOptions(project.id));
       res.json(result);
     } catch { res.status(500).json({ message: "Failed to bulk accept tasks" }); }
+  });
+
+  // --- MCP Server Routes ---
+  app.get("/api/projects/:projectId/mcp/servers", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const servers = await storage.getMcpServers(req.params.projectId);
+    const mcpClientModule = await import("./mcpClient");
+    const serversWithStatus = servers.map(s => {
+      const client = mcpClientModule.getClient(s.id);
+      return { ...s, status: client?.status || s.status };
+    });
+    return res.json(serversWithStatus);
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { name, command, args, env } = req.body;
+    if (!name || !command) {
+      return res.status(400).json({ message: "name and command are required" });
+    }
+    if (typeof name !== "string" || name.length > 100) {
+      return res.status(400).json({ message: "Invalid server name" });
+    }
+    if (typeof command !== "string" || command.length > 500) {
+      return res.status(400).json({ message: "Invalid command" });
+    }
+    const server = await storage.createMcpServer({
+      projectId: req.params.projectId,
+      name: name.slice(0, 100),
+      command: command.slice(0, 500),
+      args: Array.isArray(args) ? args.map((a: any) => String(a).slice(0, 1000)) : [],
+      env: typeof env === "object" && env !== null ? env : {},
+    });
+    return res.json(server);
+  });
+
+  app.put("/api/projects/:projectId/mcp/servers/:serverId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    const { name, command, args, env } = req.body;
+    const updates: Record<string, any> = {};
+    if (name) updates.name = String(name).slice(0, 100);
+    if (command) updates.command = String(command).slice(0, 500);
+    if (args) updates.args = Array.isArray(args) ? args.map((a: any) => String(a).slice(0, 1000)) : [];
+    if (env) updates.env = typeof env === "object" && env !== null ? env : {};
+    const updated = await storage.updateMcpServer(server.id, updates);
+    return res.json(updated);
+  });
+
+  app.delete("/api/projects/:projectId/mcp/servers/:serverId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      await mcpClientModule.stopClient(server.id);
+    } catch {}
+    await storage.deleteMcpServer(server.id);
+    return res.json({ message: "Server deleted" });
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/:serverId/start", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      const client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
+      await storage.updateMcpServer(server.id, { status: "running" });
+      const tools = await client.listTools();
+      await storage.deleteMcpToolsByServer(server.id);
+      for (const tool of tools) {
+        await storage.createMcpTool({
+          serverId: server.id,
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        });
+      }
+      return res.json({ status: "running", tools });
+    } catch (err: any) {
+      await storage.updateMcpServer(server.id, { status: "error" });
+      return res.status(500).json({ message: `Failed to start server: ${err.message}` });
+    }
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/:serverId/stop", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      await mcpClientModule.stopClient(server.id);
+    } catch {}
+    await storage.updateMcpServer(server.id, { status: "stopped" });
+    return res.json({ status: "stopped" });
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/:serverId/restart", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      await mcpClientModule.stopClient(server.id);
+      const client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
+      await storage.updateMcpServer(server.id, { status: "running" });
+      const tools = await client.listTools();
+      await storage.deleteMcpToolsByServer(server.id);
+      for (const tool of tools) {
+        await storage.createMcpTool({
+          serverId: server.id,
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        });
+      }
+      return res.json({ status: "running", tools });
+    } catch (err: any) {
+      await storage.updateMcpServer(server.id, { status: "error" });
+      return res.status(500).json({ message: `Failed to restart server: ${err.message}` });
+    }
+  });
+
+  app.get("/api/projects/:projectId/mcp/servers/:serverId/logs", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+
+    const mcpClientModule = await import("./mcpClient");
+    const client = mcpClientModule.getClient(server.id);
+
+    if (req.headers.accept === "text/event-stream") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+
+      const existingLogs = client?.logs || [];
+      for (const line of existingLogs) {
+        res.write(`data: ${JSON.stringify(line)}\n\n`);
+      }
+
+      const onLog = (msg: string) => {
+        const ts = new Date().toISOString();
+        res.write(`data: ${JSON.stringify(`[${ts}] ${msg}`)}\n\n`);
+      };
+      client?.on("log", onLog);
+      req.on("close", () => { client?.off("log", onLog); });
+    } else {
+      return res.json({ logs: client?.logs || [] });
+    }
+  });
+
+  app.get("/api/projects/:projectId/mcp/servers/:serverId/tools", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    const tools = await storage.getMcpTools(server.id);
+    return res.json(tools);
+  });
+
+  app.get("/api/projects/:projectId/mcp/tools", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const tools = await storage.getMcpToolsByProject(req.params.projectId);
+    return res.json(tools);
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/:serverId/call", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    const { toolName, args } = req.body;
+    if (!toolName || typeof toolName !== "string") {
+      return res.status(400).json({ message: "toolName is required" });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      const client = mcpClientModule.getClient(server.id);
+      if (!client || client.status !== "running") {
+        return res.status(400).json({ message: "Server is not running" });
+      }
+      const result = await client.callTool(toolName, args || {});
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: `Tool call failed: ${err.message}` });
+    }
+  });
+
+  app.post("/api/projects/:projectId/mcp/init-builtin", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    try {
+      const { ensureBuiltInServers } = await import("./mcpServers");
+      const created = await ensureBuiltInServers(req.params.projectId);
+      return res.json({ created: created.length, servers: created });
+    } catch (err: any) {
+      return res.status(500).json({ message: `Failed to initialize built-in servers: ${err.message}` });
+    }
   });
 
   await storage.seedDemoProject();

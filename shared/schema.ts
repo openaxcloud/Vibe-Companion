@@ -1169,3 +1169,46 @@ export const insertQueuedMessageSchema = createInsertSchema(queuedMessages).pick
 });
 export type InsertQueuedMessage = z.infer<typeof insertQueuedMessageSchema>;
 export type QueuedMessage = typeof queuedMessages.$inferSelect;
+
+export const mcpServers = pgTable("mcp_servers", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  command: text("command").notNull(),
+  args: json("args").$type<string[]>().notNull().default([]),
+  env: json("env").$type<Record<string, string>>().notNull().default({}),
+  status: text("status").notNull().default("stopped"),
+  isBuiltIn: boolean("is_built_in").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("mcp_servers_project_idx").on(table.projectId),
+]);
+export const insertMcpServerSchema = createInsertSchema(mcpServers).pick({
+  projectId: true,
+  name: true,
+  command: true,
+  args: true,
+  env: true,
+  isBuiltIn: true,
+});
+export type InsertMcpServer = z.infer<typeof insertMcpServerSchema>;
+export type McpServer = typeof mcpServers.$inferSelect;
+
+export const mcpTools = pgTable("mcp_tools", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  serverId: varchar("server_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  inputSchema: json("input_schema").$type<Record<string, any>>().notNull().default({}),
+  cachedAt: timestamp("cached_at").notNull().defaultNow(),
+}, (table) => [
+  index("mcp_tools_server_idx").on(table.serverId),
+]);
+export const insertMcpToolSchema = createInsertSchema(mcpTools).pick({
+  serverId: true,
+  name: true,
+  description: true,
+  inputSchema: true,
+});
+export type InsertMcpTool = z.infer<typeof insertMcpToolSchema>;
+export type McpTool = typeof mcpTools.$inferSelect;

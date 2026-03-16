@@ -12,7 +12,7 @@ import {
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
-  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers,
+  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -29,6 +29,7 @@ import MonitoringPanel from "@/components/MonitoringPanel";
 import ThreadsPanel from "@/components/ThreadsPanel";
 import NetworkingPanel from "@/components/NetworkingPanel";
 import SkillsPanel from "@/components/SkillsPanel";
+import MCPPanel from "@/components/MCPPanel";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
 import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
@@ -351,7 +352,7 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "checkpoints" | "settings" | "envVars";
+  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -370,6 +371,7 @@ function _projectPage() {
     { id: "threads", label: "Threads", icon: MessageSquare, color: "#8B5CF6" },
     { id: "networking", label: "Networking", icon: Network, color: "#06B6D4" },
     { id: "skills", label: "Skills", icon: Brain, color: "#7C65CB" },
+    { id: "mcp", label: "MCP Servers", icon: Plug2, color: "#7C65CB" },
     { id: "checkpoints", label: "Checkpoints", icon: Clock, color: "#7C65CB" },
     { id: "settings", label: "Settings", icon: Settings, color: "#0079F2" },
     { id: "envVars", label: "Secrets", icon: Key, color: "#F5A623" },
@@ -5907,6 +5909,12 @@ function _projectPage() {
             {activePanelTab === "skills" && (
               <div className="flex-1 flex flex-col" data-testid="skills-sidebar">
                 <SkillsPanel projectId={projectId} onClose={() => closePanel("skills")} />
+              </div>
+            )}
+
+            {activePanelTab === "mcp" && (
+              <div className="flex-1 flex flex-col" data-testid="mcp-sidebar">
+                <MCPPanel projectId={projectId} onClose={() => closePanel("mcp")} />
               </div>
             )}
 

@@ -488,6 +488,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 toolMsg = `\n\n> Generating image \`${data.input.filename}\`...\n`;
               } else if (data.name === "edit_image") {
                 toolMsg = `\n\n> Editing image \`${data.input.filename}\`...\n`;
+              } else if (data.name?.startsWith("mcp__")) {
+                toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
               } else {
                 const opLabel = data.name === "create_file" ? "Creating" : "Editing";
                 toolMsg = `\n\n> ${opLabel} \`${data.input.filename}\`...\n`;
@@ -496,6 +498,22 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 prev.map((m) => m.id === assistantId ? {
                   ...m,
                   content: m.content + toolMsg
+                } : m)
+              );
+            } else if (data.type === "mcp_tool_use") {
+              const toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  content: m.content + toolMsg
+                } : m)
+              );
+            } else if (data.type === "mcp_tool_result") {
+              const resultPreview = data.result ? data.result.slice(0, 500) : data.error || "";
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  content: m.content + `\n\n> MCP result: \`\`\`\n${resultPreview}\n\`\`\`\n`
                 } : m)
               );
             } else if (data.type === "file_created") {

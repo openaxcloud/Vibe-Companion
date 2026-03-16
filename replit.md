@@ -25,6 +25,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Code Optimizations**: Post-processing review pass for AI-generated code. Toggle in AI panel settings popover, persisted per-user.
 - **AI Agent**: Tool-use endpoint that can create/edit files and create skills directly in the project. Message Queue system allows users to queue follow-up messages during streaming, with auto-processing loop, drag-and-drop reorder, inline edit, pause/resume, and DB persistence (`queued_messages` table).
 - **Agent Skills**: Per-project reusable skills (patterns, conventions, domain knowledge) that are automatically injected into AI context. CRUD via REST API + Skills panel in sidebar. AI agent has a `create_skill` tool. Skills stored in `skills` table.
+- **MCP Servers**: Model Context Protocol server system for AI Agent tool extensions. Per-project MCP server configuration with built-in servers (file-search, web-fetch, database-query). MCP tools are automatically injected into AI agent conversations. JSON-RPC over stdio protocol client (`server/mcpClient.ts`) manages server lifecycle (start/stop/restart). Built-in servers implemented as inline Node.js scripts (`server/mcpServers.ts`). Tool names prefixed `mcp__serverName__toolName` to avoid collisions. MCPPanel UI component in sidebar (Plug2 icon).
 - **Console Panel**: `ConsolePanel.tsx` — structured run-based console with collapsible run entries, "Show Only Latest" toggle, "Clear past runs" with confirmation, "Ask AI" button per run entry, stop button for active runs. Run history persisted to `console_runs` table. Replaces old flat log list.
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
 - **Email**: Nodemailer with SMTP support (env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, APP_URL). Falls back to console logging when SMTP not configured.
@@ -90,6 +91,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `task_messages`: id (uuid), task_id, role (system/user/assistant), content, created_at
 - `task_file_snapshots`: id (uuid), task_id, filename, content, original_content, is_modified
 - `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
+- `mcp_servers`: id (uuid), project_id (indexed), name, description, command, args (JSON string[]), env (JSON), is_built_in, status, created_at — unique(project_id, name)
+- `mcp_tools`: id (uuid), server_id (indexed), name, description, input_schema (JSON), created_at
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features

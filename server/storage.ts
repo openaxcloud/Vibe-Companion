@@ -80,6 +80,9 @@ import {
   type CreditUsage,
   type AgentMode,
   type QueuedMessage, type InsertQueuedMessage,
+  type McpServer, type InsertMcpServer,
+  type McpTool, type InsertMcpTool,
+  mcpServers, mcpTools,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
 } from "@shared/schema";
@@ -375,6 +378,17 @@ export interface IStorage {
   createTaskFileSnapshot(data: InsertTaskFileSnapshot): Promise<TaskFileSnapshot>;
   updateTaskFileSnapshot(taskId: string, filename: string, content: string): Promise<TaskFileSnapshot | undefined>;
   deleteTaskFileSnapshots(taskId: string): Promise<void>;
+
+  getMcpServers(projectId: string): Promise<McpServer[]>;
+  getMcpServer(id: string): Promise<McpServer | undefined>;
+  createMcpServer(data: InsertMcpServer): Promise<McpServer>;
+  updateMcpServer(id: string, data: Partial<{ name: string; command: string; args: string[]; env: Record<string, string>; status: string }>): Promise<McpServer | undefined>;
+  deleteMcpServer(id: string): Promise<boolean>;
+
+  getMcpTools(serverId: string): Promise<McpTool[]>;
+  getMcpToolsByProject(projectId: string): Promise<(McpTool & { serverName: string })[]>;
+  createMcpTool(data: InsertMcpTool): Promise<McpTool>;
+  deleteMcpToolsByServer(serverId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2083,6 +2097,54 @@ export class DatabaseStorage implements IStorage {
     } else {
       await db.insert(checkpointPositions).values({ projectId, currentCheckpointId: checkpointId, divergedFromId: divergedFromId ?? null });
     }
+  }
+
+  async getMcpServers(projectId: string): Promise<McpServer[]> {
+    return db.select().from(mcpServers).where(eq(mcpServers.projectId, projectId)).orderBy(mcpServers.createdAt);
+  }
+
+  async getMcpServer(id: string): Promise<McpServer | undefined> {
+    const [server] = await db.select().from(mcpServers).where(eq(mcpServers.id, id)).limit(1);
+    return server;
+  }
+
+  async createMcpServer(data: InsertMcpServer): Promise<McpServer> {
+    const [server] = await db.insert(mcpServers).values(data).returning();
+    return server;
+  }
+
+  async updateMcpServer(id: string, data: Partial<{ name: string; command: string; args: string[]; env: Record<string, string>; status: string }>): Promise<McpServer | undefined> {
+    const [server] = await db.update(mcpServers).set(data).where(eq(mcpServers.id, id)).returning();
+    return server;
+  }
+
+  async deleteMcpServer(id: string): Promise<boolean> {
+    await db.delete(mcpTools).where(eq(mcpTools.serverId, id));
+    const result = await db.delete(mcpServers).where(eq(mcpServers.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getMcpTools(serverId: string): Promise<McpTool[]> {
+    return db.select().from(mcpTools).where(eq(mcpTools.serverId, serverId));
+  }
+
+  async getMcpToolsByProject(projectId: string): Promise<(McpTool & { serverName: string })[]> {
+    const servers = await this.getMcpServers(projectId);
+    if (servers.length === 0) return [];
+    const serverIds = servers.map(s => s.id);
+    const tools = await db.select().from(mcpTools).where(inArray(mcpTools.serverId, serverIds));
+    const serverMap = new Map(servers.map(s => [s.id, s.name]));
+    return tools.map(t => ({ ...t, serverName: serverMap.get(t.serverId) || "unknown" }));
+  }
+
+  async createMcpTool(data: InsertMcpTool): Promise<McpTool> {
+    const [tool] = await db.insert(mcpTools).values(data).returning();
+    return tool;
+  }
+
+  async deleteMcpToolsByServer(serverId: string): Promise<number> {
+    const result = await db.delete(mcpTools).where(eq(mcpTools.serverId, serverId)).returning();
+    return result.length;
   }
 
   async migrateExistingEnvVarsToEncrypted(): Promise<void> {
