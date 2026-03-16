@@ -94,8 +94,10 @@ export interface IStorage {
   getUserByGithubId(githubId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
   updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined>;
-  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }>;
-  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean } }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }>;
+  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }>;
+  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts: Record<string, string | null> }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }>;
+  getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>>;
+  updateKeyboardShortcuts(userId: string, shortcuts: Record<string, string | null>): Promise<Record<string, string | null>>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(limit?: number, offset?: number): Promise<{ users: User[]; total: number }>;
 
@@ -424,9 +426,9 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }> {
+  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }> {
     const defaultAgentTools = { liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false };
-    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark", agentToolsConfig: defaultAgentTools };
+    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark", agentToolsConfig: defaultAgentTools, keyboardShortcuts: {} as Record<string, string | null> };
     const user = await this.getUser(userId);
     if (!user || !user.preferences) return defaults;
     const prefs = user.preferences as any;
@@ -434,10 +436,11 @@ export class DatabaseStorage implements IStorage {
       ...defaults,
       ...prefs,
       agentToolsConfig: { ...defaultAgentTools, ...(prefs.agentToolsConfig || {}) },
+      keyboardShortcuts: prefs.keyboardShortcuts || {},
     };
   }
 
-  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean } }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }> {
+  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts: Record<string, string | null> }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }> {
     const current = await this.getUserPreferences(userId);
     const merged = {
       ...current,
@@ -445,9 +448,24 @@ export class DatabaseStorage implements IStorage {
       agentToolsConfig: prefs.agentToolsConfig
         ? { ...current.agentToolsConfig, ...prefs.agentToolsConfig }
         : current.agentToolsConfig,
+      keyboardShortcuts: prefs.keyboardShortcuts !== undefined
+        ? prefs.keyboardShortcuts
+        : current.keyboardShortcuts,
     };
     await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
     return merged;
+  }
+
+  async getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>> {
+    const prefs = await this.getUserPreferences(userId);
+    return prefs.keyboardShortcuts || {};
+  }
+
+  async updateKeyboardShortcuts(userId: string, shortcuts: Record<string, string | null>): Promise<Record<string, string | null>> {
+    const prefs = await this.getUserPreferences(userId);
+    const merged = { ...prefs, keyboardShortcuts: shortcuts };
+    await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
+    return shortcuts;
   }
 
   async deleteUser(id: string): Promise<boolean> {

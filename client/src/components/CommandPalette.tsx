@@ -34,6 +34,7 @@ interface CommandPaletteProps {
   onSplitEditor?: () => void;
   onToggleMinimap?: () => void;
   onForkProject?: () => void;
+  getShortcutDisplay?: (commandId: string) => string | null;
 }
 
 function fuzzyMatch(query: string, text: string): boolean {
@@ -109,27 +110,34 @@ export default function CommandPalette({
   onSplitEditor,
   onToggleMinimap,
   onForkProject,
+  getShortcutDisplay,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const sc = (id: string, fallback: string): string | undefined => {
+    const val = getShortcutDisplay?.(id);
+    if (val === null) return undefined;
+    return val ?? fallback;
+  };
+
   const actionCommands: CommandItem[] = useMemo(() => [
-    { id: "run", label: isRunning ? "Stop" : "Run", icon: isRunning ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />, shortcut: "F5", category: "action", action: () => { onRun(); onClose(); } },
-    { id: "new-file", label: "New File", icon: <Plus className="w-4 h-4" />, shortcut: "Ctrl+N", category: "action", action: () => { onNewFile(); onClose(); } },
+    { id: "run", label: isRunning ? "Stop" : "Run", icon: isRunning ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />, shortcut: sc("run", "F5"), category: "action", action: () => { onRun(); onClose(); } },
+    { id: "new-file", label: "New File", icon: <Plus className="w-4 h-4" />, shortcut: sc("new-file", "Ctrl+N"), category: "action", action: () => { onNewFile(); onClose(); } },
     { id: "new-folder", label: "New Folder", icon: <FolderPlus className="w-4 h-4" />, category: "action", action: () => { onNewFolder(); onClose(); } },
-    { id: "toggle-terminal", label: "Toggle Terminal", icon: <Terminal className="w-4 h-4" />, shortcut: "Ctrl+J", category: "action", action: () => { onToggleTerminal(); onClose(); } },
+    { id: "toggle-terminal", label: "Toggle Terminal", icon: <Terminal className="w-4 h-4" />, shortcut: sc("toggle-terminal", "Ctrl+J"), category: "action", action: () => { onToggleTerminal(); onClose(); } },
     { id: "toggle-ai", label: "Toggle AI Panel", icon: <Sparkles className="w-4 h-4" />, category: "action", action: () => { onToggleAI(); onClose(); } },
-    { id: "toggle-preview", label: "Toggle Preview", icon: <Monitor className="w-4 h-4" />, shortcut: "Ctrl+\\", category: "action", action: () => { onTogglePreview(); onClose(); } },
-    { id: "toggle-sidebar", label: "Toggle Sidebar", icon: <PanelLeft className="w-4 h-4" />, shortcut: "Ctrl+B", category: "action", action: () => { onToggleSidebar(); onClose(); } },
+    { id: "toggle-preview", label: "Toggle Preview", icon: <Monitor className="w-4 h-4" />, shortcut: sc("toggle-preview", "Ctrl+\\"), category: "action", action: () => { onTogglePreview(); onClose(); } },
+    { id: "toggle-sidebar", label: "Toggle Sidebar", icon: <PanelLeft className="w-4 h-4" />, shortcut: sc("toggle-sidebar", "Ctrl+B"), category: "action", action: () => { onToggleSidebar(); onClose(); } },
     { id: "project-settings", label: "Project Settings", icon: <Settings className="w-4 h-4" />, category: "action", action: () => { onProjectSettings(); onClose(); } },
     { id: "publish", label: "Publish", icon: <Rocket className="w-4 h-4" />, category: "action", action: () => { onPublish(); onClose(); } },
     { id: "go-dashboard", label: "Go to Dashboard", icon: <ArrowLeft className="w-4 h-4" />, category: "action", action: () => { onGoToDashboard(); onClose(); } },
     ...(onSplitEditor ? [{ id: "split-editor", label: "Split Editor Right", icon: <Columns className="w-4 h-4" />, category: "action" as const, action: () => { onSplitEditor(); onClose(); } }] : []),
     ...(onToggleMinimap ? [{ id: "toggle-minimap", label: "Toggle Minimap", icon: <Map className="w-4 h-4" />, category: "action" as const, action: () => { onToggleMinimap(); onClose(); } }] : []),
     ...(onForkProject ? [{ id: "fork-project", label: "Fork Project", icon: <GitFork className="w-4 h-4" />, category: "action" as const, action: () => { onForkProject(); onClose(); } }] : []),
-  ], [isRunning, onRun, onNewFile, onNewFolder, onToggleTerminal, onToggleAI, onTogglePreview, onToggleSidebar, onProjectSettings, onPublish, onGoToDashboard, onClose, onSplitEditor, onToggleMinimap, onForkProject]);
+  ], [isRunning, onRun, onNewFile, onNewFolder, onToggleTerminal, onToggleAI, onTogglePreview, onToggleSidebar, onProjectSettings, onPublish, onGoToDashboard, onClose, onSplitEditor, onToggleMinimap, onForkProject, getShortcutDisplay]);
 
   const fileCommands: CommandItem[] = useMemo(() => {
     if (!files) return [];

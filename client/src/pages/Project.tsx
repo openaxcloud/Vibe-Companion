@@ -63,6 +63,7 @@ import CommandPalette from "@/components/CommandPalette";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
 import type { Project as ProjectType, File } from "@shared/schema";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -564,6 +565,7 @@ function _projectPage() {
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);
   const [showMinimap, setShowMinimap] = useState(true);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const { matchesCommand, getShortcutDisplay } = useKeyboardShortcuts();
   const [fileDragOver, setFileDragOver] = useState(false);
   const [customDomains, setCustomDomains] = useState<any[]>([]);
   const [showDomainInput, setShowDomainInput] = useState(false);
@@ -850,67 +852,80 @@ function _projectPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.getAttribute?.("contenteditable") === "true";
+
+      if (matchesCommand("save-file", e)) {
         e.preventDefault();
         if (activeFileId && fileContents[activeFileId] !== undefined) {
           saveMutation.mutate({ fileId: activeFileId, content: fileContents[activeFileId] });
         }
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "F") {
+      if (matchesCommand("search-files", e)) {
         e.preventDefault();
         togglePanel("search");
+        return;
       }
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "f" && (activeFileId === SPECIAL_TABS.SHELL || bottomTab === "shell")) {
         e.preventDefault();
         setShellSearchOpen(true);
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+      if (matchesCommand("toggle-sidebar", e)) {
         e.preventDefault();
         setSidebarOpen(prev => {
           const willOpen = !prev;
           if (willOpen) { setAiPanelOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); }
           return willOpen;
         });
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "G") {
+      if (matchesCommand("version-control", e)) {
         e.preventDefault();
         togglePanel("git");
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if (matchesCommand("command-palette-alt", e)) {
         e.preventDefault();
         setCommandPaletteOpen((prev) => !prev);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "P") {
+      if (matchesCommand("command-palette-shift", e)) {
         e.preventDefault();
         setCommandPaletteOpen(true);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "`")) {
+      if (matchesCommand("toggle-terminal", e) || matchesCommand("toggle-terminal-alt", e)) {
         e.preventDefault();
         setTerminalVisible((prev) => !prev);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+      if (matchesCommand("toggle-preview", e)) {
         e.preventDefault();
         setPreviewPanelOpen((prev) => !prev);
+        return;
       }
-      if (e.key === "F5") {
+      if (matchesCommand("run", e)) {
         e.preventDefault();
         if (isRunning) { /* stop handled by run button */ } else if (!runMutation.isPending) handleRun();
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      if (matchesCommand("run-alt", e)) {
         e.preventDefault();
         if (!isRunning && !runMutation.isPending) handleRun();
+        return;
       }
-      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.getAttribute?.("contenteditable") === "true";
-      if ((e.metaKey || e.ctrlKey) && e.key === "h" && !isInput) {
+      if (matchesCommand("search-replace", e) && !isInput) {
         e.preventDefault();
         openPanel("search");
         setShowReplace(true);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "p" && !e.shiftKey) {
+      if (matchesCommand("command-palette", e)) {
         e.preventDefault();
         setCommandPaletteOpen(true);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "w" && !isInput) {
+      if (matchesCommand("close-tab", e) && !isInput) {
         e.preventDefault();
         if (activeFileId && !activeFileId.startsWith("__")) {
           const idx = openTabs.indexOf(activeFileId);
@@ -919,19 +934,59 @@ function _projectPage() {
           else if (openTabs.length > 1) setActiveFileId(openTabs[1]);
           else setActiveFileId(null);
         }
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "n" && !isInput) {
+      if (matchesCommand("new-file", e) && !isInput) {
         e.preventDefault();
         setNewFileDialogOpen(true);
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+      if (matchesCommand("keyboard-shortcuts", e)) {
         e.preventDefault();
         setShortcutsOpen(prev => !prev);
+        return;
+      }
+      if (matchesCommand("toggle-ai", e)) {
+        e.preventDefault();
+        if (viewMode === "mobile") { setMobileTab("ai"); } else { setAiPanelOpen(prev => !prev); }
+        return;
+      }
+      if (matchesCommand("new-folder", e) && !isInput) {
+        e.preventDefault();
+        setNewFolderDialogOpen(true);
+        return;
+      }
+      if (matchesCommand("project-settings", e)) {
+        e.preventDefault();
+        setProjectSettingsOpen(true);
+        return;
+      }
+      if (matchesCommand("split-editor", e)) {
+        e.preventDefault();
+        setSplitEditorFileId(prev => prev ? null : activeFileId);
+        return;
+      }
+      if (matchesCommand("toggle-minimap", e)) {
+        e.preventDefault();
+        setShowMinimap(prev => !prev);
+        return;
+      }
+      if (e.key === "Escape" && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+        const target = e.target as HTMLElement;
+        const isInEditor = target.closest(".cm-editor");
+        const isInTerminal = target.closest(".xterm") || target.closest("[data-testid='workspace-terminal']");
+        const isInConsole = target.closest("[data-testid='console-panel']");
+        if (isInEditor || isInTerminal || isInConsole) {
+          e.preventDefault();
+          (document.activeElement as HTMLElement)?.blur?.();
+          const main = document.querySelector("[data-testid='project-workspace']") as HTMLElement;
+          if (main) main.focus();
+        }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeFileId, fileContents, searchPanelOpen, isRunning, togglePanel, openPanel]);
+  }, [activeFileId, fileContents, searchPanelOpen, isRunning, togglePanel, openPanel, matchesCommand, viewMode]);
 
   const scrollTabIntoView = useCallback((tabId: string) => {
     setTimeout(() => {
@@ -3719,7 +3774,7 @@ function _projectPage() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden" data-testid="project-workspace" tabIndex={-1}>
       {/* TOP BAR */}
       <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]" : "grid-cols-3 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
@@ -6828,6 +6883,7 @@ function _projectPage() {
         onSplitEditor={() => { if (activeFileId && !activeFileId.startsWith("__")) setSplitEditorFileId(activeFileId); }}
         onToggleMinimap={() => setShowMinimap(prev => !prev)}
         onForkProject={() => forkMutation.mutate()}
+        getShortcutDisplay={getShortcutDisplay}
       />
 
       {showDiffModal && diffFile && (
@@ -6894,47 +6950,51 @@ function _projectPage() {
         <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-lg max-h-[70vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[var(--ide-text)] text-base flex items-center gap-2"><Keyboard className="w-4 h-4" /> Keyboard Shortcuts</DialogTitle>
-            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Quick reference for all available shortcuts</DialogDescription>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Quick reference for all available shortcuts. Customize in Settings.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             {[
               { category: "General", shortcuts: [
-                { keys: ["Ctrl", "P"], desc: "Command Palette" },
-                { keys: ["Ctrl", "K"], desc: "Command Palette" },
-                { keys: ["Ctrl", "B"], desc: "Toggle Sidebar" },
-                { keys: ["Ctrl", "/"], desc: "Keyboard Shortcuts" },
-                { keys: ["F5"], desc: "Run / Stop" },
-                { keys: ["Ctrl", "Enter"], desc: "Run Code" },
+                { id: "command-palette", desc: "Command Palette" },
+                { id: "command-palette-alt", desc: "Command Palette (Alt)" },
+                { id: "toggle-sidebar", desc: "Toggle Sidebar" },
+                { id: "keyboard-shortcuts", desc: "Keyboard Shortcuts" },
+                { id: "run", desc: "Run / Stop" },
+                { id: "run-alt", desc: "Run Code" },
               ]},
               { category: "Editor", shortcuts: [
-                { keys: ["Ctrl", "S"], desc: "Save File" },
-                { keys: ["Ctrl", "N"], desc: "New File" },
-                { keys: ["Ctrl", "W"], desc: "Close Tab" },
-                { keys: ["Tab"], desc: "Accept AI Completion" },
-                { keys: ["Escape"], desc: "Dismiss AI Completion" },
+                { id: "save-file", desc: "Save File" },
+                { id: "new-file", desc: "New File" },
+                { id: "close-tab", desc: "Close Tab" },
               ]},
               { category: "Panels", shortcuts: [
-                { keys: ["Ctrl", "J"], desc: "Toggle Terminal" },
-                { keys: ["Ctrl", "`"], desc: "Toggle Terminal" },
-                { keys: ["Ctrl", "\\"], desc: "Toggle Preview" },
-                { keys: ["Ctrl", "Shift", "F"], desc: "Search in Files" },
-                { keys: ["Ctrl", "H"], desc: "Search & Replace" },
-                { keys: ["Ctrl", "Shift", "G"], desc: "Version Control" },
+                { id: "toggle-terminal", desc: "Toggle Terminal" },
+                { id: "toggle-terminal-alt", desc: "Toggle Terminal (Alt)" },
+                { id: "toggle-preview", desc: "Toggle Preview" },
+                { id: "search-files", desc: "Search in Files" },
+                { id: "search-replace", desc: "Search & Replace" },
+                { id: "version-control", desc: "Version Control" },
               ]},
             ].map(({ category, shortcuts }) => (
               <div key={category}>
                 <h4 className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest mb-2">{category}</h4>
                 <div className="space-y-1">
-                  {shortcuts.map(({ keys, desc }, i) => (
-                    <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[var(--ide-surface)]/40">
-                      <span className="text-[12px] text-[var(--ide-text-secondary)]">{desc}</span>
-                      <div className="flex items-center gap-1">
-                        {keys.map((k, j) => (
-                          <kbd key={j} className="px-1.5 py-0.5 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[10px] text-[var(--ide-text)] font-mono min-w-[24px] text-center">{k}</kbd>
-                        ))}
+                  {shortcuts.map(({ id, desc }, i) => {
+                    const keys = getShortcutDisplay(id);
+                    const keyParts = keys ? keys.split("+") : [];
+                    return (
+                      <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[var(--ide-surface)]/40">
+                        <span className="text-[12px] text-[var(--ide-text-secondary)]">{desc}</span>
+                        <div className="flex items-center gap-1">
+                          {keyParts.length > 0 ? keyParts.map((k, j) => (
+                            <kbd key={j} className="px-1.5 py-0.5 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[10px] text-[var(--ide-text)] font-mono min-w-[24px] text-center">{k}</kbd>
+                          )) : (
+                            <span className="text-[10px] text-[var(--ide-text-muted)] italic">unassigned</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

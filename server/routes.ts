@@ -18,6 +18,7 @@ import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isE
 import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess } from "./deploymentEngine";
 import type { DeploymentType } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
+import { DEFAULT_SHORTCUTS, isValidShortcutValue, findConflict, mergeWithDefaults } from "@shared/keyboardShortcuts";
 import { createCheckpoint, restoreCheckpoint, getCheckpointDiff } from "./checkpointService";
 import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
 import {
@@ -1525,6 +1526,7 @@ export async function registerRoutes(
           codeOptimizations: z.boolean().optional(),
           architect: z.boolean().optional(),
         }).optional(),
+        keyboardShortcuts: z.record(z.string().nullable()).optional(),
       });
       const prefs = schema.parse(req.body);
       const updated = await storage.updateUserPreferences(req.session.userId!, prefs);
@@ -1532,6 +1534,66 @@ export async function registerRoutes(
     } catch (err: any) {
       if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid preferences" });
       res.status(500).json({ message: "Failed to save preferences" });
+    }
+  });
+
+  // --- KEYBOARD SHORTCUTS ---
+  app.get("/api/user/keyboard-shortcuts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const shortcuts = await storage.getKeyboardShortcuts(req.session.userId!);
+      res.json(shortcuts);
+    } catch { res.status(500).json({ message: "Failed to load keyboard shortcuts" }); }
+  });
+
+  app.put("/api/user/keyboard-shortcuts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const KNOWN_COMMAND_IDS = DEFAULT_SHORTCUTS.map(s => s.id);
+      const schema = z.record(z.string().max(50).nullable());
+      const shortcuts = schema.parse(req.body);
+
+      const validated: Record<string, string | null> = {};
+      const invalidKeys: string[] = [];
+      for (const [key, val] of Object.entries(shortcuts)) {
+        if (!KNOWN_COMMAND_IDS.includes(key)) continue;
+        if (val === null) {
+          validated[key] = null;
+        } else if (isValidShortcutValue(val)) {
+          validated[key] = val;
+        } else {
+          invalidKeys.push(key);
+        }
+      }
+
+      if (invalidKeys.length > 0) {
+        return res.status(400).json({ message: `Invalid shortcut format for: ${invalidKeys.join(", ")}` });
+      }
+
+      const resolvedMap = mergeWithDefaults(validated);
+      const conflicts: { commandId: string; conflictWith: string; keys: string }[] = [];
+      for (const [cmdId, keys] of Object.entries(validated)) {
+        if (keys === null) continue;
+        const conflict = findConflict(cmdId, keys, resolvedMap);
+        if (conflict) {
+          conflicts.push({ commandId: cmdId, conflictWith: conflict.conflictCommandId, keys });
+        }
+      }
+
+      if (conflicts.length > 0) {
+        return res.status(409).json({
+          message: "Shortcut conflicts detected",
+          conflicts: conflicts.map(c => ({
+            commandId: c.commandId,
+            conflictWith: c.conflictWith,
+            keys: c.keys,
+          })),
+        });
+      }
+
+      const updated = await storage.updateKeyboardShortcuts(req.session.userId!, validated);
+      res.json(updated);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid shortcuts data" });
+      res.status(500).json({ message: "Failed to save keyboard shortcuts" });
     }
   });
 

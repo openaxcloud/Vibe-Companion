@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge } from "lucide-react";
+import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge, Keyboard } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
+import KeyboardShortcutsSettings from "@/components/KeyboardShortcutsSettings";
 
 function UserAvatar({ initials, size = "lg" }: { initials: string; size?: "sm" | "md" | "lg" }) {
   const sizes = {
@@ -551,6 +552,10 @@ export default function Settings() {
               </div>
             </div>
           </div>
+
+          <div className="h-px bg-[var(--ide-surface)]/60" />
+
+          <KeyboardShortcutsSettings />
 
           <div className="h-px bg-[var(--ide-surface)]/60" />
 
