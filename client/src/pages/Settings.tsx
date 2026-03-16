@@ -70,6 +70,26 @@ export default function Settings() {
     } catch {}
   };
 
+  const [billingStatus, setBillingStatus] = useState<{
+    plan: string;
+    status: string;
+    subscription?: {
+      productName?: string;
+      amount?: number;
+      currency?: string;
+      interval?: string;
+      currentPeriodEnd?: string;
+      cancelAtPeriodEnd?: boolean;
+    } | null;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/billing/status", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setBillingStatus(data); })
+      .catch(() => {});
+  }, []);
+
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     try {
@@ -470,11 +490,27 @@ export default function Settings() {
             <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] divide-y divide-[var(--ide-border)]">
               <div className="flex items-center justify-between p-4">
                 <div>
-                  <span className="text-sm text-[var(--ide-text)] font-medium">Current Plan</span>
-                  <p className="text-[11px] text-[var(--ide-text-muted)]">Free tier</p>
+                  <span className="text-sm text-[var(--ide-text)] font-medium" data-testid="text-current-plan">Current Plan</span>
+                  <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-plan-name">
+                    {billingStatus?.subscription?.productName || (billingStatus?.plan ? billingStatus.plan.charAt(0).toUpperCase() + billingStatus.plan.slice(1) : "Free")} tier
+                  </p>
+                  {billingStatus?.subscription && (
+                    <div className="mt-1 space-y-0.5">
+                      {billingStatus.subscription.amount && (
+                        <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-plan-amount">
+                          ${(billingStatus.subscription.amount / 100).toFixed(2)}/{billingStatus.subscription.interval || "month"}
+                        </p>
+                      )}
+                      {billingStatus.subscription.currentPeriodEnd && (
+                        <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-plan-renewal">
+                          {billingStatus.subscription.cancelAtPeriodEnd ? "Expires" : "Renews"}: {new Date(billingStatus.subscription.currentPeriodEnd).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <Link href="/pricing" className="text-xs text-[#0079F2] hover:text-[#0079F2]/80 transition-colors" data-testid="link-upgrade-plan">
-                  Upgrade
+                  {billingStatus?.status === "active" ? "Change Plan" : "Upgrade"}
                 </Link>
               </div>
               <div className="flex items-center justify-between p-4">

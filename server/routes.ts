@@ -216,11 +216,21 @@ async function testIntegrationConnection(
         return res.ok ? { success: true, message: "Token valid" } : { success: false, message: `HTTP ${res.status}` };
       }
       case "Stripe": {
-        const res = await fetch("https://api.stripe.com/v1/balance", {
-          headers: { Authorization: `Bearer ${config.STRIPE_SECRET_KEY}` },
-          signal: AbortSignal.timeout(timeout),
-        });
-        return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+        try {
+          const { getUncachableStripeClient } = await import("./stripeClient");
+          const stripeClient = await getUncachableStripeClient();
+          const balance = await stripeClient.balance.retrieve();
+          return { success: true, message: `Connected (${balance.available?.length || 0} currencies)` };
+        } catch (err: any) {
+          if (config.STRIPE_SECRET_KEY) {
+            const res = await fetch("https://api.stripe.com/v1/balance", {
+              headers: { Authorization: `Bearer ${config.STRIPE_SECRET_KEY}` },
+              signal: AbortSignal.timeout(timeout),
+            });
+            return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+          }
+          return { success: false, message: err.message || "Stripe not configured" };
+        }
       }
       case "Jira": {
         if (!config.JIRA_BASE_URL || !config.JIRA_API_TOKEN || !config.JIRA_EMAIL) {
@@ -646,6 +656,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/ai/chat",
   "/api/ai/complete",
   "/api/billing/webhook",
+  "/api/stripe/webhook",
   "/api/analytics/track",
   "/api/webhooks/automation",
   "/api/slack/events",
@@ -830,16 +841,20 @@ export async function registerRoutes(
     });
   });
 
-  app.get("/api/config/status", (_req: Request, res: Response) => {
-    const stripeReady = !!(process.env.STRIPE_SECRET_KEY);
+  app.get("/api/config/status", async (_req: Request, res: Response) => {
+    let stripeReady = false;
+    try {
+      const { isStripeConfigured } = await import("./stripeClient");
+      stripeReady = await isStripeConfigured();
+    } catch {}
     const emailReady = isEmailConfigured();
 
     res.json({
       stripe: {
         configured: stripeReady,
-        proConfigured: stripeReady && !!process.env.STRIPE_PRO_PRICE_ID,
-        teamConfigured: stripeReady && !!process.env.STRIPE_TEAM_PRICE_ID,
-        hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+        proConfigured: stripeReady,
+        teamConfigured: stripeReady,
+        hasWebhookSecret: stripeReady,
       },
       email: {
         configured: emailReady,
@@ -990,7 +1005,7 @@ export async function registerRoutes(
         creditAlertThreshold: alertThreshold,
         creditAlertTriggered: creditPercent >= alertThreshold,
       });
-    } catch (err: any) {
+    } catch (err) {
       res.status(500).json({ message: "Failed to fetch usage data" });
     }
   });
@@ -1014,7 +1029,7 @@ export async function registerRoutes(
         days.push({ date: key, ...(dayMap[key] || { economy: 0, power: 0, turbo: 0, total: 0 }) });
       }
       res.json({ days, entries: history.slice(0, 50) });
-    } catch (err: any) {
+    } catch (err) {
       res.status(500).json({ message: "Failed to fetch credit history" });
     }
   });
@@ -1022,7 +1037,7 @@ export async function registerRoutes(
   app.put("/api/user/agent-preferences", requireAuth, async (req: Request, res: Response) => {
     try {
       const { agentMode, codeOptimizationsEnabled, creditAlertThreshold } = req.body;
-      const updates: any = {};
+      const updates: Record<string, unknown> = {};
       if (agentMode && ["economy", "power", "turbo"].includes(agentMode)) {
         if (agentMode === "turbo") {
           const quota = await storage.getUserQuota(req.session.userId!);
@@ -1036,115 +1051,287 @@ export async function registerRoutes(
       if (typeof creditAlertThreshold === "number" && creditAlertThreshold >= 0 && creditAlertThreshold <= 100) updates.creditAlertThreshold = creditAlertThreshold;
       const updated = await storage.updateAgentPreferences(req.session.userId!, updates);
       res.json(updated);
-    } catch (err: any) {
+    } catch (err) {
       res.status(500).json({ message: "Failed to update preferences" });
     }
   });
 
-  const STRIPE_PRICES: Record<string, string> = {
-    pro: process.env.STRIPE_PRO_PRICE_ID || "",
-    team: process.env.STRIPE_TEAM_PRICE_ID || "",
-  };
-
-  let stripe: any = null;
-  if (process.env.STRIPE_SECRET_KEY) {
-    try {
-      const Stripe = require("stripe");
-      stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    } catch (err: any) {
-      log(`Stripe initialization failed: ${err.message}`);
-    }
-  }
-
   app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
-    const { plan } = req.body;
-    if (!plan || !["pro", "team"].includes(plan)) {
-      return res.status(400).json({ message: "Invalid plan" });
-    }
-    if (!stripe || !STRIPE_PRICES[plan] || !process.env.STRIPE_WEBHOOK_SECRET) {
-      return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
+    const { plan, priceId } = req.body;
+    if (!plan && !priceId) {
+      return res.status(400).json({ message: "Plan or priceId required" });
     }
     try {
+      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const configured = await isStripeConfigured();
+      if (!configured) {
+        return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
+      }
+      const stripeClient = await getUncachableStripeClient();
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ message: "Not authenticated" });
       const quota = await storage.getUserQuota(user.id);
+
       let customerId = quota.stripeCustomerId;
       if (!customerId) {
-        const customer = await stripe.customers.create({ email: user.email, metadata: { userId: user.id } });
+        const customer = await stripeClient.customers.create({
+          email: user.email,
+          metadata: { userId: user.id },
+        });
         customerId = customer.id;
         await storage.updateUserPlan(user.id, quota.plan, customerId);
       }
-      const session = await stripe.checkout.sessions.create({
+
+      const { db } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+
+      let resolvedPriceId = priceId;
+      if (!resolvedPriceId && plan) {
+        const result = await db.execute(
+          sql`SELECT pr.id as price_id FROM stripe.prices pr
+              JOIN stripe.products p ON pr.product = p.id
+              WHERE p.active = true AND pr.active = true
+              AND p.metadata->>'plan' = ${plan}
+              ORDER BY pr.unit_amount ASC LIMIT 1`
+        );
+        if (result.rows.length > 0) {
+          resolvedPriceId = (result.rows[0] as { price_id: string }).price_id;
+        }
+      }
+
+      if (!resolvedPriceId) {
+        return res.json({ url: null, message: "No price found for this plan. Run the seed-products script first." });
+      }
+
+      const priceInfo = await db.execute(
+        sql`SELECT pr.recurring, p.metadata->>'plan' as verified_plan
+            FROM stripe.prices pr
+            JOIN stripe.products p ON p.id = pr.product
+            WHERE pr.id = ${resolvedPriceId} AND pr.active = true`
+      );
+      if (priceInfo.rows.length === 0) {
+        return res.status(400).json({ message: "Invalid or inactive price" });
+      }
+      const priceRow = priceInfo.rows[0] as { recurring: object | null; verified_plan: string | null };
+      const isRecurring = !!priceRow.recurring;
+      const mode = isRecurring ? "subscription" : "payment";
+      const verifiedPlan = priceRow.verified_plan || "pro";
+
+      const session = await stripeClient.checkout.sessions.create({
         customer: customerId,
-        mode: "subscription",
-        line_items: [{ price: STRIPE_PRICES[plan], quantity: 1 }],
+        mode,
+        line_items: [{ price: resolvedPriceId, quantity: 1 }],
         success_url: `${req.protocol}://${req.get("host")}/pricing?billing=success`,
         cancel_url: `${req.protocol}://${req.get("host")}/pricing?billing=cancelled`,
-        metadata: { userId: user.id, plan },
+        metadata: { userId: user.id, plan: verifiedPlan, priceId: resolvedPriceId },
       });
       return res.json({ url: session.url });
-    } catch (err: any) {
-      log("Stripe checkout error:", err.message);
+    } catch (err) {
+      log(`Stripe checkout error: ${err instanceof Error ? err.message : err}`);
       return res.status(500).json({ message: "Failed to create checkout session" });
     }
   });
 
   app.post("/api/billing/portal", requireAuth, async (req: Request, res: Response) => {
-    if (!stripe) return res.json({ url: null, message: "Stripe is not configured yet." });
     try {
+      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const configured = await isStripeConfigured();
+      if (!configured) return res.json({ url: null, message: "Stripe is not configured yet." });
+      const stripeClient = await getUncachableStripeClient();
       const quota = await storage.getUserQuota(req.session.userId!);
       if (!quota.stripeCustomerId) return res.json({ url: null, message: "No billing account found." });
-      const session = await stripe.billingPortal.sessions.create({
+      const session = await stripeClient.billingPortal.sessions.create({
         customer: quota.stripeCustomerId,
         return_url: `${req.protocol}://${req.get("host")}/settings`,
       });
       return res.json({ url: session.url });
-    } catch (err: any) {
+    } catch (err) {
       return res.status(500).json({ message: "Failed to open billing portal" });
     }
   });
 
   app.get("/api/billing/status", requireAuth, async (req: Request, res: Response) => {
     const quota = await storage.getUserQuota(req.session.userId!);
+
+    interface SubscriptionRow {
+      id: string;
+      status: string;
+      current_period_end: string;
+      cancel_at_period_end: boolean;
+      unit_amount: number;
+      currency: string;
+      recurring: { interval: string } | null;
+      product_name: string;
+      product_metadata: Record<string, string> | null;
+    }
+
+    let subscriptionDetails: {
+      id: string;
+      status: string;
+      currentPeriodEnd: string;
+      cancelAtPeriodEnd: boolean;
+      amount: number;
+      currency: string;
+      interval: string | null;
+      productName: string;
+      planKey: string | null;
+    } | null = null;
+
+    try {
+      const { db } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+
+      if (quota.stripeSubscriptionId) {
+        const result = await db.execute(
+          sql`SELECT s.id, s.status, s.current_period_end, s.cancel_at_period_end,
+                     pr.unit_amount, pr.currency, pr.recurring,
+                     p.name as product_name, p.metadata as product_metadata
+              FROM stripe.subscriptions s
+              JOIN stripe.subscription_items si ON si.subscription = s.id
+              JOIN stripe.prices pr ON pr.id = si.price
+              JOIN stripe.products p ON p.id = pr.product
+              WHERE s.id = ${quota.stripeSubscriptionId}`
+        );
+        if (result.rows.length > 0) {
+          const row = result.rows[0] as SubscriptionRow;
+          subscriptionDetails = {
+            id: row.id,
+            status: row.status,
+            currentPeriodEnd: new Date(Number(row.current_period_end) * 1000).toISOString(),
+            cancelAtPeriodEnd: row.cancel_at_period_end,
+            amount: row.unit_amount,
+            currency: row.currency,
+            interval: row.recurring?.interval || null,
+            productName: row.product_name,
+            planKey: row.product_metadata?.plan || null,
+          };
+        }
+      }
+
+      if (!subscriptionDetails && quota.stripeCustomerId) {
+        const result = await db.execute(
+          sql`SELECT s.id, s.status, s.current_period_end, s.cancel_at_period_end,
+                     pr.unit_amount, pr.currency, pr.recurring,
+                     p.name as product_name, p.metadata as product_metadata
+              FROM stripe.subscriptions s
+              JOIN stripe.subscription_items si ON si.subscription = s.id
+              JOIN stripe.prices pr ON pr.id = si.price
+              JOIN stripe.products p ON p.id = pr.product
+              WHERE s.customer = ${quota.stripeCustomerId}
+              AND s.status IN ('active', 'trialing', 'past_due')
+              ORDER BY s.created DESC LIMIT 1`
+        );
+        if (result.rows.length > 0) {
+          const row = result.rows[0] as SubscriptionRow;
+          subscriptionDetails = {
+            id: row.id,
+            status: row.status,
+            currentPeriodEnd: new Date(Number(row.current_period_end) * 1000).toISOString(),
+            cancelAtPeriodEnd: row.cancel_at_period_end,
+            amount: row.unit_amount,
+            currency: row.currency,
+            interval: row.recurring?.interval || null,
+            productName: row.product_name,
+            planKey: row.product_metadata?.plan || null,
+          };
+        }
+      }
+    } catch {
+      // stripe schema may not exist yet
+    }
+
+    const derivedStatus = subscriptionDetails
+      ? subscriptionDetails.status
+      : "none";
+
     return res.json({
       plan: quota.plan,
-      status: quota.stripeSubscriptionId ? "active" : "none",
+      status: derivedStatus,
       stripeCustomerId: quota.stripeCustomerId || null,
       subscriptionId: quota.stripeSubscriptionId || null,
+      subscription: subscriptionDetails,
     });
   });
 
-  app.post("/api/billing/webhook", async (req: Request, res: Response) => {
-    if (!stripe) return res.status(200).send("OK");
-    const sig = req.headers["stripe-signature"];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!sig || !webhookSecret) return res.status(200).send("OK");
+  app.get("/api/stripe/products", async (_req: Request, res: Response) => {
     try {
-      const event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, webhookSecret);
-      switch (event.type) {
-        case "checkout.session.completed": {
-          const session = event.data.object;
-          const userId = session.metadata?.userId;
-          const plan = session.metadata?.plan;
-          if (userId && plan) {
-            await storage.updateUserPlan(userId, plan, session.customer, session.subscription);
-          }
-          break;
+      const { db } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const result = await db.execute(
+        sql`SELECT
+              p.id as product_id,
+              p.name as product_name,
+              p.description as product_description,
+              p.active as product_active,
+              p.metadata as product_metadata,
+              pr.id as price_id,
+              pr.unit_amount,
+              pr.currency,
+              pr.recurring,
+              pr.active as price_active,
+              pr.metadata as price_metadata
+            FROM stripe.products p
+            LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+            WHERE p.active = true
+            ORDER BY p.name, pr.unit_amount`
+      );
+
+      interface ProductPriceRow {
+        product_id: string;
+        product_name: string;
+        product_description: string | null;
+        product_active: boolean;
+        product_metadata: Record<string, string> | null;
+        price_id: string | null;
+        unit_amount: number | null;
+        currency: string | null;
+        recurring: { interval: string } | null;
+        price_active: boolean | null;
+        price_metadata: Record<string, string> | null;
+      }
+
+      interface ProductData {
+        id: string;
+        name: string;
+        description: string | null;
+        active: boolean;
+        metadata: Record<string, string> | null;
+        prices: Array<{
+          id: string;
+          unitAmount: number | null;
+          currency: string | null;
+          recurring: { interval: string } | null;
+          active: boolean | null;
+          metadata: Record<string, string> | null;
+        }>;
+      }
+
+      const productsMap = new Map<string, ProductData>();
+      for (const row of result.rows as ProductPriceRow[]) {
+        if (!productsMap.has(row.product_id)) {
+          productsMap.set(row.product_id, {
+            id: row.product_id,
+            name: row.product_name,
+            description: row.product_description,
+            active: row.product_active,
+            metadata: row.product_metadata,
+            prices: [],
+          });
         }
-        case "customer.subscription.deleted": {
-          const sub = event.data.object;
-          const customer = await stripe.customers.retrieve(sub.customer);
-          const userId = customer.metadata?.userId;
-          if (userId) {
-            await storage.updateUserPlan(userId, "free", undefined, undefined);
-          }
-          break;
+        if (row.price_id) {
+          productsMap.get(row.product_id)!.prices.push({
+            id: row.price_id,
+            unitAmount: row.unit_amount,
+            currency: row.currency,
+            recurring: row.recurring,
+            active: row.price_active,
+            metadata: row.price_metadata,
+          });
         }
       }
-      return res.status(200).send("OK");
-    } catch (err: any) {
-      log("Webhook error:", err.message);
-      return res.status(400).send("Webhook Error");
+      return res.json({ data: Array.from(productsMap.values()) });
+    } catch (err) {
+      return res.json({ data: [] });
     }
   });
 

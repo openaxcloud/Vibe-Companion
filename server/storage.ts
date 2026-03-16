@@ -164,7 +164,7 @@ export interface IStorage {
   updateAgentPreferences(userId: string, data: Partial<{ agentMode: string; codeOptimizationsEnabled: boolean; creditAlertThreshold: number }>): Promise<UserQuota>;
   checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
   updateStorageUsage(userId: string): Promise<number>;
-  updateUserPlan(userId: string, plan: string, stripeCustomerId?: string, stripeSubscriptionId?: string): Promise<UserQuota | undefined>;
+  updateUserPlan(userId: string, plan: string, stripeCustomerId?: string | null, stripeSubscriptionId?: string | null): Promise<UserQuota | undefined>;
 
   getProjectEnvVars(projectId: string): Promise<ProjectEnvVar[]>;
   getProjectEnvVar(id: string): Promise<ProjectEnvVar | undefined>;
@@ -919,11 +919,11 @@ export class DatabaseStorage implements IStorage {
     return totalBytes;
   }
 
-  async updateUserPlan(userId: string, plan: string, stripeCustomerId?: string, stripeSubscriptionId?: string): Promise<UserQuota | undefined> {
-    const updates: any = { plan, updatedAt: new Date() };
-    if (stripeCustomerId) updates.stripeCustomerId = stripeCustomerId;
-    if (stripeSubscriptionId) updates.stripeSubscriptionId = stripeSubscriptionId;
-    const quota = await this.getUserQuota(userId);
+  async updateUserPlan(userId: string, plan: string, stripeCustomerId?: string | null, stripeSubscriptionId?: string | null): Promise<UserQuota | undefined> {
+    const updates: Record<string, unknown> = { plan, updatedAt: new Date() };
+    if (stripeCustomerId !== undefined) updates.stripeCustomerId = stripeCustomerId;
+    if (stripeSubscriptionId !== undefined) updates.stripeSubscriptionId = stripeSubscriptionId;
+    await this.getUserQuota(userId);
     const [updated] = await db.update(userQuotas).set(updates).where(eq(userQuotas.userId, userId)).returning();
     return updated;
   }

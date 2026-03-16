@@ -17,6 +17,7 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
   const [tables, setTables] = useState<string[]>([]);
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
   const [tableColumns, setTableColumns] = useState<Record<string, { name: string; type: string }[]>>({});
+  const [selectedSchema, setSelectedSchema] = useState<"public" | "stripe">("public");
 
   const runQueryMutation = useMutation({
     mutationFn: async (sql: string) => {
@@ -36,9 +37,9 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
   });
 
   const loadTablesMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (schema: string) => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/database/query`, {
-        sql: "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;"
+        sql: `SELECT tablename FROM pg_tables WHERE schemaname = '${schema}' ORDER BY tablename;`
       });
       return res.json();
     },
@@ -49,10 +50,18 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
     },
   });
 
+  const handleSchemaChange = (schema: "public" | "stripe") => {
+    setSelectedSchema(schema);
+    setTables([]);
+    setExpandedTable(null);
+    setTableColumns({});
+    loadTablesMutation.mutate(schema);
+  };
+
   const loadColumnsMutation = useMutation({
     mutationFn: async (tableName: string) => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/database/query`, {
-        sql: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '${tableName}' AND table_schema = 'public' ORDER BY ordinal_position;`
+        sql: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '${tableName}' AND table_schema = '${selectedSchema}' ORDER BY ordinal_position;`
       });
       return res.json();
     },
@@ -84,7 +93,7 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
           <Database className="w-3.5 h-3.5 text-[#0079F2]" /> Database
         </span>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => loadTablesMutation.mutate()} data-testid="button-refresh-tables">
+          <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => loadTablesMutation.mutate(selectedSchema)} data-testid="button-refresh-tables">
             <Table2 className="w-3 h-3" />
           </Button>
           <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-database">
@@ -95,9 +104,20 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
 
       <div className="border-b border-[var(--ide-border)]">
         <div className="flex items-center justify-between px-3 py-1.5">
-          <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Tables</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Tables</span>
+            <select
+              value={selectedSchema}
+              onChange={(e) => handleSchemaChange(e.target.value as "public" | "stripe")}
+              className="text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)] rounded px-1.5 py-0.5 outline-none focus:border-[#0079F2]"
+              data-testid="select-schema"
+            >
+              <option value="public">public</option>
+              <option value="stripe">stripe</option>
+            </select>
+          </div>
           {tables.length === 0 && !loadTablesMutation.isPending && (
-            <Button variant="ghost" size="sm" className="h-5 px-2 text-[9px] text-[#0079F2] hover:bg-[#0079F2]/10" onClick={() => loadTablesMutation.mutate()} data-testid="button-load-tables">
+            <Button variant="ghost" size="sm" className="h-5 px-2 text-[9px] text-[#0079F2] hover:bg-[#0079F2]/10" onClick={() => loadTablesMutation.mutate(selectedSchema)} data-testid="button-load-tables">
               Load
             </Button>
           )}
@@ -112,7 +132,7 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
                 <button
                   className="w-full flex items-center gap-1.5 px-3 py-1 text-left hover:bg-[var(--ide-surface)]/40 transition-colors group"
                   onClick={() => handleToggleTable(table)}
-                  onDoubleClick={() => { setSqlQuery(`SELECT * FROM "${table}" LIMIT 50;`); }}
+                  onDoubleClick={() => { setSqlQuery(`SELECT * FROM "${selectedSchema}"."${table}" LIMIT 50;`); }}
                   data-testid={`table-item-${table}`}
                 >
                   {expandedTable === table ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)]" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />}

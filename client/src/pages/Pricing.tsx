@@ -13,17 +13,41 @@ const steps = [
   { id: 3, label: "Confirmation", icon: CheckCircle2 },
 ];
 
-const PLAN_UI: Record<string, { period: string; cta: string; popular: boolean; color: string }> = {
-  free: { period: "forever", cta: "Current Plan", popular: false, color: "var(--ide-text-muted)" },
-  pro: { period: "/ month", cta: "Upgrade to Pro", popular: true, color: "#0079F2" },
-  team: { period: "/ user / month", cta: "Contact Sales", popular: false, color: "#7C65CB" },
+const PLAN_UI: Record<string, { period: string; cta: string; popular: boolean; color: string; icon: typeof Sparkles }> = {
+  free: { period: "forever", cta: "Current Plan", popular: false, color: "var(--ide-text-muted)", icon: Sparkles },
+  pro: { period: "/ month", cta: "Upgrade to Pro", popular: true, color: "#0079F2", icon: Zap },
+  team: { period: "/ user / month", cta: "Upgrade to Team", popular: false, color: "#7C65CB", icon: Building2 },
 };
 
-const fallbackPlans = [
-  { id: "free", name: "Free", price: "$0", period: "forever", description: "Perfect for learning and personal projects", features: ["5 projects", "50 code executions / day", "100 AI credits / day", "Economy & Power modes", "50 MB storage", "JavaScript & Python", "Community support"], cta: "Current Plan", popular: false, color: "var(--ide-text-muted)" },
-  { id: "pro", name: "Pro", price: "$12", period: "/ month", description: "For developers who need more power and flexibility", features: ["Unlimited projects", "500 code executions / day", "1,000 AI credits / day", "All modes incl. Turbo", "Code Optimizations", "5 GB storage", "All languages (Go, Java, C++, Ruby, Bash)", "Priority AI (GPT-4o, Claude, Gemini)", "Custom domains", "Priority support"], cta: "Upgrade to Pro", popular: true, color: "#0079F2" },
-  { id: "team", name: "Team", price: "$25", period: "/ user / month", description: "For teams building together with shared workspaces", features: ["Everything in Pro", "5,000 AI credits / day", "Unlimited team members", "Shared projects & workspaces", "Team admin dashboard", "SSO & SAML", "Audit logs", "99.9% uptime SLA", "Dedicated support"], cta: "Contact Sales", popular: false, color: "#7C65CB" },
-];
+const FREE_PLAN = {
+  id: "free",
+  name: "Free",
+  price: "$0",
+  period: "forever",
+  description: "Perfect for learning and personal projects",
+  features: ["5 projects", "50 code executions / day", "20 AI calls / day", "50 MB storage", "JavaScript & Python", "Community support"],
+  cta: "Current Plan",
+  popular: false,
+  color: "var(--ide-text-muted)",
+  priceId: null as string | null,
+};
+
+
+interface StripeProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  metadata: Record<string, string> | null;
+  prices: {
+    id: string;
+    unitAmount: number;
+    currency: string;
+    recurring: { interval: string } | null;
+    active: boolean;
+    metadata: Record<string, string> | null;
+  }[];
+}
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
@@ -31,6 +55,7 @@ export default function Pricing() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
+  const [selectedPrices, setSelectedPrices] = useState<Record<string, string>>({});
   const [stripeStatus, setStripeStatus] = useState<{ configured: boolean; proConfigured: boolean; teamConfigured: boolean; hasWebhookSecret: boolean } | null>(null);
 
   const stripeReady = stripeStatus ? stripeStatus.configured && stripeStatus.hasWebhookSecret : null;
@@ -49,29 +74,92 @@ export default function Pricing() {
     }
   }, [search]);
 
-  const planConfigsQuery = useQuery<{ plan: string; description: string | null; features: string[] | null; price: number }[]>({
-    queryKey: ["/api/plan-configs"],
+  const stripeProductsQuery = useQuery<{ data: StripeProduct[] }>({
+    queryKey: ["/api/stripe/products"],
     staleTime: 60000,
   });
 
-  const plans = useMemo(() => {
-    if (!planConfigsQuery.data || planConfigsQuery.data.length === 0) return fallbackPlans;
-    return planConfigsQuery.data.map(config => {
-      const ui = PLAN_UI[config.plan] || { period: "", cta: "Select", popular: false, color: "var(--ide-text-muted)" };
-      const priceStr = config.price === 0 ? "$0" : `$${Math.floor(config.price / 100)}`;
-      return {
-        id: config.plan,
-        name: config.plan.charAt(0).toUpperCase() + config.plan.slice(1),
-        price: priceStr,
-        period: ui.period,
-        description: config.description || "",
-        features: config.features || [],
+  interface PriceOption {
+    id: string;
+    label: string;
+    amount: string;
+    period: string;
+    isRecurring: boolean;
+  }
+
+  interface PlanConfig {
+    id: string;
+    name: string;
+    price: string;
+    period: string;
+    description: string;
+    features: string[];
+    cta: string;
+    popular: boolean;
+    color: string;
+    priceId: string | null;
+    priceOptions: PriceOption[];
+  }
+
+  const plans = useMemo((): PlanConfig[] => {
+    const stripeProducts = stripeProductsQuery.data?.data || [];
+    const result: PlanConfig[] = [{
+      ...FREE_PLAN,
+      priceOptions: [],
+    }];
+
+    for (const product of stripeProducts) {
+      const planKey = product.metadata?.plan || product.name.toLowerCase().replace(" plan", "");
+      const ui = PLAN_UI[planKey] || { period: "", cta: `Get ${product.name}`, popular: false, color: "var(--ide-text-muted)", icon: Sparkles };
+      let features: string[] = [];
+      try {
+        features = product.metadata?.features ? JSON.parse(product.metadata.features) : [];
+      } catch {
+        features = [];
+      }
+
+      const priceOptions: PriceOption[] = product.prices
+        .filter(p => p.active)
+        .sort((a, b) => (a.unitAmount || 0) - (b.unitAmount || 0))
+        .map(p => {
+          const amt = `$${(p.unitAmount / 100).toFixed(p.unitAmount % 100 === 0 ? 0 : 2)}`;
+          if (p.recurring) {
+            return {
+              id: p.id,
+              label: `${amt} / ${p.recurring.interval}`,
+              amount: amt,
+              period: `/ ${p.recurring.interval}`,
+              isRecurring: true,
+            };
+          }
+          return {
+            id: p.id,
+            label: `${amt} one-time`,
+            amount: amt,
+            period: "one-time",
+            isRecurring: false,
+          };
+        });
+
+      const defaultPrice = priceOptions.find(p => p.isRecurring) || priceOptions[0];
+
+      result.push({
+        id: planKey,
+        name: product.name.replace(" Plan", ""),
+        price: defaultPrice?.amount || "$0",
+        period: defaultPrice?.period || ui.period,
+        description: product.description || "",
+        features,
         cta: ui.cta,
         popular: ui.popular,
         color: ui.color,
-      };
-    });
-  }, [planConfigsQuery.data]);
+        priceId: defaultPrice?.id || null,
+        priceOptions,
+      });
+    }
+
+    return result;
+  }, [stripeProductsQuery.data]);
 
   const currentStep = useMemo(() => {
     const params = new URLSearchParams(search);
@@ -80,31 +168,34 @@ export default function Pricing() {
     return 1;
   }, [search, loading]);
 
-  const handleUpgrade = async (planId: string) => {
+  const getSelectedPriceId = (plan: PlanConfig): string | null => {
+    if (selectedPrices[plan.id]) return selectedPrices[plan.id];
+    return plan.priceId;
+  };
+
+  const handleUpgrade = async (planId: string, priceId?: string | null) => {
     if (planId === "free") return;
-    if (planId === "team") {
-      toast({ title: "Contact us at team@replit-ide.com for Team plans" });
-      return;
-    }
     if (!user) {
       setLocation("/login");
       return;
     }
-    if (stripeReady === false || (stripeStatus && planId === "pro" && !stripeStatus.proConfigured)) {
+    if (stripeReady === false) {
       toast({ title: "Payments are not available yet. Please check back soon.", variant: "destructive" });
       return;
     }
     setLoading(planId);
     try {
-      const res = await apiRequest("POST", "/api/billing/checkout", { plan: planId });
+      const body: Record<string, string> = { plan: planId };
+      if (priceId) body.priceId = priceId;
+      const res = await apiRequest("POST", "/api/billing/checkout", body);
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
       } else {
         toast({ title: data.message || "Unable to start checkout. Please try again later.", variant: "destructive" });
       }
-    } catch (err: any) {
-      toast({ title: err.message || "Failed to start checkout", variant: "destructive" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to start checkout", variant: "destructive" });
     } finally {
       setLoading(null);
     }
@@ -112,8 +203,8 @@ export default function Pricing() {
 
   return (
     <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)]">
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="flex items-center gap-4 mb-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="flex items-center gap-4 mb-8 sm:mb-12">
           <Button
             variant="ghost"
             size="icon"
@@ -124,8 +215,8 @@ export default function Pricing() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold" data-testid="text-pricing-title">Choose your plan</h1>
-            <p className="text-[var(--ide-text-secondary)] mt-1">Scale your development with the right tools</p>
+            <h1 className="text-2xl sm:text-3xl font-bold" data-testid="text-pricing-title">Choose your plan</h1>
+            <p className="text-[var(--ide-text-secondary)] mt-1 text-sm sm:text-base">Scale your development with the right tools</p>
           </div>
         </div>
 
@@ -138,7 +229,7 @@ export default function Pricing() {
           </div>
         )}
 
-        <div className="max-w-lg mx-auto mb-12" data-testid="progress-bar-container">
+        <div className="max-w-lg mx-auto mb-8 sm:mb-12" data-testid="progress-bar-container">
           <div className="flex items-center justify-between relative">
             <div className="absolute top-5 left-[calc(16.67%)] right-[calc(16.67%)] h-[2px] bg-[var(--ide-surface)]" />
             <div
@@ -189,11 +280,13 @@ export default function Pricing() {
           </div>
         ) : (
         <>
-        <div className="grid md:grid-cols-3 gap-6">
-          {plans.map((plan) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          {plans.map((plan) => {
+            const PlanIcon = PLAN_UI[plan.id]?.icon || Sparkles;
+            return (
             <div
               key={plan.id}
-              className={`relative rounded-xl border ${plan.popular ? "border-[#0079F2] shadow-lg shadow-[#0079F2]/10" : "border-[var(--ide-border)]"} bg-[var(--ide-panel)] p-6 flex flex-col`}
+              className={`relative rounded-xl border ${plan.popular ? "border-[#0079F2] shadow-lg shadow-[#0079F2]/10" : "border-[var(--ide-border)]"} bg-[var(--ide-panel)] p-5 sm:p-6 flex flex-col`}
               data-testid={`card-plan-${plan.id}`}
             >
               {plan.popular && (
@@ -202,15 +295,42 @@ export default function Pricing() {
                 </div>
               )}
               <div className="flex items-center gap-2 mb-4">
-                {plan.id === "free" && <Sparkles className="w-5 h-5" style={{ color: plan.color }} />}
-                {plan.id === "pro" && <Zap className="w-5 h-5" style={{ color: plan.color }} />}
-                {plan.id === "team" && <Building2 className="w-5 h-5" style={{ color: plan.color }} />}
+                <PlanIcon className="w-5 h-5" style={{ color: plan.color }} />
                 <h2 className="text-xl font-semibold" style={{ color: plan.color }}>{plan.name}</h2>
               </div>
-              <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-4xl font-bold">{plan.price}</span>
-                <span className="text-[var(--ide-text-muted)] text-sm">{plan.period}</span>
-              </div>
+              {(() => {
+                const activePriceId = getSelectedPriceId(plan);
+                const activeOption = plan.priceOptions.find(p => p.id === activePriceId) || plan.priceOptions[0];
+                const displayPrice = activeOption?.amount || plan.price;
+                const displayPeriod = activeOption?.period || plan.period;
+                return (
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <span className="text-3xl sm:text-4xl font-bold">{displayPrice}</span>
+                    <span className="text-[var(--ide-text-muted)] text-sm">{displayPeriod}</span>
+                  </div>
+                );
+              })()}
+              {plan.priceOptions.length > 1 && (
+                <div className="flex gap-1.5 mb-4" data-testid={`price-selector-${plan.id}`}>
+                  {plan.priceOptions.map(option => {
+                    const isSelected = (selectedPrices[plan.id] || plan.priceId) === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => setSelectedPrices(prev => ({ ...prev, [plan.id]: option.id }))}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          isSelected
+                            ? "bg-[var(--ide-surface)] text-[var(--ide-text)] border border-[var(--ide-text-muted)]"
+                            : "text-[var(--ide-text-muted)] border border-transparent hover:border-[var(--ide-border)]"
+                        }`}
+                        data-testid={`price-option-${option.id}`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <p className="text-[var(--ide-text-secondary)] text-sm mb-6">{plan.description}</p>
               <ul className="space-y-3 mb-8 flex-1">
                 {plan.features.map((feature, i) => (
@@ -228,17 +348,18 @@ export default function Pricing() {
                     ? "bg-[#7C65CB] hover:bg-[#6B56B5] text-white"
                     : "bg-[var(--ide-surface)] hover:bg-[#3B4255] text-[var(--ide-text)]"
                 }`}
-                onClick={() => handleUpgrade(plan.id)}
-                disabled={plan.id === "free" || loading === plan.id || (plan.id === "pro" && (stripeReady === false || (stripeStatus && !stripeStatus.proConfigured)))}
+                onClick={() => handleUpgrade(plan.id, getSelectedPriceId(plan))}
+                disabled={plan.id === "free" || loading === plan.id || stripeReady === false}
                 data-testid={`button-upgrade-${plan.id}`}
               >
                 {loading === plan.id ? <Loader2 className="w-4 h-4 animate-spin" /> : plan.cta}
               </Button>
             </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div className="mt-16 text-center">
+        <div className="mt-12 sm:mt-16 text-center">
           <h3 className="text-lg font-semibold mb-3">Frequently Asked Questions</h3>
           <div className="max-w-2xl mx-auto space-y-4 text-left">
             {[
