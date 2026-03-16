@@ -192,6 +192,19 @@ async function initStripe() {
     await setupVite(httpServer, app);
   }
 
+  storage.purgeFileVersionsOlderThan(30).then(count => {
+    if (count > 0) log(`Purged ${count} file versions older than 30 days`, "cleanup");
+  }).catch(err => {
+    console.warn("[cleanup] Failed to purge old file versions:", err?.message || err);
+  });
+  setInterval(() => {
+    storage.purgeFileVersionsOlderThan(30).then(count => {
+      if (count > 0) log(`Purged ${count} file versions older than 30 days`, "cleanup");
+    }).catch(err => {
+      console.warn("[cleanup] Failed to purge old file versions:", err?.message || err);
+    });
+  }, 24 * 60 * 60 * 1000);
+
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {

@@ -55,6 +55,8 @@ interface FileHistoryPanelProps {
   files: { id: string; filename: string; content: string }[];
   onClose: () => void;
   onFileRestored?: (fileId: string, filename: string, content: string) => void;
+  initialFile?: string | null;
+  openCounter?: number;
 }
 
 const BINARY_EXTENSIONS = new Set([
@@ -498,8 +500,9 @@ function TimelineSkeleton() {
   );
 }
 
-export default function FileHistoryPanel({ projectId, files, onClose, onFileRestored }: FileHistoryPanelProps) {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+export default function FileHistoryPanel({ projectId, files, onClose, onFileRestored, initialFile, openCounter = 0 }: FileHistoryPanelProps) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(initialFile ?? null);
+  const prevOpenCounter = useRef(openCounter);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [fileDropdownOpen, setFileDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -515,6 +518,18 @@ export default function FileHistoryPanel({ projectId, files, onClose, onFileRest
   const panelRef = useRef<HTMLDivElement>(null);
   const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (initialFile && openCounter !== prevOpenCounter.current) {
+      prevOpenCounter.current = openCounter;
+      setSelectedFile(initialFile);
+      setSelectedIndex(-1);
+      setCurrentPage(1);
+      setAccumulatedEntries([]);
+      setCompareLatest(false);
+      setIsPlaying(false);
+    }
+  }, [initialFile, openCounter]);
 
   useEffect(() => {
     if (fileDropdownOpen && searchInputRef.current) {

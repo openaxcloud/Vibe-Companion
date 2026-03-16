@@ -524,6 +524,7 @@ export interface IStorage {
   getFileVersionCount(fileId: string): Promise<number>;
   getLatestFileVersionNumber(fileId: string): Promise<number>;
   deleteOldFileVersions(fileId: string, keepCount: number): Promise<number>;
+  purgeFileVersionsOlderThan(days: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3048,6 +3049,14 @@ export class DatabaseStorage implements IStorage {
       ))
       .returning();
     return deleted.length;
+  }
+
+  async purgeFileVersionsOlderThan(days: number): Promise<number> {
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const result = await db.delete(fileVersions)
+      .where(sql`${fileVersions.createdAt} < ${cutoff}`)
+      .returning({ id: fileVersions.id });
+    return result.length;
   }
 
   async getSystemModules(projectId: string): Promise<SystemModule[]> {

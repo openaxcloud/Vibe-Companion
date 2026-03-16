@@ -474,6 +474,17 @@ function _projectPage() {
 
   const isPanelOpen = useCallback((panelId: ToolPanelId) => openPanelTabs.includes(panelId), [openPanelTabs]);
 
+  const [fileHistoryInitialFile, setFileHistoryInitialFile] = useState<string | null>(null);
+  const [fileHistoryOpenCounter, setFileHistoryOpenCounter] = useState(0);
+
+  const openFileHistory = useCallback((filename?: string) => {
+    if (filename) {
+      setFileHistoryInitialFile(filename);
+      setFileHistoryOpenCounter(c => c + 1);
+    }
+    openPanel("fileHistory");
+  }, [openPanel]);
+
   const searchPanelOpen = isPanelOpen("search");
   const gitPanelOpen = isPanelOpen("git");
   const deploymentsPanelOpen = isPanelOpen("deployments");
@@ -2748,6 +2759,9 @@ function _projectPage() {
                   <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRunnerFile(entry)}>
                     <FileCode2 className="w-3 h-3" /> Open
                   </ContextMenuItem>
+                  <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openFileHistory(entry.path)} data-testid={`context-file-history-${entryId}`}>
+                    <Clock className="w-3 h-3" /> View File History
+                  </ContextMenuItem>
                   <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
                   <ContextMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => openRenameDialog(entryId, entry.name)}>
                     <Pencil className="w-3 h-3" /> Rename
@@ -2917,6 +2931,13 @@ function _projectPage() {
                   >
                     <FileCode2 className="w-3 h-3" /> Open
                   </ContextMenuItem>
+                  <ContextMenuItem
+                    className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                    onClick={() => openFileHistory(file.filename)}
+                    data-testid={`ctx-history-${file.id}`}
+                  >
+                    <Clock className="w-3 h-3" /> View File History
+                  </ContextMenuItem>
                   <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
                   <ContextMenuItem
                     className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
@@ -3053,6 +3074,9 @@ function _projectPage() {
                           <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl min-w-[160px]" align="start">
                             <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => { openFile(file); if (isMobile) setMobileTab("editor"); }}>
                               <FileCode2 className="w-3 h-3" /> Open
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => openFileHistory(file.filename)} data-testid={`dropdown-history-${file.id}`}>
+                              <Clock className="w-3 h-3" /> File History
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
                             <DropdownMenuItem className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md" onClick={() => openRenameDialog(file.id, file.filename)}>
@@ -3308,6 +3332,9 @@ function _projectPage() {
                     </ContextMenuItem>
                     <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => copyTabPath(tabId)} data-testid={`context-copy-path-${tabId}`}>
                       <Copy className="w-3.5 h-3.5" /> Copy Path
+                    </ContextMenuItem>
+                    <ContextMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => { const f = filesQuery.data?.find(ff => ff.id === tabId); if (f) openFileHistory(f.filename); }} data-testid={`context-history-${tabId}`}>
+                      <Clock className="w-3.5 h-3.5" /> File History
                     </ContextMenuItem>
                   </>
                 )}
@@ -5193,7 +5220,7 @@ function _projectPage() {
               )}
               {mobileTab === "fileHistory" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-file-history-panel">
-                  <FileHistoryPanel projectId={projectId} files={(filesQuery.data || []).map(f => ({ id: f.id, filename: f.filename, content: f.content }))} onClose={() => setMobileTab("editor")} onFileRestored={(fileId, _filename, content) => { setFileContents(prev => ({ ...prev, [fileId]: content })); setDirtyFiles(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} />
+                  <FileHistoryPanel projectId={projectId} files={(filesQuery.data || []).map(f => ({ id: f.id, filename: f.filename, content: f.content }))} onClose={() => setMobileTab("editor")} onFileRestored={(fileId, _filename, content) => { setFileContents(prev => ({ ...prev, [fileId]: content })); setDirtyFiles(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} initialFile={fileHistoryInitialFile} openCounter={fileHistoryOpenCounter} />
                 </div>
               )}
               {mobileTab === "deployments" && (
@@ -7305,7 +7332,7 @@ function _projectPage() {
 
             {activePanelTab === "fileHistory" && (
               <div className="flex-1 flex flex-col" data-testid="file-history-sidebar">
-                <FileHistoryPanel projectId={projectId} files={(filesQuery.data || []).map(f => ({ id: f.id, filename: f.filename, content: f.content }))} onClose={() => closePanel("fileHistory")} onFileRestored={(fileId, _filename, content) => { setFileContents(prev => ({ ...prev, [fileId]: content })); setDirtyFiles(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} />
+                <FileHistoryPanel projectId={projectId} files={(filesQuery.data || []).map(f => ({ id: f.id, filename: f.filename, content: f.content }))} onClose={() => closePanel("fileHistory")} onFileRestored={(fileId, _filename, content) => { setFileContents(prev => ({ ...prev, [fileId]: content })); setDirtyFiles(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} initialFile={fileHistoryInitialFile} openCounter={fileHistoryOpenCounter} />
               </div>
             )}
 
