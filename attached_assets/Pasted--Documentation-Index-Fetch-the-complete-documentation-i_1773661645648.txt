@@ -1,0 +1,183 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Workspace Features
+
+> Learn about the tools available in your Workspace — the editor, preview, console, shell, and more.
+
+The workspace includes layout management and integrated tools that power your app-building experience.
+These workspace features specialize in handling specific aspects of the development process, letting you
+focus on creating instead of configuring.
+
+## Customizable workspace layout
+
+The workspace layout management tools let you customize the components of the development environment.
+It consists of the following user interface element types:
+
+| Element     | Description                                                                    | Capabilities                                                                                                                                                    | Use Cases                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Windows** | Browser tabs that contain one or more panes                                    | <ul><li>Can be organized across multiple screens</li></ul>                                                                                                      | <ul><li>Organizing your workspace across multiple screens</li><li> Work on different projects simultaneously</li></ul> |
+| **Panes**   | Sections of a window that contain one or more tabs                             | <ul><li>Support horizontal and vertical splitting</li><li>Can be resized and rearranged</li><li>Can be converted to a floating pane within the window</li></ul> | <ul><li>View code and preview side-by-side</li><li>Create custom layouts for different development tasks</li></ul>     |
+| **Tabs**    | Contain exactly one workspace tool, such as the file editor, Preview, or Agent | <ul><li>Can be moved between panes and reordered within them</li><li>Can switch between different files or tools with a single click</li></ul>                  | <ul><li>Open different tools or files when you need them</li></ul>                                                     |
+
+The following video identifies each workspace layout element:
+
+<Frame>
+  <iframe src="https://www.loom.com/embed/495838f6de3a42a890461572615ad48e?sid=df5d78b9-6d2e-4396-8853-4e3fa2b81db4" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen width="100%" height="420px" />
+</Frame>
+
+## File tree
+
+The file tree lists all the files and directories in your Replit App's workspace.
+
+<Accordion title="How to access the file tree">
+  Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/files-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=4b9ac8b70c07960d9f9a3f6eacee4ab6" alt="folder with arrows icon" width="16" height="16" data-path="images/icons/files-icon.svg" /> folder icon on the left to toggle
+  the file tree's visibility.
+</Accordion>
+
+You can perform the following actions in the file tree:
+
+* Select a folder to display its contents
+* Select a file or drag it to a pane to open it in a file editor
+* Perform file operations such as duplicating, renaming, moving, downloading, or deleting
+
+The following video shows several file tree actions:
+
+<Frame>
+  <iframe src="https://www.loom.com/embed/84129671e4fd4346b426b726609a7cae?sid=ea104265-b5ac-4f93-bf50-6136258de174" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen width="100%" height="420px" />
+</Frame>
+
+## Tools dock
+
+The tools dock lets you search for and open workspace tools in new tabs.
+
+<Accordion title="How to access the tools dock">
+  Select from commonly used tools or select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-all-tools-button.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=579643854fb13c402de516695e52c554" alt="All tools icon" width="16" height="16" data-path="images/icons/workspace-all-tools-button.svg" /> **All tools**
+  icon to open the tools search popup menu.
+</Accordion>
+
+The following screenshot shows the open **All tools** popup menu in the tool dock:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/tools-dock.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=7a48f62509f3cb7aaab01c8aa7f8ba24" alt="screenshot of the tool dock" height="50" data-path="images/workspace/tools-dock.png" />
+</Frame>
+
+## Run button
+
+The **Run** button executes the Replit App's selected workflow.
+
+<Accordion title="How to access the run button">
+  The **Run** button is located at the top of the workspace screen. Select the button to run the workflow.
+
+  When your Replit App is running, the button label is replaced by **Stop**. Select the button to stop the app.
+</Accordion>
+
+To learn how to select, view, and manage workflows, see [Workflows](/replit-workspace/workflows/).
+
+The following video shows how to view and run a workflow:
+
+<Frame>
+  <iframe src="https://www.loom.com/embed/086c8447bf234ca290ad11f0bbb2e13e?sid=1e8597e5-a3c4-4b36-b42e-f3ad97533334" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen width="100%" height="420px" />
+</Frame>
+
+## Spotlight page
+
+The spotlight page lets you view and modify your Replit App cover page and access sharing options.
+
+<Accordion title="How to access the spotlight page">
+  Select your project name in the top left of the workspace to toggle the spotlight page.
+</Accordion>
+
+The following video shows how to access the spotlight page:
+
+<Frame>
+  <iframe src="https://www.loom.com/embed/568fa9603a5546919e97b06695ea1da5?sid=cbc2a2f4-ae3f-4a96-85ef-45941f587d35" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen width="100%" height="420px" />
+</Frame>
+
+## Options menu
+
+The options menu lets you perform the following types of layout actions:
+
+* **Window management**: Open a workspace for the Replit App in a new window
+* **Pane management**: Add panes, move a pane, maximize a pane, and toggle between floating and fixed positions
+* **Tab management**: Open or select other tabs, move a tab to another pane, and close a tab
+
+<Accordion title="How to access the options menu">
+  Select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/vertical-dots.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=7b4b6a9992b3b20202297b60b6ef416d" alt="vertical dots icon" height="16" width="16" data-path="images/icons/vertical-dots.svg" /> three vertical dots
+  located in the top right corner of the active tab to open the options menu.
+</Accordion>
+
+The following screenshot shows the options popup menu in the left pane:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/workspace-options-menu.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=5d8892fb1057bfc37de6aff5af278295" alt="screenshot showing the workspace options menu" width="1968" height="1136" data-path="images/workspace/workspace-options-menu.png" />
+</Frame>
+
+## Search bar
+
+The search bar lets you find files, text, or tools within your workspace.
+
+<Accordion title="How to access the search bar">
+  1. To open the search bar, select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-search-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=d3feed840da2d19e1ee4873d137114dc" alt="magnifying glass icon" width="16" height="16" data-path="images/icons/workspace-search-icon.svg" /> magnifying glass icon at the top.
+  2. Enter your search text and select from the auto-complete suggestions.
+</Accordion>
+
+The following screenshot shows the search popup menu:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/search-menu.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=205cdb6244d368c4b7e57215f1328e42" alt="screenshot showing the workspace search menu" width="1732" height="1224" data-path="images/workspace/search-menu.png" />
+</Frame>
+
+## Resources panel
+
+The resources panel displays your development environment's computing resources and usage, including RAM, CPU, and storage.
+This information can help you estimate and optimize your Replit App's publishing requirements.
+
+<Accordion title="How to access the resources panel">
+  1. Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/resources.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=8df05261182e3e39f28dcccf809d66c2" alt="stacked computers icon" width="16" height="16" data-path="images/icons/resources.svg" /> resources icon located next to your app's name to toggle the panel.
+  2. Hover over the **Compute** or **Storage** line items for more detail.
+</Accordion>
+
+The following screenshot shows the resources panel:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/resources-panel.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=63449b197613dc36bf9dcd1f9c17e7c7" alt="screenshot showing the workspace resources panel" width="1214" height="652" data-path="images/workspace/resources-panel.png" />
+</Frame>
+
+## Tools
+
+To learn more about other Replit workspace tools, select from the following list:
+
+<CardGroup cols={3}>
+  <Card title="Secrets" icon="key" iconType="solid" href="/replit-workspace/workspace-features/secrets" horizontal={true}>
+    Safeguard your app's API keys, credentials, and passwords.
+  </Card>
+
+  <Card title="File History" icon="clock-rotate-left" iconType="solid" href="/replit-workspace/workspace-features/file-history" horizontal={true}>
+    Rewind time to recover lost edits with Replit's version tracking feature.
+  </Card>
+
+  <Card title="Multiplayer" icon="users" iconType="solid" href="/replit-workspace/workspace-features/multiplayer" horizontal={true}>
+    Code together in real-time with two or more users.
+  </Card>
+
+  <Card title="User Settings" icon="gear" iconType="solid" href="/replit-workspace/workspace-features/user-settings" horizontal={true}>
+    Customize your coding experience through the Settings tool.
+  </Card>
+
+  <Card title="Console" icon="terminal" iconType="solid" href="/replit-workspace/workspace-features/console" horizontal={true}>
+    View your Replit App's output
+  </Card>
+
+  <Card title="Shell" icon="terminal" iconType="solid" href="/replit-workspace/workspace-features/shell" horizontal={true}>
+    Interact with your workspace using a command-line interface.
+  </Card>
+
+  <Card title="Preview" icon="laptop" iconType="solid" href="/replit-workspace/workspace-features/preview" horizontal={true}>
+    Preview and debug your web application.
+  </Card>
+</CardGroup>
+
+
+Built with [Mintlify](https://mintlify.com).

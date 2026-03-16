@@ -1,0 +1,82 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Shell
+
+> Learn how to use the Shell to run commands in your Replit Workspace.
+
+Shell lets you perform tasks on the operating system in your workspace such as managing files,
+installing packages, and running scripts. It provides a powerful text-based interface to
+interact with your Replit environment.
+
+You can use Shell to run the following tasks in your workspace:
+
+* Execute scripts and programs
+* Install and run popular Linux tools and packages
+* Upload and download files from the internet
+* Manage workspace files and directories
+
+<Tip>
+  For better workflow management, prefer the **Run** button instead of running your app from
+  the Shell. The workflow started by the **Run** button sends output to the Console tool,
+  which provides a structured way to review the logs.
+</Tip>
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/shell-tool.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=3e6ae6b32685e040779c0336be7b16ac" alt="screenshot of the Shell workspace tool" width="2722" height="1522" data-path="images/workspace/shell-tool.png" />
+</Frame>
+
+## Features
+
+Shell provides the following capabilities:
+
+* **Run multiple shells**: Open multiple shell instances to work on different tasks simultaneously
+* **Search for text**: Find specific text in the shell output
+
+## Usage
+
+<Accordion title="How to access Shell">
+  From the left **Tool dock**:
+
+  1. Select <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-all-tools-button.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=579643854fb13c402de516695e52c554" alt="All tools icon" width="16" height="16" data-path="images/icons/workspace-all-tools-button.svg" /> **All tools** to see a list of workspace tools.
+  2. Select <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/shell.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=7aa084a4960c955db47ee0531362886c" alt="Shell icon" width="16" height="16" data-path="images/icons/shell.svg" /> **Shell**.
+
+  From the **Search bar**:
+
+  1. Select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-search-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=d3feed840da2d19e1ee4873d137114dc" alt="magnifying glass icon" width="16" height="16" data-path="images/icons/workspace-search-icon.svg" /> magnifying glass at the top to open the search tool
+  2. Type "Shell" to locate the tool and select it from the results.
+</Accordion>
+
+### Text search
+
+The following steps describe how to access and use the text search tool:
+
+1. Select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-search-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=d3feed840da2d19e1ee4873d137114dc" alt="magnifying glass icon" width="16" height="16" data-path="images/icons/workspace-search-icon.svg" /> magnifying glass at the top right of the Shell tab to open the search dialog.
+2. Enter a search term and select **Next** to navigate through the matches.
+3. Use **Previous** to go back to prior matches.
+4. Select **Exit** or click outside the dialog to exit the text search.
+
+### Multiple shells
+
+To create a new shell, select the menu at the top left of the **Shell** tab arrow and select **New Shell** as shown below:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/shell-new.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=3ae8dcb04a1a953fdb4769bd8fe3db34" alt="New Shell menu selection" width="1278" height="356" data-path="images/workspace/shell-new.png" />
+</Frame>
+
+Use the same menu to switch between shells. The workspace labels each shell with the last command executed to help you identify them.
+
+<Warning>
+  When you open more than one shell, Replit automatically closes idle shell instances.
+  An idle shell is unselected and not running any user processes.
+</Warning>
+
+## Next steps
+
+To learn more about related Workspace tools see the following resources:
+
+* [Console](/replit-workspace/workspace-features/console/): Learn how to use Console to monitor your Replit App workflows.
+
+
+Built with [Mintlify](https://mintlify.com).

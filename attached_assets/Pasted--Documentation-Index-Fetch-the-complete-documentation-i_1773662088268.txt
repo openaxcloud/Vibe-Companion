@@ -1,0 +1,103 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Custom Domains
+
+> Learn how to connect your own domain name to your published Replit app.
+
+Custom domains let you assign your domain name, such as `www.my-incredible-app.com` to your Replit published app.
+While Replit provides a free subdomain in the format `<your-live-app-subdomain-name>.replit.app`, using
+a custom domain lets you create a more memorable address.
+
+A custom domain name can help brand recognition and trust with your app's users.
+
+Watch the following video for a quick overview of setting up Custom Domains:
+
+<Frame>
+  <iframe src="https://www.youtube.com/embed/rGYdyb58wJY" title="Custom Domains with Publishing" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen />
+</Frame>
+
+## Features
+
+Custom Domains are available for the following Deployment types:
+
+* [Autoscale](/cloud-services/deployments/autoscale-deployments/)
+* [Reserved VM](/cloud-services/deployments/reserved-vm-deployments/)
+* [Static](/cloud-services/deployments/static-deployments/)
+
+The following table compares Replit's subdomains with custom domains:
+
+| Feature                         | Replit Subdomain   | Custom Domain            |
+| :------------------------------ | :----------------- | :----------------------- |
+| Hostname customization          | Subdomain only     | Any domain that you own  |
+| DNS update time                 | Instant            | Up to 48 hours           |
+| Security Certificates (TLS/SSL) | Provided by Replit | Provided by Replit       |
+| Price                           | Free               | Pay your domain provider |
+
+## Usage
+
+<Accordion title="How to access Custom Domains">
+  1. After publishing your app, navigate to the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/deploy-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=853c5ef39a8a7ac3648b3a2ce182fcb8" width="16" height="16" data-path="images/icons/deploy-icon.svg" /> **Deployments** tab.
+  2. Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/settings-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=27601119959a9349e102c44c2adbd398" width="16" height="16" data-path="images/icons/settings-icon.svg" /> **Settings** tab.
+  3. Select **Link a domain** or **Manually connect from another registrar** as shown in the following screenshot.
+
+  <Frame>
+    <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/custom-domains/01.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=5dc58a0cab37877093e55c9a2b3b1367" alt="Settings tab" width="2422" height="1130" data-path="images/deployments/custom-domains/01.png" />
+  </Frame>
+</Accordion>
+
+Follow the steps below to set up your custom domain:
+
+<Warning>
+  You might experience setup issues if you have one of the following: - Multiple
+  `A` records for the same domain name that point to different servers. - `A`
+  and `AAAA` records co-exist for the same domain since Replit only supports `A`
+  records. - Cloudflare proxied domain records since Replit cannot automatically
+  renew security certificates for that type.
+</Warning>
+
+<Steps>
+  <Step title="Add your custom domain">
+    Enter your custom domain name in the text field. You can use a registered domain or include a subdomain.
+
+    For example, `hat-tip.cc` is the registered domain and `my.hat-tip.cc` includes subdomain `my`.
+
+    <Frame>
+      <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/custom-domains/02.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=38485a8680fe6ae256ec2d7b0665a784" alt="screenshot of the DNS settings" width="1940" height="718" data-path="images/deployments/custom-domains/02.png" />
+    </Frame>
+  </Step>
+
+  <Step title="Add the DNS records to your domain registrar">
+    Replit generates DNS records that you must provide to your **domain registrar**.
+    A domain registrar is the service that manages your domain name, such as GoDaddy or Namecheap.
+
+    Copy the `A` and `TXT` record values from Replit and paste them into your domain registrar's
+    DNS management section. If your domain registrar does not support `@` as a hostname, use your registered domain name.
+  </Step>
+
+  <Step title="Optional: Add a subdomain">
+    To add a subdomain to your published app, add a new `A` record with the same IP address
+    in your provider's DNS management section.
+    For example, if you want to add `my-subdomain.hat-tip.cc`, you must:
+
+    * Copy the `A` and `TXT` record values from Replit to your registrar
+    * Add a new `A` record with a hostname value of `my-subdomain` using the same IP address as your primary domain
+  </Step>
+
+  <Step title="Wait for DNS propagation to complete">
+    After adding the records, you must wait for them to propagate online.
+    This can take between a few minutes and 48 hours.
+
+    When the propagation completes, your Domains tab should show the "Verified" status next to the domain name as shown below:
+
+    <Frame>
+      <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/custom-domains/domain-verified.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=fe5c99d84ff0334119d2e94b2f07c99a" alt="screenshot of the verified domain status" width="1866" height="890" data-path="images/deployments/custom-domains/domain-verified.png" />
+    </Frame>
+
+    Load the domain in your browser to verify that it works.
+  </Step>
+</Steps>
+
+
+Built with [Mintlify](https://mintlify.com).

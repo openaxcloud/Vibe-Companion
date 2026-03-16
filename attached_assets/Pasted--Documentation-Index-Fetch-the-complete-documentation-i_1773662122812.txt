@@ -1,0 +1,79 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Enable Feedback Widget
+
+> Learn how to collect feedback from visitors on your published app.
+
+Feedback collection can be activated on your published apps to gather insights directly from visitors and send directly to Agent. When feedback is enabled, visitors can submit feedback, including screenshots and files, which you can manage through your Inbox.
+
+## Enabling feedback
+
+<Warning>
+  You can enable feedback on web apps only. You won't be able to enable this for other kinds of apps, like automations or mobile apps.
+</Warning>
+
+When publishing a new app, toggle on the **Enable Feedback** setting in the publish dialog. If your app has already been published, you can enable feedback by republishing:
+
+1. Open the Publishing tool
+2. Select **Advanced Settings**
+3. Toggle on **Enable Feedback**
+4. Republish your app
+
+<Frame caption="Enable Feedback toggle in publish dialog">
+  <img src="https://mintcdn.com/replit/AT5FwSnqkklPGWUi/images/deployments/feedback/enable-toggle.png?fit=max&auto=format&n=AT5FwSnqkklPGWUi&q=85&s=30a218de8f90f5e80253b8168c8fed61" alt="Enable Feedback toggle in publish dialog" width="1222" height="394" data-path="images/deployments/feedback/enable-toggle.png" />
+</Frame>
+
+<Warning>
+  If you don't see the feedback widget in your published app, try refreshing the page
+</Warning>
+
+## Submitting feedback
+
+When feedback is enabled on a published app, visitors can submit feedback directly from the app. Users can:
+
+* Sign in to leave feedback
+* Leave text feedback describing their experience or suggestions
+* Select elements to illustrate issues or features
+* Upload files to provide additional context
+
+<Frame caption="End-user feedback form">
+  <img src="https://mintcdn.com/replit/AT5FwSnqkklPGWUi/images/deployments/feedback/widget.png?fit=max&auto=format&n=AT5FwSnqkklPGWUi&q=85&s=8340abf241f66ac8133e49c5f4a08bc7" alt="End-user feedback form with text input, screenshot upload, and file upload options" width="3018" height="1640" data-path="images/deployments/feedback/widget.png" />
+</Frame>
+
+## Managing feedback in your Inbox
+
+All feedback submitted by visitors appears in your Inbox, accessible from inside your workspace. From the Inbox, you can:
+
+* **Add to Chat**: Send feedback to your chat with Agent, to add context before submitting
+* **Send to Agent**: Immediately send feedback to Agent and start work right away
+* **Resolve**: Mark feedback as resolved once it has been addressed
+* **Delete**: Remove feedback that's no longer needed
+
+You can also use filters to organize and find specific feedback entries.
+
+<Frame caption="Inbox interface showing feedback">
+  <img src="https://mintcdn.com/replit/AT5FwSnqkklPGWUi/images/deployments/feedback/inbox.png?fit=max&auto=format&n=AT5FwSnqkklPGWUi&q=85&s=42332e03531d3a5dfaa9c41bf005e162" alt="Inbox interface showing feedback with actions and filters" width="2102" height="1204" data-path="images/deployments/feedback/inbox.png" />
+</Frame>
+
+## Republishing with updated feedback settings
+
+After your app is published, you can enable or disable the feedback widget at any time by republishing with updated settings:
+
+1. Open the **Overview** tab on the Publishing tool
+2. Select **Advanced Settings**
+3. Toggle **Enable Feedback** on or off
+4. Republish your app to apply the changes
+
+Any changes to the feedback setting take effect once the app is republished.
+
+## Next steps
+
+To learn more about publishing your apps, see the following resources:
+
+* [Publishing overview](/category/replit-deployments): Learn about different deployment types
+* [Published App Monitoring](/cloud-services/deployments/monitoring-a-deployment): View logs and monitor your published app
+
+
+Built with [Mintlify](https://mintlify.com).

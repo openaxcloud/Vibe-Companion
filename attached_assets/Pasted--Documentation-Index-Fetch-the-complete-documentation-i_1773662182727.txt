@@ -1,0 +1,249 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# What's an Artifact?
+
+> Artifacts are publishable outputs on Replit — web apps, mobile apps, slides, and videos you can deploy and share.
+
+export const ArtifactGrid = () => {
+  if (typeof document !== "undefined" && !document.getElementById("artifact-grid-styles")) {
+    const style = document.createElement("style");
+    style.id = "artifact-grid-styles";
+    style.textContent = `
+      .artifact-grid-wrap {
+        --ag-bg: var(--replit-docs-bg, #F6F6F4);
+        --ag-icon-bg: var(--replit-docs-bg-elevated, #F1F1EE);
+        --ag-icon-border: var(--replit-docs-border, #DEDAD5);
+        --ag-text: var(--replit-docs-text-muted, #5C5C5C);
+        --ag-icon-color: var(--replit-docs-text-muted, #5C5C5C);
+      }
+      .dark .artifact-grid-wrap,
+      html.dark .artifact-grid-wrap,
+      [data-theme="dark"] .artifact-grid-wrap {
+        --ag-bg: var(--replit-docs-bg, #1E1E1F);
+        --ag-icon-bg: var(--replit-docs-bg-elevated, #222223);
+        --ag-icon-border: var(--replit-docs-border, #39393D);
+        --ag-text: var(--replit-docs-text-muted, #B8B8BE);
+        --ag-icon-color: var(--replit-docs-text-muted, #B8B8BE);
+      }
+      @keyframes ag-fade-in {
+        from { transform: translateY(8px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      @media (hover: hover) {
+        .artifact-grid-wrap .ag-icon-btn:hover {
+          background: var(--ag-icon-border) !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  const types = [{
+    name: "Web",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M12 1.25c5.937 0 10.75 4.813 10.75 10.75S17.937 22.75 12 22.75 1.25 17.937 1.25 12 6.063 1.25 12 1.25Zm-9.217 11.5a9.25 9.25 0 0 0 7.468 8.333 15.25 15.25 0 0 1-2.982-8.333H2.783Zm13.948 0a15.249 15.249 0 0 1-2.983 8.333 9.25 9.25 0 0 0 7.469-8.333H16.73Zm-7.958 0A13.748 13.748 0 0 0 12 20.876a13.748 13.748 0 0 0 3.227-8.126H8.773Zm1.478-9.834a9.251 9.251 0 0 0-7.468 8.334H7.27a15.251 15.251 0 0 1 2.982-8.334ZM12 3.123a13.747 13.747 0 0 0-3.227 8.127h6.454A13.748 13.748 0 0 0 12 3.123Zm1.748-.207a15.25 15.25 0 0 1 2.983 8.334h4.486a9.251 9.251 0 0 0-7.469-8.334Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "Mobile",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M7 2.75c-.69 0-1.25.56-1.25 1.25v16c0 .69.56 1.25 1.25 1.25h10c.69 0 1.25-.56 1.25-1.25V4c0-.69-.56-1.25-1.25-1.25H7ZM4.25 4A2.75 2.75 0 0 1 7 1.25h10A2.75 2.75 0 0 1 19.75 4v16A2.75 2.75 0 0 1 17 22.75H7A2.75 2.75 0 0 1 4.25 20V4Zm7 14a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H12a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "Slides",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M20 2.25A2.75 2.75 0 0 1 22.75 5v14A2.75 2.75 0 0 1 20 21.75h-8A2.75 2.75 0 0 1 9.25 19V5A2.75 2.75 0 0 1 12 2.25h8Zm-8 1.5c-.69 0-1.25.56-1.25 1.25v14c0 .69.56 1.25 1.25 1.25h8c.69 0 1.25-.56 1.25-1.25V5c0-.69-.56-1.25-1.25-1.25h-8Z" clipRule="evenodd" />
+          <path d="M6 4.25a.75.75 0 0 1 .75.75v14a.75.75 0 0 1-1.5 0V5A.75.75 0 0 1 6 4.25ZM2 6.25a.75.75 0 0 1 .75.75v10a.75.75 0 0 1-1.5 0V7A.75.75 0 0 1 2 6.25Z" />
+        </svg>
+  }, {
+    name: "Design",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6.5 11.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM17.5 9.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM8.5 6.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM13.5 5.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z" />
+          <path fillRule="evenodd" d="M12 1.25c2.827 0 5.553 1.01 7.573 2.828C21.596 5.9 22.75 8.388 22.75 11A5.749 5.749 0 0 1 17 16.75h-2.25a1 1 0 0 0-.8 1.6l.3.4.1.143a2.5 2.5 0 0 1-2.1 3.857H12a10.75 10.75 0 1 1 0-21.5Zm0 1.5a9.25 9.25 0 1 0 0 18.5h.25a1 1 0 0 0 .8-1.6l-.3-.4a2.5 2.5 0 0 1 2-4H17l.21-.005A4.25 4.25 0 0 0 21.25 11c0-2.161-.953-4.252-2.68-5.807C16.84 3.636 14.476 2.75 12 2.75Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "Animation",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M10.024 7.25c.31.004.613.091.878.251l4.996 2.996a1.752 1.752 0 0 1 .625 2.367 1.75 1.75 0 0 1-.625.639v-.001l-4.995 2.995.001.001a1.75 1.75 0 0 1-2.654-1.505v-5.99a1.75 1.75 0 0 1 1.774-1.753Zm-.02 1.5a.252.252 0 0 0-.22.124.253.253 0 0 0-.034.127v5.998a.252.252 0 0 0 .127.219.253.253 0 0 0 .252-.004l.002-.001 4.997-2.997.002-.001a.252.252 0 0 0 .122-.215.25.25 0 0 0-.122-.215h-.002L10.13 8.786h-.002a.25.25 0 0 0-.125-.037Z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M12 1.25c5.937 0 10.75 4.813 10.75 10.75S17.937 22.75 12 22.75 1.25 17.937 1.25 12 6.063 1.25 12 1.25Zm0 1.5a9.25 9.25 0 1 0 0 18.5 9.25 9.25 0 0 0 0-18.5Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "Data Viz",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M5 14.25a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75ZM12 8.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75ZM19 2.25a.75.75 0 0 1 .75.75v18a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75Z" />
+        </svg>
+  }, {
+    name: "Automation",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M13.376 1.253c.21-.02.422.012.616.096l.095.046.091.053c.178.115.323.274.423.46l.045.096.038.099a1.25 1.25 0 0 1 .01.755l-1.92 6.02c-.003.011-.007.023-.012.034a.253.253 0 0 0 .03.23.25.25 0 0 0 .206.108H20l.123.004a1.752 1.752 0 0 1 1.24 2.849.73.73 0 0 1-.045.05l-9.9 10.199v-.001a1.25 1.25 0 0 1-2.122-1.18l.01-.03 1.92-6.019.012-.035a.251.251 0 0 0-.12-.309.255.255 0 0 0-.056-.02l-.06-.008H4a1.752 1.752 0 0 1-1.363-2.852l.045-.05 9.9-10.2a1.25 1.25 0 0 1 .689-.38l.104-.015Zm-9.582 11.6a.252.252 0 0 0-.023.255.25.25 0 0 0 .227.142h7.001l.21.013a1.75 1.75 0 0 1 1.53 1.518c.034.269.003.54-.086.795l.002.001-1.591 4.986 9.14-9.418a.249.249 0 0 0 .047-.116.252.252 0 0 0-.115-.24.249.249 0 0 0-.064-.03l-.07-.009H13a1.753 1.753 0 0 1-1.74-1.531 1.752 1.752 0 0 1 .086-.797l1.588-4.985-9.14 9.417Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "3D Game",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M11.25 9.675A3.751 3.751 0 0 1 12 2.25a3.75 3.75 0 0 1 .75 7.425v4.575H19A2.75 2.75 0 0 1 21.75 17v2A2.75 2.75 0 0 1 19 21.75H5A2.75 2.75 0 0 1 2.25 19v-2A2.75 2.75 0 0 1 5 14.25h.25V13a.75.75 0 0 1 1.5 0v1.25h4.5V9.675ZM9.75 6a2.25 2.25 0 1 0 4.5 0 2.25 2.25 0 0 0-4.5 0ZM4.116 16.116A1.25 1.25 0 0 1 5 15.75h14A1.25 1.25 0 0 1 20.25 17v2A1.25 1.25 0 0 1 19 20.25H5a1.25 1.25 0 0 1-1.244-1.126L3.75 19v-2c0-.331.132-.65.366-.884Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "Document",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M11.88 11.251a2.873 2.873 0 0 1 2.028 4.904L8.89 21.168a2.75 2.75 0 0 1-1.174.694l-2.867.838a1.255 1.255 0 0 1-1.234-.316 1.251 1.251 0 0 1-.316-1.235l.836-2.868c.13-.443.37-.847.696-1.174l5.017-5.015a2.875 2.875 0 0 1 2.032-.841Zm-.001 1.5c-.319 0-.626.11-.87.31l-.1.091L5.89 18.17a1.251 1.251 0 0 0-.315.532l-.709 2.43 2.43-.708a1.25 1.25 0 0 0 .533-.317l5.019-5.012a1.372 1.372 0 0 0-.97-2.343Z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M14.038 1.251a3.148 3.148 0 0 1 2.198.925l3.587 3.587A3.152 3.152 0 0 1 20.75 8v12A2.75 2.75 0 0 1 18 22.75h-5.341a.75.75 0 0 1 0-1.5h5.34A1.25 1.25 0 0 0 19.25 20V8.75H15A1.75 1.75 0 0 1 13.25 7V2.75H6A1.25 1.25 0 0 0 4.75 4v9.34a.75.75 0 1 1-1.5 0V4A2.75 2.75 0 0 1 6 1.25h8l.039.001ZM14.75 7a.25.25 0 0 0 .25.25h4.071a1.65 1.65 0 0 0-.306-.425l-3.59-3.59a1.655 1.655 0 0 0-.425-.307V7Z" clipRule="evenodd" />
+        </svg>
+  }, {
+    name: "Spreadsheet",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path fillRule="evenodd" d="M21.75 6A3.75 3.75 0 0 0 18 2.25H6A3.75 3.75 0 0 0 2.25 6v12A3.75 3.75 0 0 0 6 21.75h12A3.75 3.75 0 0 0 21.75 18V6ZM18 3.75A2.25 2.25 0 0 1 20.25 6v2.25H9.75v-4.5H18Zm-9.75 0v4.5h-4.5V6A2.25 2.25 0 0 1 6 3.75h2.25Zm-4.5 6h4.5v4.5h-4.5v-4.5Zm0 6h4.5v4.5H6A2.25 2.25 0 0 1 3.75 18v-2.25Zm6 4.5v-4.5h10.5V18A2.25 2.25 0 0 1 18 20.25H9.75Zm10.5-6H9.75v-4.5h10.5v4.5Z" clipRule="evenodd" />
+        </svg>
+  }];
+  const rows = [types.slice(0, 3), types.slice(3, 7), types.slice(7, 10)];
+  const iconBtnStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "48px",
+    height: "48px",
+    border: "1px solid var(--ag-icon-border)",
+    borderRadius: "12px",
+    background: "var(--ag-icon-bg)",
+    cursor: "default",
+    color: "var(--ag-icon-color)",
+    padding: 0,
+    transition: "background 120ms ease-out",
+    flexShrink: 0
+  };
+  return <div className="artifact-grid-wrap" style={{
+    fontFamily: "'IBM Plex Sans', sans-serif",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "12px",
+    padding: "32px",
+    background: "var(--ag-bg)",
+    borderRadius: "16px",
+    width: "100%",
+    maxWidth: "460px",
+    margin: "32px auto",
+    opacity: 0,
+    animation: "ag-fade-in 300ms ease-out forwards"
+  }}>
+      {rows.map((row, ri) => <div key={ri} style={{
+    display: "flex",
+    gap: "12px",
+    justifyContent: "center"
+  }}>
+          {row.map(type => <div key={type.name} style={{
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "6px"
+  }}>
+              <div className="ag-icon-btn" style={iconBtnStyle}>
+                {type.icon}
+              </div>
+              <span style={{
+    fontSize: "11px",
+    color: "var(--ag-text)",
+    textAlign: "center",
+    lineHeight: "1.2"
+  }}>
+                {type.name}
+              </span>
+            </div>)}
+        </div>)}
+    </div>;
+};
+
+## What are artifacts?
+
+Artifacts are the things you can publish on Replit — web apps, mobile apps, slides, and videos. Each one is a complete, standalone output that gets its own shareable URL when you publish.
+
+Everything else in your project — files, images, CSVs, code — supports your artifacts but can't be published on its own.
+
+<ArtifactGrid />
+
+## What you can create
+
+| Type           | What it is                                                                   |
+| -------------- | ---------------------------------------------------------------------------- |
+| **Web App**    | Fullstack web applications, games, data dashboards, Streamlit apps, and more |
+| **Mobile App** | Native mobile apps built with Expo and React Native                          |
+| **Slides**     | Presentation decks                                                           |
+| **Video**      | Programmatically generated video projects                                    |
+
+## Getting started
+
+There are two ways to create from the Replit homepage:
+
+* **Describe it**: Type what you want — "build me a recipe app" or "make a pitch deck for my startup." Agent figures out which type fits and builds it.
+* **Pick a type**: Open the type dropdown and choose **Web App**, **Mobile App**, **Slides**, or **Video** before describing your idea.
+
+You can also add more to an existing project at any time by asking Agent in chat or clicking the **+** button in the preview panel.
+
+## Switching between artifacts
+
+Once you have multiple artifacts in a project, switch between them in the **preview panel** or the **library sidebar**. You can also ask Agent — "show me the mobile app" or "switch to the slides."
+
+## Multiple artifacts in one project
+
+A single project can hold multiple artifacts. For example, you could build a web app for your customers, a mobile app for your team, and a slide deck for investors — all in the same project.
+
+<ArtifactGrid />
+
+### Adding artifacts to a project
+
+There are three ways to add an artifact to an existing project:
+
+* **Chat**: Ask Agent — "add a mobile app to this project" or "create a slide deck for the investor pitch"
+* **Plus button**: Click the **+** button in the preview panel and choose what you want to build
+* **Library sidebar**: Browse your existing artifacts and add new ones from there
+
+### Shared data and backend
+
+When artifacts live in the same project, they automatically share the same data and backend logic. If a customer places an order through your web app, your mobile app and data dashboard see that order too. You don't need to set up any connections or duplicate code — it just works.
+
+<Note>
+  Publishing deploys your entire project at once. All artifacts go live together, so they always stay in sync.
+</Note>
+
+### Example combinations
+
+* **Web app + mobile app**: A restaurant with a customer-facing web app and a mobile app for staff — both connected to the same API and database
+* **App + admin dashboard**: A main product alongside an internal admin panel for managing content, users, or settings
+* **App + slide deck**: Your product and a pitch deck in the same project, so the slides always reflect the latest version
+* **Data dashboard + video**: A live data visualization paired with an animated video that walks through the highlights
+
+## Publishing
+
+Apps, slides, and videos can all be published and shared. Each one gets its own shareable URL when you deploy.
+
+Files and assets that aren't artifacts (like CSVs, images, or markdown files) can't be published on their own. To share them, add them to an app or create a new artifact.
+
+## Frequently asked questions
+
+<Accordion title="Can I have more than one artifact in a project?">
+  Yes. You can add as many as you want to a single project. They all share the same backend and data automatically.
+</Accordion>
+
+<Accordion title="Do I have to pick a type before I start?">
+  No. Just describe what you want and Agent picks the right type for you. You can also choose a type manually from the dropdown if you prefer.
+</Accordion>
+
+<Accordion title="Can I publish just one artifact from a project?">
+  Not currently. Publishing deploys the entire project together, so all artifacts stay in sync. If you need independent deployment, use separate projects.
+</Accordion>
+
+<Accordion title="Do artifacts share data with each other?">
+  Yes. All artifacts in a project share the same database and backend services. If your web app writes data, your mobile app and data dashboard can read it immediately.
+</Accordion>
+
+<Accordion title="What's the difference between an artifact and a file?">
+  Artifacts are things you can publish — apps, slides, and videos. Files (like CSVs, images, or code) are assets within your project that support your artifacts but can't be published on their own.
+</Accordion>
+
+<Accordion title="My mobile app is missing features from my web app. What happened?">
+  When Agent translates features between artifact types, some things may not carry over perfectly — especially interactions or layouts that work differently across platforms. You can follow up in chat to fill in the gaps.
+</Accordion>
+
+For a full list of what you can build, see the [Projects overview](/replitai/projects).
+
+
+Built with [Mintlify](https://mintlify.com).

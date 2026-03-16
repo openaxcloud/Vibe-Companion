@@ -1,0 +1,156 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Using the Git pane
+
+> Learn how to use the Git pane for version control, branch management, and collaboration in your Workspace.
+
+The Git pane in Replit provides a visual interface for Git operations, eliminating the need to use command-line Git commands. This feature makes version control accessible for beginners while remaining powerful for experienced developers.
+
+## Features
+
+The Git pane offers comprehensive version control capabilities directly in your workspace, with a user-friendly interface that simplifies complex Git operations.
+
+* **Repository management**: Initialize, connect, and manage Git repositories with GitHub integration
+* **Commit tracking**: Stage, commit, and view changes across all your files
+* **Branch operations**: Create, switch between, and merge branches visually
+* **Conflict resolution**: Identify and resolve merge conflicts with visual assistance
+* **Shell integration**: Synchronization between Git commands run in Shell and the Git pane
+
+## Usage
+
+### Repository setup
+
+<Accordion title="How to access the Git pane">
+  1. Navigate to the Tools section in your Replit App
+  2. Select the **+** sign to add new tools
+  3. Select **Git** from the list of available tools
+</Accordion>
+
+The Git pane helps you set up and connect your repository:
+
+* **Initialize repository**: Create a new Git repository for your Replit App
+* **Connect to GitHub**: Link your repository to GitHub for backup and collaboration
+* **Configure remote**: Set up and manage the connection to your GitHub repository
+
+<Frame>
+  <img src="https://mintcdn.com/replit/rBzGsKp9NcWJ7sib/images/gh/pane/01-git-pane.png?fit=max&auto=format&n=rBzGsKp9NcWJ7sib&q=85&s=8173abb36daae9b8f60646cf259bf0dc" alt="Git pane showing the initialize repository button" width="230" height="314" data-path="images/gh/pane/01-git-pane.png" />
+</Frame>
+
+### Change management
+
+<Accordion title="How to view changes">
+  1. Make changes to any files in your Replit App
+  2. Open the Git pane from the Tools section
+  3. Review changes in the **Review Changes** section
+</Accordion>
+
+The Git pane provides tools to manage your code changes:
+
+* **Review changes**: See modified files with additions and deletions highlighted
+* **Stage files**: Select specific files to include in your next commit
+* **Commit changes**: Save your changes with descriptive messages
+* **Push updates**: Send your commits to GitHub with a single click
+
+<Frame>
+  <img src="https://mintcdn.com/replit/rBzGsKp9NcWJ7sib/images/gh/pane/06-stage-commit-changes.png?fit=max&auto=format&n=rBzGsKp9NcWJ7sib&q=85&s=bf166d48de3a57be08343b79ea5ff900" alt="Git pane showing commit message field and stage options" width="526" height="211" data-path="images/gh/pane/06-stage-commit-changes.png" />
+</Frame>
+
+<Note>
+  You can use Replit AI to help generate commit messages that accurately describe your changes.
+</Note>
+
+### Branch management
+
+<Accordion title="How to manage branches">
+  1. Open the Git pane from the Tools section
+  2. Select the branch dropdown next to the branch name
+  3. Create a new branch or select an existing one
+</Accordion>
+
+The Git pane simplifies working with multiple versions of your code:
+
+* **Create branches**: Make new branches to develop features separately
+* **Switch branches**: Move between different versions of your code
+* **Publish branches**: Share your branches to GitHub
+* **Pull changes**: Sync with remote updates from collaborators
+
+<Frame>
+  <img src="https://mintcdn.com/replit/rBzGsKp9NcWJ7sib/images/gh/pane/08-new-branch.png?fit=max&auto=format&n=rBzGsKp9NcWJ7sib&q=85&s=a9cab3e787687b8fbbf11103b8b86b20" alt="Git pane showing branch creation interface" width="526" height="83" data-path="images/gh/pane/08-new-branch.png" />
+</Frame>
+
+### Merge conflict resolution
+
+<Accordion title="How to resolve merge conflicts">
+  1. Attempt to pull changes when conflicts exist
+  2. The Git pane will highlight conflicting files
+  3. Open each conflicted file to see and resolve the conflicts
+  4. Save the files after resolving conflicts
+  5. Complete the merge by selecting **Pull**
+</Accordion>
+
+When code from different sources conflicts, the Git pane helps you:
+
+* **Identify conflicts**: See exactly which files contain conflicts
+* **Visualize differences**: Review both versions of the conflicting code
+* **Resolve issues**: Choose which code to keep or manually edit conflicts
+* **Finalize merges**: Complete the merge process after resolving conflicts
+
+<Frame>
+  <img src="https://mintcdn.com/replit/rBzGsKp9NcWJ7sib/images/gh/pane/11-merge-conflict.png?fit=max&auto=format&n=rBzGsKp9NcWJ7sib&q=85&s=f02773231068c03053c9c80d75ded53f" alt="Code editor showing merge conflict markers" width="526" height="108" data-path="images/gh/pane/11-merge-conflict.png" />
+</Frame>
+
+After resolving a conflicted file, you can remove the conflict markers by removing the lines starting with conflict symbols and save the file.
+
+### Using Git commands in Shell
+
+<Accordion title="How to access Shell">
+  1. Select **All tools** from the left Tool dock
+  2. Select **Shell** from the available tools
+</Accordion>
+
+<Tip>
+  While the Git pane provides a user-friendly interface, power users can use standard Git commands in the Shell for more complex operations. Changes made through either method will be reflected in both places.
+</Tip>
+
+If you prefer using Git through the command line:
+
+* **Command synchronization**: Any Git commands executed in the Shell will automatically sync with the Git pane
+* **Full Git functionality**: Access advanced Git features not available in the Git pane
+* **Seamless switching**: Switch between using Shell commands and Git pane as needed
+
+<Info>
+  **GitHub and GitLab CLI Support**: In addition to standard Git commands, you can also use the [GitHub CLI](https://docs.github.com/en/github-cli) (`gh`) and [GitLab CLI](https://docs.gitlab.com/ee/editor_extensions/gitlab_cli/) (`glab`) in the Shell to manage and connect to external Git repositories. These tools provide enhanced functionality for working with GitHub and GitLab repositories, including pull requests, issues, and other platform-specific features.
+</Info>
+
+#### Repository operations
+
+* **Clone repository**: `git clone <url-to-repository>`
+* **Initialize repository**: `git init`
+* **Add remote**: `git remote add origin <url-to-repository>`
+
+#### Making changes
+
+* **Check status**: `git status` (shows modified, added, and deleted files)
+* **Stage files**: `git add <filename>` or `git add .` (for all files)
+* **Commit changes**: `git commit -m "your commit message"`
+* **Push changes**: `git push origin <branch-name>`
+* **Pull changes**: `git pull origin <branch-name>`
+
+#### Authentication
+
+When working with private repositories, you'll need to authenticate:
+
+* For GitHub repositories, use a personal access token instead of your password
+* To avoid re-entering credentials, you can store them using Replit Secrets:
+  1. Create a new secret with key `GIT_URL`
+  2. Set the value to `https://<username>:<token>@github.com/<user-or-org>/<repository>`
+  3. Use `git push $GIT_URL` to push without typing credentials
+
+<Note>
+  When using credential secrets, anyone with access to your Replit App can potentially access your Git credentials. For sensitive repositories, consider manually entering credentials each time.
+</Note>
+
+
+Built with [Mintlify](https://mintlify.com).

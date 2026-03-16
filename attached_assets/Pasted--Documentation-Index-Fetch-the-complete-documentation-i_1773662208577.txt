@@ -1,0 +1,98 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Data Visualization
+
+> Build interactive dashboards, reporting tools, and data exploration interfaces through conversation with Agent.
+
+## What is a data visualization?
+
+A data visualization is an interactive dashboard or reporting tool you build through conversation with Agent. Describe what you want to visualize and where your data lives—Agent selects appropriate KPIs, chart types, and layouts automatically, generating a comprehensive dashboard in a single prompt.
+
+Key concepts:
+
+* **One-shot generation**: Describe your goal and data source, and Agent builds a complete dashboard with appropriate charts and metrics
+* **Connected data sources**: Pull from databases, [warehouse connectors](/replitai/warehouse-connectors), external APIs, or uploaded files
+* **Built-in features**: Every dashboard includes refresh, auto-refresh, export to PDF, export charts to CSV, and light/dark mode
+* **Analysis summary**: Agent generates insights based on your request and the resulting data
+* **Multiple artifacts**: Data visualizations can share the same backend and database as your other artifacts in the [same project](/replitai/artifacts#multiple-artifacts-in-one-project)
+
+## How to use Data Visualization
+
+### Creating from a prompt
+
+Select the **App** tab on the homepage and describe the dashboard you want. Agent detects data-related prompts and selects the Data Visualization stack.
+
+**Example prompts:**
+
+* "Build a sales analytics dashboard that tracks revenue by region"
+* "Create a reporting tool that visualizes our monthly metrics"
+* "Build a dashboard from our BigQuery sales data showing top-performing products"
+* "Connect to Snowflake and create a customer churn analysis dashboard"
+
+### Creating from the dropdown
+
+1. Go to the **App** tab on the homepage.
+2. Open the app type dropdown.
+3. Select **Data Visualization**.
+4. Describe the dashboard or data tool you want to build.
+
+### Connecting to data warehouses
+
+Connect your data visualization to BigQuery, Databricks, or Snowflake through [Data Connectors](/replitai/warehouse-connectors) to build dashboards on top of your existing datasets.
+
+When you query warehouse data, Agent uses parallel multi-agent search to explore your schema and datasets. This speeds up exploration and helps Agent select the right tables and fields for your dashboard.
+
+To get started, set up a warehouse connector in your project's [Integrations](/replitai/integrations), then tell Agent what you want to visualize.
+
+### Adding filters and features
+
+After Agent builds your dashboard, you can prompt it to add filters, drill-downs, or other interactive features. For example, ask Agent to add a date range filter, a region selector, or a search bar.
+
+### Exporting and sharing
+
+* **Export to PDF**: Export your entire dashboard as a PDF for sharing or offline review.
+* **Export charts to CSV**: Download individual chart data as CSV files for further analysis in spreadsheets or other tools.
+* **Analysis document**: Ask Agent to produce a detailed analysis document based on your dashboard's data.
+
+## What you can build
+
+* **Analytics dashboards**: Track key metrics like revenue, signups, or engagement across time periods
+* **Reporting tools**: Build internal reports that stakeholders can filter and explore without direct database access
+* **Data exploration interfaces**: Browse and query datasets with visual feedback
+* **Monitoring panels**: Display real-time or near-real-time data from APIs, databases, or external services
+
+## Frequently asked questions
+
+<Accordion title="What data sources can I connect?">
+  You can pull data from your project's Replit Database, warehouse connectors (BigQuery, Databricks, Snowflake), external APIs, or uploaded files like CSVs. Set up warehouse connections through [Integrations](/replitai/integrations).
+</Accordion>
+
+<Accordion title="Can I customize the look and feel?">
+  Yes. You can customize colors, layouts, and typography through conversation—ask Agent to match your brand or adjust the design. Dashboards also support light and dark mode.
+</Accordion>
+
+<Accordion title="Does Agent analyze the data for me?">
+  After building a dashboard, Agent generates an analysis summary based on your request and the resulting data. You can also ask for a more detailed analysis document.
+</Accordion>
+
+<Accordion title="Can I combine a data visualization with other artifact types?">
+  Yes. You can combine a data visualization with a [web app](/replitai/web-apps), [slide deck](/replitai/slide-decks), or other artifact types in the [same project](/replitai/artifacts#multiple-artifacts-in-one-project). They share the same backend and database.
+</Accordion>
+
+## Availability
+
+| Capability                     | Core | Pro |
+| ------------------------------ | ---- | --- |
+| Data visualization creation    | ✅    | ✅   |
+| Interactive filters and charts | ✅    | ✅   |
+| Export to PDF and CSV          | ✅    | ✅   |
+| Warehouse connectors           | ✅    | ✅   |
+| Refresh and auto-refresh       | ✅    | ✅   |
+| Light and dark mode            | ✅    | ✅   |
+
+Data Visualization is available on all plans.
+
+
+Built with [Mintlify](https://mintlify.com).

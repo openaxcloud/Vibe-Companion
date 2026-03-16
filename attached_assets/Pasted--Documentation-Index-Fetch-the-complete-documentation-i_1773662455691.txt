@@ -1,0 +1,69 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Replit Desktop App
+
+> The Replit Desktop App for macOS, Windows, and Linux lets you create apps using all Replit's tools in a focused coding environment.
+
+The Replit Desktop App is a native application that brings the complete Replit experience to your desktop. Create, run, and publish your apps in a focused coding environment without the distractions of a web browser.
+
+## What is the Replit Desktop App
+
+The Replit Desktop App is a full-featured development environment packaged as a standalone application for macOS, Windows, and Linux. You can access all the same workspace tools as the web version, allowing you to create your app in a dedicated, distraction-free environment optimized for desktop development.
+
+## Getting started
+
+Follow these steps to install the Replit Desktop App and create a Replit App.
+
+### Install the app
+
+To install the app compatible with your operating system, follow these steps:
+
+1. Navigate to the <a href="https://replit.com/desktop" target="_blank">desktop app download page</a>
+2. After downloading, open the file and follow the installation instructions
+3. Open the app and log in with your existing Replit account
+
+<Note>
+  The macOS and Windows desktop apps automatically update when you launch them. You must manually update the Linux desktop app.
+</Note>
+
+### Create an app
+
+After logging into your Replit account, follow these steps to create a new Replit App:
+
+1. In the desktop app, select **Create App**.
+2. The desktop app opens a new browser tab on Replit.com titled **Create a new App**.
+3. Follow the prompts to create your new Replit App in the browser. Take note of the Replit App name.
+4. Switch to the desktop and select the app you created from the **Recent** list. Alternatively, locate the app by typing the name in the **Search Apps** field.
+
+### Open an existing app
+
+To open an existing Replit App in the Replit Desktop app, follow these steps:
+
+1. Select the Replit icon in the top left.
+2. Select the app you want to open from the list. Alternatively, locate the app by typing the name in the **Search Apps** field.
+
+## Features
+
+* **[Replit AI](/category/replit-ai)**: Agent and AI-powered tools for building apps
+* **[Replit Workspace](/category/replit-workspace)**: Full-featured development environment
+* **[Publishing](/category/replit-deployments)**: Share and deploy your apps
+
+<Accordion title="Key benefits">
+  **Focused environment:** Create your app without the distractions of working from a web browser.
+
+  **Complete toolset:** Access the same tools as the web version to create, run, and publish your app.
+
+  **Customizable workspace:** Arrange tools on your screen and use keyboard shortcuts to maximize productivity.
+</Accordion>
+
+## Next steps
+
+* **[Replit AI](/category/replit-ai)**: Learn more about Agent and AI-powered tools
+* **[Replit Workspace](/category/replit-workspace)**: Explore the full development environment
+* **[Publishing](/category/replit-deployments)**: Share and deploy your apps
+* [Introducing the Replit Desktop App](https://blog.replit.com/desktop-app): Read the Replit Desktop App announcement on the Replit blog
+
+
+Built with [Mintlify](https://mintlify.com).

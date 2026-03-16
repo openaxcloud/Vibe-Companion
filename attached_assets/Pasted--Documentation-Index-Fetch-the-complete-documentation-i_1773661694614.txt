@@ -1,0 +1,52 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Keyboard Shortcuts
+
+> Learn how to view, add, and modify keyboard shortcuts that can boost your productivity in Replit.
+
+Keyboard shortcuts let you run commands, modify text, and navigate the workspace
+using configurable key combinations. You can set and use keyboard shortcuts in
+the Replit.com web app and desktop app.
+
+## Viewing keyboard shortcuts
+
+<Info>
+  The Replit.com web app and desktop apps keep separate shortcut preferences. Changes in one environment don't affect the other.
+</Info>
+
+To view your keyboard shortcut settings, follow these steps:
+
+1. Open a Replit App to navigate to the workspace.
+2. Open the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/settings-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=27601119959a9349e102c44c2adbd398" alt="gear icon" width="16" height="16" data-path="images/icons/settings-icon.svg" /> **User Settings** tab from <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-all-tools-button.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=579643854fb13c402de516695e52c554" alt="all tools icon" width="16" height="16" data-path="images/icons/workspace-all-tools-button.svg" /> **All tools** in the dock.
+   Alternatively, search for "User Settings" using the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-search-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=d3feed840da2d19e1ee4873d137114dc" alt="magnifying glass icon" width="16" height="16" data-path="images/icons/workspace-search-icon.svg" /> magnifying glass.
+3. Select the **Keyboard shortcuts** tab to view the list of commands and their assigned shortcuts.
+
+## Customizing keyboard shortcuts
+
+To add or modify a keyboard shortcut, follow these steps:
+
+1. Select <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/create-app-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=cc16ebed380bbd324dafaa2c93a91a66" alt="plus icon" width="16" height="16" data-path="images/icons/create-app-icon.svg" />**Add shortcut**, located next
+   to the unassigned command, or the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/pencil-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=09de925e41efd3d1cfa199737639b5a6" alt="pencil icon" width="16" height="16" data-path="images/icons/pencil-icon.svg" /> pencil icon for assigned commands.
+2. When "Recording..." appears next to the command, press the key combination you want to assign.
+   To cancel recording, click an empty area inside the tab.
+3. To revert the shortcut, select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/rollback-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=b15faa243c8a17b5993c653314a74c5f" alt="rollback icon" width="12" height="12" data-path="images/icons/rollback-icon.svg" /> rollback icon.
+
+## Removing keyboard shortcuts
+
+To remove a keyboard shortcut, select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/trash-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=031a29f126332bebd5b6a74de4f16e40" alt="trash icon" width="16" height="16" data-path="images/icons/trash-icon.svg" /> trash icon next to the command.
+
+## Tab navigation
+
+You can use the browser **Tab** key navigation to navigate between the interactive elements
+on a page. However, the File Editor, Console, and Shell tools capture the **Tab** key as
+input for purposes including indentation.
+
+To continue  cycling through page elements while in these tools, follow these steps:
+
+1. Press **Esc** to release focus from the tools
+2. Press **Tab** to move to the next element
+
+
+Built with [Mintlify](https://mintlify.com).

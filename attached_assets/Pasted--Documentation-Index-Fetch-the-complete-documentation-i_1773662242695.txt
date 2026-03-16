@@ -1,0 +1,98 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Storage and Databases
+
+> Learn about file storage and database options on Replit.
+
+Using Replit's flexible storage solutions, you can quickly add the perfect
+data storage your app needs to run. You can use Replit's database or object storage
+for apps with the following requirements, and Agent can automatically set up and integrate both solutions:
+
+* A game that needs to save player information such as progress or high scores
+* A content platform that manages media files
+
+## What are Replit's storage and database options
+
+Replit offers the following data storage options:
+
+* **Database**: stores structured data such as user profiles, game scores, and product catalogs.
+  You can store or retrieve data by attributes and relationships between data points.
+
+* **App Storage**: stores unstructured data such as images, videos, documents.
+  You can store and retrieve large files and binary data.
+
+### App Storage and database comparison
+
+|                       | Database                                | App Storage                             |
+| --------------------- | :-------------------------------------- | :-------------------------------------- |
+| **Ideal data format** | Structured data with relationships      | Large files (images, videos, documents) |
+| **Data model**        | Tables, rows, columns                   | Buckets, files                          |
+| **Query language**    | SQL                                     | REST API                                |
+| **Clients**           | PostgresSQL-compatible clients and ORMs | Replit SDKs and GCS client libraries    |
+| **Billing model**     | Pay for compute time and storage space  | Pay for bandwidth and storage space     |
+
+### Workspace tools
+
+Learn more about the following Replit tools to set up and manage your app's data storage:
+
+<CardGroup>
+  <Card title="Database" href="/cloud-services/storage-and-databases/sql-database/" icon="database">
+    Ideal for structured data and representing data relationships.
+    Backed by a fully-managed PostgresSQL database that scales with your app.
+  </Card>
+
+  <Card title="App Storage" href="/cloud-services/storage-and-databases/object-storage/" icon="bucket">
+    Ideal for unstructured data and large files, such as images, videos, and documents.
+    Backed by Google Cloud Storage (GCS) for high availability and scalability. Agent can automatically set up App Storage with advanced authentication and access controls.
+  </Card>
+</CardGroup>
+
+## Getting started
+
+The quickest way to get started with Replit's storage solutions is to follow one of the tutorials below:
+
+<CardGroup cols={3}>
+  <Card title="Database" href="/getting-started/quickstarts/database-connection/" icon="database">
+    Connect your app to a SQL database
+  </Card>
+
+  <Card title="App Storage in Python" href="/getting-started/quickstarts/object-storage-python/" icon="python">
+    Manage App Storage using the Replit Python SDK
+  </Card>
+
+  <Card title="App Storage in JavaScript" href="/getting-started/quickstarts/object-storage-javascript/" icon="js">
+    Manage App Storage using the Replit JavaScript SDK
+  </Card>
+</CardGroup>
+
+## Use cases
+
+The following examples show how the database and object storage tools can support your Replit Apps.
+
+### E-commerce app
+
+Store product information, customer profiles, and order history in the database.
+Use SQL queries to filter products by category, search for items, and manage customer orders.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/tlGd6oyGOaUUeRxr/images/databases/use-case-ecommerce.jpg?fit=max&auto=format&n=tlGd6oyGOaUUeRxr&q=85&s=a970847ef9253b625186bf408bde2b7f" alt="screenshot of an E-commerce app" width="1440" height="872" data-path="images/databases/use-case-ecommerce.jpg" />
+</Frame>
+
+### File sharing app
+
+Share large files such as images, videos, and documents using App Storage.
+Use the Replit App Storage SDK to upload, download, and move files.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/databases/use-case-fileshare.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=2556548039bb1bdfec7ce3bb3df1c9d5" alt="screenshot of a file sharing app" width="2884" height="1974" data-path="images/databases/use-case-fileshare.png" />
+</Frame>
+
+## Next steps
+
+* [Database](/cloud-services/storage-and-databases/sql-database/): Learn about the database workspace tool and how to connect your Replit App to a database
+* [App Storage](/cloud-services/storage-and-databases/object-storage/): Learn how to use Replit's App Storage solution
+
+
+Built with [Mintlify](https://mintlify.com).

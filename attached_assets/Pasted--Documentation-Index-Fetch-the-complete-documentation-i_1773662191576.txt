@@ -1,0 +1,39 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Web Apps
+
+> Learn how to build full-stack web applications with Agent — responsive by default, instantly deployable, and shareable.
+
+Web apps are the default output type on Replit. When you describe an idea to Agent, it builds a full-stack web application unless you specify a different artifact type.
+
+## Getting started
+
+There are two ways to create a web app:
+
+* **Type a prompt**: Describe what you want to build on the Replit homepage. Agent automatically creates a web app.
+* **Select from the dropdown**: Open the app type dropdown on the homepage and choose **Web app**, then describe your idea.
+
+## Key features
+
+* **Full-stack by default**: Every web app includes a frontend and backend. Agent sets up API routes, a database, and server-side logic as your app needs them.
+* **Responsive design**: Apps adapt to different screen sizes automatically.
+* **Instant deploy**: Publish your app with one click. Replit handles hosting, SSL, and infrastructure.
+* **Shared infrastructure**: If your project has multiple artifacts — like a mobile app or data dashboard — they all share the same backend, database, and services.
+
+## Use cases
+
+* **SaaS products**: Build customer-facing tools, dashboards, and platforms.
+* **Internal tools**: Create admin panels, CRMs, or workflow apps for your team.
+* **Landing pages**: Launch marketing sites with forms, animations, and dynamic content.
+* **Marketplaces and directories**: Build listing sites, job boards, or community platforms.
+
+## Next steps
+
+* Add a [mobile app](/replitai/building-mobile-apps) or [data visualization](/replitai/data-apps) to the [same project](/replitai/artifacts#multiple-artifacts-in-one-project)
+* Customize your app's look with the [Visual Editor](/replitai/visual-editor)
+* Connect external services through [Integrations](/replitai/integrations)
+
+
+Built with [Mintlify](https://mintlify.com).

@@ -1,0 +1,108 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# User Settings
+
+> Learn how to personalize your Workspace with user settings that apply across all your apps.
+
+The User Settings workspace tool offers options to customize appearance, behavior, and
+keyboard shortcuts for your account.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/9NKf1XREDj9JhKJb/images/workspace/user-settings-tool.png?fit=max&auto=format&n=9NKf1XREDj9JhKJb&q=85&s=73ac1c3d92b433c3bdb868cadb3f2c0c" alt="screenshot of the User Settings tool" width="4152" height="1894" data-path="images/workspace/user-settings-tool.png" />
+</Frame>
+
+## Features
+
+You can customize your Replit App creation experience with these settings categories:
+
+* **Theme customization**: Select between light and dark themes for your workspace
+* **Code intelligence**: Configure AI-powered features that enhance your app creation experience
+* **Editor preferences**: Adjust how the file editor behaves and appears
+* **Notification controls**: Manage alert preferences
+* **Accessibility options**: Make Replit work better for users with specific needs
+* **Keyboard shortcuts**: Set key combinations to run common actions and navigate the GUI
+
+## Usage
+
+<Accordion title="How to access User Settings">
+  From the left **Tool dock**:
+
+  1. Select <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-all-tools-button.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=579643854fb13c402de516695e52c554" alt="All tools icon" width="16" height="16" data-path="images/icons/workspace-all-tools-button.svg" /> **All tools** to see a list of workspace tools.
+  2. Select <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/settings-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=27601119959a9349e102c44c2adbd398" alt="Settings icon" width="16" height="16" data-path="images/icons/settings-icon.svg" /> **User Settings**.
+
+  From the **Search bar**:
+
+  1. Select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-search-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=d3feed840da2d19e1ee4873d137114dc" alt="magnifying glass icon" width="16" height="16" data-path="images/icons/workspace-search-icon.svg" /> magnifying glass at the top to open the search tool
+  2. Type "User Settings" to locate the tool and select it from the results.
+</Accordion>
+
+### Appearance
+
+Customize the following settings related to the appearance of your Replit workspace using the following settings:
+
+* **Theme selection**: Choose from light and dark theme presets, <a href="https://replit.com/themes" target="_blank">community themes</a>, or your custom theme
+* **Custom themes**: Create personalized color schemes using the [Themes](/replit-workspace/replit-themes) editor
+
+### File editor preferences
+
+Control the file editor's appearance and behavior using the following settings:
+
+* **Font size**: Adjust text size for readability
+* **Auto close brackets**: Automatically insert closing brackets when you type an opening bracket
+* **Indentation detection**: Automatically detect indentation settings when you open a file
+* **Format pasted text indentation**: Reformat pasted code to follow proper indentation
+* **Indentation character**: Choose between spaces and tabs for indenting code
+* **Indentation size**: Set the number of columns for each indentation level
+* **Wrapping**: Configure line wrapping behavior
+* **Minimap**: Include a navigable code overview in a sidebar
+* **Multiselect modifier key**: Set the keyboard modifier for multi-file selection
+* **Filetree Git status**: Display Git status indicators in the file tree
+
+### Code intelligence
+
+Configure AI-powered tools using the following settings:
+
+* **Semantic tokens**: Use enhanced syntax highlighting powered by language servers
+* **AI code completion**: Add inline code suggestions as you type
+* **Accept suggestion on commit character**: Automatically accept code suggestions by typing certain characters
+
+### Shell and Preview preferences
+
+Customize the Shell and Preview tool behavior:
+
+* **Shell bell audible indicator**: Play sounds when the Shell tool encounters issues
+* **Automatic preview**: Open the Preview tab automatically when a server becomes available
+* **Forward opened ports automatically**: Configure handling newly detected ports
+
+### Notifications
+
+Manage the following notification settings:
+
+* **Agent audio notification**: Play sounds when Agent requests feedback
+* **Agent push notification**: Receive mobile push notifications when Agent requests feedback
+
+### Accessibility
+
+You can customize the following accessibility setting:
+
+* **Accessible terminal output**: Enable screen reader compatibility for the Shell and Console tools
+
+### Keyboard shortcuts
+
+To access the keyboard shortcut preferences, select the **Keyboard shortcuts** tab in the User Settings tool.
+
+You can search for key combinations using the following methods:
+
+* **Name**: Type the name or description of the keyboard shortcut in the search field
+* **Key combination**: Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/keyboard.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=81adf8d47b1ee530465dc80bccd074b5" alt="keyboard icon" width="16" height="16" data-path="images/icons/keyboard.svg" /> and enter the key combination
+
+Use the following actions to manage shortcuts:
+
+* **Add**: Select **Add shortcut**
+* **Update**: Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/pencil-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=09de925e41efd3d1cfa199737639b5a6" alt="pencil icon" width="16" height="16" data-path="images/icons/pencil-icon.svg" /> pencil icon
+* **Remove**: Select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/trash-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=031a29f126332bebd5b6a74de4f16e40" alt="trash icon" width="16" height="16" data-path="images/icons/trash-icon.svg" /> trash icon
+
+
+Built with [Mintlify](https://mintlify.com).

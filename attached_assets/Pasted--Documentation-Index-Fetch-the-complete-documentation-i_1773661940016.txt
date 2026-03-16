@@ -1,0 +1,48 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# File History
+
+> Learn how to recover previous versions of your code using File History's automatic save points.
+
+Get started by opening a text file in the Workspace and pressing the **History** button in the bottom-right corner.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/AZ1L8RlIroSxuJDa/images/programming-ide/history-button.png?fit=max&auto=format&n=AZ1L8RlIroSxuJDa&q=85&s=af81288cec5195969d95713cf3904609" alt="opening history" width="377" height="292" data-path="images/programming-ide/history-button.png" />
+</Frame>
+
+## Viewing previous versions of a file
+
+Once you've opened up File History, you can view previous versions of a file by using the scroll bar, the arrow buttons, or the **left** and **right** arrow keys.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/-6g2hQCrMskerX65/images/animations/history-versioning.gif?s=0ea4ddbe452557870f88eff87b3960dd" alt="scroll bar demo" width="764" height="720" data-path="images/animations/history-versioning.gif" />
+</Frame>
+
+## Comparing previous versions to the current file
+
+Press the Compare Latest toggle in the bottom left hand of the File History pane to see in-line comparisons of your file at that point in time and the latest version.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/-6g2hQCrMskerX65/images/animations/compare-history.gif?s=96b290dc3ded58a6eb2e0bbd70c72285" alt="compare latest image" width="772" height="720" data-path="images/animations/compare-history.gif" />
+</Frame>
+
+## Restoring a previous version of a file
+
+If you want to restore a file to a previous version, just press the `Restore` button, which will restore. Don't worry, you won't erase any history. When you restore to a previous version, it is added as a new version to the file's history.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/-6g2hQCrMskerX65/images/animations/restore-history.webp?fit=max&auto=format&n=-6g2hQCrMskerX65&q=85&s=bb106086874ec8cd69cf7f5c2f1b6efb" alt="restore history image" width="720" height="495" data-path="images/animations/restore-history.webp" />
+</Frame>
+
+## Viewing File History playback
+
+You can use the playback feature of File History to watch your file change over time like a movie. This can be useful for creating videos of your programming sessions.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/-6g2hQCrMskerX65/images/animations/history-replay.webp?fit=max&auto=format&n=-6g2hQCrMskerX65&q=85&s=35f40811914251d499fe2d64015a2227" alt="replay history video" width="720" height="528" data-path="images/animations/history-replay.webp" />
+</Frame>
+
+
+Built with [Mintlify](https://mintlify.com).

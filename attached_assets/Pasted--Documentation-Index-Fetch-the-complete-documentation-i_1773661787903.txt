@@ -1,0 +1,58 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Developer Frameworks
+
+> Learn how to use and create developer frameworks — reusable starting points for new Replit projects.
+
+## What is a developer framework?
+
+Developer frameworks are published Replit Apps that can be used to build upon. The official developer frameworks, made by Replit, have a checkbox next to the name of the framework:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/AZ1L8RlIroSxuJDa/images/programming-ide/creating-a-template/template-official.png?fit=max&auto=format&n=AZ1L8RlIroSxuJDa&q=85&s=2781a5222dd76507327381fe7177a58e" alt="Official Replit developer frameworks" width="1051" height="246" data-path="images/programming-ide/creating-a-template/template-official.png" />
+</Frame>
+
+The [HTML, CSS, JS framework](https://replit.com/@replit/HTML-CSS-JS?v=1#index.html) framework is very popular and can be used as a starting point for creating a vanilla JavaScript project. You can fork the framework to use it.
+
+Other developer frameworks have been created by community members, like this one:
+
+<Frame>
+  <img src="https://mintcdn.com/replit/AZ1L8RlIroSxuJDa/images/programming-ide/creating-a-template/template-community.png?fit=max&auto=format&n=AZ1L8RlIroSxuJDa&q=85&s=ce3fb02512bcab21e2ec3bc545efaa40" alt="Community developer frameworks" width="792" height="574" data-path="images/programming-ide/creating-a-template/template-community.png" />
+</Frame>
+
+## Creating a developer framework
+
+Public Replit Apps can be published by checking the "Publish as Developer Framework" box in the last step of the Publish this Replit Apps flow.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/AZ1L8RlIroSxuJDa/images/programming-ide/creating-a-template/publish-button.png?fit=max&auto=format&n=AZ1L8RlIroSxuJDa&q=85&s=a93b28902cbd72a8bbd11c5d0403f5be" alt="Publish button" width="3026" height="1338" data-path="images/programming-ide/creating-a-template/publish-button.png" />
+</Frame>
+
+Before you publish your developer framework, make sure it's as easy to use as possible. It should include all the boiler plate code that is needed to get a project started, and it should work right away when the "Run" button is pressed.
+
+A good developer framework should always include well-commented code, easily editable variables, and a README file. It's always important to comment your code, but it's even more important when others will be using your code for their own projects. In the `README.md` file, add descriptive details about your developer framework, and information about the variables that the user can change. READMEs help users understand how your developer framework works, and if there are any requirements, licensing, or other factors they should be aware of.
+
+The `.md` in `README.md` stands for Markdown, which is a basic text language. READMEs can be written in any text format, but we'll use Markdown as it's the best practice.
+
+Here's an example outline for a README - feel free to use this for your own developer frameworks!
+
+```md  theme={null}
+# Developer Framework Name
+
+Choose a self-descriptive name, you can also add a simple description about your developer framework.
+
+# Usage
+
+Explain how you can install / use this developer framework. Make sure to provide a detailed explanation and make it easy for people to read. Also, add any code snippets if needed.
+
+# License
+
+This will define how people can use your developer framework. You can visit https://opensource.org/licenses to choose a license.
+```
+
+You can also edit your submitted developer framework and share update messages to show how your project has changed over time.
+
+
+Built with [Mintlify](https://mintlify.com).

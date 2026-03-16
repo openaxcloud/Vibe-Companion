@@ -1,0 +1,198 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Production Databases
+
+> Learn how to safely manage and publish database changes in production environments.
+
+Production databases are dedicated for your live data that powers your published Replit Apps. Unlike development databases where you experiment and build features, production databases keep your real-world data safe while you continue building, ensuring reliability, and performance.
+
+Understanding how to work with production databases is essential for building robust applications that can evolve and scale without disrupting your users.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/tlGd6oyGOaUUeRxr/images/databases/production-databases.jpg?fit=max&auto=format&n=tlGd6oyGOaUUeRxr&q=85&s=b60de03dc3f59d971894d1795033cc6b" alt="Production database management interface" width="1080" height="471" data-path="images/databases/production-databases.jpg" />
+</Frame>
+
+## What are Production Databases?
+
+Production databases are the live, operational databases that serve real users and their data. They differ significantly from development databases in several key ways:
+
+### Production vs Development Databases
+
+| Aspect          | Development Database                     | Production Database                                                  |
+| --------------- | ---------------------------------------- | -------------------------------------------------------------------- |
+| **Purpose**     | Experimentation and feature development  | Serving real users and storing business data                         |
+| **Data**        | Test data, dummy records, small datasets | Real user data, business-critical information                        |
+| **Performance** | Optimized for development speed          | Optimized for reliability and user experience                        |
+| **Changes**     | Frequent schema changes, rapid iteration | Careful, planned changes via data migrations and rollback strategies |
+| **Downtime**    | Acceptable during development            | Must be minimized or eliminated                                      |
+| **Backup**      | Optional for testing                     | Critical for business continuity                                     |
+
+<Note>
+  Agent is not able to modify the production database, this restriction is in place so that your production database stays safe.
+
+  Agent can make edits to your development database. At the time of publishing, any changes you’ve made with the agent to the structure of your development database (i.e. adding and deleting columns / tables) will be applied over to your production database.
+
+  You are manually able to edit your production data at anytime by going to database pane > production database > My data and toggling **Edit**
+</Note>
+
+## Database Technology and Infrastructure
+
+Production databases in Replit are built on the same robust foundation as our standard [SQL Database](/cloud-services/storage-and-databases/sql-database) offering. They use PostgreSQL 16 hosted on [Neon](https://neon.tech), providing enterprise-grade reliability and performance.
+
+### Relationship to Replit SQL Database
+
+Production databases share the same core technology stack as Replit's SQL Database:
+
+* **PostgreSQL 16**: Industry-standard relational database with advanced features
+* **Neon Infrastructure**: Serverless database platform that provides automatic scaling and cost optimization
+* **Built-in Tools**: Access to SQL runner, Drizzle Studio, and visual data management tools
+* **Environment Variables**: Secure connection management through automatically generated credentials
+
+<Info>
+  For detailed information about database features, connection setup, and
+  technical specifications, see the [SQL
+  Database](/cloud-services/storage-and-databases/sql-database) documentation.
+</Info>
+
+## Making safe changes to your production database
+
+When you publish updates to your Replit App that include database changes, you may encounter scenarios where careful planning is essential to avoid downtime or data loss.
+
+### Non-Backward Compatible Changes
+
+Some database changes can break compatibility with your existing application code. These changes require special handling to ensure smooth deployments.
+
+<Info>
+  You may notice a brief downtime for your published app during publishing. This downtime occurs because database changes sometimes require stopping your app temporarily to prevent conflicts and ensure safe updates. Stopping the app during these updates helps protect your data from loss or corruption while the changes are applied.
+</Info>
+
+### Common Non-Backward Compatible Changes
+
+The following types of changes typically require careful publishing strategies:
+
+* **Removing database columns** that your application code still references
+* **Changing column data types** in ways that existing code cannot handle
+* **Adding required fields** without default values to existing tables
+* **Renaming tables or columns** that break existing queries
+* **Modifying constraints** that could reject existing application logic
+
+## Deployment Previews
+
+Before publishing database changes to production, Replit provides tools to test your changes safely in a preview environment.
+
+A deployment preview is a temporary, isolated copy of your production environment where you can test database changes and application updates before they affect real users.
+This preview environment mirrors your production setup but operates independently.
+It can help you catch potential issues early and ensure your changes work correctly before going live.
+
+Testing your deployment in the preview environment is crucial for identifying issues before they impact your users. Follow these steps to ensure your database changes work correctly:
+
+**1. Functional Testing**
+
+* Verify that your app still works properly with the database changes applied
+* Test all major user flows to ensure functionality remains intact
+* Check that data displays correctly after the schema modifications
+
+**2. Data Integrity Verification**
+
+* Confirm that existing data has been properly migrated or transformed
+* Verify that new fields contain expected values or appropriate defaults
+* Test edge cases where data might not conform to new constraints
+
+**3. Performance Validation**
+
+* Monitor query response times in the preview environment
+* Check that new indexes are being used effectively
+* Verify that the changes don't introduce performance regressions
+
+## Point-in-time restore
+
+For production databases, you can restore your database to a specific point in time using the point-in-time restore feature.
+
+<Frame>
+  <img src="https://mintcdn.com/replit/tlGd6oyGOaUUeRxr/images/databases/database-rollbacks.jpg?fit=max&auto=format&n=tlGd6oyGOaUUeRxr&q=85&s=bef4a8570506fea11823cba941ad89a4" alt="Database rollbacks interface showing rollback options" width="1082" height="708" data-path="images/databases/database-rollbacks.jpg" />
+</Frame>
+
+Note that this will only restore your production database to the state it was at the time of the checkpoint. It will not restore your app to the state it was at the time of the checkpoint.
+
+To restore your app to the state it was at the time of the checkpoint, you will need to roll back to the checkpoint using the [rollback feature](/replitai/checkpoints-and-rollbacks/) and republish your app.
+
+## Billing and resource usage
+
+Production databases are billed based on usage through Neon, a serverless database provider.
+
+Neon's serverless capabilities include the following:
+
+* Zero infrastructure setup or maintenance
+* Automatic scaling to handle your usage needs
+* Compute time billing only when the database is active
+
+The database enters an idle state after five minutes of inactivity, pausing compute time billing.
+It instantly reactivates when it receives a query.
+
+<Tip>
+  To learn more about this serverless database technology, see the
+  <a href="https://neon.tech/docs/introduction/compute-lifecycle" target="_blank">Neon Compute lifecycle</a> documentation.
+</Tip>
+
+Replit provides real-time tracking of your database usage.
+You can view the breakdown of compute time and storage usage for the current Replit App
+or for each Replit App on your account.
+
+<Accordion title="How to access database usage">
+  To view your database compute time and storage usage for the current billing period, follow the steps below:
+
+  From the **Replit Database** tool:
+
+  1. Navigate to the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/postgres.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=68fc78519888560040eb7096f68e76df" alt="PostgresSQL database icon" width="24" height="24" data-path="images/icons/postgres.svg" /> **Replit Database** tool in your workspace
+  2. In the database dropdown menu, select **Production**
+  3. Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/settings-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=27601119959a9349e102c44c2adbd398" alt="gear icon" width="16" height="16" data-path="images/icons/settings-icon.svg" /> **Settings** tab
+  4. The **Storage Used** section shows the total storage used by your database for the current billing period.
+
+  To view for every Replit App from **Settings** → **Account** → **Account usage**, follow the steps below:
+
+  1. Open **Settings** and go to **Account** → **Account usage** (or **View account resource limits** / **Usage**).
+  2. Scroll to the **Resource usage** section.
+  3. Expand the **PostgresSQL Storage** and **PostgresSQL Compute** rows for details on each Replit App.
+</Accordion>
+
+To learn how Replit charges for database usage, see [Deployments and Database Billing](/billing/about-usage-based-billing#databases).
+
+## Troubleshooting Common Issues
+
+### Publishing Failures
+
+If your publishing fails due to database issues:
+
+1. **Check the publishing logs** for specific error messages about database connectivity or schema conflicts
+2. **Verify your database connection credentials** are correct and accessible from the published app environment
+3. **Review recent schema changes** for potential conflicts with existing application code
+4. **Test your changes in a preview environment** before attempting to republish
+
+## Removing a production database
+
+<Warning>
+  The remove action is irreversible after a retention period of 7 days. Make sure to back up any important data before proceeding.
+  Databases have a 7 soft delete period where databases can be restored. Reach out to support if you need assistance. After 7 days, the database is hard deleted and will be unrecoverable.
+</Warning>
+
+If you no longer need a database for your Replit App, you can remove it and all its data.
+
+<Accordion title="How to remove a database">
+  From the **Replit Database** tool:
+
+  1. Select the <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/settings-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=27601119959a9349e102c44c2adbd398" alt="gear icon" width="16" height="16" data-path="images/icons/settings-icon.svg" /> **Settings** tab
+  2. Select **Remove database** and confirm by selecting **Yes, Remove database**
+</Accordion>
+
+## Next Steps
+
+To learn more about database management on Replit:
+
+* [SQL Database](/cloud-services/storage-and-databases/sql-database): Learn about Replit's managed PostgreSQL database service
+* [Deployments](/cloud-services/deployments/about-deployments): Understand how deployments work with database changes
+* [Object Storage](/cloud-services/storage-and-databases/object-storage): Learn about storing files and assets in the cloud
+
+
+Built with [Mintlify](https://mintlify.com).
