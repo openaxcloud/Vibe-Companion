@@ -219,6 +219,7 @@ export default function Dashboard() {
   const TEMPLATE_CATEGORIES = [
     { id: "all", label: "All Templates" },
     { id: "frontend", label: "Frontend" },
+    { id: "mobile", label: "Mobile" },
     { id: "backend", label: "Backend" },
     { id: "cli", label: "CLI & Scripts" },
     { id: "languages", label: "Languages" },
@@ -236,6 +237,9 @@ export default function Dashboard() {
     "cpp-app": "languages",
     "java-app": "languages",
     "rust-app": "languages",
+    "mobile-blank": "mobile",
+    "mobile-tabs": "mobile",
+    "mobile-social-feed": "mobile",
   };
 
   const getExamplePrompts = useCallback((categoryId: string, seed: number) => {
@@ -381,6 +385,9 @@ export default function Dashboard() {
     "rust-app": { icon: Code2, gradient: "from-[#F97316] to-[#C2410C]", iconColor: "text-orange-400", borderColor: "border-orange-400/30 hover:border-orange-400/60", snippet: "fn main() {" },
     "ruby-script": { icon: Code2, gradient: "from-[#EF4444] to-[#DC2626]", iconColor: "text-red-400", borderColor: "border-red-400/30 hover:border-red-400/60", snippet: "class TaskManager" },
     "bash-script": { icon: Terminal, gradient: "from-[#64748B] to-[#475569]", iconColor: "text-slate-400", borderColor: "border-slate-400/30 hover:border-slate-400/60", snippet: "#!/bin/bash" },
+    "mobile-blank": { icon: Smartphone, gradient: "from-[#8B5CF6] to-[#6D28D9]", iconColor: "text-purple-400", borderColor: "border-purple-400/30 hover:border-purple-400/60", snippet: '<View style={styles.container}>' },
+    "mobile-tabs": { icon: Smartphone, gradient: "from-[#EC4899] to-[#BE185D]", iconColor: "text-pink-400", borderColor: "border-pink-400/30 hover:border-pink-400/60", snippet: "const [activeTab, setActiveTab]" },
+    "mobile-social-feed": { icon: Smartphone, gradient: "from-[#F97316] to-[#C2410C]", iconColor: "text-orange-400", borderColor: "border-orange-400/30 hover:border-orange-400/60", snippet: "<FlatList data={posts}" },
   };
   const defaultUI = { icon: Code2, gradient: "from-[#6366F1] to-[#4338CA]", iconColor: "text-indigo-400", borderColor: "border-indigo-400/30 hover:border-indigo-400/60", snippet: "" };
 
@@ -400,6 +407,9 @@ export default function Dashboard() {
     { id: "rust-app", name: "Rust App", description: "Rust program with structs and enums", language: "Rust" },
     { id: "ruby-script", name: "Ruby Script", description: "Ruby script with classes and modules", language: "Ruby" },
     { id: "bash-script", name: "Bash Script", description: "Shell script with functions", language: "Bash" },
+    { id: "mobile-blank", name: "Mobile App (Blank)", description: "Blank React Native/Expo mobile app", language: "TypeScript" },
+    { id: "mobile-tabs", name: "Mobile App (Tab Navigation)", description: "React Native/Expo app with tab navigation", language: "TypeScript" },
+    { id: "mobile-social-feed", name: "Mobile App (Social Feed)", description: "React Native/Expo social feed app", language: "TypeScript" },
   ];
 
   const templateData = templatesQuery.data && templatesQuery.data.length > 0 ? templatesQuery.data : FALLBACK_TEMPLATES;
@@ -826,7 +836,7 @@ export default function Dashboard() {
               }
               const isActive = mobileTab === id;
               return (
-                <button key={id} className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all active:scale-90" onClick={() => setMobileTab(id as any)} data-testid={`mobile-tab-${id}`}>
+                <button key={id} className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all active:scale-90" onClick={() => { if (id === "home" || id === "repls" || id === "notifications" || id === "profile") setMobileTab(id); }} data-testid={`mobile-tab-${id}`}>
                   {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2.5px] rounded-full bg-[#0079F2]" />}
                   <Icon className={`w-5 h-5 transition-all ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`}>{label}</span>
@@ -1432,6 +1442,7 @@ export default function Dashboard() {
                   <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20">
                     {projects.slice(0, 5).map((project, idx) => {
                       const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
+                      const isProjectMobile = project.projectType === "mobile-app";
                       return (
                         <div
                           key={project.id}
@@ -1439,8 +1450,8 @@ export default function Dashboard() {
                           onClick={() => setLocation(`/project/${project.id}`)}
                           data-testid={`card-project-${project.id}`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
-                            {langInfo.label}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${isProjectMobile ? "bg-purple-500/10 border-purple-500/20 text-purple-400" : `${langInfo.bg} ${langInfo.color}`}`}>
+                            {isProjectMobile ? <Smartphone className="w-4 h-4" /> : langInfo.label}
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate group-hover:text-white transition-colors">{project.name}</h3>
@@ -1591,16 +1602,17 @@ export default function Dashboard() {
                   </button>
                   {projects.map((project) => {
                     const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
+                    const isProjectMobile = project.projectType === "mobile-app";
                     return (
                       <div
                         key={project.id}
-                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border border-[var(--ide-border)]/50 border-l-2 ${langInfo.borderAccent} bg-[var(--ide-panel)]/40 hover:bg-[var(--ide-panel)]/80 hover:border-[var(--ide-border)] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
+                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border border-[var(--ide-border)]/50 border-l-2 ${isProjectMobile ? "border-l-purple-400" : langInfo.borderAccent} bg-[var(--ide-panel)]/40 hover:bg-[var(--ide-panel)]/80 hover:border-[var(--ide-border)] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
                         onClick={() => setLocation(`/project/${project.id}`)}
                         data-testid={`card-project-${project.id}`}
                       >
                         <div className="flex items-start justify-between mb-3">
-                          <div className={`${isMobile ? "w-11 h-11" : "w-9 h-9"} rounded-lg flex items-center justify-center border text-[10px] font-bold ${langInfo.bg} ${langInfo.color}`}>
-                            {langInfo.label}
+                          <div className={`${isMobile ? "w-11 h-11" : "w-9 h-9"} rounded-lg flex items-center justify-center border text-[10px] font-bold ${isProjectMobile ? "bg-purple-500/10 border-purple-500/20 text-purple-400" : `${langInfo.bg} ${langInfo.color}`}`}>
+                            {isProjectMobile ? <Smartphone className={`${isMobile ? "w-5 h-5" : "w-4 h-4"}`} /> : langInfo.label}
                           </div>
                           <div className={`${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`} onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
@@ -1640,6 +1652,7 @@ export default function Dashboard() {
                 <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20 animate-fade-in">
                   {projects.map((project, idx) => {
                     const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
+                    const isListMobile = project.projectType === "mobile-app";
                     return (
                       <div
                         key={project.id}
@@ -1647,8 +1660,8 @@ export default function Dashboard() {
                         onClick={() => setLocation(`/project/${project.id}`)}
                         data-testid={`list-project-${project.id}`}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[9px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
-                          {langInfo.label}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[9px] font-bold shrink-0 ${isListMobile ? "bg-purple-500/10 border-purple-500/20 text-purple-400" : `${langInfo.bg} ${langInfo.color}`}`}>
+                          {isListMobile ? <Smartphone className="w-4 h-4" /> : langInfo.label}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate">{project.name}</h3>

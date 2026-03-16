@@ -30,6 +30,7 @@ export const projects = pgTable("projects", {
   teamId: varchar("team_id", { length: 36 }),
   name: text("name").notNull(),
   language: text("language").notNull().default("javascript"),
+  projectType: text("project_type").notNull().default("web"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublished: boolean("is_published").notNull().default(false),
   publishedSlug: text("published_slug"),
@@ -48,6 +49,7 @@ export const projects = pgTable("projects", {
 export const insertProjectSchema = createInsertSchema(projects).pick({
   name: true,
   language: true,
+  projectType: true,
 });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;

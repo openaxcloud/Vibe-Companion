@@ -33,6 +33,7 @@ import MCPPanel from "@/components/MCPPanel";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
 import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
+import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
@@ -2093,6 +2094,12 @@ function _projectPage() {
   };
 
   const project = projectQuery.data;
+  const isMobileProject = useMemo(() => {
+    if (project?.projectType === "mobile-app") return true;
+    const fileList = filesQuery.data;
+    if (!fileList) return false;
+    return isMobileAppProject(fileList.map(f => ({ filename: f.filename, content: f.content })));
+  }, [project?.projectType, filesQuery.data]);
   const activeIsSpecial = activeFileId ? isSpecialTab(activeFileId) : false;
   const isRunnerTab = !activeIsSpecial && activeFileId?.startsWith("runner:");
   const activeFile = (isRunnerTab || activeIsSpecial) ? null : filesQuery.data?.find((f) => f.id === activeFileId);
@@ -2986,28 +2993,32 @@ function _projectPage() {
           )}
         </div>
       </div>
-      <DeviceFrame selectedPreset={selectedDevicePreset}>
-        {wsStatus === "running" && livePreviewUrl ? (
-          <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
-        ) : previewHtml ? (
-          <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
-              <Monitor className="w-7 h-7 text-[var(--ide-text-muted)]" />
+      {isMobileProject ? (
+        <MobilePreview previewUrl={wsStatus === "running" && livePreviewUrl ? (effectivePreviewUrl || livePreviewUrl) : null} previewHtml={previewHtml} />
+      ) : (
+        <DeviceFrame selectedPreset={selectedDevicePreset}>
+          {wsStatus === "running" && livePreviewUrl ? (
+            <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
+          ) : previewHtml ? (
+            <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
+                <Monitor className="w-7 h-7 text-[var(--ide-text-muted)]" />
+              </div>
+              <p className="text-sm font-medium text-[var(--ide-text)]">Webview</p>
+              <p className="text-xs text-center max-w-[220px] text-[var(--ide-text-muted)] leading-relaxed">
+                {hasHtmlFile ? "Click Refresh to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
+              </p>
+              {hasHtmlFile && wsStatus !== "running" && (
+                <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-webview-tab-preview">
+                  <Eye className="w-3 h-3" /> Preview HTML
+                </Button>
+              )}
             </div>
-            <p className="text-sm font-medium text-[var(--ide-text)]">Webview</p>
-            <p className="text-xs text-center max-w-[220px] text-[var(--ide-text-muted)] leading-relaxed">
-              {hasHtmlFile ? "Click Refresh to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
-            </p>
-            {hasHtmlFile && wsStatus !== "running" && (
-              <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-webview-tab-preview">
-                <Eye className="w-3 h-3" /> Preview HTML
-              </Button>
-            )}
-          </div>
-        )}
-      </DeviceFrame>
+          )}
+        </DeviceFrame>
+      )}
     </div>
   );
 

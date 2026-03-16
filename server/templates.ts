@@ -3,6 +3,7 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   language: string;
+  projectType?: string;
   files: { filename: string; content: string }[];
 }
 
@@ -1053,12 +1054,527 @@ echo -e "\${YELLOW}Script completed successfully!\${NC}"
       },
     ],
   },
+  {
+    id: "mobile-blank",
+    name: "Mobile App (Blank)",
+    description: "Blank React Native/Expo mobile app",
+    language: "typescript",
+    projectType: "mobile-app",
+    files: [
+      {
+        filename: "app.json",
+        content: `{
+  "expo": {
+    "name": "MyMobileApp",
+    "slug": "my-mobile-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}`,
+      },
+      {
+        filename: "package.json",
+        content: `{
+  "name": "my-mobile-app",
+  "version": "1.0.0",
+  "main": "App.tsx",
+  "scripts": {
+    "start": "npx expo start --web",
+    "android": "npx expo start --android",
+    "ios": "npx expo start --ios",
+    "web": "npx expo start --web"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.3",
+    "react-dom": "18.3.1",
+    "react-native-web": "~0.19.12"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~18.3.0",
+    "typescript": "~5.3.0"
+  }
+}`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import { StatusBar } from "expo-status-bar";
+import { StyleSheet, Text, View } from "react-native";
+
+export default function App() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Welcome to My App</Text>
+      <Text style={styles.subtitle}>Edit App.tsx to get started</Text>
+      <StatusBar style="auto" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+  },
+});
+`,
+      },
+      {
+        filename: "tsconfig.json",
+        content: `{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  }
+}`,
+      },
+    ],
+  },
+  {
+    id: "mobile-tabs",
+    name: "Mobile App (Tab Navigation)",
+    description: "React Native/Expo app with tab navigation",
+    language: "typescript",
+    projectType: "mobile-app",
+    files: [
+      {
+        filename: "app.json",
+        content: `{
+  "expo": {
+    "name": "TabNavigationApp",
+    "slug": "tab-navigation-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}`,
+      },
+      {
+        filename: "package.json",
+        content: `{
+  "name": "tab-navigation-app",
+  "version": "1.0.0",
+  "main": "App.tsx",
+  "scripts": {
+    "start": "npx expo start --web",
+    "android": "npx expo start --android",
+    "ios": "npx expo start --ios",
+    "web": "npx expo start --web"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.3",
+    "react-dom": "18.3.1",
+    "react-native-web": "~0.19.12"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~18.3.0",
+    "typescript": "~5.3.0"
+  }
+}`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import { useState } from "react";
+import { StatusBar } from "expo-status-bar";
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+
+function HomeScreen() {
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <Text style={styles.screenTitle}>Home</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Welcome Back!</Text>
+        <Text style={styles.cardText}>This is your home screen. Start building your app here.</Text>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Quick Stats</Text>
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statLabel}>Tasks</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>5</Text>
+            <Text style={styles.statLabel}>Done</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>3</Text>
+            <Text style={styles.statLabel}>Pending</Text>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function ExploreScreen() {
+  const items = ["React Native", "Expo", "TypeScript", "Navigation", "Animations", "APIs"];
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <Text style={styles.screenTitle}>Explore</Text>
+      {items.map((item, i) => (
+        <TouchableOpacity key={i} style={styles.listItem}>
+          <View style={[styles.listIcon, { backgroundColor: \`hsl(\${i * 60}, 70%, 60%)\` }]}>
+            <Text style={styles.listIconText}>{item[0]}</Text>
+          </View>
+          <Text style={styles.listItemText}>{item}</Text>
+          <Text style={styles.listArrow}>&rsaquo;</Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+}
+
+function ProfileScreen() {
+  return (
+    <ScrollView contentContainerStyle={styles.screen}>
+      <Text style={styles.screenTitle}>Profile</Text>
+      <View style={styles.profileHeader}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>JD</Text>
+        </View>
+        <Text style={styles.profileName}>Jane Doe</Text>
+        <Text style={styles.profileEmail}>jane@example.com</Text>
+      </View>
+      <TouchableOpacity style={styles.menuItem}>
+        <Text style={styles.menuItemText}>Edit Profile</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.menuItem}>
+        <Text style={styles.menuItemText}>Notifications</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.menuItem}>
+        <Text style={styles.menuItemText}>Settings</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+type TabId = "home" | "explore" | "profile";
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<TabId>("home");
+
+  const tabs: { id: TabId; label: string; icon: string }[] = [
+    { id: "home", label: "Home", icon: "\u2302" },
+    { id: "explore", label: "Explore", icon: "\u2609" },
+    { id: "profile", label: "Profile", icon: "\u263A" },
+  ];
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="auto" />
+      <View style={styles.content}>
+        {activeTab === "home" && <HomeScreen />}
+        {activeTab === "explore" && <ExploreScreen />}
+        {activeTab === "profile" && <ProfileScreen />}
+      </View>
+      <View style={styles.tabBar}>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={styles.tab}
+            onPress={() => setActiveTab(tab.id)}
+          >
+            <Text style={[styles.tabIcon, activeTab === tab.id && styles.tabActive]}>{tab.icon}</Text>
+            <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  content: { flex: 1 },
+  screen: { padding: 20, paddingTop: 60 },
+  screenTitle: { fontSize: 28, fontWeight: "bold", marginBottom: 20 },
+  card: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  cardTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
+  cardText: { fontSize: 14, color: "#666", lineHeight: 20 },
+  statsRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 12 },
+  stat: { alignItems: "center" },
+  statValue: { fontSize: 24, fontWeight: "bold", color: "#0079F2" },
+  statLabel: { fontSize: 12, color: "#999", marginTop: 4 },
+  listItem: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8 },
+  listIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  listIconText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  listItemText: { flex: 1, fontSize: 15, fontWeight: "500" },
+  listArrow: { fontSize: 20, color: "#ccc" },
+  profileHeader: { alignItems: "center", marginBottom: 24 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#0079F2", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  avatarText: { color: "#fff", fontSize: 24, fontWeight: "bold" },
+  profileName: { fontSize: 20, fontWeight: "bold" },
+  profileEmail: { fontSize: 14, color: "#999", marginTop: 4 },
+  menuItem: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 8 },
+  menuItemText: { fontSize: 15 },
+  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#eee", backgroundColor: "#fff", paddingBottom: 20, paddingTop: 8 },
+  tab: { flex: 1, alignItems: "center" },
+  tabIcon: { fontSize: 20, color: "#999" },
+  tabLabel: { fontSize: 11, color: "#999", marginTop: 2 },
+  tabActive: { color: "#0079F2" },
+});
+`,
+      },
+      {
+        filename: "tsconfig.json",
+        content: `{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  }
+}`,
+      },
+    ],
+  },
+  {
+    id: "mobile-social-feed",
+    name: "Mobile App (Social Feed)",
+    description: "React Native/Expo social feed app with posts and interactions",
+    language: "typescript",
+    projectType: "mobile-app",
+    files: [
+      {
+        filename: "app.json",
+        content: `{
+  "expo": {
+    "name": "SocialFeedApp",
+    "slug": "social-feed-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}`,
+      },
+      {
+        filename: "package.json",
+        content: `{
+  "name": "social-feed-app",
+  "version": "1.0.0",
+  "main": "App.tsx",
+  "scripts": {
+    "start": "npx expo start --web",
+    "android": "npx expo start --android",
+    "ios": "npx expo start --ios",
+    "web": "npx expo start --web"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.3",
+    "react-dom": "18.3.1",
+    "react-native-web": "~0.19.12"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~18.3.0",
+    "typescript": "~5.3.0"
+  }
+}`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import { useState } from "react";
+import { StatusBar } from "expo-status-bar";
+import {
+  StyleSheet, Text, View, TouchableOpacity, ScrollView,
+  TextInput, FlatList, Image,
+} from "react-native";
+
+interface Post {
+  id: string;
+  author: string;
+  avatar: string;
+  content: string;
+  likes: number;
+  comments: number;
+  liked: boolean;
+  timeAgo: string;
+}
+
+const INITIAL_POSTS: Post[] = [
+  { id: "1", author: "Alex Chen", avatar: "AC", content: "Just shipped a new feature using React Native and Expo! The developer experience is amazing. Hot reloading makes iteration so fast.", likes: 24, comments: 5, liked: false, timeAgo: "2h" },
+  { id: "2", author: "Sarah Kim", avatar: "SK", content: "Beautiful sunset from the office rooftop today. Sometimes you need to step away from the code.", likes: 42, comments: 8, liked: true, timeAgo: "4h" },
+  { id: "3", author: "Dev Community", avatar: "DC", content: "What's your favorite mobile development framework in 2025? Drop your thoughts below!", likes: 156, comments: 89, liked: false, timeAgo: "6h" },
+  { id: "4", author: "Mike Johnson", avatar: "MJ", content: "TIL: You can use StyleSheet.create() for better performance in React Native. The styles get validated and optimized at creation time.", likes: 18, comments: 3, liked: false, timeAgo: "8h" },
+];
+
+function PostCard({ post, onLike }: { post: Post; onLike: () => void }) {
+  return (
+    <View style={styles.postCard}>
+      <View style={styles.postHeader}>
+        <View style={[styles.postAvatar, { backgroundColor: post.liked ? "#0079F2" : "#6B7280" }]}>
+          <Text style={styles.postAvatarText}>{post.avatar}</Text>
+        </View>
+        <View style={styles.postMeta}>
+          <Text style={styles.postAuthor}>{post.author}</Text>
+          <Text style={styles.postTime}>{post.timeAgo} ago</Text>
+        </View>
+      </View>
+      <Text style={styles.postContent}>{post.content}</Text>
+      <View style={styles.postActions}>
+        <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
+          <Text style={[styles.actionIcon, post.liked && styles.liked]}>
+            {post.liked ? "\u2665" : "\u2661"}
+          </Text>
+          <Text style={[styles.actionText, post.liked && styles.liked]}>{post.likes}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn}>
+          <Text style={styles.actionIcon}>\u{1F4AC}</Text>
+          <Text style={styles.actionText}>{post.comments}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn}>
+          <Text style={styles.actionIcon}>\u{1F4E4}</Text>
+          <Text style={styles.actionText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+export default function App() {
+  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
+  const [newPost, setNewPost] = useState("");
+
+  const handleLike = (id: string) => {
+    setPosts(posts.map(p => p.id === id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p));
+  };
+
+  const handlePost = () => {
+    if (!newPost.trim()) return;
+    const post: Post = {
+      id: Date.now().toString(),
+      author: "You",
+      avatar: "ME",
+      content: newPost.trim(),
+      likes: 0,
+      comments: 0,
+      liked: false,
+      timeAgo: "now",
+    };
+    setPosts([post, ...posts]);
+    setNewPost("");
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Feed</Text>
+      </View>
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          <View style={styles.composer}>
+            <TextInput
+              style={styles.composerInput}
+              placeholder="What's on your mind?"
+              placeholderTextColor="#999"
+              value={newPost}
+              onChangeText={setNewPost}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.postButton, !newPost.trim() && styles.postButtonDisabled]}
+              onPress={handlePost}
+              disabled={!newPost.trim()}
+            >
+              <Text style={styles.postButtonText}>Post</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        renderItem={({ item }) => <PostCard post={item} onLike={() => handleLike(item.id)} />}
+        contentContainerStyle={styles.feed}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f0f2f5" },
+  header: { paddingTop: 54, paddingBottom: 12, paddingHorizontal: 20, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#e5e5e5" },
+  headerTitle: { fontSize: 24, fontWeight: "bold" },
+  feed: { padding: 12 },
+  composer: { backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 12 },
+  composerInput: { fontSize: 15, minHeight: 40, color: "#333" },
+  postButton: { backgroundColor: "#0079F2", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 20, alignSelf: "flex-end", marginTop: 8 },
+  postButtonDisabled: { opacity: 0.5 },
+  postButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  postCard: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  postHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  postAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  postAvatarText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
+  postMeta: { flex: 1 },
+  postAuthor: { fontSize: 15, fontWeight: "600" },
+  postTime: { fontSize: 12, color: "#999", marginTop: 2 },
+  postContent: { fontSize: 15, lineHeight: 22, color: "#333", marginBottom: 12 },
+  postActions: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#f0f0f0", paddingTop: 10 },
+  actionBtn: { flexDirection: "row", alignItems: "center", marginRight: 20 },
+  actionIcon: { fontSize: 18, marginRight: 4, color: "#666" },
+  actionText: { fontSize: 13, color: "#666" },
+  liked: { color: "#E54D4D" },
+});
+`,
+      },
+      {
+        filename: "tsconfig.json",
+        content: `{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  }
+}`,
+      },
+    ],
+  },
 ];
 
 export function getTemplateById(id: string): ProjectTemplate | undefined {
   return PROJECT_TEMPLATES.find(t => t.id === id);
 }
 
-export function getAllTemplates(): { id: string; name: string; description: string; language: string }[] {
-  return PROJECT_TEMPLATES.map(({ id, name, description, language }) => ({ id, name, description, language }));
+export function getAllTemplates(): { id: string; name: string; description: string; language: string; projectType: string }[] {
+  return PROJECT_TEMPLATES.map(({ id, name, description, language, projectType }) => ({ id, name, description, language, projectType: projectType || "web" }));
 }

@@ -104,8 +104,8 @@ export interface IStorage {
   createProject(userId: string, data: InsertProject): Promise<Project>;
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
-  createProjectFromTemplate(userId: string, data: { name: string; language: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; language: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined>;
+  createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; files: { filename: string; content: string }[] }): Promise<Project>;
+  updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -525,7 +525,7 @@ export class DatabaseStorage implements IStorage {
     const original = await this.getProject(id);
     if (!original) return undefined;
     const [newProject] = await db.insert(projects).values({
-      userId, name: `${original.name} (copy)`, language: original.language,
+      userId, name: `${original.name} (copy)`, language: original.language, projectType: original.projectType,
     }).returning();
     const originalFiles = await this.getFiles(id);
     for (const file of originalFiles) {
@@ -534,8 +534,13 @@ export class DatabaseStorage implements IStorage {
     return newProject;
   }
 
-  async createProjectFromTemplate(userId: string, data: { name: string; language: string; files: { filename: string; content: string }[] }): Promise<Project> {
-    const [project] = await db.insert(projects).values({ userId, name: data.name, language: data.language }).returning();
+  async createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; files: { filename: string; content: string }[] }): Promise<Project> {
+    const [project] = await db.insert(projects).values({
+      userId,
+      name: data.name,
+      language: data.language,
+      projectType: data.projectType || "web",
+    }).returning();
     if (data.files.length > 0) {
       await db.insert(files).values(data.files.map(f => ({ projectId: project.id, filename: f.filename, content: f.content })));
     }
@@ -569,10 +574,11 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; language: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.language !== undefined) updates.language = data.language;
+    if (data.projectType !== undefined) updates.projectType = data.projectType;
     if (data.isPublished !== undefined) updates.isPublished = data.isPublished;
     if (data.publishedSlug !== undefined) updates.publishedSlug = data.publishedSlug;
     if (data.customDomain !== undefined) updates.customDomain = data.customDomain;

@@ -2459,6 +2459,7 @@ export async function registerRoutes(
       const project = await storage.createProjectFromTemplate(userId, {
         name: projectName,
         language: template.language,
+        projectType: template.projectType,
         files: template.files,
       });
       return res.status(201).json(project);
@@ -2490,6 +2491,13 @@ export async function registerRoutes(
   });
 
   app.post("/api/projects/:id/duplicate", requireAuth, async (req: Request, res: Response) => {
+    const sourceProject = await storage.getProject(req.params.id);
+    if (!sourceProject) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    if (sourceProject.userId !== req.session.userId && !sourceProject.isDemo) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const projectLimit = await storage.checkProjectLimit(req.session.userId!);
     if (!projectLimit.allowed) {
       return res.status(403).json({ message: `Project limit reached (${projectLimit.current}/${projectLimit.limit}). Upgrade to Pro for more.` });
@@ -4328,6 +4336,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this s
 {
   "name": "project-name-slug",
   "language": "javascript",
+  "projectType": "web",
   "files": [
     { "filename": "index.js", "content": "// code" }
   ]
@@ -4336,8 +4345,10 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this s
 Rules:
 - name: short kebab-case slug (max 30 chars)
 - language: one of javascript, typescript, python
+- projectType: "web" for websites/APIs, "mobile-app" for mobile apps
 - files: generate 1-3 concise, working files. Keep code SHORT but functional.
 - For web apps: put everything in a single HTML file with inline CSS/JS when possible
+- For mobile apps: use React Native/Expo with View, Text, TouchableOpacity, StyleSheet.create(). Include app.json with Expo config and package.json with expo/react-native/react-native-web dependencies. Use "typescript" as the language.
 - IMPORTANT: Keep total response under 3000 tokens. Prefer fewer, smaller files.
 - Do NOT add any text before or after the JSON object`;
 
@@ -4371,7 +4382,7 @@ Rules:
         });
         text = message.content[0].type === "text" ? message.content[0].text : "";
       }
-      let spec: { name: string; language: string; files: { filename: string; content: string }[] };
+      let spec: { name: string; language: string; projectType?: string; files: { filename: string; content: string }[] };
 
       log(`AI generate raw response (first 500 chars): ${text.slice(0, 500)}`, "ai");
 
@@ -4465,9 +4476,12 @@ Rules:
       const validLangs = ["javascript", "typescript", "python"];
       if (!validLangs.includes(spec.language)) spec.language = "javascript";
 
+      const detectedProjectType = spec.projectType === "mobile-app" ? "mobile-app" : "web";
+
       const project = await storage.createProject(req.session.userId!, {
         name: spec.name.slice(0, 50),
         language: spec.language,
+        projectType: detectedProjectType,
       });
 
       for (const file of spec.files.slice(0, 10)) {
@@ -4788,6 +4802,7 @@ Rules:
       const modelId = AGENT_MODE_MODELS[chatMode]?.[selectedModel] || AGENT_MODE_MODELS.economy[selectedModel] || "claude-sonnet-4-6";
 
       let skillsContext = "";
+      let chatMobileContext = "";
       if (req.body.projectId && typeof req.body.projectId === "string") {
         try {
           const chatProject = await storage.getProject(req.body.projectId);
@@ -4796,6 +4811,13 @@ Rules:
             if (activeSkills.length > 0) {
               skillsContext = "\n\n## Project Skills\nThe following skills define project-specific patterns and conventions. Follow them when applicable:\n\n" +
                 activeSkills.map(s => `### ${s.name}\n${s.description ? s.description + "\n" : ""}${s.content}`).join("\n\n");
+            }
+            if (chatProject.projectType === "mobile-app") {
+              chatMobileContext = `\n\nIMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
+- Use React Native components (View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Image, etc.) — NOT HTML elements
+- Use StyleSheet.create() for styles — NOT CSS
+- Import from "react-native" and "expo-*" packages, not web libraries
+- Use "react-native-web" compatible APIs so the app runs via Expo Web preview`;
             }
           }
         } catch {}
@@ -4808,7 +4830,7 @@ Rules:
 - When showing code, use markdown code blocks with the language tag and filename as a comment on the first line.
 - If the user asks to build or create something, provide the full implementation, not just snippets.
 - Include all imports, all functions, and all necessary code for the file to work standalone.
-- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${skillsContext}`;
+- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${skillsContext}`;
 
       const chatCreditResult = await storage.deductCredits(req.session.userId!, chatMode, modelId, "chat");
       if (!chatCreditResult.allowed) {
@@ -5195,11 +5217,23 @@ Rules:
         log(`MCP initialization error: ${mcpErr.message}`, "mcp");
       }
 
+      const isMobileProject = project.projectType === "mobile-app";
+      const mobileContext = isMobileProject ? `
+
+IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
+- Use React Native components (View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Image, etc.) — NOT HTML elements (div, span, button, input, etc.)
+- Use StyleSheet.create() for styles — NOT CSS or inline style objects with web properties
+- Use React Native layout (flexbox with flex, alignItems, justifyContent) — NOT CSS grid, float, or position: absolute for layouts
+- Import from "react-native" and "expo-*" packages, not web libraries
+- Use "react-native-web" compatible APIs so the app runs via Expo Web preview
+- Include proper app.json with Expo configuration
+- Include package.json with Expo dependencies (expo, react-native, react-native-web, react-dom)` : "";
+
       const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
-Current project: "${project.name}" (${project.language})
+Current project: "${project.name}" (${project.language}${isMobileProject ? ", mobile-app" : ""})
 Existing files:
-${fileList || "(no files yet)"}
+${fileList || "(no files yet)"}${mobileContext}
 
 When the user asks you to build something, create files, or make changes:
 1. Think about what files need to be created or modified
