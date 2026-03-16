@@ -3,6 +3,129 @@ import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex, index
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export interface CustomThemeColors {
+  background: string;
+  text: string;
+  accent: string;
+  panel: string;
+  border: string;
+}
+
+export interface CustomTheme {
+  name: string;
+  colors: CustomThemeColors;
+}
+
+export interface KeyboardShortcutOverride {
+  action: string;
+  keys: string[];
+}
+
+export interface UserPreferencesStored {
+  fontSize?: number;
+  tabSize?: number;
+  wordWrap?: boolean;
+  theme?: string;
+  agentToolsConfig?: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean };
+  autoCloseBrackets?: boolean;
+  indentationDetection?: boolean;
+  formatPastedText?: boolean;
+  indentationChar?: "spaces" | "tabs";
+  indentationSize?: number;
+  minimap?: boolean;
+  multiselectModifier?: "Alt" | "Ctrl" | "Meta";
+  filetreeGitStatus?: boolean;
+  semanticTokens?: boolean;
+  aiCodeCompletion?: boolean;
+  acceptSuggestionOnCommit?: boolean;
+  shellBell?: boolean;
+  automaticPreview?: boolean;
+  forwardPorts?: boolean;
+  agentAudioNotification?: boolean;
+  agentPushNotification?: boolean;
+  accessibleTerminal?: boolean;
+  customTheme?: CustomTheme | null;
+  communityTheme?: string | null;
+  keyboardShortcuts?: Record<string, string | null>;
+}
+
+export interface UserPreferences extends Required<Omit<UserPreferencesStored, 'customTheme' | 'communityTheme' | 'agentToolsConfig' | 'keyboardShortcuts'>> {
+  customTheme: CustomTheme | null;
+  communityTheme: string | null;
+  agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean };
+  keyboardShortcuts: Record<string, string | null>;
+}
+
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  fontSize: 14,
+  tabSize: 2,
+  wordWrap: false,
+  theme: "dark",
+  agentToolsConfig: { liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false },
+  autoCloseBrackets: true,
+  indentationDetection: true,
+  formatPastedText: true,
+  indentationChar: "spaces",
+  indentationSize: 2,
+  minimap: true,
+  multiselectModifier: "Alt",
+  filetreeGitStatus: true,
+  semanticTokens: true,
+  aiCodeCompletion: true,
+  acceptSuggestionOnCommit: true,
+  shellBell: false,
+  automaticPreview: true,
+  forwardPorts: true,
+  agentAudioNotification: true,
+  agentPushNotification: false,
+  accessibleTerminal: false,
+  customTheme: null,
+  communityTheme: null,
+  keyboardShortcuts: {},
+};
+
+export interface CommunityThemeDefinition {
+  id: string;
+  name: string;
+  author: string;
+  colors: CustomThemeColors;
+}
+
+export const COMMUNITY_THEMES: CommunityThemeDefinition[] = [
+  { id: "dracula", name: "Dracula", author: "Zeno Rocha", colors: { background: "#282a36", text: "#f8f8f2", accent: "#bd93f9", panel: "#44475a", border: "#6272a4" } },
+  { id: "monokai", name: "Monokai", author: "Wimer Hazenberg", colors: { background: "#272822", text: "#f8f8f2", accent: "#a6e22e", panel: "#3e3d32", border: "#75715e" } },
+  { id: "nord", name: "Nord", author: "Arctic Ice Studio", colors: { background: "#2e3440", text: "#eceff4", accent: "#88c0d0", panel: "#3b4252", border: "#4c566a" } },
+  { id: "solarized-dark", name: "Solarized Dark", author: "Ethan Schoonover", colors: { background: "#002b36", text: "#839496", accent: "#268bd2", panel: "#073642", border: "#586e75" } },
+  { id: "github-dark", name: "GitHub Dark", author: "GitHub", colors: { background: "#0d1117", text: "#c9d1d9", accent: "#58a6ff", panel: "#161b22", border: "#30363d" } },
+  { id: "one-dark", name: "One Dark", author: "Atom", colors: { background: "#282c34", text: "#abb2bf", accent: "#61afef", panel: "#21252b", border: "#3e4451" } },
+  { id: "catppuccin", name: "Catppuccin Mocha", author: "Catppuccin", colors: { background: "#1e1e2e", text: "#cdd6f4", accent: "#cba6f7", panel: "#313244", border: "#45475a" } },
+  { id: "tokyo-night", name: "Tokyo Night", author: "enkia", colors: { background: "#1a1b26", text: "#c0caf5", accent: "#7aa2f7", panel: "#24283b", border: "#3b4261" } },
+  { id: "gruvbox", name: "Gruvbox Dark", author: "morhetz", colors: { background: "#282828", text: "#ebdbb2", accent: "#fabd2f", panel: "#3c3836", border: "#504945" } },
+  { id: "rose-pine", name: "Rosé Pine", author: "Rosé Pine", colors: { background: "#191724", text: "#e0def4", accent: "#c4a7e7", panel: "#1f1d2e", border: "#26233a" } },
+  { id: "synthwave", name: "Synthwave '84", author: "Robb Owen", colors: { background: "#2b213a", text: "#e0def4", accent: "#ff7edb", panel: "#34294f", border: "#495495" } },
+  { id: "everforest", name: "Everforest", author: "sainnhe", colors: { background: "#2d353b", text: "#d3c6aa", accent: "#a7c080", panel: "#343f44", border: "#475258" } },
+];
+
+export const DEFAULT_KEYBOARD_SHORTCUTS = [
+  { action: "Command Palette", keys: ["Ctrl", "P"] },
+  { action: "Command Palette Alt", keys: ["Ctrl", "K"] },
+  { action: "Toggle Sidebar", keys: ["Ctrl", "B"] },
+  { action: "Keyboard Shortcuts", keys: ["Ctrl", "/"] },
+  { action: "Run / Stop", keys: ["F5"] },
+  { action: "Run Code", keys: ["Ctrl", "Enter"] },
+  { action: "Save File", keys: ["Ctrl", "S"] },
+  { action: "New File", keys: ["Ctrl", "N"] },
+  { action: "Close Tab", keys: ["Ctrl", "W"] },
+  { action: "Accept AI Completion", keys: ["Tab"] },
+  { action: "Dismiss AI Completion", keys: ["Escape"] },
+  { action: "Toggle Terminal", keys: ["Ctrl", "J"] },
+  { action: "Toggle Terminal Alt", keys: ["Ctrl", "`"] },
+  { action: "Toggle Preview", keys: ["Ctrl", "\\"] },
+  { action: "Search in Files", keys: ["Ctrl", "Shift", "F"] },
+  { action: "Search & Replace", keys: ["Ctrl", "H"] },
+  { action: "Version Control", keys: ["Ctrl", "Shift", "G"] },
+];
+
 export const users = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
@@ -12,7 +135,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   githubId: text("github_id"),
-  preferences: json("preferences").$type<{ fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string; activeThemeId?: string | null; agentToolsConfig?: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts?: Record<string, string | null> }>(),
+  preferences: json("preferences").$type<UserPreferencesStored>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

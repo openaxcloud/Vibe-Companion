@@ -90,6 +90,7 @@ interface AIPanelProps {
   onApplyCode?: (filename: string, code: string) => void;
   pendingMessage?: string | null;
   onPendingMessageConsumed?: () => void;
+  onAgentComplete?: () => void;
 }
 
 type AIModel = "claude" | "gpt" | "gemini";
@@ -423,7 +424,7 @@ function parsePlanFromResponse(content: string): { title: string; tasks: PlanTas
   }
 }
 
-function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed }: AIPanelProps) {
+function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -1133,8 +1134,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
+      onAgentComplete?.();
     }
-  }, [messages, model, mode, projectId, context, codeOptimizations, liteMode, agentMode, agentToolsConfig.webSearch, persistMessage, processSSEStream]);
+  }, [messages, model, mode, projectId, context, codeOptimizations, liteMode, agentMode, agentToolsConfig.webSearch, persistMessage, processSSEStream, onAgentComplete]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -1298,7 +1300,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m));
           }
         })
-        .finally(() => { setIsStreaming(false); abortRef.current = null; });
+        .finally(() => { setIsStreaming(false); abortRef.current = null; onAgentComplete?.(); });
       return updatedMessages;
     });
   };
@@ -1533,6 +1535,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
+      onAgentComplete?.();
     }
   };
 

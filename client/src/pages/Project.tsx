@@ -31,6 +31,9 @@ import NetworkingPanel from "@/components/NetworkingPanel";
 import SkillsPanel from "@/components/SkillsPanel";
 import MCPPanel from "@/components/MCPPanel";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
+import UserSettingsPanel from "@/components/UserSettingsPanel";
+import type { UserPreferences } from "@shared/schema";
+import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
 import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
 import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
@@ -56,6 +59,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import AIPanel from "@/components/AIPanel";
+import { playNotificationSound, sendPushNotification } from "@/lib/notifications";
 import ConsolePanel from "@/components/ConsolePanel";
 import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
 import WorkspaceTerminal, { type WorkspaceTerminalHandle } from "@/components/WorkspaceTerminal";
@@ -506,67 +510,123 @@ function _projectPage() {
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
   const gitStateHashRef = useRef<string>("");
   const lastDiffChangesRef = useRef<string>("");
-  const [editorFontSize, setEditorFontSizeLocal] = useState(14);
-  const [editorTabSize, setEditorTabSizeLocal] = useState(2);
-  const [editorWordWrap, setEditorWordWrapLocal] = useState(false);
-  const [editorTheme, setEditorThemeLocal] = useState<string>("dark");
+  const [userPrefs, setUserPrefsLocal] = useState<UserPreferences>({ ...DEFAULT_PREFERENCES });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
+  const editorFontSize = userPrefs.fontSize;
+  const editorTabSize = userPrefs.tabSize;
+  const editorWordWrap = userPrefs.wordWrap;
+  const editorTheme = userPrefs.theme;
+
   useEffect(() => {
-    fetch("/api/user/preferences", { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(prefs => {
-        if (prefs) {
-          setEditorFontSizeLocal(prefs.fontSize ?? 14);
-          setEditorTabSizeLocal(prefs.tabSize ?? 2);
-          setEditorWordWrapLocal(prefs.wordWrap ?? false);
-          setEditorThemeLocal(prefs.theme ?? "dark");
-        }
-        setPrefsLoaded(true);
-      })
-      .catch(() => setPrefsLoaded(true));
+    fetch("/api/user/preferences", { credentials: "include" }).then(r => r.ok ? r.json() : null).then(prefs => {
+      if (prefs) {
+        setUserPrefsLocal(prev => ({ ...prev, ...prefs, agentToolsConfig: { ...prev.agentToolsConfig, ...(prefs.agentToolsConfig || {}) } }));
+      }
+      setPrefsLoaded(true);
+    }).catch(() => setPrefsLoaded(true));
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const communityTheme = userPrefs.communityTheme ? COMMUNITY_THEMES.find(t => t.id === userPrefs.communityTheme) : null;
+    const customTheme = userPrefs.customTheme;
+    if (communityTheme) {
+      root.style.setProperty("--ide-bg", communityTheme.colors.background);
+      root.style.setProperty("--ide-panel", communityTheme.colors.panel);
+      root.style.setProperty("--ide-text", communityTheme.colors.text);
+      root.style.setProperty("--ide-border", communityTheme.colors.border);
+    } else if (customTheme) {
+      root.style.setProperty("--ide-bg", customTheme.colors.background);
+      root.style.setProperty("--ide-panel", customTheme.colors.panel);
+      root.style.setProperty("--ide-text", customTheme.colors.text);
+      root.style.setProperty("--ide-border", customTheme.colors.border);
+    } else {
+      root.style.removeProperty("--ide-bg");
+      root.style.removeProperty("--ide-panel");
+      root.style.removeProperty("--ide-text");
+      root.style.removeProperty("--ide-border");
+    }
+    return () => {
+      root.style.removeProperty("--ide-bg");
+      root.style.removeProperty("--ide-panel");
+      root.style.removeProperty("--ide-text");
+      root.style.removeProperty("--ide-border");
+    };
+  }, [userPrefs.communityTheme, userPrefs.customTheme]);
+
   const savePrefsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savePrefs = useCallback((prefs: { fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string }) => {
+  const savePrefs = useCallback((partial: Partial<UserPreferences>) => {
     if (!prefsLoaded) return;
+    setUserPrefsLocal(prev => ({ ...prev, ...partial }));
     if (savePrefsTimeout.current) clearTimeout(savePrefsTimeout.current);
     savePrefsTimeout.current = setTimeout(() => {
       fetch("/api/user/preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(prefs),
+        body: JSON.stringify(partial),
       }).catch(() => {});
     }, 500);
   }, [prefsLoaded]);
 
+
   const setEditorFontSize = useCallback((v: number | ((prev: number) => number)) => {
-    setEditorFontSizeLocal(prev => {
-      const next = typeof v === "function" ? v(prev) : v;
+    setUserPrefsLocal(prev => {
+      const next = typeof v === "function" ? v(prev.fontSize) : v;
       savePrefs({ fontSize: next });
-      return next;
+      return { ...prev, fontSize: next };
     });
   }, [savePrefs]);
 
   const setEditorTabSize = useCallback((v: number) => {
-    setEditorTabSizeLocal(v);
-    savePrefs({ tabSize: v });
+    savePrefs({ tabSize: v, indentationSize: v });
   }, [savePrefs]);
 
   const setEditorWordWrap = useCallback((v: boolean) => {
-    setEditorWordWrapLocal(v);
     savePrefs({ wordWrap: v });
   }, [savePrefs]);
 
   const setEditorTheme = useCallback((v: string) => {
-    setEditorThemeLocal(v);
     savePrefs({ theme: v });
   }, [savePrefs]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const ct = userPrefs.customTheme;
+    const cid = userPrefs.communityTheme;
+    if (ct) {
+      root.style.setProperty("--ide-bg", ct.colors.background);
+      root.style.setProperty("--ide-panel", ct.colors.panel);
+      root.style.setProperty("--ide-text", ct.colors.text);
+      root.style.setProperty("--ide-border", ct.colors.border);
+      root.classList.add("dark");
+    } else if (cid) {
+      const found = COMMUNITY_THEMES.find(t => t.id === cid);
+      if (found) {
+        root.style.setProperty("--ide-bg", found.colors.background);
+        root.style.setProperty("--ide-panel", found.colors.panel);
+        root.style.setProperty("--ide-text", found.colors.text);
+        root.style.setProperty("--ide-border", found.colors.border);
+        root.classList.add("dark");
+      }
+    } else {
+      root.style.removeProperty("--ide-bg");
+      root.style.removeProperty("--ide-panel");
+      root.style.removeProperty("--ide-text");
+      root.style.removeProperty("--ide-border");
+    }
+    return () => {
+      root.style.removeProperty("--ide-bg");
+      root.style.removeProperty("--ide-panel");
+      root.style.removeProperty("--ide-text");
+      root.style.removeProperty("--ide-border");
+    };
+  }, [userPrefs.communityTheme, userPrefs.customTheme]);
+
   const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);
-  const [showMinimap, setShowMinimap] = useState(true);
+  const showMinimap = userPrefs.minimap;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { matchesCommand, getShortcutDisplay } = useKeyboardShortcuts();
   const [fileDragOver, setFileDragOver] = useState(false);
@@ -701,6 +761,11 @@ function _projectPage() {
       setStagedFiles(new Set());
     }
   }, [gitDiffQuery.data?.changes]);
+
+  const gitChangedFilenames = useMemo(() => {
+    if (!userPrefs.filetreeGitStatus || !gitDiffQuery.data?.changes?.length) return new Set<string>();
+    return new Set(gitDiffQuery.data.changes.map((c: { filename: string }) => c.filename));
+  }, [gitDiffQuery.data?.changes, userPrefs.filetreeGitStatus]);
 
   const blameFilename = useMemo(() => {
     if (!blameEnabled || !activeFileId || isSpecialTab(activeFileId)) return null;
@@ -872,6 +937,7 @@ function _projectPage() {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "f" && (activeFileId === SPECIAL_TABS.SHELL || bottomTab === "shell")) {
         e.preventDefault();
         setShellSearchOpen(true);
+        return;
       }
       if (matchesCommand("toggle-sidebar", e)) {
         e.preventDefault();
@@ -1226,10 +1292,12 @@ function _projectPage() {
       const html = generateHtmlPreview();
       if (html) {
         setPreviewHtml(html);
-        if (!isMobile) {
-          setPreviewPanelOpen(true);
-        } else {
-          openSpecialTab(SPECIAL_TABS.WEBVIEW);
+        if (userPrefs.automaticPreview) {
+          if (!isMobile) {
+            setPreviewPanelOpen(true);
+          } else {
+            openSpecialTab(SPECIAL_TABS.WEBVIEW);
+          }
         }
         setLogs((prev) => [...prev, {
           id: Date.now(),
@@ -1266,6 +1334,11 @@ function _projectPage() {
   }, [projectId]);
 
   const [pendingAIMessage, setPendingAIMessage] = useState<string | null>(null);
+
+  const handleAgentComplete = useCallback(() => {
+    if (userPrefs.agentAudioNotification) playNotificationSound();
+    if (userPrefs.agentPushNotification) sendPushNotification("AI Agent", "Your AI agent has finished responding.");
+  }, [userPrefs.agentAudioNotification, userPrefs.agentPushNotification]);
 
   const handleAskAIFromConsole = useCallback((logContent: string) => {
     const message = `Please analyze these console logs and help me debug any issues:\n\n\`\`\`\n${logContent.slice(0, 4000)}\n\`\`\``;
@@ -1989,7 +2062,7 @@ function _projectPage() {
   }, [projectId]);
 
   useEffect(() => {
-    if (wsStatus === "running" && projectId) {
+    if (wsStatus === "running" && projectId && userPrefs.forwardPorts) {
       fetch(`/api/workspaces/${projectId}/preview-url`, { credentials: "include" })
         .then((r) => {
           if (!r.ok) throw new Error("Failed to get preview URL");
@@ -1997,13 +2070,15 @@ function _projectPage() {
         })
         .then((d) => {
           setLivePreviewUrl(d.previewUrl);
-          if (d.previewUrl) setPreviewPanelOpen(true);
+          if (d.previewUrl && userPrefs.automaticPreview) setPreviewPanelOpen(true);
         })
         .catch(() => setLivePreviewUrl(null));
+    } else if (!userPrefs.forwardPorts) {
+      setLivePreviewUrl(null);
     } else {
       setLivePreviewUrl(null);
     }
-  }, [wsStatus, projectId]);
+  }, [wsStatus, projectId, userPrefs.forwardPorts]);
 
   const initWorkspaceMutation = useMutation({
     mutationFn: async () => {
@@ -2745,9 +2820,10 @@ function _projectPage() {
                         data-testid={`file-item-${file.id}`}
                       >
                         <FileTypeIcon filename={node.name} />
-                        <span className="flex-1 text-[12px] truncate">{node.name}</span>
+                        <span className={`flex-1 text-[12px] truncate ${gitChangedFilenames.has(file.filename) ? "text-[#0CCE6B]" : ""}`}>{node.name}</span>
                         {file.filename === "ecode.md" && <span className="text-[8px] px-1 py-0.5 rounded bg-[#7C65CB]/15 text-[#7C65CB] font-semibold shrink-0" data-testid="badge-ecode-file">Config</span>}
                         {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                        {gitChangedFilenames.has(file.filename) && <div className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] shrink-0" data-testid={`git-status-${file.id}`} />}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0" onClick={(e) => e.stopPropagation()} data-testid={`button-more-${file.id}`}>
@@ -3362,6 +3438,8 @@ function _projectPage() {
               runnerOffline={runnerOnline === false}
               visible={activeFileId === SPECIAL_TABS.SHELL && i === activeShellIndex}
               onLastCommand={(cmd) => handleShellLastCommand(session.sessionId, cmd)}
+              shellBell={userPrefs.shellBell}
+              accessibleTerminal={userPrefs.accessibleTerminal}
             />
           </div>
         ))}
@@ -3446,7 +3524,7 @@ function _projectPage() {
                     </p>
                   </div>
                 ) : (
-                  <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={true} />
+                  <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={userPrefs.aiCodeCompletion} autoCloseBrackets={userPrefs.autoCloseBrackets} indentationChar={userPrefs.indentationChar} minimap={userPrefs.minimap} indentOnInput={userPrefs.indentationDetection} multiselectModifier={userPrefs.multiselectModifier} semanticTokens={userPrefs.semanticTokens} formatPastedText={userPrefs.formatPastedText} acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit} />
                 )}
               </div>
               {splitEditorFileId && (
@@ -3497,6 +3575,14 @@ function _projectPage() {
                         fontSize={editorFontSize}
                         tabSize={editorTabSize}
                         wordWrap={editorWordWrap}
+                        autoCloseBrackets={userPrefs.autoCloseBrackets}
+                        indentationChar={userPrefs.indentationChar}
+                        aiCompletions={userPrefs.aiCodeCompletion}
+                        indentOnInput={userPrefs.indentationDetection}
+                        multiselectModifier={userPrefs.multiselectModifier}
+                        semanticTokens={userPrefs.semanticTokens}
+                        formatPastedText={userPrefs.formatPastedText}
+                        acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit}
                       />
                     </div>
                   </div>
@@ -3742,6 +3828,8 @@ function _projectPage() {
               runnerOffline={runnerOnline === false}
               visible={bottomTab === "shell" && i === activeShellIndex}
               onLastCommand={(cmd) => handleShellLastCommand(session.sessionId, cmd)}
+              shellBell={userPrefs.shellBell}
+              accessibleTerminal={userPrefs.accessibleTerminal}
             />
           </div>
         ))}
@@ -4135,6 +4223,7 @@ function _projectPage() {
                     files={filesQuery.data}
                     pendingMessage={pendingAIMessage}
                     onPendingMessageConsumed={() => setPendingAIMessage(null)}
+                    onAgentComplete={handleAgentComplete}
                     onFileCreated={(file) => {
                       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                       setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
@@ -4511,89 +4600,13 @@ function _projectPage() {
               )}
               {mobileTab === "settings" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
-                  <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Settings</span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto">
-                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Theme</span>
-                      <div className="mt-2 flex gap-2">
-                        <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "dark" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("dark")} data-testid="mobile-button-theme-dark">
-                          <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] border border-[var(--ide-border)]" /> Dark
-                        </button>
-                        <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "light" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("light")} data-testid="mobile-button-theme-light">
-                          <span className="w-4 h-4 rounded-full bg-white border border-gray-300" /> Light
-                        </button>
-                      </div>
-                    </div>
-                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Editor</span>
-                      <div className="mt-2 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Font Size</span>
-                          <div className="flex items-center gap-1.5">
-                            <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.max(10, editorFontSize - 1))} data-testid="mobile-button-font-size-decrease"><span className="text-xs font-bold">−</span></Button>
-                            <span className="text-[11px] text-[var(--ide-text)] w-6 text-center font-mono" data-testid="mobile-text-font-size">{editorFontSize}</span>
-                            <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.min(24, editorFontSize + 1))} data-testid="mobile-button-font-size-increase"><span className="text-xs font-bold">+</span></Button>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Tab Size</span>
-                          <div className="flex items-center gap-1">
-                            {[2, 4].map((size) => (
-                              <button key={size} onClick={() => setEditorTabSize(size)} className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${editorTabSize === size ? "bg-[#0079F2] text-white" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] border border-[var(--ide-border)]"}`} data-testid={`mobile-button-tab-size-${size}`}>
-                                {size}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Word Wrap</span>
-                          <Switch checked={editorWordWrap} onCheckedChange={setEditorWordWrap} data-testid="mobile-switch-word-wrap" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Project</span>
-                      <div className="mt-2 space-y-0.5">
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { setMobileTab("editor"); setProjectSettingsOpen(true); }} data-testid="mobile-button-open-project-settings">
-                          <Settings className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
-                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Project Settings</span>
-                          <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
-                        </button>
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { setMobileTab("editor"); openPanel("envVars"); }} data-testid="mobile-button-open-env-vars">
-                          <Key className="w-3.5 h-3.5 text-[#F5A623]" />
-                          <span className="text-[11px] text-[var(--ide-text-secondary)]">Secrets</span>
-                          <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="px-3 py-3">
-                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">About</span>
-                      <div className="mt-2 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-[var(--ide-text-muted)]">Version</span>
-                          <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">1.0.0</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-[var(--ide-text-muted)]">Runtime</span>
-                          <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">Node.js</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-[var(--ide-text-muted)]">Editor</span>
-                          <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">CodeMirror 6</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--ide-border)]">
-                          <svg width="10" height="10" viewBox="0 0 32 32" fill="none">
-                            <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-                            <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-                            <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-                          </svg>
-                          <span className="text-[10px] text-[var(--ide-text-muted)]">Powered by E-Code</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <UserSettingsPanel
+                    prefs={userPrefs}
+                    onPrefsChange={savePrefs}
+                    onClose={() => setMobileTab("editor")}
+                    onOpenProjectSettings={() => { setMobileTab("editor"); setProjectSettingsOpen(true); }}
+                    onOpenEnvVars={() => { setMobileTab("editor"); openPanel("envVars"); }}
+                  />
                 </div>
               )}
             </div>
@@ -5054,6 +5067,7 @@ function _projectPage() {
                   files={filesQuery.data}
                   pendingMessage={pendingAIMessage}
                   onPendingMessageConsumed={() => setPendingAIMessage(null)}
+                  onAgentComplete={handleAgentComplete}
                   onFileCreated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
@@ -6436,100 +6450,13 @@ function _projectPage() {
             )}
 
             {activePanelTab === "settings" && (
-              <div className="flex-1 flex flex-col" data-testid="settings-panel">
-                <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
-                  <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Settings</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => closePanel("settings")} data-testid="button-close-settings">
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Theme</span>
-                    <div className="mt-2 flex gap-2">
-                      <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "dark" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("dark")} data-testid="button-theme-dark">
-                        <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] border border-[var(--ide-border)]" />
-                        Dark
-                      </button>
-                      <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "light" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("light")} data-testid="button-theme-light">
-                        <span className="w-4 h-4 rounded-full bg-white border border-gray-300" />
-                        Light
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Editor</span>
-                    <div className="mt-2 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Font Size</span>
-                        <div className="flex items-center gap-1.5">
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.max(10, editorFontSize - 1))} data-testid="button-font-size-decrease">
-                            <span className="text-xs font-bold">−</span>
-                          </Button>
-                          <span className="text-[11px] text-[var(--ide-text)] w-6 text-center font-mono" data-testid="text-font-size">{editorFontSize}</span>
-                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded" onClick={() => setEditorFontSize(Math.min(24, editorFontSize + 1))} data-testid="button-font-size-increase">
-                            <span className="text-xs font-bold">+</span>
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Tab Size</span>
-                        <div className="flex items-center gap-1">
-                          {[2, 4].map((size) => (
-                            <button key={size} onClick={() => setEditorTabSize(size)} className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${editorTabSize === size ? "bg-[#0079F2] text-white" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] border border-[var(--ide-border)]"}`} data-testid={`button-tab-size-${size}`}>
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Word Wrap</span>
-                        <Switch checked={editorWordWrap} onCheckedChange={setEditorWordWrap} data-testid="switch-word-wrap" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Project</span>
-                    <div className="mt-2 space-y-0.5">
-                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { closePanel("settings"); setProjectSettingsOpen(true); }} data-testid="button-open-project-settings">
-                        <Settings className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
-                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Project Settings</span>
-                        <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
-                      </button>
-                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-[var(--ide-surface)] transition-colors text-left" onClick={() => { openPanel("envVars"); }} data-testid="button-open-env-vars">
-                        <Key className="w-3.5 h-3.5 text-[#F5A623]" />
-                        <span className="text-[11px] text-[var(--ide-text-secondary)]">Secrets</span>
-                        <ChevronRight className="w-3 h-3 text-[#4A5068] ml-auto" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 py-3">
-                    <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">About</span>
-                    <div className="mt-2 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[var(--ide-text-muted)]">Version</span>
-                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">1.0.0</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[var(--ide-text-muted)]">Runtime</span>
-                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">Node.js</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[var(--ide-text-muted)]">Editor</span>
-                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">CodeMirror 6</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--ide-border)]">
-                        <svg width="10" height="10" viewBox="0 0 32 32" fill="none">
-                          <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-                          <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-                          <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-                        </svg>
-                        <span className="text-[10px] text-[var(--ide-text-muted)]">Powered by E-Code</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <UserSettingsPanel
+                prefs={userPrefs}
+                onPrefsChange={savePrefs}
+                onClose={() => closePanel("settings")}
+                onOpenProjectSettings={() => { closePanel("settings"); setProjectSettingsOpen(true); }}
+                onOpenEnvVars={() => openPanel("envVars")}
+              />
             )}
 
                 </div>

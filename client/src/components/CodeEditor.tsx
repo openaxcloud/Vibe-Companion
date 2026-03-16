@@ -42,6 +42,14 @@ interface CodeEditorProps {
   wordWrap?: boolean;
   blameData?: BlameEntry[];
   aiCompletions?: boolean;
+  autoCloseBrackets?: boolean;
+  indentationChar?: "spaces" | "tabs";
+  minimap?: boolean;
+  indentOnInput?: boolean;
+  multiselectModifier?: "Alt" | "Ctrl" | "Meta";
+  semanticTokens?: boolean;
+  formatPastedText?: boolean;
+  acceptSuggestionOnCommit?: boolean;
 }
 
 function buildHighlightStyle(sc: SyntaxColors): HighlightStyle {
@@ -877,21 +885,34 @@ function createPythonLinter() {
   });
 }
 
-function getAutocompleteExtension(lang: string) {
+const COMMIT_CHARS = [".", "(", ")", ";", ",", "[", "]", "{", "}", "'", '"', "`"];
+
+function wrapWithCommitChars(source: (ctx: CompletionContext) => any, acceptOnCommit: boolean) {
+  return async (ctx: CompletionContext) => {
+    const result = await source(ctx);
+    if (!result) return result;
+    if (acceptOnCommit) {
+      return { ...result, commitCharacters: COMMIT_CHARS };
+    }
+    return { ...result, commitCharacters: [] };
+  };
+}
+
+function getAutocompleteExtension(lang: string, acceptOnCommit: boolean) {
   switch (lang) {
     case "javascript":
       return [
-        autocompletion({ override: [jsAutocomplete] }),
+        autocompletion({ override: [wrapWithCommitChars(jsAutocomplete, acceptOnCommit)] }),
         createJsLinter(false),
       ];
     case "typescript":
       return [
-        autocompletion({ override: [tsAutocomplete] }),
+        autocompletion({ override: [wrapWithCommitChars(tsAutocomplete, acceptOnCommit)] }),
         createJsLinter(true),
       ];
     case "python":
       return [
-        autocompletion({ override: [pythonAutocomplete] }),
+        autocompletion({ override: [wrapWithCommitChars(pythonAutocomplete, acceptOnCommit)] }),
         createPythonLinter(),
       ];
     default:
@@ -978,7 +999,43 @@ function detectLanguage(filename: string): string {
 
 export { detectLanguage };
 
-export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false }: CodeEditorProps) {
+function createPasteFormatterExtension() {
+  return EditorView.domEventHandlers({
+    paste(event: ClipboardEvent, view: EditorView) {
+      const clipText = event.clipboardData?.getData("text/plain");
+      if (!clipText || !clipText.includes("\n")) return false;
+
+      event.preventDefault();
+
+      const state = view.state;
+      const { from } = state.selection.main;
+      const currentLine = state.doc.lineAt(from);
+      const leadingMatch = currentLine.text.match(/^(\s*)/);
+      const baseIndent = leadingMatch ? leadingMatch[1] : "";
+
+      const lines = clipText.split("\n");
+      const pastedLeadingSpaces = lines.filter(l => l.trim().length > 0).map(l => {
+        const m = l.match(/^(\s*)/);
+        return m ? m[1].length : 0;
+      });
+      const minIndent = pastedLeadingSpaces.length > 0 ? Math.min(...pastedLeadingSpaces) : 0;
+
+      const formatted = lines.map((line, i) => {
+        if (i === 0) return line.trimStart();
+        const stripped = line.length >= minIndent ? line.slice(minIndent) : line.trimStart();
+        return baseIndent + stripped;
+      }).join("\n");
+
+      view.dispatch({
+        changes: { from: state.selection.main.from, to: state.selection.main.to, insert: formatted },
+        selection: { anchor: from + formatted.length },
+      });
+      return true;
+    },
+  });
+}
+
+export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false, autoCloseBrackets: autoCloseBracketsEnabled = true, indentationChar = "spaces", minimap: showMinimap = true, indentOnInput: indentOnInputProp = true, multiselectModifier = "Alt", semanticTokens = true, formatPastedText = true, acceptSuggestionOnCommit = true }: CodeEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const onCursorChangeRef = useRef(onCursorChange);
   onCursorChangeRef.current = onCursorChange;
@@ -1008,12 +1065,13 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
   );
 
   const extensions = useMemo(() => {
+    const indentStr = indentationChar === "tabs" ? "\t" : " ".repeat(tabSize);
     const ext = [
       getLanguageExtension(language),
-      ...getAutocompleteExtension(language),
-      editorTheme,
-      syntaxHighlighting(highlightStyle),
-      indentUnit.of(" ".repeat(tabSize)),
+      ...getAutocompleteExtension(language, acceptSuggestionOnCommit),
+      replitTheme,
+      ...(semanticTokens ? [syntaxHighlighting(replitHighlight)] : []),
+      indentUnit.of(indentStr),
       cursorTracker,
       blameField,
       search({ top: true }),
@@ -1023,8 +1081,12 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     if (wordWrap) ext.push(EditorView.lineWrapping);
     if (readOnly) ext.push(EditorView.editable.of(false));
     if (aiCompletions && !readOnly) ext.push(...inlineAICompletion(language));
+    if (formatPastedText && !readOnly) ext.push(createPasteFormatterExtension());
+    if (multiselectModifier !== "Alt") {
+      ext.push(EditorView.mouseSelectionStyle.of(() => null));
+    }
     return ext;
-  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, editorTheme, highlightStyle]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, indentationChar, multiselectModifier, semanticTokens, formatPastedText, acceptSuggestionOnCommit]);
 
   useEffect(() => {
     const view = editorRef.current?.view;
@@ -1043,10 +1105,10 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       basicSetup={{
         lineNumbers: true,
         bracketMatching: true,
-        closeBrackets: true,
+        closeBrackets: autoCloseBracketsEnabled,
         autocompletion: false,
         highlightActiveLine: true,
-        indentOnInput: true,
+        indentOnInput: indentOnInputProp,
         searchKeymap: true,
         foldGutter: true,
         tabSize,

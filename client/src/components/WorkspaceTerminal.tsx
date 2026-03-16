@@ -11,6 +11,8 @@ interface WorkspaceTerminalProps {
   runnerOffline: boolean;
   visible: boolean;
   onLastCommand?: (command: string) => void;
+  shellBell?: boolean;
+  accessibleTerminal?: boolean;
 }
 
 export interface WorkspaceTerminalHandle {
@@ -43,7 +45,7 @@ const THEME = {
 };
 
 const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalProps>(
-  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand }, ref) {
+  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand, shellBell = false, accessibleTerminal = false }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -83,7 +85,9 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
       theme: THEME,
       allowProposedApi: true,
       scrollback: 5000,
-    });
+      screenReaderMode: accessibleTerminal,
+      bellStyle: shellBell ? "sound" : "none",
+    } as any);
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();

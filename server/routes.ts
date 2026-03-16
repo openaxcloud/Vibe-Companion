@@ -1514,6 +1514,16 @@ export async function registerRoutes(
 
   app.put("/api/user/preferences", requireAuth, async (req: Request, res: Response) => {
     try {
+      const customThemeSchema = z.object({
+        name: z.string(),
+        colors: z.object({
+          background: z.string(),
+          text: z.string(),
+          accent: z.string(),
+          panel: z.string(),
+          border: z.string(),
+        }),
+      });
       const schema = z.object({
         fontSize: z.number().int().min(10).max(24).optional(),
         tabSize: z.number().int().min(1).max(8).optional(),
@@ -1528,6 +1538,25 @@ export async function registerRoutes(
           architect: z.boolean().optional(),
         }).optional(),
         keyboardShortcuts: z.record(z.string().nullable()).optional(),
+        autoCloseBrackets: z.boolean().optional(),
+        indentationDetection: z.boolean().optional(),
+        formatPastedText: z.boolean().optional(),
+        indentationChar: z.enum(["spaces", "tabs"]).optional(),
+        indentationSize: z.number().int().refine(v => [2, 4, 8].includes(v)).optional(),
+        minimap: z.boolean().optional(),
+        multiselectModifier: z.enum(["Alt", "Ctrl", "Meta"]).optional(),
+        filetreeGitStatus: z.boolean().optional(),
+        semanticTokens: z.boolean().optional(),
+        aiCodeCompletion: z.boolean().optional(),
+        acceptSuggestionOnCommit: z.boolean().optional(),
+        shellBell: z.boolean().optional(),
+        automaticPreview: z.boolean().optional(),
+        forwardPorts: z.boolean().optional(),
+        agentAudioNotification: z.boolean().optional(),
+        agentPushNotification: z.boolean().optional(),
+        accessibleTerminal: z.boolean().optional(),
+        customTheme: customThemeSchema.nullable().optional(),
+        communityTheme: z.string().nullable().optional(),
       });
       const prefs = schema.parse(req.body);
       const updated = await storage.updateUserPreferences(req.session.userId!, prefs);
