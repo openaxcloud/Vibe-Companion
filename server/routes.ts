@@ -42,6 +42,7 @@ import { getConnectorKey, getSupportedConnectors, getConnectorOperations, execut
 import path, { posix as pathPosix } from "path";
 import { generateImageBuffer, editImages } from "./replit_integrations/image/client";
 import { registerImageRoutes } from "./replit_integrations/image";
+import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "./fileGeneration";
 
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
@@ -5170,11 +5171,72 @@ Rules:
 
   const agentFileOpsCount = { value: 0 };
 
+  interface GeneratedFileEntry {
+    projectId: string;
+    filename: string;
+    storagePath: string;
+    mimeType: string;
+    size: number;
+  }
+
+  const generatedFileRegistry = new Map<string, GeneratedFileEntry>();
+
+  async function persistGeneratedFileMeta(fileId: string, entry: GeneratedFileEntry): Promise<void> {
+    const fs = await import("fs/promises");
+    const metaPath = entry.storagePath + ".meta.json";
+    await fs.writeFile(metaPath, JSON.stringify({ fileId, ...entry }), "utf-8");
+    generatedFileRegistry.set(fileId, entry);
+  }
+
+  async function loadGeneratedFileMeta(projectId: string, fileId: string): Promise<GeneratedFileEntry | undefined> {
+    const cached = generatedFileRegistry.get(fileId);
+    if (cached && cached.projectId === projectId) return cached;
+
+    const fs = await import("fs");
+    const fsp = await import("fs/promises");
+    const generatedDir = path.join(process.cwd(), ".storage", "generated", projectId);
+    try {
+      const files = await fsp.readdir(generatedDir);
+      for (const f of files) {
+        if (!f.endsWith(".meta.json")) continue;
+        try {
+          const raw = await fsp.readFile(path.join(generatedDir, f), "utf-8");
+          const meta = JSON.parse(raw);
+          if (meta.fileId === fileId && meta.projectId === projectId) {
+            const entry: GeneratedFileEntry = {
+              projectId: meta.projectId,
+              filename: meta.filename,
+              storagePath: meta.storagePath,
+              mimeType: meta.mimeType,
+              size: meta.size,
+            };
+            generatedFileRegistry.set(fileId, entry);
+            return entry;
+          }
+        } catch {}
+      }
+    } catch {}
+    return undefined;
+  }
+
+  interface AgentToolInput {
+    filename: string;
+    content: string;
+    name?: string;
+    description?: string;
+    prompt?: string;
+    size?: string;
+    modification_prompt?: string;
+    format?: string;
+    title?: string;
+    sections?: FileSection[];
+  }
+
   const executeToolCall = async (
     toolName: string,
-    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string; query?: string; url?: string; [key: string]: any },
+    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string; query?: string; url?: string; format?: string; title?: string; sections?: FileSection[]; [key: string]: any },
     projectId: string,
-    existingFiles: any[],
+    existingFiles: { id: string; filename: string; content: string }[],
     res: Response,
     modifiedFiles?: Set<string>,
     mcpDefs?: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[]
@@ -5311,6 +5373,66 @@ Rules:
         } finally {
           try { fs.unlinkSync(tmpPath); } catch {}
         }
+      }
+      if (toolName === "generate_file") {
+        const format = toolInput.format;
+        const filename = toolInput.filename;
+        const title = toolInput.title;
+        const sections = toolInput.sections;
+
+        if (!format || !["pdf", "docx", "xlsx", "csv"].includes(format)) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid format. Use pdf, docx, xlsx, or csv." })}\n\n`);
+          return "Error: invalid format";
+        }
+        if (!filename) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Filename is required" })}\n\n`);
+          return "Error: filename required";
+        }
+        if (!sections || !Array.isArray(sections) || sections.length === 0) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "At least one section is required" })}\n\n`);
+          return "Error: sections required";
+        }
+
+        const safeName = sanitizeAIFilename(filename);
+        if (!safeName) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid filename" })}\n\n`);
+          return "Error: invalid filename";
+        }
+
+        const validFormat = format as "pdf" | "docx" | "xlsx" | "csv";
+        const fileBuffer = await generateFile({ format: validFormat, filename: safeName, title, sections });
+
+        const fsModule = await import("fs");
+        const { mkdir } = await import("fs/promises");
+        const generatedDir = path.join(process.cwd(), ".storage", "generated", projectId);
+        await mkdir(generatedDir, { recursive: true });
+        const storagePath = path.join(generatedDir, `${Date.now()}_${safeName}`);
+        fsModule.writeFileSync(storagePath, fileBuffer);
+
+        const fileId = crypto.randomUUID();
+        const mimeType = getMimeType(validFormat);
+        await persistGeneratedFileMeta(fileId, {
+          projectId,
+          filename: safeName,
+          storagePath,
+          mimeType,
+          size: fileBuffer.length,
+        });
+
+        const downloadUrl = `/api/projects/${projectId}/generated-files/${fileId}/download`;
+        const sizeKB = (fileBuffer.length / 1024).toFixed(1);
+
+        res.write(`data: ${JSON.stringify({
+          type: "file_generated",
+          filename: safeName,
+          format: validFormat,
+          downloadUrl,
+          mimeType,
+          size: fileBuffer.length,
+        })}\n\n`);
+
+        if (modifiedFiles) modifiedFiles.add(safeName);
+        return `File generated: ${safeName} (${validFormat.toUpperCase()}, ${sizeKB} KB). Download URL: ${downloadUrl}`;
       }
       if (toolName === "query_connector" || toolName === "write_connector") {
         const connectorName = (toolInput as any).connector;
@@ -5498,6 +5620,8 @@ When the user asks you to generate an image, use the generate_image tool. Choose
 
 When the user asks you to modify or refine an existing generated image, use the edit_image tool with the existing filename and a description of the changes.
 
+When the user asks you to generate a document, report, spreadsheet, or data export, use the generate_file tool. Supported formats: pdf, docx, xlsx, csv. Structure the content using sections with types: heading (with level 1-3), paragraph, table (with headers and rows arrays), and list (with items array). Choose an appropriate filename with the correct extension.
+
 When the user asks about data from connected services (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex), use the query_connector tool to read data or write_connector to create/update data. Available connectors and operations:
 ${getConnectorDescription()}
 
@@ -5584,6 +5708,35 @@ Always cite your sources in your response when using information from web search
                   modification_prompt: { type: Type.STRING, description: "Description of the changes to make to the image" },
                 },
                 required: ["filename", "modification_prompt"],
+              },
+            },
+            {
+              name: "generate_file",
+              description: "Generate a downloadable file (PDF, DOCX, XLSX, or CSV) with structured content including headings, paragraphs, tables, and lists",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  format: { type: Type.STRING, description: "File format: 'pdf', 'docx', 'xlsx', or 'csv'" },
+                  filename: { type: Type.STRING, description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx')" },
+                  title: { type: Type.STRING, description: "Document title (optional)" },
+                  sections: {
+                    type: Type.ARRAY,
+                    description: "Array of content sections",
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        type: { type: Type.STRING, description: "Section type: 'heading', 'paragraph', 'table', or 'list'" },
+                        content: { type: Type.STRING, description: "Text content for heading or paragraph sections" },
+                        level: { type: Type.NUMBER, description: "Heading level (1-3), only for heading type" },
+                        headers: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Column headers for table type" },
+                        rows: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } }, description: "Data rows for table type" },
+                        items: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List items for list type" },
+                      },
+                      required: ["type"],
+                    },
+                  },
+                },
+                required: ["format", "filename", "sections"],
               },
             },
             {
@@ -5684,7 +5837,7 @@ Always cite your sources in your response when using information from web search
               const fn = part.functionCall;
               const toolInput = fn.args as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
@@ -5794,6 +5947,38 @@ Always cite your sources in your response when using information from web search
           {
             type: "function",
             function: {
+              name: "generate_file",
+              description: "Generate a downloadable file (PDF, DOCX, XLSX, or CSV) with structured content including headings, paragraphs, tables, and lists",
+              parameters: {
+                type: "object",
+                properties: {
+                  format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv"], description: "File format" },
+                  filename: { type: "string", description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx')" },
+                  title: { type: "string", description: "Document title (optional)" },
+                  sections: {
+                    type: "array",
+                    description: "Array of content sections",
+                    items: {
+                      type: "object",
+                      properties: {
+                        type: { type: "string", enum: ["heading", "paragraph", "table", "list"], description: "Section type" },
+                        content: { type: "string", description: "Text content for heading or paragraph sections" },
+                        level: { type: "number", description: "Heading level (1-3), only for heading type" },
+                        headers: { type: "array", items: { type: "string" }, description: "Column headers for table type" },
+                        rows: { type: "array", items: { type: "array", items: { type: "string" } }, description: "Data rows for table type" },
+                        items: { type: "array", items: { type: "string" }, description: "List items for list type" },
+                      },
+                      required: ["type"],
+                    },
+                  },
+                },
+                required: ["format", "filename", "sections"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
               name: "query_connector",
               description: "Read data from a connected external service (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex)",
               parameters: {
@@ -5893,7 +6078,7 @@ Always cite your sources in your response when using information from web search
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
@@ -5985,6 +6170,35 @@ Always cite your sources in your response when using information from web search
             },
           },
           {
+            name: "generate_file",
+            description: "Generate a downloadable file (PDF, DOCX, XLSX, or CSV) with structured content including headings, paragraphs, tables, and lists",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv"], description: "File format" },
+                filename: { type: "string", description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx')" },
+                title: { type: "string", description: "Document title (optional)" },
+                sections: {
+                  type: "array",
+                  description: "Array of content sections",
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", enum: ["heading", "paragraph", "table", "list"], description: "Section type" },
+                      content: { type: "string", description: "Text content for heading or paragraph sections" },
+                      level: { type: "number", description: "Heading level (1-3), only for heading type" },
+                      headers: { type: "array", items: { type: "string" }, description: "Column headers for table type" },
+                      rows: { type: "array", items: { type: "array", items: { type: "string" } }, description: "Data rows for table type" },
+                      items: { type: "array", items: { type: "string" }, description: "List items for list type" },
+                    },
+                    required: ["type"],
+                  },
+                },
+              },
+              required: ["format", "filename", "sections"],
+            },
+          },
+          {
             name: "query_connector",
             description: "Read data from a connected external service (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex)",
             input_schema: {
@@ -6068,7 +6282,7 @@ Always cite your sources in your response when using information from web search
             } else if (block.type === "tool_use") {
               const input = block.input as any;
 
-              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
@@ -7809,6 +8023,88 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.json(usage);
     } catch {
       res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  // --- GENERATED FILE DOWNLOAD ---
+  app.get("/api/projects/:id/generated-files/:fileId/download", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const entry = await loadGeneratedFileMeta(req.params.id, req.params.fileId);
+      if (!entry) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      const { createReadStream } = await import("fs");
+      const { stat } = await import("fs/promises");
+
+      try {
+        await stat(entry.storagePath);
+      } catch {
+        return res.status(404).json({ message: "File not found on disk" });
+      }
+
+      res.setHeader("Content-Type", entry.mimeType);
+      const encodedFilename = encodeURIComponent(entry.filename).replace(/'/g, "%27");
+      res.setHeader("Content-Disposition", `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
+      createReadStream(entry.storagePath).pipe(res);
+    } catch {
+      res.status(500).json({ message: "Download failed" });
+    }
+  });
+
+  app.post("/api/projects/:id/generate-file", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const { format, filename, title, sections } = req.body;
+
+      if (!format || !["pdf", "docx", "xlsx", "csv"].includes(format)) {
+        return res.status(400).json({ message: "Invalid format. Use pdf, docx, xlsx, or csv." });
+      }
+      if (!filename || typeof filename !== "string") {
+        return res.status(400).json({ message: "Filename is required" });
+      }
+      if (!sections || !Array.isArray(sections) || sections.length === 0) {
+        return res.status(400).json({ message: "At least one section is required" });
+      }
+
+      const safeName = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+      if (!safeName || safeName.startsWith(".")) {
+        return res.status(400).json({ message: "Invalid filename" });
+      }
+
+      const fileBuffer = await generateFile({ format, filename: safeName, title, sections });
+
+      const fs = await import("fs");
+      const { mkdir } = await import("fs/promises");
+      const generatedDir = path.join(process.cwd(), ".storage", "generated", req.params.id);
+      await mkdir(generatedDir, { recursive: true });
+      const storagePath = path.join(generatedDir, `${Date.now()}_${safeName}`);
+      fs.writeFileSync(storagePath, fileBuffer);
+
+      const fileId = crypto.randomUUID();
+      const mimeType = getMimeType(format);
+      await persistGeneratedFileMeta(fileId, {
+        projectId: req.params.id,
+        filename: safeName,
+        storagePath,
+        mimeType,
+        size: fileBuffer.length,
+      });
+
+      const downloadUrl = `/api/projects/${req.params.id}/generated-files/${fileId}/download`;
+
+      res.json({
+        filename: safeName,
+        format,
+        downloadUrl,
+        mimeType,
+        size: fileBuffer.length,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "File generation failed" });
     }
   });
 

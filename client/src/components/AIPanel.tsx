@@ -33,6 +33,14 @@ interface WebSearchResult {
   snippet: string;
 }
 
+interface GeneratedFile {
+  filename: string;
+  format: string;
+  downloadUrl: string;
+  mimeType: string;
+  size: number;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -42,6 +50,7 @@ interface ChatMessage {
   attachments?: Attachment[];
   inlineImages?: { filename: string; dataUri: string }[];
   webSearchResults?: WebSearchResult[];
+  generatedFiles?: GeneratedFile[];
 }
 
 interface QueuedMsg {
@@ -526,6 +535,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     let buffer = "";
     const fileOps: { type: "created" | "updated"; filename: string }[] = [];
     const inlineImages: { filename: string; dataUri: string }[] = [];
+    const generatedFiles: GeneratedFile[] = [];
 
     while (true) {
       const { done, value } = await reader.read();
@@ -544,6 +554,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               setMessages((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
               );
+            } else if (data.type === "file_generated") {
+              generatedFiles.push({
+                filename: data.filename,
+                format: data.format,
+                downloadUrl: data.downloadUrl,
+                mimeType: data.mimeType,
+                size: data.size,
+              });
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  content: m.content + `\n\n> Generated \`${data.filename}\`\n`,
+                  generatedFiles: [...(m.generatedFiles || []), {
+                    filename: data.filename,
+                    format: data.format,
+                    downloadUrl: data.downloadUrl,
+                    mimeType: data.mimeType,
+                    size: data.size,
+                  }],
+                } : m)
+              );
             } else if (data.type === "tool_use") {
               let toolMsg: string;
               if (data.name === "create_skill") {
@@ -552,6 +583,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 toolMsg = `\n\n> Generating image \`${data.input.filename}\`...\n`;
               } else if (data.name === "edit_image") {
                 toolMsg = `\n\n> Editing image \`${data.input.filename}\`...\n`;
+              } else if (data.name === "generate_file") {
+                toolMsg = `\n\n> Generating file \`${data.input.filename}\`...\n`;
               } else if (data.name === "web_search") {
                 toolMsg = `\n\n> 🔍 Searching the web...\n`;
               } else if (data.name === "fetch_url") {
@@ -1324,7 +1357,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     return elements;
   };
 
-  const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[], inlineImages?: { filename: string; dataUri: string }[]) => {
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  const FILE_FORMAT_ICONS: Record<string, { color: string; bg: string; label: string }> = {
+    pdf: { color: "text-red-400", bg: "bg-red-500/15", label: "PDF" },
+    docx: { color: "text-blue-400", bg: "bg-blue-500/15", label: "DOCX" },
+    xlsx: { color: "text-green-400", bg: "bg-green-500/15", label: "XLSX" },
+    csv: { color: "text-amber-400", bg: "bg-amber-500/15", label: "CSV" },
+  };
+
+  const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[], inlineImages?: { filename: string; dataUri: string }[], generatedFiles?: GeneratedFile[]) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
     const rendered = parts.map((part, i) => {
       if (part.includes("data:image/")) {
@@ -1438,6 +1484,43 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               />
             </div>
           ))}
+        </div>
+      );
+    }
+
+    if (generatedFiles && generatedFiles.length > 0) {
+      rendered.push(
+        <div key="generated-files" className="mt-3 space-y-2">
+          {generatedFiles.map((gf, i) => {
+            const formatInfo = FILE_FORMAT_ICONS[gf.format] || { color: "text-gray-400", bg: "bg-gray-500/15", label: gf.format.toUpperCase() };
+            return (
+              <div key={`gen-file-${i}`} className="rounded-lg overflow-hidden border border-[var(--ide-border)] shadow-md" data-testid={`card-generated-file-${gf.filename}`}>
+                <div className="flex items-center gap-3 px-3 py-2.5 bg-[var(--ide-bg)]">
+                  <div className={`w-8 h-8 rounded-lg ${formatInfo.bg} flex items-center justify-center shrink-0`}>
+                    <FileDown className={`w-4 h-4 ${formatInfo.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-medium text-[var(--ide-text)] truncate">{gf.filename}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${formatInfo.bg} ${formatInfo.color}`}>
+                        {formatInfo.label}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]">{formatBytes(gf.size)}</span>
+                  </div>
+                  <a
+                    href={gf.downloadUrl}
+                    download={gf.filename}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-[11px] font-medium transition-colors shrink-0"
+                    data-testid={`button-download-${gf.filename}`}
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -1945,7 +2028,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     ))}
                   </div>
                 )}
-                {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages) : <TypingIndicator />}
+                {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages, msg.generatedFiles) : <TypingIndicator />}
                 {msg.role === "assistant" && msg.webSearchResults && msg.webSearchResults.length > 0 && (
                   <WebSearchCitations results={msg.webSearchResults} />
                 )}
