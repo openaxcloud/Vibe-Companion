@@ -12,7 +12,7 @@ import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { executionPool } from "./executionPool";
-import { getOrCreateTerminal, resizeTerminal } from "./terminal";
+import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity } from "./terminal";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
 import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess } from "./deploymentEngine";
@@ -4005,8 +4005,73 @@ export async function registerRoutes(
     }
     const protocol = req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
     const host = req.headers.host || "localhost:5000";
-    const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(project.id)}`;
+    const sessionId = (req.query.sessionId as string) || "default";
+    const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(project.id)}&sessionId=${encodeURIComponent(sessionId)}`;
     return res.json({ wsUrl, workspaceId: project.id });
+  });
+
+  app.get("/api/workspaces/:projectId/terminal-sessions", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const sessionsList = listTerminalSessions(project.id, req.session.userId!);
+    return res.json({ sessions: sessionsList });
+  });
+
+  app.post("/api/workspaces/:projectId/terminal-sessions", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const sessionId = req.body.sessionId || `shell-${Date.now()}`;
+
+    try {
+      const projectEnvVarsList = await storage.getProjectEnvVars(project.id);
+      const envVarsMap: Record<string, string> = {};
+      for (const ev of projectEnvVarsList) {
+        envVarsMap[ev.key] = decrypt(ev.encryptedValue);
+      }
+      const linkedAccountVars = await storage.getAccountEnvVarLinks(project.id);
+      for (const link of linkedAccountVars) {
+        if (!(link.key in envVarsMap)) {
+          envVarsMap[link.key] = decrypt(link.encryptedValue);
+        }
+      }
+      envVarsMap["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
+      const termUser = await storage.getUser(req.session.userId!);
+      envVarsMap["REPLIT_USER"] = termUser?.displayName || termUser?.email || req.session.userId!;
+
+      createTerminalSession(project.id, req.session.userId!, sessionId, envVarsMap);
+    } catch (err: any) {
+      log(`Failed to pre-create terminal session: ${err.message}`, "terminal");
+    }
+
+    const protocol = req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
+    const host = req.headers.host || "localhost:5000";
+    const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(project.id)}&sessionId=${encodeURIComponent(sessionId)}`;
+    return res.json({ sessionId, wsUrl });
+  });
+
+  app.put("/api/workspaces/:projectId/terminal-sessions/:sessionId/select", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const found = setSessionSelected(project.id, req.session.userId!, req.params.sessionId);
+    if (!found) {
+      return res.status(404).json({ message: "Terminal session not found" });
+    }
+    return res.json({ success: true });
+  });
+
+  app.delete("/api/workspaces/:projectId/terminal-sessions/:sessionId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    destroyTerminalSession(project.id, req.session.userId!, req.params.sessionId);
+    return res.json({ success: true });
   });
 
   const getWorkspaceForProject = async (req: Request, res: Response): Promise<{ project: any; workspace: any } | null> => {
@@ -6394,17 +6459,36 @@ Based on the search results above, provide a comprehensive answer to the user's 
     clearInterval(heartbeatInterval);
   });
 
+  const terminalPingInterval = setInterval(() => {
+    terminalWss.clients.forEach((ws) => {
+      if ((ws as any).__termDead) {
+        ws.terminate();
+        return;
+      }
+      (ws as any).__termDead = true;
+      ws.ping();
+    });
+  }, 30000);
+
+  terminalWss.on("close", () => {
+    clearInterval(terminalPingInterval);
+  });
+
   terminalWss.on("connection", async (ws: WebSocket, req) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
     const projectId = url.searchParams.get("projectId");
+    const sessionId = url.searchParams.get("sessionId") || "default";
     const userId = (req as any).session?.userId;
+
+    (ws as any).__termDead = false;
+    ws.on("pong", () => { (ws as any).__termDead = false; });
 
     if (!projectId || !userId) {
       ws.close(1008, "Missing projectId or auth");
       return;
     }
 
-    log(`Terminal WebSocket connected for project ${projectId}`, "terminal");
+    log(`Terminal WebSocket connected for project ${projectId}, session ${sessionId}`, "terminal");
 
     try {
       const projectEnvVarsList = await storage.getProjectEnvVars(projectId);
@@ -6423,7 +6507,11 @@ Based on the search results above, provide a comprehensive answer to the user's 
       envVarsMap["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
       const termUser = await storage.getUser(userId);
       envVarsMap["REPLIT_USER"] = termUser?.displayName || termUser?.email || userId;
-      const term = getOrCreateTerminal(projectId, userId, envVarsMap);
+      const term = createTerminalSession(projectId, userId, sessionId, envVarsMap);
+      setSessionSelected(projectId, userId, sessionId);
+
+      let inputLine = "";
+      let inEscapeSeq = false;
 
       const dataHandler = term.onData((data: string) => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -6436,15 +6524,46 @@ Based on the search results above, provide a comprehensive answer to the user's 
           const msg = JSON.parse(rawData.toString());
           if (msg.type === "input" && typeof msg.data === "string") {
             term.write(msg.data);
+            updateLastActivity(projectId, userId, sessionId);
+            for (const ch of msg.data) {
+              if (inEscapeSeq) {
+                if ((ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z") || ch === "~") {
+                  inEscapeSeq = false;
+                }
+                continue;
+              }
+              if (ch === "\x1b") {
+                inEscapeSeq = true;
+                continue;
+              }
+              if (ch === "\r" || ch === "\n") {
+                const cmd = inputLine.trim();
+                if (cmd.length > 0) {
+                  updateLastCommand(projectId, userId, sessionId, cmd);
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: "lastCommand", sessionId, command: cmd }));
+                  }
+                }
+                inputLine = "";
+              } else if (ch === "\x7f" || ch === "\b") {
+                inputLine = inputLine.slice(0, -1);
+              } else if (ch === "\x15") {
+                inputLine = "";
+              } else if (ch === "\x17") {
+                inputLine = inputLine.replace(/\S+\s*$/, "");
+              } else if (ch.charCodeAt(0) >= 32) {
+                inputLine += ch;
+              }
+            }
           } else if (msg.type === "resize" && msg.cols && msg.rows) {
-            resizeTerminal(projectId, userId, msg.cols, msg.rows);
+            resizeTerminal(projectId, userId, msg.cols, msg.rows, sessionId);
           }
         } catch {}
       });
 
       ws.on("close", () => {
         dataHandler.dispose();
-        log(`Terminal WebSocket disconnected for project ${projectId}`, "terminal");
+        log(`Terminal WebSocket disconnected for project ${projectId}, session ${sessionId}`, "terminal");
       });
 
       ws.on("error", () => {

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Terminal as XTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 import { WifiOff, Terminal } from "lucide-react";
 
@@ -9,6 +10,13 @@ interface WorkspaceTerminalProps {
   wsUrl: string | null;
   runnerOffline: boolean;
   visible: boolean;
+  onLastCommand?: (command: string) => void;
+}
+
+export interface WorkspaceTerminalHandle {
+  searchNext: (query: string) => boolean;
+  searchPrevious: (query: string) => boolean;
+  clearSearch: () => void;
 }
 
 const THEME = {
@@ -34,14 +42,36 @@ const THEME = {
   brightWhite: "#f0f6fc",
 };
 
-export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: WorkspaceTerminalProps) {
+const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalProps>(
+  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const connectedUrlRef = useRef<string | null>(null);
   const intentionalCloseRef = useRef(false);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onLastCommandRef = useRef(onLastCommand);
+  onLastCommandRef.current = onLastCommand;
+
+  useImperativeHandle(ref, () => ({
+    searchNext: (query: string) => {
+      if (searchAddonRef.current && query) {
+        return searchAddonRef.current.findNext(query, { regex: false, caseSensitive: false, wholeWord: false, incremental: true });
+      }
+      return false;
+    },
+    searchPrevious: (query: string) => {
+      if (searchAddonRef.current && query) {
+        return searchAddonRef.current.findPrevious(query, { regex: false, caseSensitive: false, wholeWord: false, incremental: true });
+      }
+      return false;
+    },
+    clearSearch: () => {
+      searchAddonRef.current?.clearDecorations();
+    },
+  }));
 
   const initTerminal = useCallback(() => {
     if (!containerRef.current || termRef.current) return;
@@ -57,14 +87,17 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
+    const searchAddon = new SearchAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
+    term.loadAddon(searchAddon);
 
     term.open(containerRef.current);
     fitAddon.fit();
 
     termRef.current = term;
     fitAddonRef.current = fitAddon;
+    searchAddonRef.current = searchAddon;
 
     term.onData((data) => {
       if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -119,6 +152,8 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
             termRef.current?.write(msg.data);
           } else if (msg.type === "error") {
             termRef.current?.writeln(`\r\n\x1b[31m${msg.message || "Error"}\x1b[0m`);
+          } else if (msg.type === "lastCommand" && msg.command) {
+            onLastCommandRef.current?.(msg.command);
           }
         } catch {
           termRef.current?.write(ev.data);
@@ -145,14 +180,14 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
   }, [initTerminal]);
 
   useEffect(() => {
-    if (wsUrl && visible) {
+    if (wsUrl) {
       if (!termRef.current) initTerminal();
       if (connectedUrlRef.current === wsUrl && socketRef.current?.readyState === WebSocket.OPEN) return;
       connect(wsUrl);
     } else {
       closeSocket(true);
     }
-  }, [wsUrl, visible, connect, closeSocket, initTerminal]);
+  }, [wsUrl, connect, closeSocket, initTerminal]);
 
   useEffect(() => {
     if (!visible || !fitAddonRef.current) return;
@@ -186,6 +221,7 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
       termRef.current?.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
     };
   }, [closeSocket]);
 
@@ -213,4 +249,6 @@ export default function WorkspaceTerminal({ wsUrl, runnerOffline, visible }: Wor
       )}
     </div>
   );
-}
+});
+
+export default WorkspaceTerminal;

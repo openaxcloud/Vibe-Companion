@@ -9,7 +9,7 @@ import {
   X, Trash2, Pencil, FolderOpen, Settings, MoreHorizontal,
   File as FileIcon, FilePlus, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
-  Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
+  Folder, FolderPlus, ChevronRight, ChevronDown, ChevronUp, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
   Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2,
@@ -57,7 +57,7 @@ import {
 import AIPanel from "@/components/AIPanel";
 import ConsolePanel from "@/components/ConsolePanel";
 import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
-import WorkspaceTerminal from "@/components/WorkspaceTerminal";
+import WorkspaceTerminal, { type WorkspaceTerminalHandle } from "@/components/WorkspaceTerminal";
 import CommandPalette from "@/components/CommandPalette";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
@@ -229,7 +229,6 @@ function _projectPage() {
   const [wsStatus, setWsStatus] = useState<"offline" | "starting" | "running" | "stopped" | "error" | "none">("none");
   const [wsLoading, setWsLoading] = useState(false);
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
-  const [terminalWsUrl, setTerminalWsUrl] = useState<string | null>(null);
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -347,8 +346,18 @@ function _projectPage() {
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchWholeWord, setSearchWholeWord] = useState(false);
   const [searchResults, setSearchResults] = useState<{ fileId: string; filename: string; line: number; text: string }[]>([]);
-  const [terminalTabs, setTerminalTabs] = useState<string[]>(["Terminal 1"]);
-  const [activeTerminalTab, setActiveTerminalTab] = useState(0);
+  interface ShellSession {
+    sessionId: string;
+    label: string;
+    wsUrl: string | null;
+  }
+  const [shellSessions, setShellSessions] = useState<ShellSession[]>([{ sessionId: "default", label: "Shell", wsUrl: null }]);
+  const [activeShellIndex, setActiveShellIndex] = useState(0);
+  const [shellSearchOpen, setShellSearchOpen] = useState(false);
+  const [shellSearchQuery, setShellSearchQuery] = useState("");
+  const shellTerminalRefs = useRef<Map<string, WorkspaceTerminalHandle>>(new Map());
+  const shellSearchInputRef = useRef<HTMLInputElement>(null);
+  const [shellDropdownOpen, setShellDropdownOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
@@ -842,6 +851,10 @@ function _projectPage() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "F") {
         e.preventDefault();
         togglePanel("search");
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "f" && (activeFileId === SPECIAL_TABS.SHELL || bottomTab === "shell")) {
+        e.preventDefault();
+        setShellSearchOpen(true);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "b") {
         e.preventDefault();
@@ -1816,13 +1829,51 @@ function _projectPage() {
 
   useEffect(() => {
     if (projectId) {
-      fetch(`/api/workspaces/${projectId}/terminal-url`, { credentials: "include" })
-        .then((r) => {
-          if (!r.ok) throw new Error("Failed to get terminal URL");
-          return r.json();
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const host = window.location.host;
+
+      interface SessionResponse {
+        sessionId: string;
+        lastCommand: string;
+        lastActivity: number;
+        selected: boolean;
+      }
+
+      fetch(`/api/workspaces/${projectId}/terminal-sessions`, { credentials: "include" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((data: { sessions: SessionResponse[] } | null) => {
+          if (data?.sessions?.length) {
+            const restored: ShellSession[] = data.sessions.map((s) => ({
+              sessionId: s.sessionId,
+              label: s.lastCommand || "Shell",
+              wsUrl: `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(projectId)}&sessionId=${encodeURIComponent(s.sessionId)}`,
+            }));
+            setShellSessions(restored);
+            const selectedIdx = data.sessions.findIndex((s) => s.selected);
+            if (selectedIdx >= 0) setActiveShellIndex(selectedIdx);
+          } else {
+            fetch(`/api/workspaces/${projectId}/terminal-url`, { credentials: "include" })
+              .then((r) => {
+                if (!r.ok) throw new Error("Failed to get terminal URL");
+                return r.json();
+              })
+              .then((d) => {
+                setShellSessions([{ sessionId: "default", label: "Shell", wsUrl: d.wsUrl }]);
+              })
+              .catch(() => {});
+          }
         })
-        .then((d) => setTerminalWsUrl(d.wsUrl))
-        .catch(() => setTerminalWsUrl(null));
+        .catch(() => {
+          fetch(`/api/workspaces/${projectId}/terminal-url`, { credentials: "include" })
+            .then((r) => {
+              if (!r.ok) throw new Error("Failed to get terminal URL");
+              return r.json();
+            })
+            .then((d) => {
+              setShellSessions([{ sessionId: "default", label: "Shell", wsUrl: d.wsUrl }]);
+            })
+            .catch(() => {});
+        });
     }
   }, [projectId]);
 
@@ -2984,21 +3035,214 @@ function _projectPage() {
     </Button>
   );
 
+  const handleNewShell = useCallback(() => {
+    if (!projectId) return;
+    const newSessionId = `shell-${Date.now()}`;
+    fetch(`/api/workspaces/${projectId}/terminal-sessions`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: newSessionId }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const newSession: ShellSession = { sessionId: d.sessionId, label: "Shell", wsUrl: d.wsUrl };
+        setShellSessions((prev) => {
+          const updated = [...prev, newSession];
+          setActiveShellIndex(updated.length - 1);
+          return updated;
+        });
+        setShellDropdownOpen(false);
+      })
+      .catch(() => {});
+  }, [projectId, shellSessions.length]);
+
+  const handleCloseShell = useCallback((index: number) => {
+    if (shellSessions.length <= 1) return;
+    const session = shellSessions[index];
+    if (projectId && session.sessionId !== "default") {
+      fetch(`/api/workspaces/${projectId}/terminal-sessions/${session.sessionId}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).catch(() => {});
+    }
+    shellTerminalRefs.current.delete(session.sessionId);
+    const newSessions = shellSessions.filter((_, i) => i !== index);
+    setShellSessions(newSessions);
+    if (activeShellIndex === index) {
+      setActiveShellIndex(Math.min(index, newSessions.length - 1));
+    } else if (activeShellIndex > index) {
+      setActiveShellIndex(activeShellIndex - 1);
+    }
+  }, [shellSessions, activeShellIndex, projectId]);
+
+  const handleShellLastCommand = useCallback((sessionId: string, command: string) => {
+    setShellSessions((prev) =>
+      prev.map((s) => (s.sessionId === sessionId ? { ...s, label: command.length > 20 ? command.slice(0, 20) + "…" : command } : s))
+    );
+  }, []);
+
+  const handleShellSearchNext = useCallback(() => {
+    if (!shellSearchQuery) return;
+    const session = shellSessions[activeShellIndex];
+    if (session) {
+      shellTerminalRefs.current.get(session.sessionId)?.searchNext(shellSearchQuery);
+    }
+  }, [shellSearchQuery, shellSessions, activeShellIndex]);
+
+  const handleShellSearchPrev = useCallback(() => {
+    if (!shellSearchQuery) return;
+    const session = shellSessions[activeShellIndex];
+    if (session) {
+      shellTerminalRefs.current.get(session.sessionId)?.searchPrevious(shellSearchQuery);
+    }
+  }, [shellSearchQuery, shellSessions, activeShellIndex]);
+
+  const handleShellSearchClose = useCallback(() => {
+    setShellSearchOpen(false);
+    setShellSearchQuery("");
+    const session = shellSessions[activeShellIndex];
+    if (session) {
+      shellTerminalRefs.current.get(session.sessionId)?.clearSearch();
+    }
+  }, [shellSessions, activeShellIndex]);
+
+  useEffect(() => {
+    const session = shellSessions[activeShellIndex];
+    if (session && projectId) {
+      fetch(`/api/workspaces/${projectId}/terminal-sessions/${encodeURIComponent(session.sessionId)}/select`, {
+        method: "PUT",
+        credentials: "include",
+      }).catch(() => {});
+    }
+  }, [activeShellIndex, shellSessions, projectId]);
+
+  useEffect(() => {
+    if (shellSearchOpen && shellSearchInputRef.current) {
+      shellSearchInputRef.current.focus();
+    }
+  }, [shellSearchOpen]);
+
+  const shellSearchBar = shellSearchOpen ? (
+    <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0" data-testid="shell-search-bar">
+      <Search className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />
+      <input
+        ref={shellSearchInputRef}
+        type="text"
+        className="flex-1 min-w-0 bg-transparent text-[11px] text-[var(--ide-text)] outline-none placeholder:text-[var(--ide-text-muted)]"
+        placeholder="Search terminal..."
+        value={shellSearchQuery}
+        onChange={(e) => {
+          setShellSearchQuery(e.target.value);
+          if (e.target.value) {
+            const session = shellSessions[activeShellIndex];
+            if (session) shellTerminalRefs.current.get(session.sessionId)?.searchNext(e.target.value);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (e.shiftKey) handleShellSearchPrev();
+            else handleShellSearchNext();
+          }
+          if (e.key === "Escape") handleShellSearchClose();
+        }}
+        data-testid="shell-search-input"
+      />
+      <button onClick={handleShellSearchPrev} className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" title="Previous" data-testid="shell-search-prev">
+        <ChevronUp className="w-3 h-3" />
+      </button>
+      <button onClick={handleShellSearchNext} className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" title="Next" data-testid="shell-search-next">
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      <button onClick={handleShellSearchClose} className="p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" title="Close" data-testid="shell-search-close">
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  ) : null;
+
   const shellTabContent = (
     <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
       <div className="flex items-center justify-between px-2 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
-        <div className="flex items-center gap-2">
-          <Hash className="w-3 h-3 text-[#0CCE6B]" />
-          <span className="text-[11px] text-[var(--ide-text-secondary)] font-medium">Shell</span>
-          {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+        <div className="flex items-center gap-1 relative">
+          <button
+            className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[var(--ide-surface)] transition-colors text-[11px] text-[var(--ide-text-secondary)] font-medium"
+            onClick={() => setShellDropdownOpen(!shellDropdownOpen)}
+            data-testid="shell-dropdown-toggle"
+          >
+            <Hash className="w-3 h-3 text-[#0CCE6B]" />
+            <span className="truncate max-w-[120px]">{shellSessions[activeShellIndex]?.label || "Shell"}</span>
+            {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {shellDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShellDropdownOpen(false)} />
+              <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded-md shadow-lg min-w-[180px] py-1" data-testid="shell-dropdown-menu">
+                {shellSessions.map((s, i) => (
+                  <div
+                    key={s.sessionId}
+                    className={`flex items-center gap-2 px-3 py-1.5 text-[11px] cursor-pointer hover:bg-[var(--ide-surface)] ${i === activeShellIndex ? "text-[var(--ide-text)] bg-[var(--ide-surface)]" : "text-[var(--ide-text-secondary)]"}`}
+                    onClick={() => { setActiveShellIndex(i); setShellDropdownOpen(false); }}
+                    data-testid={`shell-session-${s.sessionId}`}
+                  >
+                    <Hash className="w-3 h-3 text-[#0CCE6B]" />
+                    <span className="flex-1 truncate">{s.label}</span>
+                    {i === activeShellIndex && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />}
+                    {shellSessions.length > 1 && (
+                      <button
+                        className="p-0.5 rounded hover:bg-red-500/20 text-[var(--ide-text-muted)] hover:text-red-400 shrink-0"
+                        onClick={(e) => { e.stopPropagation(); handleCloseShell(i); setShellDropdownOpen(false); }}
+                        data-testid={`shell-close-${s.sessionId}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <div className="border-t border-[var(--ide-border)] mt-1 pt-1">
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)] w-full cursor-pointer"
+                    onClick={handleNewShell}
+                    data-testid="shell-new-session"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>New Shell</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1">
+          <button
+            className="p-1 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+            onClick={() => setShellSearchOpen(!shellSearchOpen)}
+            title="Search (Ctrl+F)"
+            data-testid="shell-search-toggle"
+          >
+            <Search className="w-3 h-3" />
+          </button>
           {wsStatusBadge}
           {workspaceButton}
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
-        <WorkspaceTerminal wsUrl={terminalWsUrl} runnerOffline={runnerOnline === false} visible={activeFileId === SPECIAL_TABS.SHELL} />
+      {shellSearchBar}
+      <div className="flex-1 overflow-hidden relative">
+        {shellSessions.map((session, i) => (
+          <div key={session.sessionId} className="absolute inset-0" style={{ display: i === activeShellIndex ? "block" : "none" }}>
+            <WorkspaceTerminal
+              ref={(handle) => {
+                if (handle) shellTerminalRefs.current.set(session.sessionId, handle);
+                else shellTerminalRefs.current.delete(session.sessionId);
+              }}
+              wsUrl={session.wsUrl}
+              runnerOffline={runnerOnline === false}
+              visible={activeFileId === SPECIAL_TABS.SHELL && i === activeShellIndex}
+              onLastCommand={(cmd) => handleShellLastCommand(session.sessionId, cmd)}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -3359,9 +3603,32 @@ function _projectPage() {
     </div>
   );
 
+  const isShellInMainEditor = activeFileId === SPECIAL_TABS.SHELL;
+
   const shellContent = (
-    <div className="flex-1 overflow-hidden animate-fade-in">
-      <WorkspaceTerminal wsUrl={terminalWsUrl} runnerOffline={runnerOnline === false} visible={true} />
+    <div className="flex-1 overflow-hidden animate-fade-in flex flex-col">
+      {!isShellInMainEditor && shellSearchBar}
+      <div className="flex-1 overflow-hidden relative">
+        {!isShellInMainEditor && shellSessions.map((session, i) => (
+          <div key={session.sessionId} className="absolute inset-0" style={{ display: i === activeShellIndex ? "block" : "none" }}>
+            <WorkspaceTerminal
+              ref={(handle) => {
+                if (handle) shellTerminalRefs.current.set(session.sessionId, handle);
+                else shellTerminalRefs.current.delete(session.sessionId);
+              }}
+              wsUrl={session.wsUrl}
+              runnerOffline={runnerOnline === false}
+              visible={bottomTab === "shell" && i === activeShellIndex}
+              onLastCommand={(cmd) => handleShellLastCommand(session.sessionId, cmd)}
+            />
+          </div>
+        ))}
+        {isShellInMainEditor && (
+          <div className="absolute inset-0 flex items-center justify-center text-[var(--ide-text-muted)]">
+            <p className="text-xs">Shell is open in the editor area above</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -3378,24 +3645,19 @@ function _projectPage() {
           <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "problems" ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`} onClick={() => setBottomTab("problems")} data-testid="tab-problems">
             <AlertCircle className="w-3 h-3" /> Problems <span className="text-[9px] px-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">0</span>
           </button>
-          {terminalTabs.map((tab, idx) => (
+          {shellSessions.map((session, idx) => (
             <button
-              key={idx}
-              className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 group ${bottomTab === "shell" && activeTerminalTab === idx ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`}
-              onClick={() => { setBottomTab("shell"); setActiveTerminalTab(idx); }}
+              key={session.sessionId}
+              className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 group ${bottomTab === "shell" && activeShellIndex === idx ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`}
+              onClick={() => { setBottomTab("shell"); setActiveShellIndex(idx); }}
               data-testid={`tab-shell-${idx}`}
             >
-              <Hash className="w-3 h-3" /> {tab}
-              {terminalTabs.length > 1 && (
+              <Hash className="w-3 h-3" /> <span className="truncate max-w-[80px]">{session.label}</span>
+              {bottomTab === "shell" && activeShellIndex === idx && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />}
+              {shellSessions.length > 1 && (
                 <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 hover:text-[#FF6166]" onClick={(e) => {
                   e.stopPropagation();
-                  const newTabs = terminalTabs.filter((_, i) => i !== idx);
-                  setTerminalTabs(newTabs);
-                  if (activeTerminalTab === idx) {
-                    if (newTabs.length > 0) { setActiveTerminalTab(Math.min(idx, newTabs.length - 1)); } else { setBottomTab("terminal"); }
-                  } else if (activeTerminalTab > idx) {
-                    setActiveTerminalTab(activeTerminalTab - 1);
-                  }
+                  handleCloseShell(idx);
                 }}>
                   <X className="w-3 h-3" />
                 </span>
@@ -3404,14 +3666,22 @@ function _projectPage() {
           ))}
           <button
             className="flex items-center justify-center w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors ml-1 shrink-0"
-            onClick={() => { setTerminalTabs(prev => [...prev, `Terminal ${prev.length + 1}`]); setActiveTerminalTab(terminalTabs.length); setBottomTab("shell"); }}
-            title="New Terminal"
+            onClick={handleNewShell}
+            title="New Shell"
             data-testid="button-new-terminal"
           >
             <Plus className="w-3 h-3" />
           </button>
         </div>
         <div className="flex items-center gap-0.5 pr-1 shrink-0">
+          <button
+            className="p-1 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+            onClick={() => setShellSearchOpen(!shellSearchOpen)}
+            title="Search (Ctrl+F)"
+            data-testid="bottom-shell-search-toggle"
+          >
+            <Search className="w-3 h-3" />
+          </button>
           {wsStatusBadge}
           {workspaceButton}
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
@@ -3567,7 +3837,7 @@ function _projectPage() {
                     <div className="flex items-center gap-0">
                       <button
                         className={`flex items-center gap-1.5 px-3 h-9 text-[11px] font-medium border-b-2 transition-colors ${mobileShellMode === "console" ? "text-[#F5A623] border-[#F5A623]" : "text-[#9CA3AF] border-transparent hover:text-[var(--ide-text-muted)]"}`}
-                        onClick={() => setMobileShellMode("console")}
+                        onClick={() => { setMobileShellMode("console"); setShellDropdownOpen(false); setShellSearchOpen(false); }}
                         data-testid="mobile-shell-tab-console"
                       >
                         <Terminal className="w-3 h-3" /> Console
@@ -3579,15 +3849,73 @@ function _projectPage() {
                           onClick={() => setMobileShellMode("shell")}
                           data-testid="mobile-shell-tab-shell"
                         >
-                          <Hash className="w-3 h-3" /> Shell
+                          <Hash className="w-3 h-3" /> <span className="truncate max-w-[60px]">{shellSessions[activeShellIndex]?.label || "Shell"}</span>
+                          {wsStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />}
                         </button>
                       )}
                     </div>
                     <div className="flex items-center gap-1">
+                      {mobileShellMode === "shell" && (
+                        <>
+                          <button
+                            className="p-1 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                            onClick={() => setShellSearchOpen(!shellSearchOpen)}
+                            title="Search"
+                            data-testid="mobile-shell-search-toggle"
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            className="p-1 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                            onClick={handleNewShell}
+                            title="New Shell"
+                            data-testid="mobile-shell-new"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          {shellSessions.length > 1 && (
+                            <button
+                              className="p-1 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors relative"
+                              onClick={() => setShellDropdownOpen(!shellDropdownOpen)}
+                              title="Switch Shell"
+                              data-testid="mobile-shell-switcher"
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-[#0079F2] text-white text-[8px] rounded-full flex items-center justify-center font-bold">{shellSessions.length}</span>
+                            </button>
+                          )}
+                        </>
+                      )}
                       {wsStatusBadge}
                       {workspaceButton}
                     </div>
                   </div>
+                  {mobileShellMode === "shell" && shellDropdownOpen && (
+                    <div className="border-b border-[var(--ide-border)] bg-[var(--ide-bg)] px-1 py-1" data-testid="mobile-shell-dropdown">
+                      {shellSessions.map((s, i) => (
+                        <button
+                          key={s.sessionId}
+                          className={`flex items-center gap-2 w-full px-3 py-2 text-[12px] rounded transition-colors ${i === activeShellIndex ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]"}`}
+                          onClick={() => { setActiveShellIndex(i); setShellDropdownOpen(false); }}
+                          data-testid={`mobile-shell-option-${s.sessionId}`}
+                        >
+                          <Hash className="w-3 h-3 text-[#0CCE6B] shrink-0" />
+                          <span className="flex-1 truncate text-left">{s.label}</span>
+                          {i === activeShellIndex && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse shrink-0" />}
+                          {shellSessions.length > 1 && (
+                            <button
+                              type="button"
+                              className="p-0.5 rounded hover:bg-red-500/20 text-[var(--ide-text-muted)] hover:text-red-400 shrink-0"
+                              onClick={(e) => { e.stopPropagation(); handleCloseShell(i); setShellDropdownOpen(false); }}
+                              data-testid={`mobile-shell-close-${s.sessionId}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {mobileShellMode === "console" ? terminalContent : shellContent}
                 </div>
               )}
