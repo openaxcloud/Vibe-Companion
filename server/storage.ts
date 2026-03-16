@@ -21,6 +21,7 @@ import {
   portConfigs,
   deploymentAnalytics,
   frameworkUpdates,
+  checkpoints, checkpointPositions,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -65,6 +66,7 @@ import {
   type PortConfig, type InsertPortConfig,
   type DeploymentAnalytic, type InsertDeploymentAnalytic,
   type FrameworkUpdate, type InsertFrameworkUpdate,
+  type Checkpoint, type InsertCheckpoint, type CheckpointPosition,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -302,6 +304,13 @@ export interface IStorage {
   getFrameworkUpdates(frameworkId: string): Promise<FrameworkUpdate[]>;
   createFrameworkUpdate(frameworkId: string, message: string): Promise<FrameworkUpdate>;
   seedOfficialFrameworks(): Promise<void>;
+
+  getCheckpoints(projectId: string): Promise<Checkpoint[]>;
+  getCheckpoint(id: string): Promise<Checkpoint | undefined>;
+  createCheckpoint(data: InsertCheckpoint): Promise<Checkpoint>;
+  deleteCheckpoint(id: string): Promise<boolean>;
+  getCheckpointPosition(projectId: string): Promise<CheckpointPosition | undefined>;
+  setCheckpointPosition(projectId: string, checkpointId: string | null, divergedFromId?: string | null): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1734,6 +1743,43 @@ export class DatabaseStorage implements IStorage {
       c: "systems",
     };
     return map[language.toLowerCase()] || "other";
+  }
+
+  async getCheckpoints(projectId: string): Promise<Checkpoint[]> {
+    return db.select().from(checkpoints).where(eq(checkpoints.projectId, projectId)).orderBy(desc(checkpoints.createdAt));
+  }
+
+  async getCheckpoint(id: string): Promise<Checkpoint | undefined> {
+    const [cp] = await db.select().from(checkpoints).where(eq(checkpoints.id, id)).limit(1);
+    return cp;
+  }
+
+  async createCheckpoint(data: InsertCheckpoint): Promise<Checkpoint> {
+    const [cp] = await db.insert(checkpoints).values(data).returning();
+    return cp;
+  }
+
+  async deleteCheckpoint(id: string): Promise<boolean> {
+    const result = await db.delete(checkpoints).where(eq(checkpoints.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getCheckpointPosition(projectId: string): Promise<CheckpointPosition | undefined> {
+    const [pos] = await db.select().from(checkpointPositions).where(eq(checkpointPositions.projectId, projectId)).limit(1);
+    return pos;
+  }
+
+  async setCheckpointPosition(projectId: string, checkpointId: string | null, divergedFromId?: string | null): Promise<void> {
+    const existing = await this.getCheckpointPosition(projectId);
+    const updateData: Record<string, unknown> = { currentCheckpointId: checkpointId, updatedAt: new Date() };
+    if (divergedFromId !== undefined) {
+      updateData.divergedFromId = divergedFromId;
+    }
+    if (existing) {
+      await db.update(checkpointPositions).set(updateData).where(eq(checkpointPositions.projectId, projectId));
+    } else {
+      await db.insert(checkpointPositions).values({ projectId, currentCheckpointId: checkpointId, divergedFromId: divergedFromId ?? null });
+    }
   }
 }
 

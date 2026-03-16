@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, type InsertDeployment } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, type InsertDeployment, type CheckpointStateSnapshot } from "@shared/schema";
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { executionPool } from "./executionPool";
@@ -16,6 +16,7 @@ import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
 import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
+import { createCheckpoint, restoreCheckpoint, getCheckpointDiff } from "./checkpointService";
 import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
 import {
   checkUserRateLimit,
@@ -1778,6 +1779,9 @@ export async function registerRoutes(
         finishedAt: new Date(),
       });
       await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version, deploymentType });
+      if (build.status === "live") {
+        createCheckpoint(project.id, req.session.userId!, "deployment", `Deployment v${version} successful`).catch(() => {});
+      }
       return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl, deploymentType }, slug, url: deployUrl, version });
     } catch (err: any) {
       log(`Deploy error: ${err.message}`, "deploy");
@@ -2050,6 +2054,7 @@ export async function registerRoutes(
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const commit = await storage.getCommit(req.params.commitId);
       if (!commit || commit.projectId !== project.id) return res.status(404).json({ message: "Commit not found" });
+      await createCheckpoint(project.id, req.session.userId!, "pre_risky_op", `Before restoring to commit ${commit.id.slice(0, 7)}`).catch(() => {});
       const currentFiles = await storage.getFiles(project.id);
       for (const f of currentFiles) { await storage.deleteFile(f.id); }
       const snapshot = commit.snapshot as Record<string, string>;
@@ -3097,6 +3102,8 @@ export async function registerRoutes(
       const dbFiles = await storage.getFiles(req.params.projectId);
       await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
 
+      await createCheckpoint(req.params.projectId, req.session.userId!, "pre_risky_op", `Before git checkout ${commitId ? commitId.slice(0, 7) : branchName}`).catch(() => {});
+
       if (commitId) {
         await gitService.checkoutCommit(req.params.projectId, commitId);
       } else if (branchName) {
@@ -3275,6 +3282,8 @@ export async function registerRoutes(
       const url = `https://github.com/${githubRepo}.git`;
       const httpTransport = github.createGitHttpTransport();
 
+      await createCheckpoint(req.params.projectId, req.session.userId!, "pre_risky_op", "Before git pull").catch(() => {});
+
       const user = await storage.getUser(req.session.userId!);
       const authorName = user?.displayName || user?.email || "User";
       const authorEmail = user?.email || "user@ide.local";
@@ -3323,6 +3332,8 @@ export async function registerRoutes(
 
       const url = `https://github.com/${owner}/${repo}.git`;
       const httpTransport = github.createGitHttpTransport();
+
+      await createCheckpoint(req.params.projectId, req.session.userId!, "pre_risky_op", `Before cloning ${owner}/${repo}`).catch(() => {});
 
       const clonedFiles = await gitService.cloneRepo(req.params.projectId, url, {
         httpTransport,
@@ -3539,6 +3550,7 @@ export async function registerRoutes(
     try {
       const { path } = req.body;
       if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
+      await createCheckpoint(req.params.projectId, req.session.userId!, "pre_risky_op", `Before deleting ${path}`).catch(() => {});
       await runnerClient.fsRm(ctx.workspace.id, path);
       return res.json({ ok: true });
     } catch (err: any) {
@@ -3790,6 +3802,7 @@ Rules:
         fileOps: files.map(f => ({ type: "created" as const, filename: f.filename })),
       });
 
+      createCheckpoint(project.id, req.session.userId!, "feature_complete", `AI generated project: ${spec.name}`).catch(() => {});
       return res.json({ project, files });
     } catch (error: any) {
       log(`AI project generation error: ${error.message}`, "ai");
@@ -4066,6 +4079,8 @@ Rules:
     }
   });
 
+  const agentFileOpsCount = { value: 0 };
+
   const executeToolCall = async (
     toolName: string,
     toolInput: { filename: string; content: string; name?: string; description?: string },
@@ -4090,6 +4105,7 @@ Rules:
         return;
       }
       if (toolName === "create_file" || toolName === "edit_file") {
+        agentFileOpsCount.value++;
         const safeName = sanitizeAIFilename(toolInput.filename);
         if (!safeName) {
           log(`AI agent: blocked invalid filename "${toolInput.filename}"`, "ai");
@@ -4545,10 +4561,16 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         }
       }
 
+      if (agentFileOpsCount.value > 0) {
+        createCheckpoint(projectId, req.session.userId!, "feature_complete", `AI agent: ${agentFileOpsCount.value} file operation${agentFileOpsCount.value > 1 ? "s" : ""}`).catch(() => {});
+        agentFileOpsCount.value = 0;
+      }
+
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
       log(`AI agent error: ${error.message}`, "ai");
+      agentFileOpsCount.value = 0;
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
         res.end();
@@ -6585,6 +6607,99 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!res.headersSent) {
         res.status(500).json({ message: "Proxy error" });
       }
+    }
+  });
+
+  app.get("/api/projects/:id/checkpoints", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const cps = await storage.getCheckpoints(project.id);
+      const position = await storage.getCheckpointPosition(project.id);
+      const stripped = cps.map(({ stateSnapshot, ...rest }) => {
+        const snap = stateSnapshot as CheckpointStateSnapshot;
+        return {
+          ...rest,
+          fileCount: snap?.files?.length || 0,
+          packageCount: snap?.packages?.length || 0,
+        };
+      });
+      return res.json({
+        checkpoints: stripped,
+        currentCheckpointId: position?.currentCheckpointId || null,
+        divergedFromId: position?.divergedFromId || null,
+      });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch checkpoints" });
+    }
+  });
+
+  app.post("/api/projects/:id/checkpoints", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const description = typeof req.body?.description === "string" ? req.body.description.slice(0, 500) : undefined;
+      const trigger = typeof req.body?.trigger === "string" && ["manual", "feature_complete", "deployment", "pre_risky_op"].includes(req.body.trigger) ? req.body.trigger : "manual";
+      const cp = await createCheckpoint(project.id, req.session.userId!, trigger, description);
+      const { stateSnapshot, ...rest } = cp;
+      const snap = stateSnapshot as CheckpointStateSnapshot;
+      return res.json({ ...rest, fileCount: snap?.files?.length || 0, packageCount: snap?.packages?.length || 0 });
+    } catch {
+      return res.status(500).json({ message: "Failed to create checkpoint" });
+    }
+  });
+
+  app.get("/api/projects/:id/checkpoints/:cpId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const cp = await storage.getCheckpoint(req.params.cpId);
+      if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
+      return res.json(cp);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch checkpoint" });
+    }
+  });
+
+  app.post("/api/projects/:id/checkpoints/:cpId/restore", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const cp = await storage.getCheckpoint(req.params.cpId);
+      if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
+      const { includeDatabase } = req.body || {};
+      const result = await restoreCheckpoint(cp.id, { includeDatabase: !!includeDatabase });
+      if (!result.success) return res.status(500).json({ message: result.message });
+      return res.json(result);
+    } catch {
+      return res.status(500).json({ message: "Failed to restore checkpoint" });
+    }
+  });
+
+  app.get("/api/projects/:id/checkpoints/:cpId/diff", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const cp = await storage.getCheckpoint(req.params.cpId);
+      if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
+      const diff = await getCheckpointDiff(cp.id);
+      if (!diff) return res.status(404).json({ message: "Checkpoint not found" });
+      return res.json(diff);
+    } catch {
+      return res.status(500).json({ message: "Failed to compute diff" });
+    }
+  });
+
+  app.delete("/api/projects/:id/checkpoints/:cpId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const cp = await storage.getCheckpoint(req.params.cpId);
+      if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
+      await storage.deleteCheckpoint(cp.id);
+      return res.json({ message: "Checkpoint deleted" });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete checkpoint" });
     }
   });
 

@@ -905,3 +905,46 @@ export const insertDeploymentAnalyticSchema = createInsertSchema(deploymentAnaly
 });
 export type InsertDeploymentAnalytic = z.infer<typeof insertDeploymentAnalyticSchema>;
 export type DeploymentAnalytic = typeof deploymentAnalytics.$inferSelect;
+
+export interface CheckpointStateSnapshot {
+  files: { filename: string; content: string }[];
+  envVars: { key: string; encryptedValue: string }[];
+  storageKv: { key: string; value: string }[];
+  storageObjectsMeta: { filename: string; mimeType: string; sizeBytes: number; storagePath?: string }[];
+  aiConversations: { userId?: string; title: string; model: string; messages: { role: string; content: string; model?: string }[] }[];
+  projectConfig: { name: string; language: string };
+  packages: string[];
+}
+
+export const checkpoints = pgTable("checkpoints", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  description: text("description").notNull().default(""),
+  type: text("type").notNull().default("manual"),
+  trigger: text("trigger").notNull().default("manual"),
+  stateSnapshot: json("state_snapshot").notNull().$type<CheckpointStateSnapshot>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("checkpoints_project_idx").on(table.projectId),
+  index("checkpoints_created_idx").on(table.createdAt),
+]);
+export const insertCheckpointSchema = createInsertSchema(checkpoints).pick({
+  projectId: true,
+  userId: true,
+  description: true,
+  type: true,
+  trigger: true,
+  stateSnapshot: true,
+});
+export type InsertCheckpoint = z.infer<typeof insertCheckpointSchema>;
+export type Checkpoint = typeof checkpoints.$inferSelect;
+
+export const checkpointPositions = pgTable("checkpoint_positions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull().unique(),
+  currentCheckpointId: varchar("current_checkpoint_id", { length: 36 }),
+  divergedFromId: varchar("diverged_from_id", { length: 36 }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type CheckpointPosition = typeof checkpointPositions.$inferSelect;

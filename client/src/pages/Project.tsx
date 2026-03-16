@@ -28,6 +28,7 @@ import MonitoringPanel from "@/components/MonitoringPanel";
 import ThreadsPanel from "@/components/ThreadsPanel";
 import NetworkingPanel from "@/components/NetworkingPanel";
 import SkillsPanel from "@/components/SkillsPanel";
+import CheckpointsPanel from "@/components/CheckpointsPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
@@ -256,7 +257,7 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "settings";
+  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings";
   const [mobileTab, setMobileTab] = useState<MobileTabType>("ai");
   const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
@@ -267,7 +268,7 @@ function _projectPage() {
   const [moreMenuSwipeY, setMoreMenuSwipeY] = useState(0);
   const moreMenuTouchStartY = useRef(0);
   const lastScrollY = useRef(0);
-  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "settings"] as const;
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings"] as const;
   const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
     { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
     { id: "search", icon: Search, label: "Search", color: "#0079F2" },
@@ -284,6 +285,7 @@ function _projectPage() {
     { id: "monitoring", icon: Activity, label: "Monitoring", color: "#10B981" },
     { id: "threads", icon: MessageSquare, label: "Threads", color: "#8B5CF6" },
     { id: "networking", icon: Network, label: "Networking", color: "#06B6D4" },
+    { id: "checkpoints", icon: Clock, label: "Checkpoints", color: "#7C65CB" },
     { id: "settings", icon: Settings, label: "Settings", color: "#0079F2" },
   ];
   const overflowTabIds = overflowTabs.map(t => t.id);
@@ -325,7 +327,7 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "settings" | "envVars";
+  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "checkpoints" | "settings" | "envVars";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -343,6 +345,7 @@ function _projectPage() {
     { id: "threads", label: "Threads", icon: MessageSquare, color: "#8B5CF6" },
     { id: "networking", label: "Networking", icon: Network, color: "#06B6D4" },
     { id: "skills", label: "Skills", icon: Brain, color: "#7C65CB" },
+    { id: "checkpoints", label: "Checkpoints", icon: Clock, color: "#7C65CB" },
     { id: "settings", label: "Settings", icon: Settings, color: "#0079F2" },
     { id: "envVars", label: "Secrets", icon: Key, color: "#F5A623" },
   ];
@@ -3846,6 +3849,11 @@ function _projectPage() {
                   <NetworkingPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
                 </div>
               )}
+              {mobileTab === "checkpoints" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-checkpoints-panel">
+                  <CheckpointsPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
               {mobileTab === "settings" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
                   <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
@@ -5548,6 +5556,12 @@ function _projectPage() {
             {activePanelTab === "skills" && (
               <div className="flex-1 flex flex-col" data-testid="skills-sidebar">
                 <SkillsPanel projectId={projectId} onClose={() => closePanel("skills")} />
+              </div>
+            )}
+
+            {activePanelTab === "checkpoints" && (
+              <div className="flex-1 flex flex-col" data-testid="checkpoints-sidebar">
+                <CheckpointsPanel projectId={projectId} onClose={() => closePanel("checkpoints")} />
               </div>
             )}
 

@@ -72,6 +72,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `thread_comments`: id (uuid), thread_id (indexed), user_id, content, created_at
 - `skills`: id (uuid), project_id (indexed), name, description, content (markdown), is_active, created_at
 - `port_configs`: id (uuid), project_id (indexed), port, label, protocol, is_public, created_at — unique(project_id, port)
+- `checkpoints`: id (uuid), project_id (indexed), user_id, description, type (manual/auto), trigger (manual/feature_complete/deployment/pre_risky_op), state_snapshot (JSON: files, envVars, storageKv, storageObjectsMeta, aiConversations, projectConfig, packages), created_at (indexed)
+- `checkpoint_positions`: id (uuid), project_id (unique), current_checkpoint_id, updated_at — tracks current position in checkpoint timeline per project
 - `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
@@ -85,6 +87,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Monitoring**: CPU, memory, request, and error metric tracking with configurable alerts (gt/lt/eq thresholds). Demo data generation. Panel in activity bar (Activity icon, #10B981).
 - **Threads**: Code discussion threads per-file with line number references, open/resolved status, comments. Panel in activity bar (MessageSquare icon, #8B5CF6).
 - **Networking**: Port configuration with labels, protocol (http/https/tcp/ws), public/private toggle, per-project isolation. Panel in activity bar (Network icon, #06B6D4).
+- **Checkpoints**: Full project state snapshots (files, env vars, KV store, packages) with visual timeline. Manual creation, auto-triggered on deployment & AI operations. Rollback/roll-forward with optional database restore. Diff preview before restoring. Panel in activity bar (Clock icon, #7C65CB). Service: `server/checkpointService.ts`.
 - **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
 - **Desktop bottom panel**: Console + Shell tabs in resizable bottom panel (like VS Code) with Ctrl+J/Ctrl+` toggle
 - **Split preview panel**: Side-by-side editor + preview on desktop with resizable drag handle (Ctrl+\), auto-opens for HTML, live-refreshes on code change (500ms debounce)
