@@ -5,6 +5,8 @@ export interface ProjectTemplate {
   language: string;
   projectType?: string;
   files: { filename: string; content: string }[];
+  slidesData?: any;
+  videoData?: any;
 }
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -1568,6 +1570,120 @@ const styles = StyleSheet.create({
 }`,
       },
     ],
+  },
+  {
+    id: "pitch-deck",
+    name: "Pitch Deck",
+    description: "Startup pitch deck with problem, solution, market, and team slides",
+    language: "slides",
+    projectType: "slides",
+    files: [],
+    slidesData: {
+      slides: [
+        { id: "s1", order: 0, layout: "title", blocks: [{ id: "b1", type: "title", content: "Company Name" }, { id: "b2", type: "body", content: "One-line description of what you do" }] },
+        { id: "s2", order: 1, layout: "content", blocks: [{ id: "b3", type: "title", content: "The Problem" }, { id: "b4", type: "body", content: "Describe the pain point your target customers face" }] },
+        { id: "s3", order: 2, layout: "content", blocks: [{ id: "b5", type: "title", content: "Our Solution" }, { id: "b6", type: "body", content: "How your product solves the problem" }] },
+        { id: "s4", order: 3, layout: "content", blocks: [{ id: "b7", type: "title", content: "Market Opportunity" }, { id: "b8", type: "list", content: "- Total Addressable Market: $XX B\n- Serviceable Market: $XX B\n- Growth Rate: XX% YoY" }] },
+        { id: "s5", order: 4, layout: "content", blocks: [{ id: "b9", type: "title", content: "Business Model" }, { id: "b10", type: "body", content: "How you make money" }] },
+        { id: "s6", order: 5, layout: "content", blocks: [{ id: "b11", type: "title", content: "Traction" }, { id: "b12", type: "list", content: "- XX,000 users\n- $XXk MRR\n- XX% month-over-month growth" }] },
+        { id: "s7", order: 6, layout: "content", blocks: [{ id: "b13", type: "title", content: "The Team" }, { id: "b14", type: "body", content: "Introduce your founding team and key hires" }] },
+        { id: "s8", order: 7, layout: "content", blocks: [{ id: "b15", type: "title", content: "The Ask" }, { id: "b16", type: "body", content: "Raising $X.XM to achieve key milestones" }] },
+      ],
+      theme: { name: "Dark Modern", primaryColor: "#0079F2", secondaryColor: "#7C65CB", backgroundColor: "#1a1a2e", textColor: "#ffffff", fontFamily: "Inter, system-ui, sans-serif", accentColor: "#0CCE6B" },
+    },
+  },
+  {
+    id: "tech-talk",
+    name: "Technical Talk",
+    description: "Conference-style technical presentation with code examples",
+    language: "slides",
+    projectType: "slides",
+    files: [],
+    slidesData: {
+      slides: [
+        { id: "s1", order: 0, layout: "title", blocks: [{ id: "b1", type: "title", content: "Building Scalable APIs" }, { id: "b2", type: "body", content: "Patterns and best practices for production systems" }] },
+        { id: "s2", order: 1, layout: "content", blocks: [{ id: "b3", type: "title", content: "Agenda" }, { id: "b4", type: "list", content: "- Architecture overview\n- Design patterns\n- Code walkthrough\n- Performance tips\n- Q&A" }] },
+        { id: "s3", order: 2, layout: "content", blocks: [{ id: "b5", type: "title", content: "Architecture" }, { id: "b6", type: "body", content: "High-level system design and component interaction" }] },
+        { id: "s4", order: 3, layout: "content", blocks: [{ id: "b7", type: "title", content: "Code Example" }, { id: "b8", type: "code", content: "async function handleRequest(req) {\n  const data = await validate(req.body);\n  const result = await process(data);\n  return respond(result);\n}" }] },
+        { id: "s5", order: 4, layout: "content", blocks: [{ id: "b9", type: "title", content: "Key Takeaways" }, { id: "b10", type: "list", content: "- Keep it simple\n- Measure everything\n- Fail gracefully\n- Document decisions" }] },
+        { id: "s6", order: 5, layout: "title", blocks: [{ id: "b11", type: "title", content: "Thank You!" }, { id: "b12", type: "body", content: "Questions?" }] },
+      ],
+      theme: { name: "Ocean Blue", primaryColor: "#06b6d4", secondaryColor: "#3b82f6", backgroundColor: "#0c1220", textColor: "#e0f2fe", fontFamily: "Inter, system-ui, sans-serif", accentColor: "#22d3ee" },
+    },
+  },
+  {
+    id: "portfolio-slides",
+    name: "Portfolio Showcase",
+    description: "Creative portfolio presentation with project highlights",
+    language: "slides",
+    projectType: "slides",
+    files: [],
+    slidesData: {
+      slides: [
+        { id: "s1", order: 0, layout: "title", blocks: [{ id: "b1", type: "title", content: "My Portfolio" }, { id: "b2", type: "body", content: "Designer & Developer" }] },
+        { id: "s2", order: 1, layout: "content", blocks: [{ id: "b3", type: "title", content: "About Me" }, { id: "b4", type: "body", content: "A brief introduction about yourself and your journey" }] },
+        { id: "s3", order: 2, layout: "content", blocks: [{ id: "b5", type: "title", content: "Project 1" }, { id: "b6", type: "body", content: "Description of your first featured project" }] },
+        { id: "s4", order: 3, layout: "content", blocks: [{ id: "b7", type: "title", content: "Project 2" }, { id: "b8", type: "body", content: "Description of your second featured project" }] },
+        { id: "s5", order: 4, layout: "content", blocks: [{ id: "b9", type: "title", content: "Skills" }, { id: "b10", type: "list", content: "- UI/UX Design\n- Frontend Development\n- Motion Graphics\n- Brand Identity" }] },
+        { id: "s6", order: 5, layout: "title", blocks: [{ id: "b11", type: "title", content: "Let's Connect" }, { id: "b12", type: "body", content: "your@email.com" }] },
+      ],
+      theme: { name: "Royal Purple", primaryColor: "#8b5cf6", secondaryColor: "#a855f7", backgroundColor: "#1e1033", textColor: "#ede9fe", fontFamily: "Inter, system-ui, sans-serif", accentColor: "#c084fc" },
+    },
+  },
+  {
+    id: "product-demo-video",
+    name: "Product Demo",
+    description: "Product demo video with intro, features, and call-to-action",
+    language: "video",
+    projectType: "video",
+    files: [],
+    videoData: {
+      scenes: [
+        { id: "v1", order: 0, duration: 5, backgroundColor: "#1a1a2e", elements: [{ id: "e1", type: "text", content: "Product Name", x: 10, y: 35, width: 80, height: 20, startTime: 0, endTime: 5, style: { fontSize: "56", fontWeight: "bold", color: "#ffffff", textAlign: "center" }, animation: "fade-in" }, { id: "e2", type: "text", content: "The future of productivity", x: 20, y: 55, width: 60, height: 10, startTime: 1, endTime: 5, style: { fontSize: "24", color: "#94a3b8", textAlign: "center" }, animation: "slide-up" }], transition: "fade" },
+        { id: "v2", order: 1, duration: 6, backgroundColor: "#0f172a", elements: [{ id: "e3", type: "text", content: "The Problem", x: 10, y: 15, width: 80, height: 10, startTime: 0, endTime: 6, style: { fontSize: "40", fontWeight: "bold", color: "#0079F2", textAlign: "center" }, animation: "fade-in" }, { id: "e4", type: "text", content: "Teams waste 30% of their time on repetitive tasks", x: 15, y: 40, width: 70, height: 15, startTime: 1, endTime: 6, style: { fontSize: "28", color: "#e2e8f0", textAlign: "center" }, animation: "slide-up" }], transition: "slide-left" },
+        { id: "v3", order: 2, duration: 6, backgroundColor: "#0f172a", elements: [{ id: "e5", type: "text", content: "The Solution", x: 10, y: 15, width: 80, height: 10, startTime: 0, endTime: 6, style: { fontSize: "40", fontWeight: "bold", color: "#0CCE6B", textAlign: "center" }, animation: "fade-in" }, { id: "e6", type: "text", content: "Automate, collaborate, and ship faster", x: 15, y: 40, width: 70, height: 15, startTime: 1, endTime: 6, style: { fontSize: "28", color: "#e2e8f0", textAlign: "center" }, animation: "slide-up" }], transition: "fade" },
+        { id: "v4", order: 3, duration: 5, backgroundColor: "#1a1a2e", elements: [{ id: "e7", type: "text", content: "Try it Free", x: 20, y: 35, width: 60, height: 15, startTime: 0, endTime: 5, style: { fontSize: "48", fontWeight: "bold", color: "#ffffff", textAlign: "center" }, animation: "scale" }, { id: "e8", type: "text", content: "yourproduct.com", x: 25, y: 55, width: 50, height: 10, startTime: 1, endTime: 5, style: { fontSize: "24", color: "#0079F2", textAlign: "center" }, animation: "fade-in" }], transition: "zoom" },
+      ],
+      audioTracks: [],
+      resolution: { width: 1920, height: 1080 },
+      fps: 30,
+    },
+  },
+  {
+    id: "explainer-video",
+    name: "Explainer Video",
+    description: "Short explainer video with text animations and transitions",
+    language: "video",
+    projectType: "video",
+    files: [],
+    videoData: {
+      scenes: [
+        { id: "v1", order: 0, duration: 4, backgroundColor: "#1e1033", elements: [{ id: "e1", type: "text", content: "Did You Know?", x: 15, y: 35, width: 70, height: 20, startTime: 0, endTime: 4, style: { fontSize: "48", fontWeight: "bold", color: "#c084fc", textAlign: "center" }, animation: "scale" }], transition: "fade" },
+        { id: "v2", order: 1, duration: 5, backgroundColor: "#1e1033", elements: [{ id: "e2", type: "shape", content: "rectangle", x: 5, y: 5, width: 90, height: 90, startTime: 0, endTime: 5, style: { backgroundColor: "#2d1b4e", borderRadius: "16" }, animation: "fade-in" }, { id: "e3", type: "text", content: "3 out of 4 teams\nstruggle with workflow efficiency", x: 15, y: 30, width: 70, height: 30, startTime: 0.5, endTime: 5, style: { fontSize: "32", color: "#e2e8f0", textAlign: "center" }, animation: "typewriter" }], transition: "slide-left" },
+        { id: "v3", order: 2, duration: 5, backgroundColor: "#1e1033", elements: [{ id: "e4", type: "text", content: "Here's How\nWe Can Help", x: 15, y: 25, width: 70, height: 20, startTime: 0, endTime: 5, style: { fontSize: "44", fontWeight: "bold", color: "#a855f7", textAlign: "center" }, animation: "fade-in" }, { id: "e5", type: "text", content: "Simple. Powerful. Beautiful.", x: 25, y: 55, width: 50, height: 10, startTime: 1, endTime: 5, style: { fontSize: "24", color: "#94a3b8", textAlign: "center" }, animation: "slide-up" }], transition: "dissolve" },
+        { id: "v4", order: 3, duration: 4, backgroundColor: "#0f172a", elements: [{ id: "e6", type: "text", content: "Get Started Today", x: 15, y: 35, width: 70, height: 15, startTime: 0, endTime: 4, style: { fontSize: "42", fontWeight: "bold", color: "#ffffff", textAlign: "center" }, animation: "scale" }, { id: "e7", type: "shape", content: "rectangle", x: 30, y: 60, width: 40, height: 12, startTime: 1, endTime: 4, style: { backgroundColor: "#8b5cf6", borderRadius: "24" }, animation: "fade-in" }, { id: "e8", type: "text", content: "Sign Up Free", x: 30, y: 62, width: 40, height: 8, startTime: 1.2, endTime: 4, style: { fontSize: "20", fontWeight: "bold", color: "#ffffff", textAlign: "center" }, animation: "fade-in" }], transition: "fade" },
+      ],
+      audioTracks: [],
+      resolution: { width: 1920, height: 1080 },
+      fps: 30,
+    },
+  },
+  {
+    id: "social-intro-video",
+    name: "Social Media Intro",
+    description: "Short social media intro clip with bold text and transitions",
+    language: "video",
+    projectType: "video",
+    files: [],
+    videoData: {
+      scenes: [
+        { id: "v1", order: 0, duration: 3, backgroundColor: "#0a0a0a", elements: [{ id: "e1", type: "shape", content: "rectangle", x: 0, y: 0, width: 100, height: 100, startTime: 0, endTime: 3, style: { backgroundColor: "#0079F2" }, animation: "none" }, { id: "e2", type: "text", content: "YOUR\nBRAND", x: 15, y: 25, width: 70, height: 40, startTime: 0.3, endTime: 3, style: { fontSize: "64", fontWeight: "bold", color: "#ffffff", textAlign: "center" }, animation: "scale" }], transition: "zoom" },
+        { id: "v2", order: 1, duration: 3, backgroundColor: "#ffffff", elements: [{ id: "e3", type: "text", content: "Follow for more", x: 20, y: 35, width: 60, height: 15, startTime: 0, endTime: 3, style: { fontSize: "36", fontWeight: "bold", color: "#0a0a0a", textAlign: "center" }, animation: "slide-up" }, { id: "e4", type: "text", content: "@yourhandle", x: 25, y: 55, width: 50, height: 10, startTime: 0.5, endTime: 3, style: { fontSize: "24", color: "#0079F2", textAlign: "center" }, animation: "fade-in" }], transition: "fade" },
+      ],
+      audioTracks: [],
+      resolution: { width: 1080, height: 1080 },
+      fps: 30,
+    },
   },
 ];
 

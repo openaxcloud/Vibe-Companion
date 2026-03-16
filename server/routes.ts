@@ -44,6 +44,8 @@ import path, { posix as pathPosix } from "path";
 import { generateImageBuffer, editImages } from "./replit_integrations/image/client";
 import { registerImageRoutes } from "./replit_integrations/image";
 import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "./fileGeneration";
+import PDFDocument from "pdfkit";
+import * as fs from "fs";
 
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
@@ -2879,11 +2881,32 @@ export async function registerRoutes(
         files: template.files,
         visibility: data.visibility || "public",
       });
-      return res.status(201).json(project);
+
+      if (template.projectType === "slides" && template.slidesData) {
+        await storage.createSlidesData({
+          projectId: project.id,
+          slides: template.slidesData.slides,
+          theme: template.slidesData.theme,
+        });
+      }
+
+      if (template.projectType === "video" && template.videoData) {
+        await storage.createVideoData({
+          projectId: project.id,
+          scenes: template.videoData.scenes,
+          audioTracks: template.videoData.audioTracks || [],
+          resolution: template.videoData.resolution,
+          fps: template.videoData.fps,
+        });
+      }
+
+      const updatedProject = await storage.getProject(project.id);
+      return res.status(201).json(updatedProject || project);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
       }
+      console.error("[from-template] Error:", error?.message || error, error?.stack?.substring(0, 300));
       return res.status(500).json({ message: "Failed to create project from template" });
     }
   });
@@ -4744,7 +4767,8 @@ export async function registerRoutes(
 
   app.get("/api/workspaces/:projectId/preview-proxy/{*path}", requireAuth, async (req: Request, res: Response) => {
     try {
-      const project = await storage.getProject(req.params.projectId);
+      const projectId = req.params[0];
+      const project = await storage.getProject(projectId);
       if (!project || project.userId !== req.session.userId) {
         return res.status(404).json({ message: "Project not found" });
       }
@@ -6047,6 +6071,32 @@ Rules:
           return `Error: ${result.error}`;
         }
       }
+      if (toolName === "update_slides" || toolName === "create_slide" || toolName === "edit_slide") {
+        const slidesInput = toolInput as { slides: any[]; theme?: any };
+        let existing = await storage.getSlidesData(projectId);
+        if (!existing) {
+          existing = await storage.createSlidesData({ projectId, slides: slidesInput.slides, theme: slidesInput.theme });
+        } else {
+          const updatePayload: any = { slides: slidesInput.slides };
+          if (slidesInput.theme) updatePayload.theme = slidesInput.theme;
+          existing = await storage.updateSlidesData(projectId, updatePayload);
+        }
+        res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n> Updated slides data\n" })}\n\n`);
+        return;
+      }
+      if (toolName === "update_video" || toolName === "create_video_scene" || toolName === "edit_video_scene") {
+        const videoInput = toolInput as { scenes: any[]; audioTracks?: any[] };
+        let existing = await storage.getVideoData(projectId);
+        if (!existing) {
+          existing = await storage.createVideoData({ projectId, scenes: videoInput.scenes, audioTracks: videoInput.audioTracks || [] });
+        } else {
+          const updatePayload: any = { scenes: videoInput.scenes };
+          if (videoInput.audioTracks) updatePayload.audioTracks = videoInput.audioTracks;
+          existing = await storage.updateVideoData(projectId, updatePayload);
+        }
+        res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n> Updated video data\n" })}\n\n`);
+        return;
+      }
       if (toolName === "create_file" || toolName === "edit_file") {
         agentFileOpsCount.value++;
         const safeName = sanitizeAIFilename(toolInput.filename);
@@ -6197,9 +6247,15 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         }
       }
 
+      const projectTypeContext = project.projectType === "slides"
+        ? `\n\nThis is a SLIDES project. The user is building a presentation. You have access to the create_slide and edit_slide tools to create/modify slides. Each slide has an id, order, layout, and blocks array. Block types: title, body, image, code, list. You can also set a theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, and accentColor.`
+        : project.projectType === "video"
+        ? `\n\nThis is a VIDEO project. The user is creating a video composition. You have access to the create_video_scene and edit_video_scene tools to create/modify video scenes. Each scene has an id, order, duration (seconds), backgroundColor, elements array, and transition type. Element types: text, image, shape, overlay. Each element has position (x, y as %), size (width, height as %), startTime, endTime, style, and animation.`
+        : "";
+
       const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
-Current project: "${project.name}" (${project.language}${isMobileProject ? ", mobile-app" : ""})
+Current project: "${project.name}" (${project.language}, type: ${project.projectType || "web-app"}${isMobileProject ? ", mobile-app" : ""})
 Existing files:
 ${fileList || "(no files yet)"}${mobileContext}
 
@@ -6219,7 +6275,7 @@ When the user asks you to generate a document, report, spreadsheet, or data expo
 When the user asks about data from connected services (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex), use the query_connector tool to read data or write_connector to create/update data. Available connectors and operations:
 ${getConnectorDescription()}
 
-Always write complete, working code. Never use placeholders or TODOs.${ecodeGuidelines}${webSearchEnabled ? `
+Always write complete, working code. Never use placeholders or TODOs.${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
 
 ## Web Search
 You have access to web search tools. Use them when:
@@ -6401,6 +6457,54 @@ Always cite your sources in your response when using information from web search
                 required: ["connector", "operation"],
               },
             },
+            {
+              name: "update_slides",
+              description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  slides: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, layout: { type: Type.STRING }, blocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, content: { type: Type.STRING } }, required: ["id", "type", "content"] } } }, required: ["id", "order", "blocks"] }, description: "Array of slide objects" },
+                  theme: { type: Type.OBJECT, properties: { primaryColor: { type: Type.STRING }, secondaryColor: { type: Type.STRING }, backgroundColor: { type: Type.STRING }, textColor: { type: Type.STRING }, fontFamily: { type: Type.STRING }, accentColor: { type: Type.STRING } }, description: "Optional theme object" },
+                },
+                required: ["slides"],
+              },
+            },
+            {
+              name: "edit_slide",
+              description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  slides: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, layout: { type: Type.STRING }, blocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, content: { type: Type.STRING } }, required: ["id", "type", "content"] } } }, required: ["id", "order", "blocks"] }, description: "Array of slide objects" },
+                  theme: { type: Type.OBJECT, properties: { primaryColor: { type: Type.STRING }, secondaryColor: { type: Type.STRING }, backgroundColor: { type: Type.STRING }, textColor: { type: Type.STRING }, fontFamily: { type: Type.STRING }, accentColor: { type: Type.STRING } }, description: "Optional theme object" },
+                },
+                required: ["slides"],
+              },
+            },
+            {
+              name: "create_video_scene",
+              description: "Create video scenes for a video project. Provide the full array of scenes and optionally audio tracks.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  scenes: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, duration: { type: Type.NUMBER }, backgroundColor: { type: Type.STRING }, elements: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, content: { type: Type.STRING } }, required: ["id", "type"] } }, transition: { type: Type.STRING } }, required: ["id", "order", "duration"] }, description: "Array of scene objects" },
+                  audioTracks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, url: { type: Type.STRING }, volume: { type: Type.NUMBER } }, required: ["id"] }, description: "Optional audio tracks" },
+                },
+                required: ["scenes"],
+              },
+            },
+            {
+              name: "edit_video_scene",
+              description: "Edit existing video scenes in a video project. Provide the updated full array of scenes and optionally audio tracks.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  scenes: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, duration: { type: Type.NUMBER }, backgroundColor: { type: Type.STRING }, elements: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, content: { type: Type.STRING } }, required: ["id", "type"] } }, transition: { type: Type.STRING } }, required: ["id", "order", "duration"] }, description: "Array of scene objects" },
+                  audioTracks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, url: { type: Type.STRING }, volume: { type: Type.NUMBER } }, required: ["id"] }, description: "Optional audio tracks" },
+                },
+                required: ["scenes"],
+              },
+            },
         ];
         if (webSearchEnabled) {
           geminiToolDeclarations.push(
@@ -6568,6 +6672,36 @@ Always cite your sources in your response when using information from web search
           {
             type: "function",
             function: {
+              name: "create_slide",
+              description: "Create slides for a slides project. Provide the full array of slides and optionally a theme.",
+              parameters: {
+                type: "object",
+                properties: {
+                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                  theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
+                },
+                required: ["slides"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "edit_slide",
+              description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme.",
+              parameters: {
+                type: "object",
+                properties: {
+                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                  theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
+                },
+                required: ["slides"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
               name: "edit_image",
               description: "Modify an existing generated image in the project using AI",
               parameters: {
@@ -6641,6 +6775,36 @@ Always cite your sources in your response when using information from web search
                   params: { type: "object", description: "Operation-specific parameters as key-value pairs" },
                 },
                 required: ["connector", "operation"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "update_slides",
+              description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme.",
+              parameters: {
+                type: "object",
+                properties: {
+                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                  theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
+                },
+                required: ["slides"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "update_video",
+              description: "Create or update the video data for a video project. Provide the full array of scenes and optionally audio tracks.",
+              parameters: {
+                type: "object",
+                properties: {
+                  scenes: { type: "array", items: { type: "object" }, description: "Array of scene objects with id, order, duration, backgroundColor, elements, transition" },
+                  audioTracks: { type: "array", items: { type: "object" }, description: "Optional audio tracks with id, name, url, volume" },
+                },
+                required: ["scenes"],
               },
             },
           },
@@ -6858,6 +7022,54 @@ Always cite your sources in your response when using information from web search
                 params: { type: "object", description: "Operation-specific parameters as key-value pairs" },
               },
               required: ["connector", "operation"],
+            },
+          },
+          {
+            name: "update_slides",
+            description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
+              },
+              required: ["slides"],
+            },
+          },
+          {
+            name: "edit_slide",
+            description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
+              },
+              required: ["slides"],
+            },
+          },
+          {
+            name: "create_video_scene",
+            description: "Create video scenes for a video project. Provide the full array of scenes and optionally audio tracks.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                scenes: { type: "array", items: { type: "object" }, description: "Array of scene objects with id, order, duration, backgroundColor, elements, transition" },
+                audioTracks: { type: "array", items: { type: "object" }, description: "Optional audio tracks with id, name, url, volume" },
+              },
+              required: ["scenes"],
+            },
+          },
+          {
+            name: "edit_video_scene",
+            description: "Edit existing video scenes in a video project. Provide the updated full array of scenes and optionally audio tracks.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                scenes: { type: "array", items: { type: "object" }, description: "Array of scene objects with id, order, duration, backgroundColor, elements, transition" },
+                audioTracks: { type: "array", items: { type: "object" }, description: "Optional audio tracks with id, name, url, volume" },
+              },
+              required: ["scenes"],
             },
           },
           ...mcpToolDefinitions.map(t => ({
@@ -10711,6 +10923,396 @@ Respond ONLY with the JSON array, no other text.`;
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ===================== SLIDES & VIDEO ROUTES =====================
+  app.get("/api/projects/:projectId/slides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const data = await storage.getSlidesData(projectId);
+      if (!data) return res.json({ projectId, slides: [], theme: null });
+      return res.json(data);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch slides data" });
+    }
+  });
+
+  const slideBlockSchema = z.object({
+    id: z.string(),
+    type: z.enum(["title", "body", "image", "code", "list"]),
+    content: z.string(),
+    imageUrl: z.string().optional(),
+    language: z.string().optional(),
+  });
+  const slideSchema = z.object({
+    id: z.string(),
+    order: z.number(),
+    layout: z.string().default("default"),
+    blocks: z.array(slideBlockSchema),
+    notes: z.string().optional(),
+  });
+  const slideThemeSchema = z.object({
+    name: z.string().optional(),
+    primaryColor: z.string().optional(),
+    secondaryColor: z.string().optional(),
+    backgroundColor: z.string().optional(),
+    textColor: z.string().optional(),
+    fontFamily: z.string().optional(),
+    accentColor: z.string().optional(),
+  }).optional();
+  const slidesUpdateSchema = z.object({
+    slides: z.array(slideSchema).optional(),
+    theme: slideThemeSchema,
+  });
+
+  const videoElementSchema = z.object({
+    id: z.string(),
+    type: z.enum(["text", "image", "shape", "overlay"]),
+    content: z.string().default(""),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+    startTime: z.number().default(0),
+    endTime: z.number().default(0),
+    style: z.record(z.string()).optional(),
+    animation: z.enum(["none", "fade-in", "slide-up", "scale", "typewriter"]).optional(),
+  });
+  const videoSceneSchema = z.object({
+    id: z.string(),
+    order: z.number(),
+    duration: z.number().default(3),
+    backgroundColor: z.string().default("#1a1a2e"),
+    elements: z.array(videoElementSchema).default([]),
+    transition: z.string().optional(),
+  });
+  const audioTrackSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    url: z.string().optional(),
+    volume: z.number().min(0).max(100).default(80),
+    loop: z.boolean().default(false),
+  });
+  const videoUpdateSchema = z.object({
+    scenes: z.array(videoSceneSchema).optional(),
+    audioTracks: z.array(audioTrackSchema).optional(),
+    resolution: z.object({ width: z.number(), height: z.number() }).optional(),
+    fps: z.number().min(1).max(120).optional(),
+  });
+
+  app.put("/api/projects/:projectId/slides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = slidesUpdateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid slides payload", errors: parsed.error.errors });
+      const { slides, theme } = parsed.data;
+      let data = await storage.getSlidesData(projectId);
+      if (!data) {
+        data = await storage.createSlidesData({ projectId, slides: slides || [], theme: theme || undefined });
+      } else {
+        const updatePayload: any = {};
+        if (slides !== undefined) updatePayload.slides = slides;
+        if (theme !== undefined) updatePayload.theme = theme;
+        data = await storage.updateSlidesData(projectId, updatePayload);
+      }
+      await storage.updateProject(projectId, { name: project.name });
+      return res.json(data);
+    } catch {
+      return res.status(500).json({ message: "Failed to update slides data" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/slides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      await storage.deleteSlidesData(projectId);
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete slides data" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/video", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const data = await storage.getVideoData(projectId);
+      if (!data) return res.json({ projectId, scenes: [], audioTracks: [], resolution: { width: 1920, height: 1080 }, fps: 30 });
+      return res.json(data);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch video data" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/video", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = videoUpdateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid video payload", errors: parsed.error.errors });
+      const { scenes, audioTracks, resolution, fps } = parsed.data;
+      let data = await storage.getVideoData(projectId);
+      if (!data) {
+        data = await storage.createVideoData({ projectId, scenes: scenes || [], audioTracks: audioTracks || [], resolution: resolution || undefined, fps: fps || undefined });
+      } else {
+        const updatePayload: any = {};
+        if (scenes !== undefined) updatePayload.scenes = scenes;
+        if (audioTracks !== undefined) updatePayload.audioTracks = audioTracks;
+        if (resolution !== undefined) updatePayload.resolution = resolution;
+        if (fps !== undefined) updatePayload.fps = fps;
+        data = await storage.updateVideoData(projectId, updatePayload);
+      }
+      await storage.updateProject(projectId, { name: project.name });
+      return res.json(data);
+    } catch {
+      return res.status(500).json({ message: "Failed to update video data" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/video", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      await storage.deleteVideoData(projectId);
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete video data" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/slides/export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const data = await storage.getSlidesData(projectId);
+      if (!data || !data.slides || data.slides.length === 0) return res.status(400).json({ message: "No slides to export" });
+
+      const theme = (data.theme as any) || {};
+      const bgColor = theme.backgroundColor || "#1a1a2e";
+      const textColor = theme.textColor || "#ffffff";
+      const primaryColor = theme.primaryColor || "#0079F2";
+      const accentColor = theme.accentColor || "#0CCE6B";
+
+      const hexToRGB = (hex: string): [number, number, number] => {
+        const c = hex.replace("#", "");
+        return [parseInt(c.substring(0, 2), 16) || 0, parseInt(c.substring(2, 4), 16) || 0, parseInt(c.substring(4, 6), 16) || 0];
+      };
+
+      const doc = new PDFDocument({ size: [842, 595], margin: 0, bufferPages: true });
+
+      const sortedSlides = (data.slides as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      for (let idx = 0; idx < sortedSlides.length; idx++) {
+        const slide = sortedSlides[idx];
+        if (idx > 0) doc.addPage();
+
+        const [bgR, bgG, bgB] = hexToRGB(slide.backgroundColor || bgColor);
+        doc.rect(0, 0, 842, 595).fill([bgR, bgG, bgB]);
+
+        let yPos = 60;
+
+        if (slide.blocks) {
+          for (const block of slide.blocks) {
+            switch (block.type) {
+              case "title":
+                doc.font("Helvetica-Bold").fontSize(32).fillColor(primaryColor)
+                  .text(block.content || "", 50, yPos, { width: 742, align: "left" });
+                yPos += doc.heightOfString(block.content || "", { width: 742 }) + 30;
+                break;
+              case "body":
+                doc.font("Helvetica").fontSize(16).fillColor(textColor)
+                  .text(block.content || "", 50, yPos, { width: 742, align: "left" });
+                yPos += doc.heightOfString(block.content || "", { width: 742 }) + 20;
+                break;
+              case "code": {
+                const codeText = block.content || "";
+                const codeHeight = Math.max(40, doc.font("Courier").fontSize(11).heightOfString(codeText, { width: 702 }) + 20);
+                doc.save();
+                doc.roundedRect(50, yPos, 742, codeHeight, 6).fill("#2d2d3d");
+                doc.restore();
+                doc.font("Courier").fontSize(11).fillColor("#e0e0e0")
+                  .text(codeText, 60, yPos + 10, { width: 722, align: "left" });
+                yPos += codeHeight + 15;
+                break;
+              }
+              case "list": {
+                const listItems = (block.content || "").split("\n").filter((item: string) => item.trim());
+                for (const item of listItems) {
+                  const cleanItem = item.replace(/^[-*•]\s*/, "").trim();
+                  if (!cleanItem) continue;
+                  doc.font("Helvetica").fontSize(14).fillColor(accentColor).text("●", 60, yPos, { width: 20 });
+                  doc.font("Helvetica").fontSize(14).fillColor(textColor).text(cleanItem, 80, yPos, { width: 712, align: "left" });
+                  yPos += doc.heightOfString(cleanItem, { width: 712 }) + 10;
+                }
+                yPos += 10;
+                break;
+              }
+              case "image": {
+                const imgUrl = block.imageUrl || block.content || "";
+                if (imgUrl) {
+                  const urlValidation = validateExternalUrl(imgUrl);
+                  if (urlValidation.valid) {
+                    try {
+                      const imgResp = await fetch(imgUrl, { signal: AbortSignal.timeout(8000) });
+                      const contentType = imgResp.headers.get("content-type") || "";
+                      if (imgResp.ok && contentType.startsWith("image/")) {
+                        const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+                        if (imgBuf.length <= 10 * 1024 * 1024) {
+                          doc.image(imgBuf, 50, yPos, { fit: [742, 280], align: "center" });
+                          yPos += 300;
+                        } else {
+                          doc.font("Helvetica-Oblique").fontSize(11).fillColor("#888888")
+                            .text(`[Image too large]`, 50, yPos, { width: 742 });
+                          yPos += 25;
+                        }
+                      } else {
+                        doc.font("Helvetica-Oblique").fontSize(11).fillColor("#888888")
+                          .text(`[Image could not be loaded]`, 50, yPos, { width: 742 });
+                        yPos += 25;
+                      }
+                    } catch {
+                      doc.font("Helvetica-Oblique").fontSize(11).fillColor("#888888")
+                        .text(`[Image could not be loaded]`, 50, yPos, { width: 742 });
+                      yPos += 25;
+                    }
+                  } else {
+                    doc.font("Helvetica-Oblique").fontSize(11).fillColor("#888888")
+                      .text(`[Image: invalid or blocked URL]`, 50, yPos, { width: 742 });
+                    yPos += 25;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        doc.font("Helvetica").fontSize(9).fillColor("#888888")
+          .text(`${idx + 1} / ${sortedSlides.length}`, 0, 570, { width: 822, align: "right" });
+      }
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_slides.pdf"`);
+      doc.pipe(res);
+      doc.end();
+    } catch (err) {
+      log(`PDF export error: ${err}`, "error");
+      return res.status(500).json({ message: "Failed to export slides" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/video/export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const data = await storage.getVideoData(projectId);
+      if (!data || !data.scenes || (data.scenes as any[]).length === 0) return res.status(400).json({ message: "No scenes to export" });
+
+      const scenes = (data.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      const resolution = (data.resolution as any) || { width: 1920, height: 1080 };
+      const fps = data.fps || 30;
+      const totalDuration = scenes.reduce((sum: number, s: any) => sum + (s.duration || 3), 0);
+
+      const { execSync } = await import("child_process");
+      const tmpDir = `/tmp/video_export_${projectId}_${Date.now()}`;
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      let createCanvas: any = null;
+      try {
+        const canvasModule = await import("canvas");
+        createCanvas = canvasModule.createCanvas;
+      } catch {}
+
+      let frameIndex = 0;
+      for (const scene of scenes) {
+        const totalFrames = Math.max(1, Math.round((scene.duration || 3) * fps));
+
+        if (createCanvas) {
+          const canvas = createCanvas(resolution.width, resolution.height);
+          const ctx = canvas.getContext("2d");
+          const bgHex = (scene.backgroundColor || "#1a1a2e").replace("#", "");
+          ctx.fillStyle = `#${bgHex}`;
+          ctx.fillRect(0, 0, resolution.width, resolution.height);
+          if (scene.elements) {
+            for (const el of scene.elements) {
+              const x = (el.x || 0) / 100 * resolution.width;
+              const y = (el.y || 0) / 100 * resolution.height;
+              if (el.type === "text" && el.content) {
+                const fontSize = parseInt(el.style?.fontSize || "24", 10);
+                ctx.font = `${el.style?.fontWeight === "bold" ? "bold " : ""}${fontSize}px sans-serif`;
+                ctx.fillStyle = el.style?.color || "#ffffff";
+                ctx.fillText(el.content, x, y + fontSize);
+              } else if (el.type === "shape") {
+                ctx.fillStyle = el.style?.backgroundColor || el.style?.fill || "#0079F2";
+                const w = (el.width || 10) / 100 * resolution.width;
+                const h = (el.height || 10) / 100 * resolution.height;
+                ctx.fillRect(x, y, w, h);
+              }
+            }
+          }
+          const pngBuffer = canvas.toBuffer("image/png");
+          for (let f = 0; f < totalFrames; f++) {
+            const framePath = `${tmpDir}/frame_${String(frameIndex).padStart(6, "0")}.png`;
+            fs.writeFileSync(framePath, pngBuffer);
+            frameIndex++;
+          }
+        } else {
+          const ppmHeader = `P6\n${resolution.width} ${resolution.height}\n255\n`;
+          const bgHex = (scene.backgroundColor || "#1a1a2e").replace("#", "");
+          const r = parseInt(bgHex.substring(0, 2), 16) || 26;
+          const g = parseInt(bgHex.substring(2, 4), 16) || 26;
+          const b = parseInt(bgHex.substring(4, 6), 16) || 46;
+          const pixels = Buffer.alloc(resolution.width * resolution.height * 3);
+          for (let i = 0; i < resolution.width * resolution.height; i++) {
+            pixels[i * 3] = r;
+            pixels[i * 3 + 1] = g;
+            pixels[i * 3 + 2] = b;
+          }
+          const ppmData = Buffer.concat([Buffer.from(ppmHeader), pixels]);
+          for (let f = 0; f < totalFrames; f++) {
+            const framePath = `${tmpDir}/frame_${String(frameIndex).padStart(6, "0")}.ppm`;
+            fs.writeFileSync(framePath, ppmData);
+            frameIndex++;
+          }
+        }
+      }
+
+      const outputPath = `${tmpDir}/output.mp4`;
+      const ext = createCanvas ? "png" : "ppm";
+      try {
+        execSync(`ffmpeg -y -framerate ${fps} -i ${tmpDir}/frame_%06d.${ext} -c:v libx264 -pix_fmt yuv420p -preset fast -crf 23 ${outputPath}`, { timeout: 60000, stdio: "pipe" });
+      } catch (ffmpegErr: unknown) {
+        const errMsg = ffmpegErr instanceof Error ? ffmpegErr.message : String(ffmpegErr);
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        return res.status(500).json({ message: "FFmpeg render failed: " + errMsg.substring(0, 200) });
+      }
+
+      if (!fs.existsSync(outputPath)) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        return res.status(500).json({ message: "Video render produced no output" });
+      }
+
+      const stat = fs.statSync(outputPath);
+      res.setHeader("Content-Type", "video/mp4");
+      res.setHeader("Content-Length", stat.size);
+      res.setHeader("Content-Disposition", `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_video.mp4"`);
+      const readStream = fs.createReadStream(outputPath);
+      readStream.pipe(res);
+      readStream.on("end", () => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+      readStream.on("error", () => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+    } catch {
+      return res.status(500).json({ message: "Failed to export video" });
     }
   });
 

@@ -156,7 +156,7 @@ export const projects = pgTable("projects", {
   teamId: varchar("team_id", { length: 36 }),
   name: text("name").notNull(),
   language: text("language").notNull().default("javascript"),
-  projectType: text("project_type").notNull().default("web"),
+  projectType: text("project_type").notNull().default("web-app"),
   visibility: text("visibility").notNull().default("public"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublished: boolean("is_published").notNull().default(false),
@@ -173,6 +173,9 @@ export const projects = pgTable("projects", {
   index("projects_user_id_idx").on(table.userId),
 ]);
 
+export const projectTypeEnum = z.enum(["web-app", "slides", "video"]);
+export type ProjectType = z.infer<typeof projectTypeEnum>;
+
 export const insertProjectSchema = createInsertSchema(projects).pick({
   name: true,
   language: true,
@@ -180,6 +183,7 @@ export const insertProjectSchema = createInsertSchema(projects).pick({
   visibility: true,
 }).extend({
   visibility: z.enum(projectVisibilityEnum).optional().default("public"),
+  projectType: projectTypeEnum.default("web-app"),
 });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
@@ -207,6 +211,105 @@ export const insertProjectGuestSchema = createInsertSchema(projectGuests).pick({
 });
 export type InsertProjectGuest = z.infer<typeof insertProjectGuestSchema>;
 export type ProjectGuest = typeof projectGuests.$inferSelect;
+
+export interface SlideContentBlock {
+  id: string;
+  type: "title" | "body" | "image" | "code" | "list";
+  content: string;
+  imageUrl?: string;
+  language?: string;
+  style?: Record<string, string>;
+}
+
+export interface SlideData {
+  id: string;
+  order: number;
+  layout: "title" | "content" | "two-column" | "image-full" | "blank";
+  blocks: SlideContentBlock[];
+  notes?: string;
+  backgroundColor?: string;
+}
+
+export interface SlideTheme {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  backgroundColor: string;
+  textColor: string;
+  fontFamily: string;
+  accentColor: string;
+}
+
+export const slidesData = pgTable("slides_data", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  slides: json("slides").$type<SlideData[]>().notNull().default([]),
+  theme: json("theme").$type<SlideTheme>().notNull().default({
+    name: "default",
+    primaryColor: "#0079F2",
+    secondaryColor: "#7C65CB",
+    backgroundColor: "#1a1a2e",
+    textColor: "#ffffff",
+    fontFamily: "Inter, system-ui, sans-serif",
+    accentColor: "#0CCE6B",
+  }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("slides_data_project_idx").on(table.projectId),
+  uniqueIndex("slides_data_project_unique").on(table.projectId),
+]);
+
+export const insertSlidesDataSchema = createInsertSchema(slidesData).omit({ id: true, updatedAt: true });
+export type InsertSlidesData = z.infer<typeof insertSlidesDataSchema>;
+export type SlidesDataRecord = typeof slidesData.$inferSelect;
+
+export interface VideoScene {
+  id: string;
+  order: number;
+  duration: number;
+  backgroundColor: string;
+  elements: VideoElement[];
+  transition: "none" | "fade" | "slide-left" | "slide-right" | "zoom" | "dissolve";
+}
+
+export interface VideoElement {
+  id: string;
+  type: "text" | "image" | "shape" | "overlay";
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  startTime: number;
+  endTime: number;
+  style?: Record<string, string>;
+  animation?: "none" | "fade-in" | "slide-up" | "scale" | "typewriter";
+}
+
+export interface VideoAudioTrack {
+  id: string;
+  name: string;
+  url?: string;
+  volume: number;
+  loop?: boolean;
+}
+
+export const videoData = pgTable("video_data", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  scenes: json("scenes").$type<VideoScene[]>().notNull().default([]),
+  audioTracks: json("audio_tracks").$type<VideoAudioTrack[]>().notNull().default([]),
+  resolution: json("resolution").$type<{ width: number; height: number }>().notNull().default({ width: 1920, height: 1080 }),
+  fps: integer("fps").notNull().default(30),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("video_data_project_idx").on(table.projectId),
+  uniqueIndex("video_data_project_unique").on(table.projectId),
+]);
+
+export const insertVideoDataSchema = createInsertSchema(videoData).omit({ id: true, updatedAt: true });
+export type InsertVideoData = z.infer<typeof insertVideoDataSchema>;
+export type VideoDataRecord = typeof videoData.$inferSelect;
 
 export const frameworkUpdates = pgTable("framework_updates", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

@@ -12,7 +12,7 @@ import {
   Folder, FolderPlus, ChevronRight, ChevronDown, ChevronUp, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
-  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2,
+  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -66,6 +66,8 @@ import WorkspaceTerminal, { type WorkspaceTerminalHandle } from "@/components/Wo
 import CommandPalette from "@/components/CommandPalette";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
+import SlideEditor from "@/components/SlideEditor";
+import VideoEditor from "@/components/VideoEditor";
 import type { Project as ProjectType, File, ProjectGuest } from "@shared/schema";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
@@ -3461,7 +3463,16 @@ function _projectPage() {
     </div>
   );
 
-  const editorContent = (
+  const isSlideProject = project?.projectType === "slides";
+  const isVideoProject = project?.projectType === "video";
+  const isMediaProject = isSlideProject || isVideoProject;
+
+  const editorContent = isMediaProject ? (
+    <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
+      {isSlideProject && projectId ? <SlideEditor projectId={projectId} /> : null}
+      {isVideoProject && projectId ? <VideoEditor projectId={projectId} /> : null}
+    </div>
+  ) : (
     <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
       {activeFileId === SPECIAL_TABS.WEBVIEW ? webviewTabContent
        : activeFileId === SPECIAL_TABS.SHELL ? shellTabContent

@@ -25,6 +25,7 @@ import {
   accountEnvVars, accountEnvVarLinks,
   tasks, taskSteps, taskMessages, taskFileSnapshots,
   creditUsage,
+  slidesData, videoData,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -91,6 +92,10 @@ import {
   projectGuests,
   type ProjectGuest, type InsertProjectGuest,
   type ProjectVisibility,
+  type SlidesDataRecord, type InsertSlidesData,
+  type VideoDataRecord, type InsertVideoData,
+  type SlideData, type SlideTheme,
+  type VideoScene, type VideoAudioTrack,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -443,6 +448,16 @@ export interface IStorage {
   uninstallTheme(userId: string, themeId: string): Promise<boolean>;
   getInstalledThemes(userId: string): Promise<Theme[]>;
   exploreThemes(filters?: { search?: string; baseScheme?: string; authorId?: string; color?: string }): Promise<(Theme & { authorName?: string })[]>;
+
+  getSlidesData(projectId: string): Promise<SlidesDataRecord | undefined>;
+  createSlidesData(data: InsertSlidesData): Promise<SlidesDataRecord>;
+  updateSlidesData(projectId: string, data: Partial<{ slides: SlideData[]; theme: SlideTheme }>): Promise<SlidesDataRecord | undefined>;
+  deleteSlidesData(projectId: string): Promise<boolean>;
+
+  getVideoData(projectId: string): Promise<VideoDataRecord | undefined>;
+  createVideoData(data: InsertVideoData): Promise<VideoDataRecord>;
+  updateVideoData(projectId: string, data: Partial<{ scenes: VideoScene[]; audioTracks: VideoAudioTrack[]; resolution: { width: number; height: number }; fps: number }>): Promise<VideoDataRecord | undefined>;
+  deleteVideoData(projectId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2632,6 +2647,46 @@ export class DatabaseStorage implements IStorage {
       });
     }
     return mapped;
+  }
+
+  async getSlidesData(projectId: string): Promise<SlidesDataRecord | undefined> {
+    const [record] = await db.select().from(slidesData).where(eq(slidesData.projectId, projectId)).limit(1);
+    return record;
+  }
+
+  async createSlidesData(data: InsertSlidesData): Promise<SlidesDataRecord> {
+    const [record] = await db.insert(slidesData).values(data).returning();
+    return record;
+  }
+
+  async updateSlidesData(projectId: string, data: Partial<{ slides: SlideData[]; theme: SlideTheme }>): Promise<SlidesDataRecord | undefined> {
+    const [record] = await db.update(slidesData).set({ ...data, updatedAt: new Date() }).where(eq(slidesData.projectId, projectId)).returning();
+    return record;
+  }
+
+  async deleteSlidesData(projectId: string): Promise<boolean> {
+    const result = await db.delete(slidesData).where(eq(slidesData.projectId, projectId)).returning();
+    return result.length > 0;
+  }
+
+  async getVideoData(projectId: string): Promise<VideoDataRecord | undefined> {
+    const [record] = await db.select().from(videoData).where(eq(videoData.projectId, projectId)).limit(1);
+    return record;
+  }
+
+  async createVideoData(data: InsertVideoData): Promise<VideoDataRecord> {
+    const [record] = await db.insert(videoData).values(data).returning();
+    return record;
+  }
+
+  async updateVideoData(projectId: string, data: Partial<{ scenes: VideoScene[]; audioTracks: VideoAudioTrack[]; resolution: { width: number; height: number }; fps: number }>): Promise<VideoDataRecord | undefined> {
+    const [record] = await db.update(videoData).set({ ...data, updatedAt: new Date() }).where(eq(videoData.projectId, projectId)).returning();
+    return record;
+  }
+
+  async deleteVideoData(projectId: string): Promise<boolean> {
+    const result = await db.delete(videoData).where(eq(videoData.projectId, projectId)).returning();
+    return result.length > 0;
   }
 }
 

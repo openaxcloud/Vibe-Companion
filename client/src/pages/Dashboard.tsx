@@ -223,6 +223,7 @@ export default function Dashboard() {
     { id: "frontend", label: "Frontend" },
     { id: "mobile", label: "Mobile" },
     { id: "backend", label: "Backend" },
+    { id: "slides-video", label: "Slides & Video" },
     { id: "cli", label: "CLI & Scripts" },
     { id: "languages", label: "Languages" },
   ];
@@ -242,6 +243,12 @@ export default function Dashboard() {
     "mobile-blank": "mobile",
     "mobile-tabs": "mobile",
     "mobile-social-feed": "mobile",
+    "pitch-deck": "slides-video",
+    "tech-talk": "slides-video",
+    "portfolio-slides": "slides-video",
+    "product-demo-video": "slides-video",
+    "explainer-video": "slides-video",
+    "social-intro-video": "slides-video",
   };
 
   const getExamplePrompts = useCallback((categoryId: string, seed: number) => {
@@ -421,6 +428,12 @@ export default function Dashboard() {
     "mobile-blank": { icon: Smartphone, gradient: "from-[#8B5CF6] to-[#6D28D9]", iconColor: "text-purple-400", borderColor: "border-purple-400/30 hover:border-purple-400/60", snippet: '<View style={styles.container}>' },
     "mobile-tabs": { icon: Smartphone, gradient: "from-[#EC4899] to-[#BE185D]", iconColor: "text-pink-400", borderColor: "border-pink-400/30 hover:border-pink-400/60", snippet: "const [activeTab, setActiveTab]" },
     "mobile-social-feed": { icon: Smartphone, gradient: "from-[#F97316] to-[#C2410C]", iconColor: "text-orange-400", borderColor: "border-orange-400/30 hover:border-orange-400/60", snippet: "<FlatList data={posts}" },
+    "pitch-deck": { icon: Presentation, gradient: "from-[#F59E0B] to-[#D97706]", iconColor: "text-amber-400", borderColor: "border-amber-400/30 hover:border-amber-400/60", snippet: "📊 Pitch Deck Slides" },
+    "tech-talk": { icon: Presentation, gradient: "from-[#0EA5E9] to-[#0284C7]", iconColor: "text-sky-400", borderColor: "border-sky-400/30 hover:border-sky-400/60", snippet: "🎤 Technical Talk" },
+    "portfolio-slides": { icon: Presentation, gradient: "from-[#8B5CF6] to-[#7C3AED]", iconColor: "text-violet-400", borderColor: "border-violet-400/30 hover:border-violet-400/60", snippet: "🎨 Portfolio Showcase" },
+    "product-demo-video": { icon: Play, gradient: "from-[#EF4444] to-[#DC2626]", iconColor: "text-red-400", borderColor: "border-red-400/30 hover:border-red-400/60", snippet: "🎬 Product Demo" },
+    "explainer-video": { icon: Play, gradient: "from-[#10B981] to-[#059669]", iconColor: "text-emerald-400", borderColor: "border-emerald-400/30 hover:border-emerald-400/60", snippet: "📹 Explainer Video" },
+    "social-intro-video": { icon: Play, gradient: "from-[#EC4899] to-[#DB2777]", iconColor: "text-pink-400", borderColor: "border-pink-400/30 hover:border-pink-400/60", snippet: "📱 Social Intro" },
   };
   const defaultUI = { icon: Code2, gradient: "from-[#6366F1] to-[#4338CA]", iconColor: "text-indigo-400", borderColor: "border-indigo-400/30 hover:border-indigo-400/60", snippet: "" };
 
@@ -443,6 +456,12 @@ export default function Dashboard() {
     { id: "mobile-blank", name: "Mobile App (Blank)", description: "Blank React Native/Expo mobile app", language: "TypeScript" },
     { id: "mobile-tabs", name: "Mobile App (Tab Navigation)", description: "React Native/Expo app with tab navigation", language: "TypeScript" },
     { id: "mobile-social-feed", name: "Mobile App (Social Feed)", description: "React Native/Expo social feed app", language: "TypeScript" },
+    { id: "pitch-deck", name: "Pitch Deck", description: "Startup pitch deck with problem, solution & metrics slides", language: "Slides" },
+    { id: "tech-talk", name: "Technical Talk", description: "Conference-style presentation with code examples", language: "Slides" },
+    { id: "portfolio-slides", name: "Portfolio Showcase", description: "Creative portfolio with project highlights", language: "Slides" },
+    { id: "product-demo-video", name: "Product Demo", description: "Product walkthrough video with scenes & transitions", language: "Video" },
+    { id: "explainer-video", name: "Explainer Video", description: "Animated explainer with text overlays & shapes", language: "Video" },
+    { id: "social-intro-video", name: "Social Intro", description: "Short social media intro clip", language: "Video" },
   ];
 
   const templateData = templatesQuery.data && templatesQuery.data.length > 0 ? templatesQuery.data : FALLBACK_TEMPLATES;
@@ -1485,6 +1504,9 @@ export default function Dashboard() {
                     {projects.slice(0, 5).map((project, idx) => {
                       const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
                       const isProjectMobile = project.projectType === "mobile-app";
+                      const pType = project.projectType;
+                      const isSlides = pType === "slides";
+                      const isVideo = pType === "video";
                       return (
                         <div
                           key={project.id}
@@ -1492,13 +1514,13 @@ export default function Dashboard() {
                           onClick={() => setLocation(`/project/${project.id}`)}
                           data-testid={`card-project-${project.id}`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${isProjectMobile ? "bg-purple-500/10 border-purple-500/20 text-purple-400" : `${langInfo.bg} ${langInfo.color}`}`}>
-                            {isProjectMobile ? <Smartphone className="w-4 h-4" /> : langInfo.label}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${isProjectMobile ? "bg-purple-500/10 border-purple-500/20 text-purple-400" : isSlides ? "bg-amber-500/10 text-amber-400 border-amber-400/30" : isVideo ? "bg-red-500/10 text-red-400 border-red-400/30" : `${langInfo.bg} ${langInfo.color}`}`}>
+                            {isProjectMobile ? <Smartphone className="w-4 h-4" /> : isSlides ? <Presentation className="w-4 h-4" /> : isVideo ? <Play className="w-4 h-4" /> : langInfo.label}
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate group-hover:text-white transition-colors">{project.name}</h3>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{project.language}</span>
+                              <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{isSlides ? "Slides" : isVideo ? "Video" : project.language}</span>
                               <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
                               <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
                                 <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
