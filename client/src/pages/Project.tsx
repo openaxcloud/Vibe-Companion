@@ -31,6 +31,7 @@ import ThreadsPanel from "@/components/ThreadsPanel";
 import NetworkingPanel from "@/components/NetworkingPanel";
 import SkillsPanel from "@/components/SkillsPanel";
 import MCPPanel from "@/components/MCPPanel";
+import SpotlightOverlay from "@/components/SpotlightOverlay";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
 import type { UserPreferences } from "@shared/schema";
@@ -236,6 +237,7 @@ function _projectPage() {
   const [newFileParentFolder, setNewFileParentFolder] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -4103,7 +4105,7 @@ function _projectPage() {
             </svg>
           </button>
           <ChevronRight className={`w-3 h-3 shrink-0 ${"text-[var(--ide-text-muted)]"}`} />
-          <button className={`text-[13px] font-medium truncate hover:underline cursor-pointer ${isMobile ? "text-[var(--ide-text)] max-w-[120px]" : "text-[var(--ide-text)] max-w-[180px]"}`} onClick={() => setShowInfoPanel(!showInfoPanel)} data-testid="text-project-name">{project?.name}</button>
+          <span className={`text-[13px] font-medium truncate cursor-pointer hover:text-[#0079F2] transition-colors ${isMobile ? "text-[var(--ide-text)] max-w-[120px]" : "text-[var(--ide-text)] max-w-[180px]"}`} onClick={() => setSpotlightOpen(prev => !prev)} data-testid="text-project-name">{project?.name}</span>
           <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${project?.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project?.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} data-testid="navbar-badge-visibility">{project?.visibility === "private" ? "Private" : project?.visibility === "team" ? "Team" : "Public"}</span>
           {project?.isPublished && <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${"bg-green-500/10 text-green-400 border border-green-500/20"}`}>Live</span>}
         </div>
@@ -4200,7 +4202,7 @@ function _projectPage() {
                   <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
                     <Rocket className="w-3.5 h-3.5" /> Publish
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => { setInviteDialogOpen(true); handleGenerateInviteLink(); }}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setSpotlightOpen(true)}>
                     <Users className="w-3.5 h-3.5" /> Invite
                   </DropdownMenuItem>
                   <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => openPanel("git")}>
@@ -4254,7 +4256,7 @@ function _projectPage() {
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" onClick={() => { setInviteDialogOpen(true); handleGenerateInviteLink(); }} data-testid="button-invite">
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" onClick={() => setSpotlightOpen(true)} data-testid="button-invite">
                       <Users className="w-3.5 h-3.5" /> Invite
                     </Button>
                   </TooltipTrigger>
@@ -7001,6 +7003,17 @@ function _projectPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <SpotlightOverlay
+        projectId={projectId}
+        open={spotlightOpen}
+        onClose={() => setSpotlightOpen(false)}
+        onProjectUpdated={(updated) => {
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+          setProjectName(updated.name);
+          setProjectLang(updated.language);
+        }}
+      />
 
       <Dialog open={projectSettingsOpen} onOpenChange={setProjectSettingsOpen}>
         <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">

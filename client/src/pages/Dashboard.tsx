@@ -302,12 +302,59 @@ export default function Dashboard() {
   const projectsQuery = useQuery<Project[]>({ queryKey: ["/api/projects"], staleTime: 30000 });
   const usageQuery = useQuery<UsageData>({ queryKey: ["/api/user/usage"], staleTime: 60000 });
 
+  interface PendingInvite {
+    id: string;
+    projectId: string;
+    email: string;
+    role: string;
+    invitedBy: string;
+    status: string;
+    createdAt: string;
+    projectName: string;
+    inviterEmail: string;
+  }
+
+  const pendingInvitesQuery = useQuery<PendingInvite[]>({
+    queryKey: ["/api/invites/pending"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/invites/pending");
+      return res.json();
+    },
+    staleTime: 30000,
+  });
+
   useEffect(() => {
     if (projectsQuery.data && projectsQuery.data.length === 0) {
       const seen = localStorage.getItem("ecode_onboarding_seen");
       if (!seen) setShowOnboarding(true);
     }
   }, [projectsQuery.data]);
+
+  const acceptInviteMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      const res = await apiRequest("POST", `/api/invites/${inviteId}/accept`);
+      return res.json();
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invites/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Invite accepted", description: `You now have access to "${result.projectName || "the project"}"` });
+      if (result.projectId) setLocation(`/project/${result.projectId}`);
+    },
+    onError: (err: any) => { toast({ title: "Failed to accept invite", description: err.message, variant: "destructive" }); },
+  });
+
+  const declineInviteMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      const res = await apiRequest("POST", `/api/invites/${inviteId}/decline`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invites/pending"] });
+      toast({ title: "Invite declined" });
+    },
+    onError: (err: any) => { toast({ title: "Failed to decline invite", description: err.message, variant: "destructive" }); },
+  });
 
   const createProject = useMutation({
     mutationFn: async (data: { name: string; language: string; visibility?: string }) => {
@@ -753,11 +800,52 @@ export default function Dashboard() {
   const mobileNotificationsContent = (
     <div className="flex-1 overflow-y-auto bg-[var(--ide-bg)] px-4 py-4">
       <h2 className="text-lg font-semibold text-[var(--ide-text)] mb-4">Notifications</h2>
-      <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
-        <Bell className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
-        <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium" data-testid="text-no-notifications-mobile">No notifications</p>
-        <p className="text-[12px] text-[var(--ide-text-secondary)]">You're all caught up</p>
-      </div>
+      {(pendingInvitesQuery.data?.length || 0) > 0 ? (
+        <div className="space-y-3">
+          {pendingInvitesQuery.data!.map((invite) => (
+            <div key={invite.id} className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-4" data-testid={`mobile-notification-invite-${invite.id}`}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#0079F2]/15 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4 text-[#0079F2]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-[var(--ide-text)]">
+                    <span className="font-semibold">{invite.inviterEmail.split("@")[0]}</span> invited you to collaborate on <span className="font-semibold">{invite.projectName}</span>
+                  </p>
+                  <p className="text-[11px] text-[var(--ide-text-muted)] mt-1 capitalize">Role: {invite.role}</p>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      className="h-8 px-4 text-xs bg-[#0079F2] hover:bg-[#0068D6] text-white rounded-lg font-medium"
+                      onClick={() => acceptInviteMutation.mutate(invite.id)}
+                      disabled={acceptInviteMutation.isPending}
+                      data-testid={`mobile-button-accept-invite-${invite.id}`}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-4 text-xs text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] rounded-lg"
+                      onClick={() => declineInviteMutation.mutate(invite.id)}
+                      disabled={declineInviteMutation.isPending}
+                      data-testid={`mobile-button-decline-invite-${invite.id}`}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
+          <Bell className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
+          <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium" data-testid="text-no-notifications-mobile">No notifications</p>
+          <p className="text-[12px] text-[var(--ide-text-secondary)]">You're all caught up</p>
+        </div>
+      )}
     </div>
   );
 
@@ -893,7 +981,7 @@ export default function Dashboard() {
                   {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2.5px] rounded-full bg-[#0079F2]" />}
                   <Icon className={`w-5 h-5 transition-all ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`}>{label}</span>
-                  {id === "notifications" && <span className="absolute top-2 right-[calc(50%-2px)] translate-x-3 w-2 h-2 rounded-full bg-transparent" />}
+                  {id === "notifications" && (pendingInvitesQuery.data?.length || 0) > 0 && <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2.5 h-2.5 rounded-full bg-[#0079F2] ring-2 ring-[var(--ide-bg)]" />}
                 </button>
               );
             })}
@@ -940,17 +1028,65 @@ export default function Dashboard() {
             <DropdownMenuTrigger asChild>
               <button className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="button-notifications">
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[var(--ide-surface)] text-[7px] font-bold text-[var(--ide-text-muted)] flex items-center justify-center" data-testid="badge-notification-count">0</span>
+                {(pendingInvitesQuery.data?.length || 0) > 0 ? (
+                  <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[#0079F2] text-[8px] font-bold text-white flex items-center justify-center animate-pulse" data-testid="badge-notification-count">{pendingInvitesQuery.data!.length}</span>
+                ) : (
+                  <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[var(--ide-surface)] text-[7px] font-bold text-[var(--ide-text-muted)] flex items-center justify-center" data-testid="badge-notification-count">0</span>
+                )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
-              <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+            <DropdownMenuContent align="end" className="w-80 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30 p-0">
+              <div className="px-3 py-2.5 border-b border-[var(--ide-border)] flex items-center justify-between">
                 <p className="text-xs font-medium text-[var(--ide-text)]">Notifications</p>
+                {(pendingInvitesQuery.data?.length || 0) > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] font-semibold">{pendingInvitesQuery.data!.length} new</span>
+                )}
               </div>
-              <div className="px-3 py-6 text-center">
-                <Bell className="w-5 h-5 text-[var(--ide-text-muted)] mx-auto mb-2" />
-                <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-no-notifications">No notifications</p>
-              </div>
+              {(pendingInvitesQuery.data?.length || 0) > 0 ? (
+                <div className="max-h-64 overflow-y-auto">
+                  {pendingInvitesQuery.data!.map((invite) => (
+                    <div key={invite.id} className="px-3 py-2.5 border-b border-[var(--ide-border)] last:border-0 hover:bg-[var(--ide-surface)]/50" data-testid={`notification-invite-${invite.id}`}>
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-[#0079F2]/15 flex items-center justify-center shrink-0 mt-0.5">
+                          <Users className="w-3.5 h-3.5 text-[#0079F2]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-[var(--ide-text)]">
+                            <span className="font-medium">{invite.inviterEmail.split("@")[0]}</span> invited you to <span className="font-medium">{invite.projectName}</span>
+                          </p>
+                          <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5 capitalize">Role: {invite.role}</p>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <Button
+                              size="sm"
+                              className="h-6 px-3 text-[10px] bg-[#0079F2] hover:bg-[#0068D6] text-white rounded-md font-medium"
+                              onClick={(e) => { e.stopPropagation(); acceptInviteMutation.mutate(invite.id); }}
+                              disabled={acceptInviteMutation.isPending}
+                              data-testid={`button-accept-invite-${invite.id}`}
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-3 text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] rounded-md"
+                              onClick={(e) => { e.stopPropagation(); declineInviteMutation.mutate(invite.id); }}
+                              disabled={declineInviteMutation.isPending}
+                              data-testid={`button-decline-invite-${invite.id}`}
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-3 py-6 text-center">
+                  <Bell className="w-5 h-5 text-[var(--ide-text-muted)] mx-auto mb-2" />
+                  <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-no-notifications">No notifications</p>
+                </div>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <TooltipProvider>

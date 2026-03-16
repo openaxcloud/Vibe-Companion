@@ -2769,7 +2769,8 @@ export async function registerRoutes(
       const sourceProject = await storage.getProject(req.params.id);
       if (!sourceProject) return res.status(404).json({ message: "Project not found" });
       const isOwner = sourceProject.userId === req.session.userId;
-      if (!isOwner && sourceProject.visibility !== "public") return res.status(403).json({ message: "Cannot fork a private project" });
+      const isAccessible = sourceProject.visibility === "public" || sourceProject.isPublished || sourceProject.isPublic;
+      if (!isOwner && !isAccessible) return res.status(403).json({ message: "Cannot fork a private project" });
       const sourceFiles = await storage.getFiles(sourceProject.id);
       const userProjects = await storage.getProjects(req.session.userId!);
       const forkQuota = await storage.getUserQuota(req.session.userId!);
@@ -2805,6 +2806,7 @@ export async function registerRoutes(
         }
       }
       await storage.trackEvent(req.session.userId!, "project_forked", { sourceProjectId: sourceProject.id, newProjectId: newProject.id });
+      storage.incrementProjectForkCount(sourceProject.id).catch(() => {});
       return res.json(newProject);
     } catch {
       return res.status(500).json({ message: "Failed to fork project" });
@@ -3927,13 +3929,33 @@ export async function registerRoutes(
     }
   });
 
+  async function isProjectCollaborator(projectId: string, userId: string): Promise<{ allowed: boolean; role: "owner" | "editor" | "viewer" | null }> {
+    const proj = await storage.getProject(projectId);
+    if (!proj) return { allowed: false, role: null };
+    if (proj.userId === userId) return { allowed: true, role: "owner" };
+    const usr = await storage.getUser(userId);
+    if (!usr) return { allowed: false, role: null };
+    const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
+    if (invite) return { allowed: true, role: invite.role as "editor" | "viewer" };
+    const guest = await storage.getProjectGuestByUserId(projectId, userId);
+    if (guest) return { allowed: true, role: guest.role as "editor" | "viewer" };
+    if (proj.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      if (teams.some(t => t.id === proj.teamId)) return { allowed: true, role: "editor" };
+    }
+    return { allowed: false, role: null };
+  }
+
   app.get("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
     if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!)) {
-      return res.status(403).json({ message: "Access denied" });
+      const collab = await isProjectCollaborator(project.id, req.session.userId!);
+      if (!collab.allowed) {
+        return res.status(403).json({ message: "Access denied" });
+      }
     }
     return res.json(project);
   });
@@ -3997,7 +4019,10 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(req.params.projectId, req.session.userId!)) {
-      return res.status(403).json({ message: "Access denied" });
+      const collab = await isProjectCollaborator(project.id, req.session.userId!);
+      if (!collab.allowed) {
+        return res.status(403).json({ message: "Access denied" });
+      }
     }
     const fileList = await storage.getFiles(req.params.projectId);
     return res.json(fileList);
@@ -4122,6 +4147,211 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     return res.json(updated);
+  });
+
+  app.get("/api/projects/:id/spotlight", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    const collab = await isProjectCollaborator(project.id, req.session.userId!);
+    if (!collab.allowed) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const invites = collab.role === "owner" ? await storage.getProjectInvites(project.id) : [];
+    const owner = await storage.getUser(project.userId);
+    return res.json({
+      project,
+      invites,
+      owner: owner ? { id: owner.id, email: owner.email, displayName: owner.displayName, avatarUrl: owner.avatarUrl } : null,
+      currentUserRole: collab.role,
+    });
+  });
+
+  app.patch("/api/projects/:id/spotlight", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    const collab = await isProjectCollaborator(project.id, req.session.userId!);
+    if (!collab.allowed || collab.role === "viewer") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { name, description, coverImageUrl, isPublic } = req.body;
+    const updates: any = {};
+    if (typeof name === "string") {
+      const safeName = sanitizeProjectName(name);
+      if (!safeName) return res.status(400).json({ message: "Invalid project name" });
+      updates.name = safeName;
+    }
+    if (typeof description === "string") updates.description = description.slice(0, 2000);
+    if (typeof coverImageUrl === "string" || coverImageUrl === null) updates.coverImageUrl = coverImageUrl;
+    if (typeof isPublic === "boolean" && collab.role === "owner") updates.isPublic = isPublic;
+    const updated = await storage.updateProject(req.params.id, updates);
+    if (!updated) return res.status(404).json({ message: "Project not found" });
+    return res.json(updated);
+  });
+
+  app.post("/api/projects/:id/spotlight/invites", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    let { email, role } = req.body;
+    if (!email || typeof email !== "string" || email.trim().length === 0) {
+      return res.status(400).json({ message: "Email or username is required" });
+    }
+    const identifier = email.trim();
+    let resolvedEmail = identifier;
+    if (!identifier.includes("@")) {
+      const user = await storage.getUserByDisplayName(identifier);
+      if (!user) {
+        return res.status(404).json({ message: `User "${identifier}" not found` });
+      }
+      resolvedEmail = user.email;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+    const validRoles = ["viewer", "editor"];
+    const safeRole = validRoles.includes(role) ? role : "viewer";
+    try {
+      const invite = await storage.createProjectInvite({
+        projectId: project.id,
+        email: resolvedEmail.toLowerCase().trim(),
+        role: safeRole,
+        invitedBy: req.session.userId!,
+      });
+      return res.json(invite);
+    } catch (err: any) {
+      if (err.message?.includes("unique") || err.code === "23505") {
+        return res.status(409).json({ message: "This user has already been invited" });
+      }
+      throw err;
+    }
+  });
+
+  const coverUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"];
+      cb(null, allowed.includes(file.mimetype));
+    },
+  });
+
+  app.post("/api/projects/:id/spotlight/cover", requireAuth, coverUpload.single("cover"), async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    const collab = await isProjectCollaborator(project.id, req.session.userId!);
+    if (!collab.allowed || collab.role === "viewer") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+    const ext = file.originalname.split(".").pop() || "png";
+    const filename = `.cover.${ext}`;
+    const content = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+    const existingFiles = await storage.getFiles(project.id);
+    const oldCovers = existingFiles.filter(f => f.filename.startsWith(".cover."));
+    for (const old of oldCovers) {
+      await storage.deleteFile(old.id);
+    }
+    await storage.createFile(project.id, { filename, content, isBinary: true, mimeType: file.mimetype });
+    const coverUrl = `/api/projects/${project.id}/spotlight/cover-image`;
+    const updated = await storage.updateProject(req.params.id, { coverImageUrl: coverUrl });
+    if (!updated) return res.status(404).json({ message: "Project not found" });
+    return res.json({ coverImageUrl: coverUrl });
+  });
+
+  app.get("/api/projects/:id/spotlight/cover-image", async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!project.isPublic && !project.isPublished) {
+      if (!req.session.userId) return res.status(401).json({ message: "Not authenticated" });
+      const collab = await isProjectCollaborator(project.id, req.session.userId);
+      if (!collab.allowed) return res.status(403).json({ message: "Access denied" });
+    }
+    const projectFiles = await storage.getFiles(req.params.id);
+    const coverFile = projectFiles.find(f => f.filename.startsWith(".cover."));
+    if (!coverFile || !coverFile.content) {
+      return res.status(404).json({ message: "No cover image" });
+    }
+    const match = coverFile.content.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return res.status(404).json({ message: "Invalid cover data" });
+    const mimeType = match[1];
+    const buffer = Buffer.from(match[2], "base64");
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.send(buffer);
+  });
+
+  app.patch("/api/projects/:id/spotlight/invites/:inviteId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { role } = req.body;
+    const validRoles = ["viewer", "editor"];
+    if (!role || !validRoles.includes(role)) {
+      return res.status(400).json({ message: "Invalid role. Must be 'viewer' or 'editor'" });
+    }
+    const updated = await storage.updateProjectInvite(req.params.inviteId, project.id, { role });
+    if (!updated) return res.status(404).json({ message: "Invite not found" });
+    return res.json(updated);
+  });
+
+  app.post("/api/projects/:id/spotlight/invites/:inviteId/accept", requireAuth, async (req: Request, res: Response) => {
+    const user = await storage.getUser(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "Not authenticated" });
+    const invite = await storage.getProjectInviteByIdAndProject(req.params.inviteId, req.params.id);
+    if (!invite) return res.status(404).json({ message: "Invite not found" });
+    if (invite.email !== user.email.toLowerCase()) {
+      return res.status(403).json({ message: "This invite is not for you" });
+    }
+    if (invite.status === "accepted") {
+      const project = await storage.getProject(invite.projectId);
+      return res.json({ ...invite, projectName: project?.name });
+    }
+    const updated = await storage.updateProjectInvite(invite.id, invite.projectId, { status: "accepted" });
+    const project = await storage.getProject(invite.projectId);
+    return res.json({ ...updated, projectName: project?.name });
+  });
+
+  app.post("/api/invites/:id/accept", requireAuth, async (req: Request, res: Response) => {
+    const user = await storage.getUser(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "Not authenticated" });
+    const pending = await storage.getPendingInvitesForEmail(user.email.toLowerCase());
+    const invite = pending.find(i => i.id === req.params.id);
+    if (!invite) return res.status(404).json({ message: "Invite not found" });
+    const updated = await storage.updateProjectInvite(invite.id, invite.projectId, { status: "accepted" });
+    const project = await storage.getProject(invite.projectId);
+    return res.json({ ...updated, projectId: invite.projectId, projectName: project?.name });
+  });
+
+  app.get("/api/invites/pending", requireAuth, async (req: Request, res: Response) => {
+    const user = await storage.getUser(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "Not authenticated" });
+    const invites = await storage.getPendingInvitesWithProjects(user.email);
+    return res.json(invites);
+  });
+
+  app.post("/api/invites/:id/decline", requireAuth, async (req: Request, res: Response) => {
+    const user = await storage.getUser(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "Not authenticated" });
+    const pending = await storage.getPendingInvitesForEmail(user.email.toLowerCase());
+    const invite = pending.find(i => i.id === req.params.id);
+    if (!invite) return res.status(404).json({ message: "Invite not found" });
+    const deleted = await storage.deleteProjectInvite(invite.id, invite.projectId);
+    if (!deleted) return res.status(404).json({ message: "Failed to decline invite" });
+    return res.json({ success: true });
+  });
+
+  app.delete("/api/projects/:id/spotlight/invites/:inviteId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const deleted = await storage.deleteProjectInvite(req.params.inviteId, project.id);
+    if (!deleted) return res.status(404).json({ message: "Invite not found" });
+    return res.json({ success: true });
   });
 
   // --- ENV VARS ---
@@ -4814,6 +5044,7 @@ export async function registerRoutes(
     } else if (project.visibility !== "public") {
       return res.status(403).json({ message: "Access denied" });
     }
+    storage.incrementProjectViewCount(req.params.id).catch(() => {});
     const fileList = await storage.getFiles(project.id);
     return res.json({ project, files: fileList });
   });
@@ -9702,14 +9933,17 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     const project = await storage.getProject(projectId);
     if (!project) return false;
     if (project.userId === userId) return true;
-    if (project.visibility === "public") return true;
+    if (project.visibility === "public" || project.isPublic) return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
       if (teams.some(t => t.id === project.teamId)) return true;
     }
-    if (project.visibility === "private") {
-      const isGuest = await storage.isProjectGuest(projectId, userId);
-      if (isGuest) return true;
+    const isGuest = await storage.isProjectGuest(projectId, userId);
+    if (isGuest) return true;
+    const usr = await storage.getUser(userId);
+    if (usr) {
+      const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
+      if (invite) return true;
     }
     const collaborators = await storage.getProjectCollaborators(projectId);
     if (collaborators.some(c => c.userId === userId)) return true;
@@ -9727,8 +9961,11 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
     const guest = await storage.getProjectGuestByUserId(projectId, userId);
     if (guest && guest.role === "editor") return true;
-    const collaborators = await storage.getProjectCollaborators(projectId);
-    if (collaborators.some(c => c.userId === userId)) return true;
+    const usr = await storage.getUser(userId);
+    if (usr) {
+      const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
+      if (invite && invite.role === "editor") return true;
+    }
     return false;
   }
 

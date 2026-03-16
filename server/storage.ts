@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, inArray, count, gte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, count, gte } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
@@ -27,6 +27,7 @@ import {
   tasks, taskSteps, taskMessages, taskFileSnapshots,
   creditUsage,
   slidesData, videoData,
+  projectInvites,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -85,6 +86,7 @@ import {
   type TaskFileSnapshot, type InsertTaskFileSnapshot,
   type CreditUsage,
   type AgentMode,
+  type ProjectInvite, type InsertProjectInvite,
   type QueuedMessage, type InsertQueuedMessage,
   type McpServer, type InsertMcpServer,
   type McpTool, type InsertMcpTool,
@@ -112,6 +114,7 @@ import { encrypt, decrypt, migrateToEncrypted } from "./encryption";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByDisplayName(displayName: string): Promise<User | undefined>;
   getUserByGithubId(githubId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
   updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined>;
@@ -128,7 +131,7 @@ export interface IStorage {
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
   createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined>;
+  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -427,6 +430,17 @@ export interface IStorage {
   updateTaskFileSnapshot(taskId: string, filename: string, content: string): Promise<TaskFileSnapshot | undefined>;
   deleteTaskFileSnapshots(taskId: string): Promise<void>;
 
+  getProjectInvites(projectId: string): Promise<ProjectInvite[]>;
+  createProjectInvite(data: InsertProjectInvite): Promise<ProjectInvite>;
+  updateProjectInvite(id: string, projectId: string, data: Partial<{ role: string; status: string }>): Promise<ProjectInvite | undefined>;
+  deleteProjectInvite(id: string, projectId: string): Promise<boolean>;
+  getProjectInviteByIdAndProject(id: string, projectId: string): Promise<ProjectInvite | undefined>;
+  getPendingInvitesForEmail(email: string): Promise<ProjectInvite[]>;
+  getAcceptedInviteForProject(projectId: string, email: string): Promise<ProjectInvite | undefined>;
+  getPendingInvitesWithProjects(email: string): Promise<(ProjectInvite & { projectName: string; inviterEmail: string })[]>;
+  incrementProjectViewCount(projectId: string): Promise<void>;
+  incrementProjectForkCount(projectId: string): Promise<void>;
+
   getMcpServers(projectId: string): Promise<McpServer[]>;
   getMcpServer(id: string): Promise<McpServer | undefined>;
   createMcpServer(data: InsertMcpServer): Promise<McpServer>;
@@ -492,6 +506,11 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return user;
+  }
+
+  async getUserByDisplayName(displayName: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.displayName, displayName)).limit(1);
     return user;
   }
 
@@ -701,9 +720,12 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.coverImageUrl !== undefined) updates.coverImageUrl = data.coverImageUrl;
+    if (data.isPublic !== undefined) updates.isPublic = data.isPublic;
     if (data.language !== undefined) updates.language = data.language;
     if (data.projectType !== undefined) updates.projectType = data.projectType;
     if (data.isPublished !== undefined) updates.isPublished = data.isPublished;
@@ -783,7 +805,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPublishedProject(id: string): Promise<{project: Project, files: File[]} | undefined> {
     const [project] = await db.select().from(projects)
-      .where(and(eq(projects.id, id), eq(projects.isPublished, true))).limit(1);
+      .where(and(eq(projects.id, id), or(eq(projects.isPublished, true), eq(projects.isPublic, true)))).limit(1);
     if (!project) return undefined;
     const fileList = await db.select().from(files).where(eq(files.projectId, id));
     return { project, files: fileList };
@@ -2384,6 +2406,60 @@ export class DatabaseStorage implements IStorage {
     } else {
       await db.insert(checkpointPositions).values({ projectId, currentCheckpointId: checkpointId, divergedFromId: divergedFromId ?? null });
     }
+  }
+
+  async getProjectInvites(projectId: string): Promise<ProjectInvite[]> {
+    return db.select().from(projectInvites).where(eq(projectInvites.projectId, projectId)).orderBy(desc(projectInvites.createdAt));
+  }
+
+  async createProjectInvite(data: InsertProjectInvite): Promise<ProjectInvite> {
+    const [invite] = await db.insert(projectInvites).values(data).returning();
+    return invite;
+  }
+
+  async updateProjectInvite(id: string, projectId: string, data: Partial<{ role: string; status: string }>): Promise<ProjectInvite | undefined> {
+    const updates: any = {};
+    if (data.role !== undefined) updates.role = data.role;
+    if (data.status !== undefined) updates.status = data.status;
+    const [invite] = await db.update(projectInvites).set(updates).where(and(eq(projectInvites.id, id), eq(projectInvites.projectId, projectId))).returning();
+    return invite;
+  }
+
+  async getProjectInviteByIdAndProject(id: string, projectId: string): Promise<ProjectInvite | undefined> {
+    const [invite] = await db.select().from(projectInvites).where(and(eq(projectInvites.id, id), eq(projectInvites.projectId, projectId))).limit(1);
+    return invite;
+  }
+
+  async getPendingInvitesForEmail(email: string): Promise<ProjectInvite[]> {
+    return db.select().from(projectInvites).where(and(eq(projectInvites.email, email), eq(projectInvites.status, "pending"))).orderBy(desc(projectInvites.createdAt));
+  }
+
+  async getAcceptedInviteForProject(projectId: string, email: string): Promise<ProjectInvite | undefined> {
+    const [invite] = await db.select().from(projectInvites).where(and(eq(projectInvites.projectId, projectId), eq(projectInvites.email, email), eq(projectInvites.status, "accepted"))).limit(1);
+    return invite;
+  }
+
+  async deleteProjectInvite(id: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(projectInvites).where(and(eq(projectInvites.id, id), eq(projectInvites.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async getPendingInvitesWithProjects(email: string): Promise<(ProjectInvite & { projectName: string; inviterEmail: string })[]> {
+    const invites = await db.select().from(projectInvites).where(and(eq(projectInvites.email, email.toLowerCase()), eq(projectInvites.status, "pending")));
+    const enriched = await Promise.all(invites.map(async (inv) => {
+      const proj = await this.getProject(inv.projectId);
+      const inviter = await this.getUser(inv.invitedBy);
+      return { ...inv, projectName: proj?.name || "Unknown", inviterEmail: inviter?.email || "Unknown" };
+    }));
+    return enriched;
+  }
+
+  async incrementProjectViewCount(projectId: string): Promise<void> {
+    await db.update(projects).set({ viewCount: sql`${projects.viewCount} + 1` }).where(eq(projects.id, projectId));
+  }
+
+  async incrementProjectForkCount(projectId: string): Promise<void> {
+    await db.update(projects).set({ forkCount: sql`${projects.forkCount} + 1` }).where(eq(projects.id, projectId));
   }
 
   async getMcpServers(projectId: string): Promise<McpServer[]> {

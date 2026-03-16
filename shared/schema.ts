@@ -155,6 +155,9 @@ export const projects = pgTable("projects", {
   userId: varchar("user_id", { length: 36 }).notNull(),
   teamId: varchar("team_id", { length: 36 }),
   name: text("name").notNull(),
+  description: text("description"),
+  coverImageUrl: text("cover_image_url"),
+  isPublic: boolean("is_public").notNull().default(false),
   language: text("language").notNull().default("javascript"),
   projectType: text("project_type").notNull().default("web-app"),
   visibility: text("visibility").notNull().default("public"),
@@ -169,6 +172,9 @@ export const projects = pgTable("projects", {
   frameworkCoverUrl: text("framework_cover_url"),
   isOfficialFramework: boolean("is_official_framework").notNull().default(false),
   selectedWorkflowId: varchar("selected_workflow_id", { length: 36 }),
+  viewCount: integer("view_count").notNull().default(0),
+  forkCount: integer("fork_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("projects_user_id_idx").on(table.userId),
@@ -311,6 +317,27 @@ export const videoData = pgTable("video_data", {
 export const insertVideoDataSchema = createInsertSchema(videoData).omit({ id: true, updatedAt: true });
 export type InsertVideoData = z.infer<typeof insertVideoDataSchema>;
 export type VideoDataRecord = typeof videoData.$inferSelect;
+
+export const projectInvites = pgTable("project_invites", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("viewer"),
+  invitedBy: varchar("invited_by", { length: 36 }).notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("project_invites_project_idx").on(table.projectId),
+  uniqueIndex("project_invites_project_email_unique").on(table.projectId, table.email),
+]);
+export const insertProjectInviteSchema = createInsertSchema(projectInvites).pick({
+  projectId: true,
+  email: true,
+  role: true,
+  invitedBy: true,
+});
+export type InsertProjectInvite = z.infer<typeof insertProjectInviteSchema>;
+export type ProjectInvite = typeof projectInvites.$inferSelect;
 
 export const frameworkUpdates = pgTable("framework_updates", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
