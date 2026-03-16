@@ -511,6 +511,7 @@ function _projectPage() {
   const dragStartX = useRef<number | null>(null);
   const dragStartW = useRef<number>(40);
   const editorPreviewContainerRef = useRef<HTMLDivElement>(null);
+  const hasAutoRun = useRef(false);
 
   const { user, logout: logoutMutation } = useAuth();
   const { messages, connected, connectionQuality, retryWebSocket } = useProjectWebSocket(projectId);
@@ -1067,6 +1068,10 @@ function _projectPage() {
     runMutation.mutate();
   };
 
+  useEffect(() => {
+    hasAutoRun.current = false;
+  }, [projectId]);
+
   const invalidateFs = () => {
     if (useRunnerFS) {
       queryClient.invalidateQueries({ queryKey: ["/api/workspaces", projectId, "fs"] });
@@ -1545,6 +1550,24 @@ function _projectPage() {
       setWsStatus(newStatus);
     }
   }, [workspaceStatusQuery.data]);
+
+  useEffect(() => {
+    if (hasAutoRun.current) return;
+    if (isRunning || runMutation.isPending) return;
+    if (!workspaceStatusQuery.isFetched) return;
+    const resolvedStatus = workspaceStatusQuery.data?.status;
+    if (resolvedStatus === "running" || resolvedStatus === "starting") {
+      hasAutoRun.current = true;
+      return;
+    }
+    const filesReady = useRunnerFS || filesQuery.isSuccess;
+    const projectLoaded = !!projectQuery.data;
+    const editorReady = useRunnerFS || !!activeFileId;
+    if (filesReady && projectLoaded && editorReady) {
+      hasAutoRun.current = true;
+      handleRun();
+    }
+  }, [filesQuery.isSuccess, projectQuery.data, isRunning, runMutation.isPending, useRunnerFS, workspaceStatusQuery.isFetched, workspaceStatusQuery.data, activeFileId]);
 
   useEffect(() => {
     fetch("/api/runner/status", { credentials: "include" })
