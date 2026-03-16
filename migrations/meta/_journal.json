@@ -29,6 +29,13 @@
       "when": 1773940000000,
       "tag": "0003_add_skills",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773960000000,
+      "tag": "0004_deployment_parity",
+      "breakpoints": true
     }
   ]
 }

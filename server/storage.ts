@@ -19,6 +19,7 @@ import {
   codeThreads, threadComments,
   skills,
   portConfigs,
+  deploymentAnalytics,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -61,6 +62,7 @@ import {
   type ThreadComment, type InsertThreadComment,
   type Skill, type InsertSkill,
   type PortConfig, type InsertPortConfig,
+  type DeploymentAnalytic, type InsertDeploymentAnalytic,
   PLAN_LIMITS,
 } from "@shared/schema";
 
@@ -182,8 +184,12 @@ export interface IStorage {
   createDeployment(data: InsertDeployment): Promise<Deployment>;
   getDeployment(id: string): Promise<Deployment | undefined>;
   getProjectDeployments(projectId: string): Promise<Deployment[]>;
-  updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date }>): Promise<Deployment | undefined>;
+  updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date; deploymentType: string; buildCommand: string; runCommand: string; machineConfig: { cpu: number; ram: number }; maxMachines: number; cronExpression: string; scheduleDescription: string; jobTimeout: number; publicDirectory: string; appType: string; deploymentSecrets: Record<string, string>; isPrivate: boolean; showBadge: boolean; enableFeedback: boolean }>): Promise<Deployment | undefined>;
   demotePreviousLiveDeployments(projectId: string, excludeDeploymentId: string): Promise<void>;
+
+  createDeploymentAnalytic(data: InsertDeploymentAnalytic): Promise<DeploymentAnalytic>;
+  getDeploymentAnalytics(projectId: string, since?: Date): Promise<DeploymentAnalytic[]>;
+  getDeploymentAnalyticsSummary(projectId: string, since?: Date): Promise<{ pageViews: number; uniqueVisitors: number; topReferrers: { referrer: string; count: number }[]; trafficByDay: { date: string; views: number }[] }>;
 
   createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain>;
   getCustomDomain(id: string): Promise<CustomDomain | undefined>;
@@ -963,7 +969,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(deployments).where(eq(deployments.projectId, projectId)).orderBy(desc(deployments.createdAt)).limit(20);
   }
 
-  async updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date }>): Promise<Deployment | undefined> {
+  async updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date; deploymentType: string; buildCommand: string; runCommand: string; machineConfig: { cpu: number; ram: number }; maxMachines: number; cronExpression: string; scheduleDescription: string; jobTimeout: number; publicDirectory: string; appType: string; deploymentSecrets: Record<string, string>; isPrivate: boolean; showBadge: boolean; enableFeedback: boolean }>): Promise<Deployment | undefined> {
     const [dep] = await db.update(deployments).set(data).where(eq(deployments.id, id)).returning();
     return dep;
   }
@@ -978,6 +984,55 @@ export class DatabaseStorage implements IStorage {
           sql`${deployments.id} != ${excludeDeploymentId}`
         )
       );
+  }
+
+  async createDeploymentAnalytic(data: InsertDeploymentAnalytic): Promise<DeploymentAnalytic> {
+    const [analytic] = await db.insert(deploymentAnalytics).values(data).returning();
+    return analytic;
+  }
+
+  async getDeploymentAnalytics(projectId: string, since?: Date): Promise<DeploymentAnalytic[]> {
+    if (since) {
+      return db.select().from(deploymentAnalytics)
+        .where(and(eq(deploymentAnalytics.projectId, projectId), gte(deploymentAnalytics.createdAt, since)))
+        .orderBy(desc(deploymentAnalytics.createdAt))
+        .limit(1000);
+    }
+    return db.select().from(deploymentAnalytics)
+      .where(eq(deploymentAnalytics.projectId, projectId))
+      .orderBy(desc(deploymentAnalytics.createdAt))
+      .limit(1000);
+  }
+
+  async getDeploymentAnalyticsSummary(projectId: string, since?: Date): Promise<{ pageViews: number; uniqueVisitors: number; topReferrers: { referrer: string; count: number }[]; trafficByDay: { date: string; views: number }[] }> {
+    const sinceDate = since || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const analytics = await this.getDeploymentAnalytics(projectId, sinceDate);
+
+    const pageViews = analytics.length;
+    const uniqueVisitorSet = new Set(analytics.map(a => a.visitorId || a.ipHash).filter(Boolean));
+    const uniqueVisitors = uniqueVisitorSet.size;
+
+    const referrerMap = new Map<string, number>();
+    for (const a of analytics) {
+      if (a.referrer) {
+        referrerMap.set(a.referrer, (referrerMap.get(a.referrer) || 0) + 1);
+      }
+    }
+    const topReferrers = Array.from(referrerMap.entries())
+      .map(([referrer, count]) => ({ referrer, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const dayMap = new Map<string, number>();
+    for (const a of analytics) {
+      const date = new Date(a.createdAt).toISOString().slice(0, 10);
+      dayMap.set(date, (dayMap.get(date) || 0) + 1);
+    }
+    const trafficByDay = Array.from(dayMap.entries())
+      .map(([date, views]) => ({ date, views }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return { pageViews, uniqueVisitors, topReferrers, trafficByDay };
   }
 
   async createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain> {

@@ -1,12 +1,38 @@
-import { mkdir, writeFile, rm, readdir, stat, cp } from "fs/promises";
+import { mkdir, writeFile, rm, readdir, stat, cp, readFile } from "fs/promises";
 import { join, extname, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import { log } from "./index";
 import { randomUUID } from "crypto";
+import { exec, spawn, ChildProcess } from "child_process";
+import { promisify } from "util";
 import express, { Request, Response, Router } from "express";
+import { storage } from "./storage";
+import { validateCronExpression } from "./automationScheduler";
+
+const execAsync = promisify(exec);
 
 const DEPLOYMENTS_DIR = join(process.cwd(), ".deployments");
 const MAX_DEPLOYMENT_SIZE_MB = 50;
+
+export type DeploymentType = "autoscale" | "static" | "reserved-vm" | "scheduled";
+
+export interface DeploymentConfig {
+  deploymentType: DeploymentType;
+  buildCommand?: string;
+  runCommand?: string;
+  machineConfig?: { cpu: number; ram: number };
+  maxMachines?: number;
+  cronExpression?: string;
+  scheduleDescription?: string;
+  jobTimeout?: number;
+  publicDirectory?: string;
+  appType?: "web_server" | "background_worker";
+  portMapping?: number;
+  deploymentSecrets?: Record<string, string>;
+  isPrivate?: boolean;
+  showBadge?: boolean;
+  enableFeedback?: boolean;
+}
 
 export interface DeploymentBuild {
   deploymentId: string;
@@ -19,6 +45,7 @@ export interface DeploymentBuild {
   startedAt: number;
   finishedAt?: number;
   outputDir: string;
+  config?: DeploymentConfig;
 }
 
 interface ProjectFile {
@@ -27,6 +54,8 @@ interface ProjectFile {
 }
 
 const activeDeploys = new Map<string, DeploymentBuild>();
+const activeVMProcesses = new Map<string, ChildProcess>();
+const scheduledDeployJobs = new Map<string, { stop: () => void }>();
 
 async function ensureDir(dir: string) {
   if (!existsSync(dir)) {
@@ -75,11 +104,13 @@ export async function buildAndDeploy(
   deploymentId: string,
   version: number,
   onLog?: (line: string) => void,
+  config?: DeploymentConfig,
 ): Promise<DeploymentBuild> {
   const slug = generateSlug(projectName, projectId);
   const outputDir = join(DEPLOYMENTS_DIR, slug, `v${version}`);
   const latestDir = join(DEPLOYMENTS_DIR, slug, "latest");
   const startedAt = Date.now();
+  const deploymentType = config?.deploymentType || "static";
 
   const build: DeploymentBuild = {
     deploymentId,
@@ -91,6 +122,7 @@ export async function buildAndDeploy(
     url: `/deployed/${slug}/`,
     startedAt,
     outputDir,
+    config,
   };
 
   activeDeploys.set(projectId, build);
@@ -101,9 +133,21 @@ export async function buildAndDeploy(
   };
 
   try {
-    addLog(`[build] Starting deployment v${version} for "${projectName}"`);
+    addLog(`[build] Starting ${deploymentType} deployment v${version} for "${projectName}"`);
     addLog(`[build] Language: ${language}`);
+    addLog(`[build] Type: ${deploymentType}`);
     addLog(`[build] Files: ${files.length}`);
+
+    if (config?.machineConfig) {
+      addLog(`[build] Machine: ${config.machineConfig.cpu} vCPU, ${config.machineConfig.ram} MB RAM`);
+    }
+    if (config?.maxMachines && deploymentType === "autoscale") {
+      addLog(`[build] Max machines: ${config.maxMachines}`);
+    }
+
+    if (config?.deploymentSecrets && Object.keys(config.deploymentSecrets).length > 0) {
+      addLog(`[build] Injecting ${Object.keys(config.deploymentSecrets).length} deployment secret(s)`);
+    }
 
     await ensureDir(outputDir);
 
@@ -123,39 +167,214 @@ export async function buildAndDeploy(
       await writeFile(filePath, file.content || "", "utf-8");
     }
 
-    if (language === "html" || files.some(f => f.filename === "index.html")) {
-      addLog(`[build] Static HTML site detected`);
-      addLog(`[build] Optimizing for static serving...`);
-      if (!files.find(f => f.filename === "index.html")) {
-        const htmlFile = files.find(f => f.filename.endsWith(".html"));
-        if (htmlFile) {
-          await writeFile(join(outputDir, "index.html"), htmlFile.content, "utf-8");
-          addLog(`[build] Created index.html from ${htmlFile.filename}`);
+    if (config?.buildCommand) {
+      addLog(`[build] Executing build command: ${config.buildCommand}`);
+      try {
+        const envVars = { ...process.env, ...(config.deploymentSecrets || {}) };
+        const { stdout, stderr } = await execAsync(config.buildCommand, {
+          cwd: outputDir,
+          timeout: 60000,
+          env: envVars,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        if (stdout) addLog(`[build:stdout] ${stdout.slice(0, 2000)}`);
+        if (stderr) addLog(`[build:stderr] ${stderr.slice(0, 2000)}`);
+        addLog(`[build] Build command completed successfully`);
+      } catch (buildErr: unknown) {
+        const err = buildErr as { code?: number; stderr?: string; stdout?: string };
+        addLog(`[build] Build command failed (exit ${err.code || "unknown"})`);
+        if (err.stderr) addLog(`[build:stderr] ${err.stderr.slice(0, 2000)}`);
+        throw new Error(`Build command failed with exit code ${err.code || "unknown"}`);
+      }
+    }
+
+    if (deploymentType === "static") {
+      const pubDir = config?.publicDirectory || "";
+      addLog(`[build] Static deployment — serving from: ${pubDir || "root"}`);
+
+      if (pubDir) {
+        const pubDirPath = join(outputDir, pubDir);
+        if (existsSync(pubDirPath)) {
+          const pubStatResult = await stat(pubDirPath);
+          if (pubStatResult.isDirectory()) {
+            const tempName = `__pub_temp_${Date.now()}`;
+            const tempDir = join(outputDir, tempName);
+            await cp(pubDirPath, tempDir, { recursive: true });
+            const entries = await readdir(outputDir);
+            for (const entry of entries) {
+              if (entry !== tempName) {
+                await rm(join(outputDir, entry), { recursive: true, force: true }).catch(() => {});
+              }
+            }
+            const tempEntries = await readdir(tempDir);
+            for (const entry of tempEntries) {
+              await cp(join(tempDir, entry), join(outputDir, entry), { recursive: true });
+            }
+            await rm(tempDir, { recursive: true, force: true });
+            addLog(`[build] Promoted ${pubDir}/ contents to deployment root`);
+          } else {
+            addLog(`[build] Warning: ${pubDir} is not a directory, serving from root`);
+          }
+        } else {
+          addLog(`[build] Warning: ${pubDir}/ not found after build, serving from root`);
         }
       }
-    } else if (language === "javascript" || language === "typescript") {
-      addLog(`[build] Node.js project detected`);
-      addLog(`[build] Bundling for deployment...`);
-      const entryFile = files.find(f => f.filename === "index.js" || f.filename === "index.ts" || f.filename === "main.js" || f.filename === "server.js" || f.filename === "app.js");
-      if (entryFile) {
-        const wrapperHtml = generateAppWrapper(projectName, language, entryFile.filename);
+
+      if (language === "html" || files.some(f => f.filename === "index.html")) {
+        addLog(`[build] Static HTML site detected`);
+        if (!files.find(f => f.filename === "index.html")) {
+          const htmlFile = files.find(f => f.filename.endsWith(".html"));
+          if (htmlFile) {
+            await writeFile(join(outputDir, "index.html"), htmlFile.content, "utf-8");
+            addLog(`[build] Created index.html from ${htmlFile.filename}`);
+          }
+        }
+      } else {
+        const wrapperHtml = generateAppWrapper(projectName, language, files[0]?.filename || "main");
         await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
-        addLog(`[build] Generated deployment wrapper`);
+        addLog(`[build] Generated static deployment page`);
       }
-    } else if (language === "python") {
-      addLog(`[build] Python project detected`);
-      addLog(`[build] Preparing for deployment...`);
-      const entryFile = files.find(f => f.filename === "main.py" || f.filename === "app.py" || f.filename === "server.py");
-      if (entryFile) {
-        const wrapperHtml = generateAppWrapper(projectName, language, entryFile.filename);
+    } else if (deploymentType === "autoscale") {
+      addLog(`[build] Autoscale deployment — max ${config?.maxMachines || 1} machine(s)`);
+      addLog(`[build] Configuring autoscale policies...`);
+
+      if (language === "html" || files.some(f => f.filename === "index.html")) {
+        if (!files.find(f => f.filename === "index.html")) {
+          const htmlFile = files.find(f => f.filename.endsWith(".html"));
+          if (htmlFile) {
+            await writeFile(join(outputDir, "index.html"), htmlFile.content, "utf-8");
+          }
+        }
+      } else {
+        const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "server.js", "app.js", "main.py", "app.py"].includes(f.filename));
+        const wrapperHtml = generateAppWrapper(projectName, language, entryFile?.filename || files[0]?.filename || "main");
         await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
-        addLog(`[build] Generated deployment wrapper`);
       }
-    } else {
-      addLog(`[build] ${language} project detected`);
-      const wrapperHtml = generateAppWrapper(projectName, language, files[0]?.filename || "main");
+      addLog(`[build] Autoscale configuration stored`);
+    } else if (deploymentType === "reserved-vm") {
+      const appType = config?.appType || "web_server";
+      const port = config?.portMapping || 3000;
+      addLog(`[build] Reserved VM deployment — app type: ${appType}, port: ${port}`);
+
+      if (config?.runCommand) {
+        addLog(`[build] Starting persistent process: ${config.runCommand}`);
+        const existingProc = activeVMProcesses.get(slug);
+        if (existingProc) {
+          existingProc.kill("SIGTERM");
+          activeVMProcesses.delete(slug);
+          addLog(`[build] Stopped previous VM process`);
+        }
+
+        const envVars = {
+          ...process.env,
+          PORT: String(port),
+          ...(config.deploymentSecrets || {}),
+        };
+
+        const proc = spawn("sh", ["-c", config.runCommand], {
+          cwd: outputDir,
+          env: envVars,
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: false,
+        });
+
+        proc.stdout?.on("data", (data: Buffer) => {
+          log(`[vm:${slug}] ${data.toString().trim()}`, "deploy");
+        });
+        proc.stderr?.on("data", (data: Buffer) => {
+          log(`[vm:${slug}:err] ${data.toString().trim()}`, "deploy");
+        });
+        proc.on("exit", (code) => {
+          log(`[vm:${slug}] Process exited with code ${code}`, "deploy");
+          activeVMProcesses.delete(slug);
+        });
+
+        activeVMProcesses.set(slug, proc);
+        addLog(`[build] VM process started (PID: ${proc.pid}, port: ${port})`);
+      }
+
+      if (language === "html" || files.some(f => f.filename === "index.html")) {
+        if (!files.find(f => f.filename === "index.html")) {
+          const htmlFile = files.find(f => f.filename.endsWith(".html"));
+          if (htmlFile) {
+            await writeFile(join(outputDir, "index.html"), htmlFile.content, "utf-8");
+          }
+        }
+      } else {
+        const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "server.js", "app.js", "main.py", "app.py"].includes(f.filename));
+        const wrapperHtml = generateAppWrapper(projectName, language, entryFile?.filename || files[0]?.filename || "main");
+        await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
+      }
+      addLog(`[build] Reserved VM process ready`);
+    } else if (deploymentType === "scheduled") {
+      addLog(`[build] Scheduled deployment`);
+      if (config?.cronExpression) {
+        addLog(`[build] Schedule: ${config.cronExpression}`);
+        if (!validateCronExpression(config.cronExpression)) {
+          throw new Error(`Invalid cron expression: ${config.cronExpression}`);
+        }
+      }
+      if (config?.scheduleDescription) {
+        addLog(`[build] Description: ${config.scheduleDescription}`);
+      }
+      const timeout = config?.jobTimeout || 300;
+      addLog(`[build] Job timeout: ${timeout}s`);
+
+      if (config?.cronExpression) {
+        const existingJob = scheduledDeployJobs.get(slug);
+        if (existingJob) {
+          existingJob.stop();
+          scheduledDeployJobs.delete(slug);
+          addLog(`[build] Cleared previous scheduled job`);
+        }
+
+        const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "main.py", "app.py"].includes(f.filename));
+        const entryScript = entryFile?.content || "";
+        const entryLang = language;
+
+        const cron = await import("node-cron");
+        const task = cron.schedule(config.cronExpression, async () => {
+          log(`[scheduled:${slug}] Executing scheduled job`, "deploy");
+          try {
+            const envVars = { ...process.env, ...(config?.deploymentSecrets || {}) };
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout * 1000);
+            try {
+              await execAsync(
+                entryLang === "python" ? `python3 -c ${JSON.stringify(entryScript)}` : `node -e ${JSON.stringify(entryScript)}`,
+                { cwd: outputDir, timeout: timeout * 1000, env: envVars, maxBuffer: 10 * 1024 * 1024 },
+              );
+              log(`[scheduled:${slug}] Job completed successfully`, "deploy");
+            } finally {
+              clearTimeout(timeoutId);
+            }
+          } catch (err: unknown) {
+            const e = err as { message?: string };
+            log(`[scheduled:${slug}] Job failed: ${e.message || "unknown error"}`, "deploy");
+          }
+        });
+
+        scheduledDeployJobs.set(slug, task);
+        addLog(`[build] Registered cron job for ${config.cronExpression} with ${timeout}s timeout`);
+      }
+
+      const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "main.py", "app.py"].includes(f.filename));
+      const wrapperHtml = generateAppWrapper(projectName, language, entryFile?.filename || files[0]?.filename || "main");
       await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
-      addLog(`[build] Generated deployment page`);
+      addLog(`[build] Scheduled job configured`);
+    } else {
+      if (language === "html" || files.some(f => f.filename === "index.html")) {
+        if (!files.find(f => f.filename === "index.html")) {
+          const htmlFile = files.find(f => f.filename.endsWith(".html"));
+          if (htmlFile) {
+            await writeFile(join(outputDir, "index.html"), htmlFile.content, "utf-8");
+          }
+        }
+      } else {
+        const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "server.js", "app.js", "main.py", "app.py"].includes(f.filename));
+        const wrapperHtml = generateAppWrapper(projectName, language, entryFile?.filename || files[0]?.filename || "main");
+        await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
+      }
     }
 
     addLog(`[build] Setting up routing...`);
@@ -168,12 +387,12 @@ export async function buildAndDeploy(
 
     addLog(`[build] Deployment URL: ${build.url}`);
     addLog(`[build] ✓ Build complete in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
-    addLog(`[build] ✓ Deployment v${version} is now LIVE`);
+    addLog(`[build] ✓ ${deploymentType} deployment v${version} is now LIVE`);
 
     build.status = "live";
     build.finishedAt = Date.now();
 
-    log(`Deployment ${slug} v${version} is live`, "deploy");
+    log(`Deployment ${slug} v${version} (${deploymentType}) is live`, "deploy");
     return build;
 
   } catch (err: any) {
@@ -276,6 +495,130 @@ export async function teardownDeployment(slug: string): Promise<void> {
   }
 }
 
+interface RequestWithSession extends Request {
+  session: Request["session"] & { userId?: string };
+}
+
+async function checkPrivateDeployment(slug: string, req: Request): Promise<boolean> {
+  try {
+    const { db } = await import("./db");
+    const { deployments } = await import("@shared/schema");
+    const { eq, and } = await import("drizzle-orm");
+    const deps = await db.select().from(deployments)
+      .where(and(eq(deployments.status, "live"), eq(deployments.isPrivate, true)))
+      .limit(50);
+    for (const dep of deps) {
+      const project = await storage.getProject(dep.projectId);
+      if (project) {
+        const depSlug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+        if (depSlug === slug) {
+          const sessionReq = req as RequestWithSession;
+          const userId = sessionReq.session?.userId;
+          if (!userId || (userId !== dep.userId && userId !== project.userId)) {
+            return false;
+          }
+          return true;
+        }
+      }
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+async function getDeploymentSettings(slug: string): Promise<{ showBadge: boolean; enableFeedback: boolean } | null> {
+  try {
+    const { db } = await import("./db");
+    const { deployments } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    const deps = await db.select().from(deployments)
+      .where(eq(deployments.status, "live"))
+      .limit(100);
+    for (const dep of deps) {
+      const project = await storage.getProject(dep.projectId);
+      if (project) {
+        const depSlug = generateSlug(project.name, project.id);
+        if (depSlug === slug) {
+          return { showBadge: dep.showBadge ?? true, enableFeedback: dep.enableFeedback ?? false };
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function injectWidgets(html: string, settings: { showBadge: boolean; enableFeedback: boolean }): string {
+  const widgets: string[] = [];
+  if (settings.showBadge) {
+    widgets.push(`<div style="position:fixed;bottom:8px;right:8px;background:#0E1525;color:#F5F9FC;padding:4px 10px;border-radius:6px;font-size:11px;font-family:sans-serif;opacity:0.8;z-index:99999;pointer-events:none">Deployed with E-Code</div>`);
+  }
+  if (settings.enableFeedback) {
+    widgets.push(`<div id="ecode-feedback" style="position:fixed;bottom:8px;left:8px;z-index:99999"><button onclick="document.getElementById('ecode-fb-form').style.display=document.getElementById('ecode-fb-form').style.display==='none'?'block':'none'" style="background:#0079F2;color:#fff;border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">💬</button><div id="ecode-fb-form" style="display:none;position:absolute;bottom:50px;left:0;background:#1A2035;border:1px solid #2D3548;border-radius:8px;padding:12px;width:250px"><textarea placeholder="Send feedback..." style="width:100%;height:60px;background:#0E1525;color:#F5F9FC;border:1px solid #2D3548;border-radius:4px;padding:6px;resize:none;font-family:sans-serif;font-size:13px"></textarea><button style="margin-top:6px;background:#0079F2;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px">Send</button></div></div>`);
+  }
+  if (widgets.length === 0) return html;
+  const injection = widgets.join("");
+  if (html.includes("</body>")) {
+    return html.replace("</body>", injection + "</body>");
+  }
+  return html + injection;
+}
+
+async function serve404(baseDir: string, slug: string, res: Response): Promise<void> {
+  const custom404 = join(baseDir, "404.html");
+  if (existsSync(custom404)) {
+    res.setHeader("Content-Type", "text/html");
+    const content = await readFile(custom404, "utf-8");
+    res.status(404).send(content);
+    return;
+  }
+  res.setHeader("Content-Type", "text/html");
+  res.status(404).send(generate404Page(slug));
+}
+
+function generate404Page(slug: string): string {
+  return `<!DOCTYPE html>
+<html><head><title>404 — Not Found</title><style>
+body{background:#0E1525;color:#F5F9FC;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.c{text-align:center}h1{font-size:6rem;margin:0;color:#7C65CB}p{color:#8B949E;font-size:1.2rem}
+a{color:#0079F2;text-decoration:none}a:hover{text-decoration:underline}
+</style></head><body><div class="c"><h1>404</h1><p>The page you're looking for doesn't exist.</p><a href="/deployed/${slug}/">Back to Home</a></div></body></html>`;
+}
+
+async function trackAnalytics(slug: string, req: Request): Promise<void> {
+  try {
+    const { db } = await import("./db");
+    const { deployments } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    const deps = await db.select().from(deployments)
+      .where(eq(deployments.status, "live"))
+      .limit(100);
+    for (const dep of deps) {
+      const project = await storage.getProject(dep.projectId);
+      if (project) {
+        const depSlug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+        if (depSlug === slug) {
+          const crypto = await import("crypto");
+          const ip = (req.headers["x-forwarded-for"] as string || req.ip || "unknown").split(",")[0].trim();
+          const ipHash = crypto.createHash("sha256").update(ip + dep.projectId).digest("hex").slice(0, 16);
+          const visitorId = crypto.createHash("sha256").update(ip + (req.headers["user-agent"] || "")).digest("hex").slice(0, 16);
+          await storage.createDeploymentAnalytic({
+            projectId: dep.projectId,
+            deploymentId: dep.id,
+            path: req.path,
+            referrer: (req.headers.referer || req.headers.referrer || "") as string,
+            userAgent: (req.headers["user-agent"] || "") as string,
+            visitorId,
+            ipHash,
+          });
+          return;
+        }
+      }
+    }
+  } catch {
+  }
+}
+
 export function createDeploymentRouter(): Router {
   const router = Router();
 
@@ -284,7 +627,15 @@ export function createDeploymentRouter(): Router {
     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
       return res.status(400).json({ error: "Invalid slug" });
     }
-    const rawPath = (req.params as any).filePath || "index.html";
+
+    const allowed = await checkPrivateDeployment(slug, req);
+    if (!allowed) {
+      return res.status(403).json({ error: "This deployment is private. Please sign in with an authorized account." });
+    }
+
+    trackAnalytics(slug, req).catch(() => {});
+
+    const rawPath = (req.params as Record<string, string>).filePath || "index.html";
     const safePath = normalize(rawPath).replace(/^(\.\.[\/\\])+/, "");
     const baseDir = resolve(DEPLOYMENTS_DIR, slug, "latest");
     const fullPath = resolve(baseDir, safePath);
@@ -293,14 +644,18 @@ export function createDeploymentRouter(): Router {
       return res.status(403).json({ error: "Forbidden" });
     }
 
+    const settings = await getDeploymentSettings(slug);
+
     if (!existsSync(fullPath)) {
       const indexPath = join(baseDir, "index.html");
       if (existsSync(indexPath)) {
         res.setHeader("Content-Type", "text/html");
         res.setHeader("Cache-Control", "public, max-age=300");
-        return res.sendFile(indexPath);
+        let html = await readFile(indexPath, "utf-8");
+        if (settings) html = injectWidgets(html, settings);
+        return res.send(html);
       }
-      return res.status(404).json({ error: "Deployment not found" });
+      return serve404(baseDir, slug, res);
     }
 
     try {
@@ -310,12 +665,24 @@ export function createDeploymentRouter(): Router {
         if (existsSync(indexPath)) {
           res.setHeader("Content-Type", "text/html");
           res.setHeader("Cache-Control", "public, max-age=300");
-          return res.sendFile(indexPath);
+          let html = await readFile(indexPath, "utf-8");
+          if (settings) html = injectWidgets(html, settings);
+          return res.send(html);
         }
-        return res.status(404).json({ error: "Not found" });
+        return serve404(baseDir, slug, res);
       }
 
-      res.setHeader("Content-Type", getMimeType(safePath));
+      const mimeType = getMimeType(safePath);
+      if (mimeType === "text/html" && settings) {
+        let html = await readFile(fullPath, "utf-8");
+        html = injectWidgets(html, settings);
+        res.setHeader("Content-Type", "text/html");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("X-Deployed-By", "E-Code");
+        return res.send(html);
+      }
+
+      res.setHeader("Content-Type", mimeType);
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.setHeader("X-Deployed-By", "E-Code");
       return res.sendFile(fullPath);
@@ -326,15 +693,28 @@ export function createDeploymentRouter(): Router {
 
   router.get("/deployed/:slug/", async (req: Request, res: Response) => {
     const { slug } = req.params;
-    const indexPath = join(DEPLOYMENTS_DIR, slug, "latest", "index.html");
+
+    const allowed = await checkPrivateDeployment(slug, req);
+    if (!allowed) {
+      return res.status(403).send(`<html><body style="background:#0E1525;color:#F5F9FC;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center"><h1>403</h1><p>This deployment is private</p></div></body></html>`);
+    }
+
+    trackAnalytics(slug, req).catch(() => {});
+
+    const baseDir = join(DEPLOYMENTS_DIR, slug, "latest");
+    const indexPath = join(baseDir, "index.html");
 
     if (!existsSync(indexPath)) {
-      return res.status(404).send(`<html><body style="background:#0E1525;color:#F5F9FC;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center"><h1>404</h1><p>Deployment not found</p></div></body></html>`);
+      return serve404(baseDir, slug, res);
     }
+
+    const settings = await getDeploymentSettings(slug);
+    let html = await readFile(indexPath, "utf-8");
+    if (settings) html = injectWidgets(html, settings);
 
     res.setHeader("Content-Type", "text/html");
     res.setHeader("Cache-Control", "public, max-age=300");
-    return res.sendFile(indexPath);
+    return res.send(html);
   });
 
   return router;

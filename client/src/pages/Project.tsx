@@ -12,7 +12,7 @@ import {
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
-  Activity, MessageSquare, Network, Brain,
+  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -511,6 +511,24 @@ function _projectPage() {
   const [customDomains, setCustomDomains] = useState<any[]>([]);
   const [showDomainInput, setShowDomainInput] = useState(false);
   const [domainInput, setDomainInput] = useState("");
+  const [deploymentType, setDeploymentType] = useState<"autoscale" | "static" | "reserved-vm" | "scheduled">("static");
+  const [deployBuildCommand, setDeployBuildCommand] = useState("");
+  const [deployRunCommand, setDeployRunCommand] = useState("");
+  const [deployCpu, setDeployCpu] = useState(1);
+  const [deployRam, setDeployRam] = useState(512);
+  const [deployMaxMachines, setDeployMaxMachines] = useState(3);
+  const [deployPublicDir, setDeployPublicDir] = useState("dist");
+  const [deployAppType, setDeployAppType] = useState<"web_server" | "background_worker">("web_server");
+  const [deployPortMapping, setDeployPortMapping] = useState(3000);
+  const [deployScheduleDesc, setDeployScheduleDesc] = useState("");
+  const [deployCronExpr, setDeployCronExpr] = useState("");
+  const [deployJobTimeout, setDeployJobTimeout] = useState(300);
+  const [deployIsPrivate, setDeployIsPrivate] = useState(false);
+  const [deployShowBadge, setDeployShowBadge] = useState(true);
+  const [deployEnableFeedback, setDeployEnableFeedback] = useState(false);
+  const [deploySecretsEntries, setDeploySecretsEntries] = useState<{key: string; value: string}[]>([]);
+  const [deployPanelTab, setDeployPanelTab] = useState<"config" | "history" | "analytics" | "settings">("config");
+  const [convertingCron, setConvertingCron] = useState(false);
   const splitDragStartX = useRef<number | null>(null);
   const splitDragStartW = useRef<number>(50);
 
@@ -1397,20 +1415,80 @@ function _projectPage() {
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/publish`);
+      if (project?.isPublished) {
+        const res = await apiRequest("POST", `/api/projects/${projectId}/publish`);
+        return res.json();
+      }
+      const secrets: Record<string, string> = {};
+      for (const entry of deploySecretsEntries) {
+        if (entry.key.trim()) secrets[entry.key.trim()] = entry.value;
+      }
+      const res = await apiRequest("POST", `/api/projects/${projectId}/deploy`, {
+        deploymentType,
+        buildCommand: deployBuildCommand || undefined,
+        runCommand: deployRunCommand || undefined,
+        machineConfig: (deploymentType === "autoscale" || deploymentType === "reserved-vm") ? { cpu: deployCpu, ram: deployRam } : undefined,
+        maxMachines: deploymentType === "autoscale" ? deployMaxMachines : undefined,
+        publicDirectory: deploymentType === "static" ? deployPublicDir : undefined,
+        appType: deploymentType === "reserved-vm" ? deployAppType : undefined,
+        portMapping: deploymentType === "reserved-vm" ? deployPortMapping : undefined,
+        cronExpression: deploymentType === "scheduled" ? deployCronExpr : undefined,
+        scheduleDescription: deploymentType === "scheduled" ? deployScheduleDesc : undefined,
+        jobTimeout: deploymentType === "scheduled" ? deployJobTimeout : undefined,
+        deploymentSecrets: Object.keys(secrets).length > 0 ? secrets : undefined,
+        isPrivate: deployIsPrivate,
+        showBadge: deployShowBadge,
+        enableFeedback: deployEnableFeedback,
+      });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deployments"] });
-      toast({ title: project?.isPublished ? "Project unpublished" : "Project published successfully" });
+      toast({ title: project?.isPublished ? "Project unpublished" : "Deployment successful" });
     },
     onError: (err: any) => {
-      toast({ title: "Publish failed", description: err.message || "Could not toggle publish state. Please try again.", variant: "destructive" });
+      toast({ title: "Deploy failed", description: err.message || "Deployment failed. Please try again.", variant: "destructive" });
     },
   });
 
-  const deploymentsQuery = useQuery<{ id: string; version: number; status: string; buildLog: string | null; url: string | null; createdAt: string; finishedAt: string | null }[]>({
+  const deployAnalyticsQuery = useQuery<{ pageViews: number; uniqueVisitors: number; topReferrers: { referrer: string; count: number }[]; trafficByDay: { date: string; views: number }[] }>({
+    queryKey: ["/api/projects", projectId, "deploy", "analytics"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/deploy/analytics`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load analytics");
+      return res.json();
+    },
+    enabled: !!projectId && deployPanelTab === "analytics",
+    retry: 1,
+  });
+
+  const convertCronMutation = useMutation({
+    mutationFn: async (description: string) => {
+      const res = await apiRequest("POST", `/api/deploy/schedule-to-cron`, { description });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setDeployCronExpr(data.cronExpression);
+      toast({ title: "Schedule converted", description: `Cron: ${data.cronExpression}` });
+    },
+    onError: () => {
+      toast({ title: "Conversion failed", variant: "destructive" });
+    },
+  });
+
+  const deploySettingsMutation = useMutation({
+    mutationFn: async (settings: { isPrivate?: boolean; showBadge?: boolean; enableFeedback?: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/projects/${projectId}/deploy/settings`, settings);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deployments"] });
+      toast({ title: "Settings updated" });
+    },
+  });
+
+  const deploymentsQuery = useQuery<{ id: string; version: number; status: string; buildLog: string | null; url: string | null; createdAt: string; finishedAt: string | null; deploymentType?: string }[]>({
     queryKey: ["/api/projects", projectId, "deployments"],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/deployments`, { credentials: "include" });
@@ -4538,14 +4616,21 @@ function _projectPage() {
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>
+
+                <div className="flex border-b border-[var(--ide-border)] shrink-0">
+                  {(["config", "history", "analytics", "settings"] as const).map(tab => (
+                    <button key={tab} className={`flex-1 text-[10px] py-2 font-medium capitalize ${deployPanelTab === tab ? "text-[#0079F2] border-b-2 border-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`} onClick={() => setDeployPanelTab(tab)} data-testid={`deploy-tab-${tab}`}>{tab}</button>
+                  ))}
+                </div>
+
                 <div className="flex-1 overflow-y-auto">
-                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[var(--ide-text-muted)]"}`} />
-                      <span className="text-xs font-medium text-[var(--ide-text)]">{project?.isPublished ? "Published" : "Not published"}</span>
-                    </div>
-                    {project?.isPublished && (
-                      <div className="mb-3">
+                  {deployPanelTab === "config" && (
+                    <div className="px-3 py-3 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[var(--ide-text-muted)]"}`} />
+                        <span className="text-xs font-medium text-[var(--ide-text)]">{project?.isPublished ? "Published" : "Not published"}</span>
+                      </div>
+                      {project?.isPublished && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
                           <Globe className="w-3 h-3 text-[#0079F2] shrink-0" />
                           <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono flex-1">{`${window.location.origin}/shared/${projectId}`}</span>
@@ -4556,159 +4641,420 @@ function _projectPage() {
                             <ExternalLink className="w-3 h-3" />
                           </button>
                         </div>
+                      )}
+
+                      <div>
+                        <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block mb-2">Deployment Type</span>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {([
+                            { type: "autoscale" as const, icon: Layers, label: "Autoscale", desc: "Auto-scaling web service" },
+                            { type: "static" as const, icon: Globe, label: "Static", desc: "Static site hosting" },
+                            { type: "reserved-vm" as const, icon: Server, label: "Reserved VM", desc: "Persistent compute" },
+                            { type: "scheduled" as const, icon: Calendar, label: "Scheduled", desc: "Cron-based jobs" },
+                          ]).map(({ type, icon: Icon, label, desc }) => (
+                            <button
+                              key={type}
+                              className={`p-2 rounded-lg border text-left transition-all ${deploymentType === type ? "border-[#0079F2] bg-[#0079F2]/10" : "border-[var(--ide-border)] bg-[var(--ide-bg)] hover:border-[var(--ide-text-muted)]"}`}
+                              onClick={() => setDeploymentType(type)}
+                              data-testid={`deploy-type-${type}`}
+                            >
+                              <Icon className={`w-3.5 h-3.5 mb-1 ${deploymentType === type ? "text-[#0079F2]" : "text-[var(--ide-text-muted)]"}`} />
+                              <p className="text-[10px] font-semibold text-[var(--ide-text)]">{label}</p>
+                              <p className="text-[8px] text-[var(--ide-text-muted)]">{desc}</p>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                    <Button
-                      className={`w-full h-9 rounded-lg text-[12px] font-semibold gap-2 ${project?.isPublished ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "bg-[#0079F2] hover:bg-[#0066CC] text-white"}`}
-                      onClick={() => publishMutation.mutate()}
-                      disabled={publishMutation.isPending}
-                      data-testid="button-deploy-publish"
-                    >
-                      {publishMutation.isPending ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {project?.isPublished ? "Unpublishing..." : "Deploying..."}</>
-                      ) : project?.isPublished ? (
-                        <><X className="w-3.5 h-3.5" /> Unpublish</>
-                      ) : (
-                        <><Rocket className="w-3.5 h-3.5" /> Deploy to Production</>
-                      )}
-                    </Button>
-                  </div>
-                  <div className="px-3 py-3 border-b border-[var(--ide-border)]">
-                    <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Deployment History</span>
-                    <div className="mt-2 space-y-1.5">
-                      {deploymentsQuery.isError ? (
-                        <div className="py-4 text-center">
-                          <p className="text-[10px] text-red-400">Failed to load deployments</p>
-                          <Button size="sm" variant="ghost" className="h-6 text-[10px] text-[var(--ide-text-muted)] mt-1" onClick={() => deploymentsQuery.refetch()} data-testid="retry-deployments">Retry</Button>
-                        </div>
-                      ) : deploymentsQuery.isLoading ? (
-                        <div className="py-4 text-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mx-auto" /></div>
-                      ) : (deploymentsQuery.data || []).length > 0 ? (
-                        (() => {
-                          const deps = deploymentsQuery.data || [];
-                          const currentLiveIdx = deps.findIndex(d => d.status === "live");
-                          return deps.map((dep, idx) => {
-                            const isCurrentLive = idx === currentLiveIdx;
-                            const statusColors: Record<string, string> = {
-                              live: "bg-green-500/10 text-green-400 border-green-500/20",
-                              building: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-                              failed: "bg-red-500/10 text-red-400 border-red-500/20",
-                              stopped: "bg-gray-500/10 text-gray-400 border-gray-500/20",
-                            };
-                            const dotColors: Record<string, string> = {
-                              live: "bg-[#0CCE6B]",
-                              building: "bg-blue-400",
-                              failed: "bg-red-400",
-                              stopped: "bg-gray-400",
-                            };
-                            const duration = dep.finishedAt && dep.createdAt ? Math.round((new Date(dep.finishedAt).getTime() - new Date(dep.createdAt).getTime()) / 1000) : null;
-                            return (
-                              <div key={dep.id} className={`rounded-md bg-[var(--ide-bg)] border ${isCurrentLive ? "border-green-500/30" : "border-[var(--ide-border)]"}`} data-testid={`deployment-${dep.id}`}>
-                                <button className="flex items-center gap-2 px-2.5 py-2 w-full text-left" onClick={() => setExpandedDeployId(expandedDeployId === dep.id ? null : dep.id)} data-testid={`toggle-deployment-${dep.id}`}>
-                                  {expandedDeployId === dep.id ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />}
-                                  <span className={`w-1.5 h-1.5 rounded-full ${dotColors[dep.status] || "bg-gray-400"} shrink-0`} />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] text-[var(--ide-text)] font-medium">v{dep.version}</p>
-                                    <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date(dep.createdAt).toLocaleString()}{duration !== null ? ` · ${duration}s` : ""}</p>
-                                  </div>
-                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${statusColors[dep.status] || statusColors.stopped}`}>{isCurrentLive ? "Live" : dep.status}</span>
-                                </button>
-                                {expandedDeployId === dep.id && (
-                                  <div className="px-2.5 pb-2.5 space-y-2">
-                                    {dep.buildLog && (
-                                      <div className="bg-[var(--ide-panel)] rounded p-2 max-h-[150px] overflow-y-auto">
-                                        <pre className="text-[9px] text-[var(--ide-text-muted)] font-mono whitespace-pre-wrap" data-testid={`build-log-${dep.id}`}>{dep.buildLog}</pre>
-                                      </div>
-                                    )}
-                                    {dep.url && (
-                                      <a href={dep.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#0079F2] hover:underline block truncate" data-testid={`deploy-url-${dep.id}`}>{dep.url}</a>
-                                    )}
-                                    {!isCurrentLive && (dep.status === "live" || dep.status === "stopped") && (
-                                      <Button size="sm" variant="outline" className="h-6 text-[10px] w-full border-[var(--ide-border)] text-[var(--ide-text-secondary)]" onClick={() => rollbackMutation.mutate(dep.version)} disabled={rollbackMutation.isPending} data-testid={`rollback-${dep.id}`}>
-                                        {rollbackMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : `Rollback to v${dep.version}`}
-                                      </Button>
-                                    )}
-                                  </div>
-                              )}
-                            </div>
-                            );
-                          });
-                        })()
-                      ) : (
-                        <div className="py-4 text-center">
-                          <p className="text-[10px] text-[var(--ide-text-muted)]">No deployments yet</p>
-                          <p className="text-[9px] text-[#4A5068] mt-1">Publish your project to create a deployment</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="px-3 py-3">
-                    <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Custom Domain</span>
-                    {customDomains.length > 0 ? (
-                      <div className="mt-2 space-y-2">
-                        {customDomains.map((d: any) => (
-                          <div key={d.id} className="p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+
+                      {(deploymentType === "autoscale" || deploymentType === "reserved-vm") && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Machine Power</span>
+                          <div>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{d.domain}</span>
-                              <button className="text-[var(--ide-text-muted)] hover:text-red-400 transition-colors ml-2" onClick={() => {
-                                apiRequest("DELETE", `/api/projects/${projectId}/domains/${d.id}`)
-                                  .then(() => { setCustomDomains((prev: any[]) => prev.filter((x: any) => x.id !== d.id)); toast({ title: "Domain removed" }); });
-                              }} data-testid={`button-remove-domain-${d.id}`}><X className="w-3 h-3" /></button>
+                              <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Cpu className="w-3 h-3" /> CPU</span>
+                              <span className="text-[10px] font-medium text-[var(--ide-text)]">{deployCpu} vCPU</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              {d.verified ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Verified</span>
-                              ) : (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Pending</span>
-                              )}
-                              {d.sslStatus === "active" ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] border border-[#0079F2]/30">SSL Active</span>
-                              ) : d.sslStatus === "provisioning" ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">SSL Provisioning</span>
-                              ) : (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">No SSL</span>
-                              )}
-                            </div>
-                            {!d.verified && (
-                              <Button variant="ghost" size="sm" className="mt-2 h-6 px-2 text-[10px] text-[#0079F2] hover:bg-[#0079F2]/10 rounded w-full" onClick={() => {
-                                apiRequest("POST", `/api/projects/${projectId}/domains/${d.id}/verify`)
-                                  .then(r => r.json()).then((data) => {
-                                    if (data.verified) {
-                                      setCustomDomains((prev: any[]) => prev.map((x: any) => x.id === d.id ? { ...x, verified: true, sslStatus: "provisioning" } : x));
-                                      toast({ title: "Domain verified!", description: "SSL certificate is being provisioned." });
-                                    } else {
-                                      toast({ title: "Not verified", description: data.message, variant: "destructive" });
-                                    }
-                                  });
-                              }} data-testid={`button-verify-domain-${d.id}`}>Verify DNS</Button>
-                            )}
+                            <input type="range" min="0.25" max="8" step="0.25" value={deployCpu} onChange={e => setDeployCpu(parseFloat(e.target.value))} className="w-full h-1.5 accent-[#0079F2]" data-testid="slider-cpu" />
                           </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="mt-2">
-                      {showDomainInput ? (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            value={domainInput}
-                            onChange={(e) => setDomainInput(e.target.value)}
-                            placeholder="example.com"
-                            className="flex-1 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-1.5 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] font-mono"
-                            onKeyDown={(e) => { if (e.key === "Enter" && domainInput.trim()) handleAddDomain(); if (e.key === "Escape") setShowDomainInput(false); }}
-                            autoFocus
-                            data-testid="input-custom-domain"
-                          />
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-[#0CCE6B] hover:bg-[#0CCE6B]/10 rounded shrink-0" onClick={handleAddDomain} data-testid="button-confirm-domain">Add</Button>
-                          <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0" onClick={() => setShowDomainInput(false)}><X className="w-3 h-3" /></Button>
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><HardDrive className="w-3 h-3" /> RAM</span>
+                              <span className="text-[10px] font-medium text-[var(--ide-text)]">{deployRam >= 1024 ? `${(deployRam / 1024).toFixed(1)} GB` : `${deployRam} MB`}</span>
+                            </div>
+                            <input type="range" min="256" max="16384" step="256" value={deployRam} onChange={e => setDeployRam(parseInt(e.target.value))} className="w-full h-1.5 accent-[#0079F2]" data-testid="slider-ram" />
+                          </div>
+                          {deploymentType === "autoscale" && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] text-[var(--ide-text-muted)]">Max Machines</span>
+                                <span className="text-[10px] font-medium text-[var(--ide-text)]">{deployMaxMachines}</span>
+                              </div>
+                              <input type="range" min="1" max="10" step="1" value={deployMaxMachines} onChange={e => setDeployMaxMachines(parseInt(e.target.value))} className="w-full h-1.5 accent-[#0079F2]" data-testid="slider-max-machines" />
+                              <p className="text-[8px] text-[var(--ide-text-muted)] mt-1">~{(deployCpu * deployMaxMachines * 0.05).toFixed(2)} compute units/hr</p>
+                            </div>
+                          )}
                         </div>
+                      )}
+
+                      {deploymentType === "static" && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Static Config</span>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Public Directory</label>
+                            <input type="text" value={deployPublicDir} onChange={e => setDeployPublicDir(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="dist" data-testid="input-public-dir" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Build Command</label>
+                            <input type="text" value={deployBuildCommand} onChange={e => setDeployBuildCommand(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="npm run build" data-testid="input-build-command" />
+                          </div>
+                        </div>
+                      )}
+
+                      {deploymentType === "reserved-vm" && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">VM Config</span>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">App Type</label>
+                            <div className="flex gap-2">
+                              {(["web_server", "background_worker"] as const).map(t => (
+                                <button key={t} className={`flex-1 text-[10px] py-1.5 rounded-md border ${deployAppType === t ? "border-[#0079F2] bg-[#0079F2]/10 text-[#0079F2]" : "border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setDeployAppType(t)} data-testid={`app-type-${t}`}>
+                                  {t === "web_server" ? "Web Server" : "Background Worker"}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Build Command</label>
+                            <input type="text" value={deployBuildCommand} onChange={e => setDeployBuildCommand(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="npm run build" data-testid="input-vm-build-command" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Run Command</label>
+                            <input type="text" value={deployRunCommand} onChange={e => setDeployRunCommand(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="npm start" data-testid="input-vm-run-command" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Port Mapping</label>
+                            <input type="number" value={deployPortMapping} onChange={e => setDeployPortMapping(parseInt(e.target.value) || 3000)} min={1} max={65535} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="3000" data-testid="input-vm-port-mapping" />
+                          </div>
+                        </div>
+                      )}
+
+                      {deploymentType === "scheduled" && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Schedule Config</span>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Schedule (natural language)</label>
+                            <div className="flex gap-1">
+                              <input type="text" value={deployScheduleDesc} onChange={e => setDeployScheduleDesc(e.target.value)} className="flex-1 h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] outline-none focus:border-[#0079F2]" placeholder="Every day at 3am" data-testid="input-schedule-desc" />
+                              <Button size="sm" className="h-7 px-2 text-[10px]" onClick={() => { if (deployScheduleDesc.trim()) convertCronMutation.mutate(deployScheduleDesc); }} disabled={convertCronMutation.isPending || !deployScheduleDesc.trim()} data-testid="button-convert-cron">
+                                {convertCronMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                              </Button>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Cron Expression</label>
+                            <input type="text" value={deployCronExpr} onChange={e => setDeployCronExpr(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="0 3 * * *" data-testid="input-cron-expr" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Build Command</label>
+                            <input type="text" value={deployBuildCommand} onChange={e => setDeployBuildCommand(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="npm run build" data-testid="input-sched-build-command" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Run Command</label>
+                            <input type="text" value={deployRunCommand} onChange={e => setDeployRunCommand(e.target.value)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" placeholder="node job.js" data-testid="input-sched-run-command" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-[var(--ide-text-muted)] block mb-1">Job Timeout (seconds)</label>
+                            <input type="number" value={deployJobTimeout} onChange={e => setDeployJobTimeout(parseInt(e.target.value) || 300)} className="w-full h-7 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)] font-mono outline-none focus:border-[#0079F2]" data-testid="input-job-timeout" />
+                          </div>
+                        </div>
+                      )}
+
+                      {(deploymentType === "autoscale" || deploymentType === "static" || deploymentType === "reserved-vm" || deploymentType === "scheduled") && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Deployment Secrets</span>
+                            <button className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setDeploySecretsEntries(prev => [...prev, { key: "", value: "" }])} data-testid="button-add-deploy-secret"><Plus className="w-3 h-3" /></button>
+                          </div>
+                          {deploySecretsEntries.map((entry, idx) => (
+                            <div key={idx} className="flex items-center gap-1 mb-1">
+                              <input type="text" value={entry.key} onChange={e => { const n = [...deploySecretsEntries]; n[idx].key = e.target.value; setDeploySecretsEntries(n); }} className="flex-1 h-6 text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-1.5 text-[var(--ide-text)] font-mono outline-none" placeholder="KEY" data-testid={`input-secret-key-${idx}`} />
+                              <input type="password" value={entry.value} onChange={e => { const n = [...deploySecretsEntries]; n[idx].value = e.target.value; setDeploySecretsEntries(n); }} className="flex-1 h-6 text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-1.5 text-[var(--ide-text)] font-mono outline-none" placeholder="value" data-testid={`input-secret-value-${idx}`} />
+                              <button onClick={() => setDeploySecretsEntries(prev => prev.filter((_, i) => i !== idx))} className="text-[var(--ide-text-muted)] hover:text-red-400"><X className="w-3 h-3" /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <Button
+                        className={`w-full h-9 rounded-lg text-[12px] font-semibold gap-2 ${project?.isPublished ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "bg-[#0079F2] hover:bg-[#0066CC] text-white"}`}
+                        onClick={() => publishMutation.mutate()}
+                        disabled={publishMutation.isPending}
+                        data-testid="button-deploy-publish"
+                      >
+                        {publishMutation.isPending ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {project?.isPublished ? "Unpublishing..." : "Deploying..."}</>
+                        ) : project?.isPublished ? (
+                          <><X className="w-3.5 h-3.5" /> Unpublish</>
+                        ) : (
+                          <><Rocket className="w-3.5 h-3.5" /> Deploy {deploymentType === "autoscale" ? "Autoscale" : deploymentType === "static" ? "Static" : deploymentType === "reserved-vm" ? "Reserved VM" : "Scheduled"}</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {deployPanelTab === "history" && (
+                    <div className="px-3 py-3 space-y-3">
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Deployment History</span>
+                      <div className="space-y-1.5">
+                        {deploymentsQuery.isError ? (
+                          <div className="py-4 text-center">
+                            <p className="text-[10px] text-red-400">Failed to load deployments</p>
+                            <Button size="sm" variant="ghost" className="h-6 text-[10px] text-[var(--ide-text-muted)] mt-1" onClick={() => deploymentsQuery.refetch()} data-testid="retry-deployments">Retry</Button>
+                          </div>
+                        ) : deploymentsQuery.isLoading ? (
+                          <div className="py-4 text-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mx-auto" /></div>
+                        ) : (deploymentsQuery.data || []).length > 0 ? (
+                          (() => {
+                            const deps = deploymentsQuery.data || [];
+                            const currentLiveIdx = deps.findIndex(d => d.status === "live");
+                            return deps.map((dep, idx) => {
+                              const isCurrentLive = idx === currentLiveIdx;
+                              const statusColors: Record<string, string> = {
+                                live: "bg-green-500/10 text-green-400 border-green-500/20",
+                                building: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                                failed: "bg-red-500/10 text-red-400 border-red-500/20",
+                                stopped: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+                              };
+                              const dotColors: Record<string, string> = {
+                                live: "bg-[#0CCE6B]",
+                                building: "bg-blue-400",
+                                failed: "bg-red-400",
+                                stopped: "bg-gray-400",
+                              };
+                              const duration = dep.finishedAt && dep.createdAt ? Math.round((new Date(dep.finishedAt).getTime() - new Date(dep.createdAt).getTime()) / 1000) : null;
+                              const typeLabel = dep.deploymentType || "static";
+                              return (
+                                <div key={dep.id} className={`rounded-md bg-[var(--ide-bg)] border ${isCurrentLive ? "border-green-500/30" : "border-[var(--ide-border)]"}`} data-testid={`deployment-${dep.id}`}>
+                                  <button className="flex items-center gap-2 px-2.5 py-2 w-full text-left" onClick={() => setExpandedDeployId(expandedDeployId === dep.id ? null : dep.id)} data-testid={`toggle-deployment-${dep.id}`}>
+                                    {expandedDeployId === dep.id ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />}
+                                    <span className={`w-1.5 h-1.5 rounded-full ${dotColors[dep.status] || "bg-gray-400"} shrink-0`} />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[10px] text-[var(--ide-text)] font-medium">v{dep.version} <span className="text-[8px] text-[var(--ide-text-muted)] font-normal">{typeLabel}</span></p>
+                                      <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date(dep.createdAt).toLocaleString()}{duration !== null ? ` · ${duration}s` : ""}</p>
+                                    </div>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${statusColors[dep.status] || statusColors.stopped}`}>{isCurrentLive ? "Live" : dep.status}</span>
+                                  </button>
+                                  {expandedDeployId === dep.id && (
+                                    <div className="px-2.5 pb-2.5 space-y-2">
+                                      {dep.buildLog && (
+                                        <div className="bg-[var(--ide-panel)] rounded p-2 max-h-[150px] overflow-y-auto">
+                                          <pre className="text-[9px] text-[var(--ide-text-muted)] font-mono whitespace-pre-wrap" data-testid={`build-log-${dep.id}`}>{dep.buildLog}</pre>
+                                        </div>
+                                      )}
+                                      {dep.url && (
+                                        <a href={dep.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#0079F2] hover:underline block truncate" data-testid={`deploy-url-${dep.id}`}>{dep.url}</a>
+                                      )}
+                                      {!isCurrentLive && (dep.status === "live" || dep.status === "stopped") && (
+                                        <Button size="sm" variant="outline" className="h-6 text-[10px] w-full border-[var(--ide-border)] text-[var(--ide-text-secondary)]" onClick={() => rollbackMutation.mutate(dep.version)} disabled={rollbackMutation.isPending} data-testid={`rollback-${dep.id}`}>
+                                          {rollbackMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : `Rollback to v${dep.version}`}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            });
+                          })()
+                        ) : (
+                          <div className="py-4 text-center">
+                            <p className="text-[10px] text-[var(--ide-text-muted)]">No deployments yet</p>
+                            <p className="text-[9px] text-[#4A5068] mt-1">Deploy your project to create a deployment</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-[var(--ide-border)] pt-3">
+                        <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block mb-2">Custom Domain</span>
+                        {customDomains.length > 0 ? (
+                          <div className="space-y-2">
+                            {customDomains.map((d: any) => (
+                              <div key={d.id} className="p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{d.domain}</span>
+                                  <button className="text-[var(--ide-text-muted)] hover:text-red-400 transition-colors ml-2" onClick={() => {
+                                    apiRequest("DELETE", `/api/projects/${projectId}/domains/${d.id}`)
+                                      .then(() => { setCustomDomains((prev: any[]) => prev.filter((x: any) => x.id !== d.id)); toast({ title: "Domain removed" }); });
+                                  }} data-testid={`button-remove-domain-${d.id}`}><X className="w-3 h-3" /></button>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  {d.verified ? (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Verified</span>
+                                  ) : (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Pending</span>
+                                  )}
+                                  {d.sslStatus === "active" ? (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] border border-[#0079F2]/30">SSL Active</span>
+                                  ) : d.sslStatus === "provisioning" ? (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">SSL Provisioning</span>
+                                  ) : (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">No SSL</span>
+                                  )}
+                                </div>
+                                {!d.verified && (
+                                  <Button variant="ghost" size="sm" className="mt-2 h-6 px-2 text-[10px] text-[#0079F2] hover:bg-[#0079F2]/10 rounded w-full" onClick={() => {
+                                    apiRequest("POST", `/api/projects/${projectId}/domains/${d.id}/verify`)
+                                      .then(r => r.json()).then((data) => {
+                                        if (data.verified) {
+                                          setCustomDomains((prev: any[]) => prev.map((x: any) => x.id === d.id ? { ...x, verified: true, sslStatus: "provisioning" } : x));
+                                          toast({ title: "Domain verified!", description: "SSL certificate is being provisioned." });
+                                        } else {
+                                          toast({ title: "Not verified", description: data.message, variant: "destructive" });
+                                        }
+                                      });
+                                  }} data-testid={`button-verify-domain-${d.id}`}>Verify DNS</Button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="mt-2">
+                          {showDomainInput ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={domainInput}
+                                onChange={(e) => setDomainInput(e.target.value)}
+                                placeholder="example.com"
+                                className="flex-1 text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-1.5 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2] font-mono"
+                                onKeyDown={(e) => { if (e.key === "Enter" && domainInput.trim()) handleAddDomain(); if (e.key === "Escape") setShowDomainInput(false); }}
+                                autoFocus
+                                data-testid="input-custom-domain"
+                              />
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] text-[#0CCE6B] hover:bg-[#0CCE6B]/10 rounded shrink-0" onClick={handleAddDomain} data-testid="button-confirm-domain">Add</Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0" onClick={() => setShowDomainInput(false)}><X className="w-3 h-3" /></Button>
+                            </div>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] text-[var(--ide-text-secondary)] border border-[var(--ide-border)] border-dashed hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] hover:border-[#0079F2]/40 rounded-md w-full" onClick={() => setShowDomainInput(true)} data-testid="button-add-domain">
+                              <Plus className="w-3 h-3 mr-1" /> Add Domain
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {deployPanelTab === "analytics" && (
+                    <div className="px-3 py-3 space-y-3">
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Visitor Analytics</span>
+                      {deployAnalyticsQuery.isLoading ? (
+                        <div className="py-6 text-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mx-auto" /></div>
+                      ) : deployAnalyticsQuery.data ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid="analytics-page-views">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Eye className="w-3 h-3 text-blue-400" />
+                                <span className="text-[9px] text-[var(--ide-text-muted)] uppercase">Page Views</span>
+                              </div>
+                              <span className="text-lg font-bold text-[var(--ide-text)]">{deployAnalyticsQuery.data.pageViews}</span>
+                            </div>
+                            <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid="analytics-unique-visitors">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Users className="w-3 h-3 text-green-400" />
+                                <span className="text-[9px] text-[var(--ide-text-muted)] uppercase">Unique Visitors</span>
+                              </div>
+                              <span className="text-lg font-bold text-[var(--ide-text)]">{deployAnalyticsQuery.data.uniqueVisitors}</span>
+                            </div>
+                          </div>
+
+                          {deployAnalyticsQuery.data.trafficByDay.length > 0 && (
+                            <div data-testid="analytics-traffic-chart">
+                              <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block mb-2">Traffic Over Time</span>
+                              <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]">
+                                <div className="flex items-end gap-0.5 h-[80px]">
+                                  {(() => {
+                                    const data = deployAnalyticsQuery.data!.trafficByDay;
+                                    const max = Math.max(...data.map(d => d.views), 1);
+                                    return data.slice(-14).map((d, i) => (
+                                      <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                                        <div className="w-full bg-[#0079F2] rounded-t" style={{ height: `${(d.views / max) * 60}px`, minHeight: "2px" }} title={`${d.date}: ${d.views} views`} />
+                                        <span className="text-[7px] text-[var(--ide-text-muted)]">{d.date.slice(5)}</span>
+                                      </div>
+                                    ));
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {deployAnalyticsQuery.data.topReferrers.length > 0 && (
+                            <div data-testid="analytics-referrers">
+                              <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block mb-2">Top Referrers</span>
+                              <div className="space-y-1">
+                                {deployAnalyticsQuery.data.topReferrers.map((ref, i) => (
+                                  <div key={i} className="flex items-center justify-between py-1 px-2 rounded bg-[var(--ide-surface)] text-[11px]">
+                                    <span className="text-[var(--ide-text)] truncate flex-1">{ref.referrer}</span>
+                                    <span className="text-[var(--ide-text-muted)] font-mono ml-2">{ref.count}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {deployAnalyticsQuery.data.pageViews === 0 && (
+                            <div className="py-4 text-center">
+                              <BarChart3 className="w-6 h-6 text-[var(--ide-text-muted)] mx-auto mb-2" />
+                              <p className="text-[10px] text-[var(--ide-text-muted)]">No visitor data yet</p>
+                              <p className="text-[9px] text-[#4A5068] mt-1">Analytics will appear when your deployed app gets visitors</p>
+                            </div>
+                          )}
+                        </>
                       ) : (
-                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] text-[var(--ide-text-secondary)] border border-[var(--ide-border)] border-dashed hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] hover:border-[#0079F2]/40 rounded-md w-full" onClick={() => setShowDomainInput(true)} data-testid="button-add-domain">
-                          <Plus className="w-3 h-3 mr-1" /> Add Domain
-                        </Button>
+                        <div className="py-4 text-center">
+                          <BarChart3 className="w-6 h-6 text-[var(--ide-text-muted)] mx-auto mb-2" />
+                          <p className="text-[10px] text-[var(--ide-text-muted)]">Deploy your project to see analytics</p>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  )}
+
+                  {deployPanelTab === "settings" && (
+                    <div className="px-3 py-3 space-y-3">
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Access Controls</span>
+                      <div className="flex items-center justify-between py-2 px-2.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)]">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                          <div>
+                            <p className="text-[11px] text-[var(--ide-text)] font-medium">Private Deployment</p>
+                            <p className="text-[9px] text-[var(--ide-text-muted)]">Teams plan only</p>
+                          </div>
+                        </div>
+                        <Switch checked={deployIsPrivate} onCheckedChange={(v) => { setDeployIsPrivate(v); if (project?.isPublished) deploySettingsMutation.mutate({ isPrivate: v }); }} data-testid="toggle-private" />
+                      </div>
+
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block mt-3">Badge & Feedback</span>
+                      <div className="flex items-center justify-between py-2 px-2.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)]">
+                        <div className="flex items-center gap-2">
+                          <Rocket className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                          <div>
+                            <p className="text-[11px] text-[var(--ide-text)] font-medium">Made with E-Code Badge</p>
+                            <p className="text-[9px] text-[var(--ide-text-muted)]">Show badge on deployed app</p>
+                          </div>
+                        </div>
+                        <Switch checked={deployShowBadge} onCheckedChange={(v) => { setDeployShowBadge(v); if (project?.isPublished) deploySettingsMutation.mutate({ showBadge: v }); }} data-testid="toggle-badge" />
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-2.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)]">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                          <div>
+                            <p className="text-[11px] text-[var(--ide-text)] font-medium">Feedback Widget</p>
+                            <p className="text-[9px] text-[var(--ide-text-muted)]">Collect feedback from visitors</p>
+                          </div>
+                        </div>
+                        <Switch checked={deployEnableFeedback} onCheckedChange={(v) => { setDeployEnableFeedback(v); if (project?.isPublished) deploySettingsMutation.mutate({ enableFeedback: v }); }} data-testid="toggle-feedback" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

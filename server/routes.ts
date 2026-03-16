@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, type InsertDeployment } from "@shared/schema";
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { executionPool } from "./executionPool";
@@ -1300,6 +1300,24 @@ export async function registerRoutes(
   // --- DEPLOYMENTS ---
   app.use(createDeploymentRouter());
 
+  const deployConfigSchema = z.object({
+    deploymentType: z.enum(["autoscale", "static", "reserved-vm", "scheduled"]).default("static"),
+    buildCommand: z.string().max(1000).optional(),
+    runCommand: z.string().max(1000).optional(),
+    machineConfig: z.object({ cpu: z.number().min(0.25).max(16), ram: z.number().min(128).max(65536) }).optional(),
+    maxMachines: z.number().int().min(1).max(20).optional(),
+    cronExpression: z.string().max(100).optional(),
+    scheduleDescription: z.string().max(500).optional(),
+    jobTimeout: z.number().int().min(1).max(86400).optional(),
+    publicDirectory: z.string().max(200).optional(),
+    appType: z.enum(["web_server", "background_worker"]).optional(),
+    deploymentSecrets: z.record(z.string().max(10000)).optional(),
+    portMapping: z.number().int().min(1).max(65535).optional(),
+    isPrivate: z.boolean().optional(),
+    showBadge: z.boolean().optional(),
+    enableFeedback: z.boolean().optional(),
+  });
+
   app.post("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
@@ -1308,7 +1326,39 @@ export async function registerRoutes(
       if (projectFiles.length === 0) return res.status(400).json({ message: "No files to deploy" });
       const existingDeps = await storage.getProjectDeployments(project.id);
       const version = existingDeps.length > 0 ? Math.max(...existingDeps.map(d => d.version)) + 1 : 1;
-      const deployment = await storage.createDeployment({ projectId: project.id, userId: req.session.userId!, version });
+
+      const deployConfig = deployConfigSchema.parse(req.body || {});
+      const deploymentType = deployConfig.deploymentType || "static";
+
+      if (deployConfig.isPrivate === true) {
+        const quota = await storage.getUserQuota(req.session.userId!);
+        if (!quota || quota.plan !== "team") {
+          return res.status(403).json({ message: "Private deployments require a Teams plan" });
+        }
+      }
+
+      const insertData: InsertDeployment = {
+        projectId: project.id,
+        userId: req.session.userId!,
+        version,
+        deploymentType,
+        buildCommand: deployConfig.buildCommand,
+        runCommand: deployConfig.runCommand,
+        machineConfig: deployConfig.machineConfig,
+        maxMachines: deployConfig.maxMachines,
+        cronExpression: deployConfig.cronExpression,
+        scheduleDescription: deployConfig.scheduleDescription,
+        jobTimeout: deployConfig.jobTimeout,
+        publicDirectory: deployConfig.publicDirectory,
+        appType: deployConfig.appType,
+        deploymentSecrets: deployConfig.deploymentSecrets,
+        portMapping: deployConfig.portMapping,
+        isPrivate: deployConfig.isPrivate,
+        showBadge: deployConfig.showBadge,
+        enableFeedback: deployConfig.enableFeedback,
+      };
+
+      const deployment = await storage.createDeployment(insertData);
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
 
       const build = await buildAndDeploy(
@@ -1320,6 +1370,23 @@ export async function registerRoutes(
         deployment.id,
         version,
         (line) => log(line, "deploy"),
+        {
+          deploymentType,
+          buildCommand: deployConfig.buildCommand,
+          runCommand: deployConfig.runCommand,
+          machineConfig: deployConfig.machineConfig,
+          maxMachines: deployConfig.maxMachines,
+          cronExpression: deployConfig.cronExpression,
+          scheduleDescription: deployConfig.scheduleDescription,
+          jobTimeout: deployConfig.jobTimeout,
+          publicDirectory: deployConfig.publicDirectory,
+          appType: deployConfig.appType,
+          deploymentSecrets: deployConfig.deploymentSecrets,
+          portMapping: deployConfig.portMapping,
+          isPrivate: deployConfig.isPrivate,
+          showBadge: deployConfig.showBadge,
+          enableFeedback: deployConfig.enableFeedback,
+        },
       );
 
       const deployUrl = build.url;
@@ -1333,8 +1400,8 @@ export async function registerRoutes(
         url: deployUrl,
         finishedAt: new Date(),
       });
-      await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version });
-      return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl }, slug, url: deployUrl, version });
+      await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version, deploymentType });
+      return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl, deploymentType }, slug, url: deployUrl, version });
     } catch (err: any) {
       log(`Deploy error: ${err.message}`, "deploy");
       return res.status(500).json({ message: "Deployment failed" });
@@ -1388,6 +1455,97 @@ export async function registerRoutes(
       return res.json(deps);
     } catch {
       return res.status(500).json({ message: "Failed to fetch deployments" });
+    }
+  });
+
+  app.get("/api/projects/:id/deploy/analytics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const days = parseInt(req.query.days as string) || 30;
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const summary = await storage.getDeploymentAnalyticsSummary(project.id, since);
+      return res.json(summary);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  app.post("/api/projects/:id/deploy/track", async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const { path, referrer, visitorId } = req.body || {};
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      const ipHash = crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
+      await storage.createDeploymentAnalytic({
+        projectId: project.id,
+        path: path || "/",
+        referrer: referrer || null,
+        userAgent: req.headers["user-agent"] || null,
+        visitorId: visitorId || null,
+        ipHash,
+      });
+      return res.json({ tracked: true });
+    } catch {
+      return res.status(500).json({ message: "Tracking failed" });
+    }
+  });
+
+  app.post("/api/deploy/schedule-to-cron", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { description } = z.object({ description: z.string().min(1).max(500) }).parse(req.body);
+      const anthropic = new Anthropic();
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 100,
+        messages: [{
+          role: "user",
+          content: `Convert this natural language schedule description to a cron expression (5-field format: minute hour day-of-month month day-of-week). Only respond with the cron expression, nothing else.\n\nDescription: "${description}"`
+        }],
+      });
+      const firstBlock = message.content[0];
+      const cronText = (firstBlock.type === "text" ? firstBlock.text : "").trim();
+      const cronMatch = cronText.match(/^[\d\*\/\-\,\s]+$/);
+      const cronExpression = cronMatch ? cronText : "0 * * * *";
+      return res.json({ cronExpression, description });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Failed to convert schedule", cronExpression: "0 * * * *" });
+    }
+  });
+
+  const deploySettingsSchema = z.object({
+    isPrivate: z.boolean().optional(),
+    showBadge: z.boolean().optional(),
+    enableFeedback: z.boolean().optional(),
+  });
+
+  app.patch("/api/projects/:id/deploy/settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deps = await storage.getProjectDeployments(project.id);
+      const liveDep = deps.find(d => d.status === "live");
+      if (!liveDep) return res.status(404).json({ message: "No active deployment" });
+
+      const body = deploySettingsSchema.parse(req.body);
+
+      if (body.isPrivate === true) {
+        const quota = await storage.getUserQuota(req.session.userId!);
+        if (!quota || quota.plan !== "team") {
+          return res.status(403).json({ message: "Private deployments require a Teams plan" });
+        }
+      }
+
+      const updates: Partial<{ isPrivate: boolean; showBadge: boolean; enableFeedback: boolean }> = {};
+      if (body.isPrivate !== undefined) updates.isPrivate = body.isPrivate;
+      if (body.showBadge !== undefined) updates.showBadge = body.showBadge;
+      if (body.enableFeedback !== undefined) updates.enableFeedback = body.enableFeedback;
+      const updated = await storage.updateDeployment(liveDep.id, updates);
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update settings" });
     }
   });
 

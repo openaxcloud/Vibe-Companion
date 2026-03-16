@@ -17,7 +17,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
 - **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
 - **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, OS-level isolation (ulimit, nice, unshare --net), `--disallow-code-generation-from-strings`, `--no-addons`, minimal env vars, 10s timeout, 64MB memory limit. Worker pool (`executionPool.ts`) with 8 max concurrent, 50 max queue, per-user rate limiting (20/min, 3 concurrent), metrics tracking, graceful shutdown.
-- **Deployment Engine**: Real build pipeline (`deploymentEngine.ts`) — writes files to `.deployments/:slug/v{N}/`, serves at `/deployed/:slug/`, versioned rollback, build logs, HTML/Node/Python handlers, path traversal protection
+- **Deployment Engine**: Real build pipeline (`deploymentEngine.ts`) — 4 deployment types (Autoscale, Static, Reserved VM, Scheduled), writes files to `.deployments/:slug/v{N}/`, serves at `/deployed/:slug/`, versioned rollback, build logs, machine config (CPU/RAM sliders), build/run commands, deployment secrets injection, private deployment access control, badge toggle, feedback widget toggle, deployment analytics (page views, unique visitors, referrers, traffic over time), natural language to cron conversion via AI (Anthropic)
 - **Custom Domains**: Domain manager (`domainManager.ts`) — DNS TXT verification, SSL provisioning simulation, domain-to-project mapping, CRUD API with ownership checks, persisted in PostgreSQL `custom_domains` table
 - **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
@@ -50,7 +50,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `team_members`: id, team_id, user_id, role, joined_at
 - `team_invites`: id, team_id, email, role, token, invited_by, expires_at, accepted
 - `analytics_events`: id, user_id, event, properties, created_at
-- `deployments`: id, project_id, user_id, status, url, logs, created_at, updated_at
+- `deployments`: id, project_id, user_id, version, status, build_log, url, deployment_type (autoscale/static/reserved-vm/scheduled), build_command, run_command, machine_config (JSON: cpu/ram), max_machines, cron_expression, schedule_description, job_timeout, public_directory, app_type (web_server/background_worker), deployment_secrets (JSON), is_private, show_badge, enable_feedback, created_at, finished_at
+- `deployment_analytics`: id, project_id, deployment_id, path, referrer, user_agent, visitor_id, ip_hash, created_at
 - `custom_domains`: id, domain (unique), project_id (indexed), user_id (indexed), verified, verification_token, ssl_status, ssl_expires_at, created_at, verified_at
 - `plan_configs`: id, plan (unique), daily_executions, daily_ai_calls, storage_mb, max_projects, price, description, features (text[])
 - `project_auth_config`: id, project_id (unique, indexed), enabled, providers (JSON string[]), require_email_verification, session_duration_hours, allowed_domains (JSON string[])

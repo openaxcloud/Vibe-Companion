@@ -447,6 +447,21 @@ export const deployments = pgTable("deployments", {
   status: text("status").notNull().default("building"),
   buildLog: text("build_log"),
   url: text("url"),
+  deploymentType: text("deployment_type").notNull().default("static"),
+  buildCommand: text("build_command"),
+  runCommand: text("run_command"),
+  machineConfig: json("machine_config").$type<{ cpu: number; ram: number }>(),
+  maxMachines: integer("max_machines").default(1),
+  cronExpression: text("cron_expression"),
+  scheduleDescription: text("schedule_description"),
+  jobTimeout: integer("job_timeout").default(300),
+  publicDirectory: text("public_directory").default("dist"),
+  appType: text("app_type").default("web_server"),
+  deploymentSecrets: json("deployment_secrets").$type<Record<string, string>>(),
+  portMapping: integer("port_mapping").default(3000),
+  isPrivate: boolean("is_private").notNull().default(false),
+  showBadge: boolean("show_badge").notNull().default(true),
+  enableFeedback: boolean("enable_feedback").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   finishedAt: timestamp("finished_at"),
 }, (table) => [
@@ -456,6 +471,21 @@ export const insertDeploymentSchema = createInsertSchema(deployments).pick({
   projectId: true,
   userId: true,
   version: true,
+  deploymentType: true,
+  buildCommand: true,
+  runCommand: true,
+  machineConfig: true,
+  maxMachines: true,
+  cronExpression: true,
+  scheduleDescription: true,
+  jobTimeout: true,
+  publicDirectory: true,
+  appType: true,
+  deploymentSecrets: true,
+  portMapping: true,
+  isPrivate: true,
+  showBadge: true,
+  enableFeedback: true,
 });
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;
@@ -829,3 +859,29 @@ export const insertPortConfigSchema = createInsertSchema(portConfigs).pick({
 });
 export type InsertPortConfig = z.infer<typeof insertPortConfigSchema>;
 export type PortConfig = typeof portConfigs.$inferSelect;
+
+export const deploymentAnalytics = pgTable("deployment_analytics", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  deploymentId: varchar("deployment_id", { length: 36 }),
+  path: text("path").notNull().default("/"),
+  referrer: text("referrer"),
+  userAgent: text("user_agent"),
+  visitorId: text("visitor_id"),
+  ipHash: text("ip_hash"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("deployment_analytics_project_idx").on(table.projectId),
+  index("deployment_analytics_created_idx").on(table.createdAt),
+]);
+export const insertDeploymentAnalyticSchema = createInsertSchema(deploymentAnalytics).pick({
+  projectId: true,
+  deploymentId: true,
+  path: true,
+  referrer: true,
+  userAgent: true,
+  visitorId: true,
+  ipHash: true,
+});
+export type InsertDeploymentAnalytic = z.infer<typeof insertDeploymentAnalyticSchema>;
+export type DeploymentAnalytic = typeof deploymentAnalytics.$inferSelect;
