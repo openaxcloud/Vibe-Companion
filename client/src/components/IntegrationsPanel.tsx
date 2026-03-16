@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Puzzle, Loader2, Plus, X, Check, Search, ChevronDown, ChevronRight,
   Database, Sparkles, CreditCard, Cloud, Mail, Phone, Flame, Zap, Github, Plug,
+  MessageSquare, MessageCircle, Send, Smartphone, BookOpen, Table2, Calendar,
+  Users, Music, Layout, ClipboardList, RefreshCw, CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 
 interface CatalogEntry {
@@ -46,11 +48,22 @@ const iconMap: Record<string, typeof Plug> = {
   zap: Zap,
   github: Github,
   plug: Plug,
+  "message-square": MessageSquare,
+  "message-circle": MessageCircle,
+  send: Send,
+  smartphone: Smartphone,
+  "book-open": BookOpen,
+  table: Table2,
+  calendar: Calendar,
+  users: Users,
+  music: Music,
+  layout: Layout,
+  clipboard: ClipboardList,
 };
 
-function IntegrationIcon({ icon, className }: { icon: string; className?: string }) {
+function IntegrationIcon({ icon, className, style }: { icon: string; className?: string; style?: React.CSSProperties }) {
   const Icon = iconMap[icon] || Plug;
-  return <Icon className={className} />;
+  return <Icon className={className} style={style} />;
 }
 
 const categoryColors: Record<string, string> = {
@@ -61,6 +74,9 @@ const categoryColors: Record<string, string> = {
   "Cloud Storage": "#F5A623",
   "Communication": "#E84D8A",
   "Backend Services": "#00B4D8",
+  "Productivity": "#10B981",
+  "CRM & Marketing": "#EC4899",
+  "Media": "#8B5CF6",
 };
 
 export default function IntegrationsPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
@@ -71,6 +87,8 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const catalogQuery = useQuery<CatalogEntry[]>({
     queryKey: ["/api/integrations/catalog"],
@@ -103,13 +121,20 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
 
   const connectMutation = useMutation({
     mutationFn: async ({ integrationId, config }: { integrationId: string; config: Record<string, string> }) => {
-      await apiRequest("POST", `/api/projects/${projectId}/integrations`, { integrationId, config });
+      const res = await apiRequest("POST", `/api/projects/${projectId}/integrations`, { integrationId, config });
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: ProjectIntegration) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "integrations"] });
       setConnectingId(null);
       setConfigValues({});
-      toast({ title: "Integration connected" });
+      if (data?.status === "error") {
+        toast({ title: "Connection failed", description: "Credentials saved but connection test failed", variant: "destructive" });
+      } else if (data?.status === "unverified") {
+        toast({ title: "Credentials saved", description: "Live verification unavailable for this service — credentials will be injected into your code" });
+      } else {
+        toast({ title: "Integration connected", description: "Connection verified successfully" });
+      }
     },
     onError: (err: any) => {
       toast({ title: "Failed to connect", description: err.message, variant: "destructive" });
@@ -129,6 +154,30 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
     },
   });
 
+  const testMutation = useMutation({
+    mutationFn: async (integrationId: string) => {
+      setTestingId(integrationId);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/integrations/${integrationId}/test`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "integrations"] });
+      if (expandedLogId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "integrations", expandedLogId, "logs"] });
+      }
+      toast({
+        title: data.success ? "Connection verified" : "Connection test failed",
+        description: data.message,
+        variant: data.success ? "default" : "destructive",
+      });
+      setTestingId(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Test failed", description: err.message, variant: "destructive" });
+      setTestingId(null);
+    },
+  });
+
   const catalog = catalogQuery.data || [];
   const connected = integrationsQuery.data || [];
   const connectedIds = new Set(connected.map(c => c.integrationId));
@@ -136,7 +185,8 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
 
   const filteredCatalog = catalog.filter(c =>
     !connectedIds.has(c.id) &&
-    (c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.category.toLowerCase().includes(searchTerm.toLowerCase()))
+    (c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.category.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (!selectedCategory || c.category === selectedCategory)
   );
 
   const groupedCatalog = filteredCatalog.reduce<Record<string, CatalogEntry[]>>((acc, item) => {
@@ -145,12 +195,15 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
     return acc;
   }, {});
 
+  const allCategories = [...new Set(catalog.map(c => c.category))].sort();
+
   return (
     <div className="flex flex-col h-full" data-testid="integrations-panel">
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
         <div className="flex items-center gap-1.5">
           <Puzzle className="w-3.5 h-3.5 text-[#0079F2]" />
           <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Integrations</span>
+          <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">({catalog.length})</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -186,7 +239,7 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                   <div className="px-3 py-2 hover:bg-[var(--ide-surface)]/30 transition-colors group">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${categoryColors[pi.integration.category] || "#0079F2"}15` }}>
-                        <IntegrationIcon icon={pi.integration.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[pi.integration.category] || "#0079F2" } as any} />
+                        <IntegrationIcon icon={pi.integration.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[pi.integration.category] || "#0079F2" }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] text-[var(--ide-text)] font-medium truncate">{pi.integration.name}</p>
@@ -196,14 +249,36 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                               ? "bg-[#0CCE6B]/15 text-[#0CCE6B]"
                               : pi.status === "error"
                               ? "bg-red-500/15 text-red-400"
+                              : pi.status === "unverified"
+                              ? "bg-amber-500/15 text-amber-400"
                               : "bg-[var(--ide-surface)] text-[var(--ide-text-muted)]"
                           }`} data-testid={`status-integration-${pi.id}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${pi.status === "connected" ? "bg-[#0CCE6B]" : pi.status === "error" ? "bg-red-400" : "bg-[var(--ide-text-muted)]"}`} />
+                            {pi.status === "connected" ? (
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                            ) : pi.status === "error" ? (
+                              <XCircle className="w-2.5 h-2.5" />
+                            ) : pi.status === "unverified" ? (
+                              <AlertCircle className="w-2.5 h-2.5" />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--ide-text-muted)]" />
+                            )}
                             {pi.status}
+                          </span>
+                          <span className="text-[8px] text-[var(--ide-text-muted)]" style={{ color: categoryColors[pi.integration.category] || "#9DA2B0" }}>
+                            {pi.integration.category}
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          className="p-1 text-[var(--ide-text-muted)] hover:text-[#0079F2]"
+                          onClick={() => testMutation.mutate(pi.id)}
+                          title="Test connection"
+                          disabled={testingId === pi.id}
+                          data-testid={`button-test-${pi.id}`}
+                        >
+                          {testingId === pi.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                        </button>
                         <button
                           className="p-1 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
                           onClick={() => setExpandedLogId(expandedLogId === pi.id ? null : pi.id)}
@@ -277,6 +352,35 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
               </div>
             </div>
 
+            <div className="px-3 pb-2 flex flex-wrap gap-1" data-testid="category-filter-bar">
+              <button
+                className={`text-[8px] px-2 py-0.5 rounded-full border transition-colors ${
+                  !selectedCategory
+                    ? "border-[#0079F2] bg-[#0079F2]/15 text-[#0079F2]"
+                    : "border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
+                }`}
+                onClick={() => setSelectedCategory(null)}
+                data-testid="button-filter-all"
+              >
+                All
+              </button>
+              {allCategories.map(cat => (
+                <button
+                  key={cat}
+                  className={`text-[8px] px-2 py-0.5 rounded-full border transition-colors ${
+                    selectedCategory === cat
+                      ? "bg-opacity-15 border-current"
+                      : "border-[var(--ide-border)] hover:text-[var(--ide-text)]"
+                  }`}
+                  style={{ color: selectedCategory === cat ? (categoryColors[cat] || "#9DA2B0") : undefined }}
+                  onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                  data-testid={`button-filter-${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
             {catalogQuery.isLoading ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" />
@@ -286,10 +390,11 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                 <p className="text-[10px] text-[var(--ide-text-muted)]">{connectedIds.size > 0 && !searchTerm ? "All integrations connected" : "No matching integrations"}</p>
               </div>
             ) : (
-              Object.entries(groupedCatalog).map(([category, items]) => (
+              Object.entries(groupedCatalog).sort(([a], [b]) => a.localeCompare(b)).map(([category, items]) => (
                 <div key={category} className="mb-1">
-                  <div className="px-3 py-1">
+                  <div className="px-3 py-1 flex items-center gap-1.5">
                     <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: categoryColors[category] || "#9DA2B0" }}>{category}</span>
+                    <span className="text-[8px] text-[var(--ide-text-muted)]">({items.length})</span>
                   </div>
                   {items.map(item => (
                     <div key={item.id}>
@@ -307,7 +412,7 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                         data-testid={`button-catalog-item-${item.id}`}
                       >
                         <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${categoryColors[category] || "#0079F2"}15` }}>
-                          <IntegrationIcon icon={item.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[category] || "#0079F2" } as any} />
+                          <IntegrationIcon icon={item.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[category] || "#0079F2" }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] text-[var(--ide-text)] font-medium">{item.name}</p>
@@ -340,7 +445,7 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                                 data-testid={`button-connect-${item.id}`}
                               >
                                 {connectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                                Connect
+                                Connect & Test
                               </Button>
                               <Button
                                 variant="ghost"

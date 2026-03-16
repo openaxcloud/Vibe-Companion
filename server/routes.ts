@@ -84,6 +84,383 @@ async function persistRepoState(projectId: string) {
 }
 import { getTemplateById, getAllTemplates } from "./templates";
 
+function validateExternalUrl(urlStr: string, allowedDomainSuffixes?: string[]): { valid: boolean; url?: URL; error?: string } {
+  let url: URL;
+  try {
+    url = new URL(urlStr);
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+  if (url.protocol !== "https:") {
+    return { valid: false, error: "URL must use HTTPS" };
+  }
+  const host = url.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" ||
+      host === "[::1]" || host === "[::]" ||
+      host.startsWith("10.") || host.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+      host.endsWith(".local") || host.endsWith(".internal") ||
+      host === "metadata.google.internal" || host === "169.254.169.254") {
+    return { valid: false, error: "URL must not point to internal/private hosts" };
+  }
+  if (allowedDomainSuffixes && allowedDomainSuffixes.length > 0) {
+    if (!allowedDomainSuffixes.some(suffix => host === suffix || host.endsWith("." + suffix))) {
+      return { valid: false, error: `URL domain must be one of: ${allowedDomainSuffixes.join(", ")}` };
+    }
+  }
+  return { valid: true, url };
+}
+
+async function testIntegrationConnection(
+  serviceName: string,
+  config: Record<string, string>,
+): Promise<{ success: boolean; message: string; noLiveTest?: boolean }> {
+  const timeout = 8000;
+  try {
+    switch (serviceName) {
+      case "OpenAI": {
+        const res = await fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${config.OPENAI_API_KEY}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Anthropic": {
+        const res = await fetch("https://api.anthropic.com/v1/models", {
+          headers: { "x-api-key": config.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Perplexity AI": {
+        const res = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${config.PERPLEXITY_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "sonar", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.status !== 401 ? { success: true, message: "API key accepted" } : { success: false, message: "Invalid API key" };
+      }
+      case "Notion": {
+        const res = await fetch("https://api.notion.com/v1/users/me", {
+          headers: { Authorization: `Bearer ${config.NOTION_API_KEY}`, "Notion-Version": "2022-06-28" },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Connected to Notion workspace" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Linear": {
+        const res = await fetch("https://api.linear.app/graphql", {
+          method: "POST",
+          headers: { Authorization: config.LINEAR_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: "{ viewer { id name } }" }),
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Connected to Linear" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Slack": {
+        const res = await fetch("https://slack.com/api/auth.test", {
+          headers: { Authorization: `Bearer ${config.SLACK_BOT_TOKEN}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        const slackData: { ok?: boolean; user?: string; error?: string } = await res.json();
+        return slackData.ok ? { success: true, message: `Connected as ${slackData.user || "bot"}` } : { success: false, message: slackData.error || "Auth failed" };
+      }
+      case "Discord": {
+        const res = await fetch("https://discord.com/api/v10/users/@me", {
+          headers: { Authorization: `Bot ${config.DISCORD_BOT_TOKEN}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Bot token valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Telegram": {
+        const res = await fetch(`https://api.telegram.org/bot${config.TELEGRAM_BOT_TOKEN}/getMe`, {
+          signal: AbortSignal.timeout(timeout),
+        });
+        const tgData: { ok?: boolean; result?: { username?: string } } = await res.json();
+        return tgData.ok ? { success: true, message: `Bot: @${tgData.result?.username}` } : { success: false, message: "Invalid bot token" };
+      }
+      case "HubSpot": {
+        const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
+          headers: { Authorization: `Bearer ${config.HUBSPOT_ACCESS_TOKEN}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Access token valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Spotify": {
+        const basic = Buffer.from(`${config.SPOTIFY_CLIENT_ID}:${config.SPOTIFY_CLIENT_SECRET}`).toString("base64");
+        const res = await fetch("https://accounts.spotify.com/api/token", {
+          method: "POST",
+          headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: "grant_type=client_credentials",
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Client credentials valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "SendGrid": {
+        const res = await fetch("https://api.sendgrid.com/v3/scopes", {
+          headers: { Authorization: `Bearer ${config.SENDGRID_API_KEY}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "GitHub": {
+        const res = await fetch("https://api.github.com/user", {
+          headers: { Authorization: `Bearer ${config.GITHUB_TOKEN}`, "User-Agent": "Replit-IDE" },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Token valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Stripe": {
+        const res = await fetch("https://api.stripe.com/v1/balance", {
+          headers: { Authorization: `Bearer ${config.STRIPE_SECRET_KEY}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Jira": {
+        if (!config.JIRA_BASE_URL || !config.JIRA_API_TOKEN || !config.JIRA_EMAIL) {
+          return { success: false, message: "Missing JIRA_BASE_URL, JIRA_EMAIL, or JIRA_API_TOKEN" };
+        }
+        const jiraValidation = validateExternalUrl(config.JIRA_BASE_URL, ["atlassian.net", "jira.com"]);
+        if (!jiraValidation.valid) {
+          return { success: false, message: `JIRA_BASE_URL: ${jiraValidation.error}` };
+        }
+        const jiraBasic = Buffer.from(`${config.JIRA_EMAIL}:${config.JIRA_API_TOKEN}`).toString("base64");
+        const res = await fetch(`${jiraValidation.url!.origin}/rest/api/3/myself`, {
+          headers: { Authorization: `Basic ${jiraBasic}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Jira credentials valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "WhatsApp": {
+        if (!config.WHATSAPP_API_TOKEN || !config.WHATSAPP_PHONE_NUMBER_ID) {
+          return { success: false, message: "Missing API token or phone number ID" };
+        }
+        if (!/^\d+$/.test(config.WHATSAPP_PHONE_NUMBER_ID)) {
+          return { success: false, message: "Invalid phone number ID format (expected numeric)" };
+        }
+        const res = await fetch(`https://graph.facebook.com/v18.0/${encodeURIComponent(config.WHATSAPP_PHONE_NUMBER_ID)}`, {
+          headers: { Authorization: `Bearer ${config.WHATSAPP_API_TOKEN}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "WhatsApp API token valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Microsoft Outlook": {
+        if (!config.MICROSOFT_CLIENT_ID || !config.MICROSOFT_CLIENT_SECRET || !config.MICROSOFT_TENANT_ID) {
+          return { success: false, message: "Missing client ID, client secret, or tenant ID" };
+        }
+        if (!/^[a-zA-Z0-9-]+$/.test(config.MICROSOFT_TENANT_ID)) {
+          return { success: false, message: "Invalid tenant ID format (expected UUID or domain)" };
+        }
+        const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(config.MICROSOFT_TENANT_ID)}/oauth2/v2.0/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `client_id=${encodeURIComponent(config.MICROSOFT_CLIENT_ID)}&client_secret=${encodeURIComponent(config.MICROSOFT_CLIENT_SECRET)}&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default&grant_type=client_credentials`,
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Microsoft Graph credentials valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Google Sheets":
+      case "Google Calendar": {
+        if (!config.GOOGLE_SERVICE_ACCOUNT_KEY) {
+          return { success: false, message: "Missing service account key" };
+        }
+        try {
+          const parsed = JSON.parse(config.GOOGLE_SERVICE_ACCOUNT_KEY);
+          if (!parsed.client_email || !parsed.private_key || !parsed.project_id) {
+            return { success: false, message: "Service account key missing required fields (client_email, private_key, project_id)" };
+          }
+          if (!parsed.client_email.endsWith(".iam.gserviceaccount.com")) {
+            return { success: false, message: "Invalid service account email format" };
+          }
+          if (!parsed.private_key.startsWith("-----BEGIN")) {
+            return { success: false, message: "Invalid private key format" };
+          }
+          const googleScope = serviceName === "Google Calendar"
+            ? "https://www.googleapis.com/auth/calendar.readonly"
+            : "https://www.googleapis.com/auth/spreadsheets.readonly";
+          const jwtHeader = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+          const now = Math.floor(Date.now() / 1000);
+          const jwtClaim = Buffer.from(JSON.stringify({
+            iss: parsed.client_email,
+            scope: googleScope,
+            aud: "https://oauth2.googleapis.com/token",
+            exp: now + 300,
+            iat: now,
+          })).toString("base64url");
+          try {
+            const cryptoMod = await import("crypto");
+            const sign = cryptoMod.createSign("RSA-SHA256");
+            sign.update(`${jwtHeader}.${jwtClaim}`);
+            const signature = sign.sign(parsed.private_key, "base64url");
+            const jwt = `${jwtHeader}.${jwtClaim}.${signature}`;
+            const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+              signal: AbortSignal.timeout(timeout),
+            });
+            if (tokenRes.ok) {
+              return { success: true, message: `Authenticated as ${parsed.client_email}` };
+            }
+            const tokenErr: { error_description?: string } = await tokenRes.json().catch(() => ({}));
+            return { success: false, message: `Token exchange failed: ${tokenErr.error_description || tokenRes.status}` };
+          } catch (signErr: any) {
+            return { success: false, message: `JWT signing failed: ${signErr.message?.slice(0, 80) || "Unknown error"}` };
+          }
+        } catch {
+          return { success: false, message: "Service account key is not valid JSON" };
+        }
+      }
+      case "Twilio": {
+        if (!config.TWILIO_ACCOUNT_SID || !config.TWILIO_AUTH_TOKEN) {
+          return { success: false, message: "Missing account SID or auth token" };
+        }
+        const twilioBasic = Buffer.from(`${config.TWILIO_ACCOUNT_SID}:${config.TWILIO_AUTH_TOKEN}`).toString("base64");
+        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.TWILIO_ACCOUNT_SID}.json`, {
+          headers: { Authorization: `Basic ${twilioBasic}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "Twilio credentials valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "PostgreSQL": {
+        if (!config.DATABASE_URL) return { success: false, message: "Missing DATABASE_URL" };
+        if (!config.DATABASE_URL.startsWith("postgres")) {
+          return { success: false, message: "Invalid PostgreSQL connection string format" };
+        }
+        try {
+          const pgUrl = new URL(config.DATABASE_URL);
+          if (!pgUrl.hostname) return { success: false, message: "Missing hostname in DATABASE_URL" };
+          const pgHost = pgUrl.hostname.toLowerCase();
+          if (pgHost === "localhost" || pgHost === "127.0.0.1" || pgHost === "0.0.0.0" ||
+              pgHost === "[::1]" || pgHost === "[::]" ||
+              pgHost.startsWith("10.") || pgHost.startsWith("192.168.") ||
+              /^172\.(1[6-9]|2\d|3[01])\./.test(pgHost) ||
+              pgHost.endsWith(".local") || pgHost.endsWith(".internal") ||
+              pgHost === "metadata.google.internal" || pgHost === "169.254.169.254") {
+            return { success: false, message: "DATABASE_URL must not point to internal/private hosts" };
+          }
+          const { Client } = await import("pg");
+          const client = new Client({ connectionString: config.DATABASE_URL, connectionTimeoutMillis: timeout - 1000 });
+          await client.connect();
+          await client.query("SELECT 1");
+          await client.end();
+          return { success: true, message: `Connected to ${pgUrl.hostname}/${pgUrl.pathname.slice(1) || "default"}` };
+        } catch (pgErr: any) {
+          return { success: false, message: `Connection failed: ${pgErr.message?.slice(0, 100) || "Unknown error"}` };
+        }
+      }
+      case "Redis": {
+        if (!config.REDIS_URL) return { success: false, message: "Missing REDIS_URL" };
+        if (!config.REDIS_URL.startsWith("redis")) {
+          return { success: false, message: "Invalid Redis connection string format" };
+        }
+        try {
+          const redisUrl = new URL(config.REDIS_URL);
+          if (!redisUrl.hostname) return { success: false, message: "Missing hostname in REDIS_URL" };
+          const redisHost = redisUrl.hostname.toLowerCase();
+          if (redisHost === "localhost" || redisHost === "127.0.0.1" || redisHost === "0.0.0.0" ||
+              redisHost === "[::1]" || redisHost === "[::]" ||
+              redisHost.startsWith("10.") || redisHost.startsWith("192.168.") ||
+              /^172\.(1[6-9]|2\d|3[01])\./.test(redisHost) ||
+              redisHost.endsWith(".local") || redisHost.endsWith(".internal") ||
+              redisHost === "169.254.169.254") {
+            return { success: false, message: "REDIS_URL must not point to internal/private hosts" };
+          }
+          return { success: false, noLiveTest: true, message: `Format valid (${redisUrl.hostname}:${redisUrl.port || "6379"}) — live TCP probe not available in this environment` };
+        } catch {
+          return { success: false, message: "Invalid REDIS_URL format" };
+        }
+      }
+      case "MongoDB": {
+        if (!config.MONGODB_URI) return { success: false, message: "Missing MONGODB_URI" };
+        if (!config.MONGODB_URI.startsWith("mongodb")) {
+          return { success: false, message: "Invalid MongoDB connection string format" };
+        }
+        try {
+          const mongoUrl = new URL(config.MONGODB_URI.replace("mongodb+srv://", "https://").replace("mongodb://", "http://"));
+          if (!mongoUrl.hostname) return { success: false, message: "Missing hostname in MONGODB_URI" };
+          const mongoHost = mongoUrl.hostname.toLowerCase();
+          if (mongoHost === "localhost" || mongoHost === "127.0.0.1" || mongoHost === "0.0.0.0" ||
+              mongoHost === "[::1]" || mongoHost === "[::]" ||
+              mongoHost.startsWith("10.") || mongoHost.startsWith("192.168.") ||
+              /^172\.(1[6-9]|2\d|3[01])\./.test(mongoHost) ||
+              mongoHost.endsWith(".local") || mongoHost.endsWith(".internal") ||
+              mongoHost === "169.254.169.254") {
+            return { success: false, message: "MONGODB_URI must not point to internal/private hosts" };
+          }
+          if (!mongoUrl.username) return { success: false, message: "Missing username in MONGODB_URI" };
+          return { success: false, noLiveTest: true, message: `Format valid (${mongoUrl.hostname}) — live TCP probe not available in this environment` };
+        } catch {
+          return { success: false, message: "Invalid MONGODB_URI format" };
+        }
+      }
+      case "AWS S3": {
+        if (!config.AWS_ACCESS_KEY_ID || !config.AWS_SECRET_ACCESS_KEY) {
+          return { success: false, message: "Missing AWS access key ID or secret access key" };
+        }
+        if (!/^[A-Z0-9]{16,}$/i.test(config.AWS_ACCESS_KEY_ID)) {
+          return { success: false, message: "AWS access key ID format invalid (expected 16+ alphanumeric chars)" };
+        }
+        if (config.AWS_SECRET_ACCESS_KEY.length < 20) {
+          return { success: false, message: "AWS secret access key appears too short" };
+        }
+        return { success: false, noLiveTest: true, message: `Key format valid (${config.AWS_ACCESS_KEY_ID.slice(0, 4)}...) — STS verification requires AWS SDK` };
+      }
+      case "Firebase": {
+        if (!config.FIREBASE_API_KEY || !config.FIREBASE_PROJECT_ID) {
+          return { success: false, message: "Missing API key or project ID" };
+        }
+        const fbRes = await fetch(`https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig?key=${encodeURIComponent(config.FIREBASE_API_KEY)}`, {
+          signal: AbortSignal.timeout(timeout),
+        });
+        return fbRes.ok
+          ? { success: true, message: `Project: ${config.FIREBASE_PROJECT_ID}` }
+          : { success: false, message: `Firebase API key invalid (HTTP ${fbRes.status})` };
+      }
+      case "Supabase": {
+        if (!config.SUPABASE_URL || !config.SUPABASE_ANON_KEY) {
+          return { success: false, message: "Missing Supabase URL or anon key" };
+        }
+        const sbValidation = validateExternalUrl(config.SUPABASE_URL, ["supabase.co", "supabase.com"]);
+        if (!sbValidation.valid) {
+          return { success: false, message: `SUPABASE_URL: ${sbValidation.error}` };
+        }
+        const sbRes = await fetch(`${sbValidation.url!.origin}/rest/v1/`, {
+          headers: {
+            apikey: config.SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`,
+          },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return sbRes.ok ? { success: true, message: "Supabase connection verified" } : { success: false, message: `HTTP ${sbRes.status}` };
+      }
+      default: {
+        const hasValues = Object.values(config).some(v => v && v.trim().length > 0);
+        return hasValues
+          ? { success: false, noLiveTest: true, message: "Credentials saved — no automated verification available for this service" }
+          : { success: false, message: "No credentials provided" };
+      }
+    }
+  } catch (err: any) {
+    const msg = err.name === "TimeoutError" ? "Connection timed out" : (err.message || "Connection failed");
+    return { success: false, message: msg };
+  }
+}
+
+async function getIntegrationEnvVars(projectId: string): Promise<Record<string, string>> {
+  const integrations = await storage.getProjectIntegrations(projectId);
+  const envVars: Record<string, string> = {};
+  for (const pi of integrations) {
+    if ((pi.status === "connected" || pi.status === "unverified") && pi.config) {
+      for (const [k, v] of Object.entries(pi.config)) {
+        if (v) envVars[k] = v;
+      }
+    }
+  }
+  return envVars;
+}
+
 function sanitizePath(p: string): string | null {
   if (!p || typeof p !== "string") return null;
   const decoded = decodeURIComponent(p);
@@ -2219,6 +2596,8 @@ export async function registerRoutes(
     for (const ev of projectEnvVarsList) {
       envVarsMap[ev.key] = ev.encryptedValue;
     }
+    const integrationEnvVars = await getIntegrationEnvVars(project.id);
+    Object.assign(envVarsMap, integrationEnvVars);
 
     try {
       const result = await executionPool.submit(userId, project.id, code, language, (message, type) => {
@@ -4279,6 +4658,8 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       for (const ev of projectEnvVarsList) {
         envVarsMap[ev.key] = ev.encryptedValue;
       }
+      const termIntegrationEnvVars = await getIntegrationEnvVars(projectId);
+      Object.assign(envVarsMap, termIntegrationEnvVars);
       const term = getOrCreateTerminal(projectId, userId, envVarsMap);
 
       const dataHandler = term.onData((data: string) => {
@@ -5161,9 +5542,27 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         config: z.record(z.string()).default({}),
       });
       const data = schema.parse(req.body);
+
+      const catalogEntry = (await storage.getIntegrationCatalog()).find(c => c.id === data.integrationId);
+      const integrationName = catalogEntry?.name || "Unknown";
+
       const pi = await storage.connectIntegration(req.params.id, data.integrationId, data.config);
-      await storage.addIntegrationLog(pi.id, "info", "Integration connected");
-      res.status(201).json(pi);
+      await storage.addIntegrationLog(pi.id, "info", `Integration "${integrationName}" added, verifying credentials...`);
+
+      const testResult = await testIntegrationConnection(integrationName, data.config);
+      if (testResult.success) {
+        await storage.updateIntegrationStatus(pi.id, "connected");
+        await storage.addIntegrationLog(pi.id, "info", `Connection verified: ${testResult.message}`);
+      } else if (testResult.noLiveTest) {
+        await storage.updateIntegrationStatus(pi.id, "unverified");
+        await storage.addIntegrationLog(pi.id, "warn", `${testResult.message}`);
+      } else {
+        await storage.updateIntegrationStatus(pi.id, "error");
+        await storage.addIntegrationLog(pi.id, "error", `Connection test failed: ${testResult.message}`);
+      }
+
+      const updated = (await storage.getProjectIntegrations(req.params.id)).find(i => i.id === pi.id);
+      res.status(201).json(updated || pi);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       if (err.code === "23505") return res.status(409).json({ message: "Integration already connected" });
@@ -5171,10 +5570,42 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
   });
 
+  app.post("/api/projects/:id/integrations/:integrationId/test", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const integrations = await storage.getProjectIntegrations(req.params.id);
+      const pi = integrations.find(i => i.id === req.params.integrationId);
+      if (!pi) return res.status(404).json({ message: "Integration not found" });
+
+      const testResult = await testIntegrationConnection(pi.integration.name, pi.config);
+      if (testResult.success) {
+        await storage.updateIntegrationStatus(pi.id, "connected");
+        await storage.addIntegrationLog(pi.id, "info", `Re-test passed: ${testResult.message}`);
+      } else if (testResult.noLiveTest) {
+        await storage.updateIntegrationStatus(pi.id, "unverified");
+        await storage.addIntegrationLog(pi.id, "warn", `${testResult.message}`);
+      } else {
+        await storage.updateIntegrationStatus(pi.id, "error");
+        await storage.addIntegrationLog(pi.id, "error", `Re-test failed: ${testResult.message}`);
+      }
+      res.json({ success: testResult.success, message: testResult.message });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to test integration" });
+    }
+  });
+
   app.delete("/api/projects/:id/integrations/:integrationId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const integrations = await storage.getProjectIntegrations(req.params.id);
+      const pi = integrations.find(i => i.id === req.params.integrationId);
+      if (pi) {
+        await storage.addIntegrationLog(pi.id, "info", `Integration "${pi.integration.name}" disconnected`);
+      }
+
       const deleted = await storage.disconnectIntegration(req.params.id, req.params.integrationId);
       if (!deleted) return res.status(404).json({ message: "Integration not found" });
       res.json({ message: "Integration disconnected" });

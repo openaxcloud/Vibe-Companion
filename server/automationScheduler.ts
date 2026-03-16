@@ -98,7 +98,20 @@ export async function executeAutomation(automationId: string, triggeredBy: strin
       scriptToRun = payloadInjection + scriptToRun;
     }
 
-    const result = await executeCode(scriptToRun, automation.language);
+    const projectEnvVarsList = await storage.getProjectEnvVars(automation.projectId);
+    const envVarsMap: Record<string, string> = {};
+    for (const ev of projectEnvVarsList) {
+      envVarsMap[ev.key] = ev.encryptedValue;
+    }
+    const integrations = await storage.getProjectIntegrations(automation.projectId);
+    for (const pi of integrations) {
+      if ((pi.status === "connected" || pi.status === "unverified") && pi.config) {
+        for (const [k, v] of Object.entries(pi.config)) {
+          if (v) envVarsMap[k] = v;
+        }
+      }
+    }
+    const result = await executeCode(scriptToRun, automation.language, undefined, undefined, undefined, envVarsMap);
     const durationMs = Date.now() - startTime;
 
     await storage.updateAutomationRun(run.id, {

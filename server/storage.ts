@@ -1276,22 +1276,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async seedIntegrationCatalog(): Promise<void> {
-    const existing = await db.select().from(integrationCatalog).limit(1);
-    if (existing.length > 0) return;
-    await db.insert(integrationCatalog).values([
+    const entries = [
       { name: "PostgreSQL", category: "Database", description: "Connect to a PostgreSQL database", icon: "database", envVarKeys: ["DATABASE_URL"] },
       { name: "Redis", category: "Database", description: "In-memory data store for caching", icon: "database", envVarKeys: ["REDIS_URL"] },
       { name: "MongoDB", category: "Database", description: "NoSQL document database", icon: "database", envVarKeys: ["MONGODB_URI"] },
       { name: "OpenAI", category: "AI & ML", description: "GPT models and embeddings API", icon: "sparkles", envVarKeys: ["OPENAI_API_KEY"] },
       { name: "Anthropic", category: "AI & ML", description: "Claude AI assistant API", icon: "sparkles", envVarKeys: ["ANTHROPIC_API_KEY"] },
+      { name: "Perplexity AI", category: "AI & ML", description: "AI-powered search and answer engine", icon: "sparkles", envVarKeys: ["PERPLEXITY_API_KEY"] },
       { name: "Stripe", category: "Payments", description: "Payment processing and subscriptions", icon: "credit-card", envVarKeys: ["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY"] },
       { name: "GitHub", category: "Developer Tools", description: "Source control and CI/CD integration", icon: "github", envVarKeys: ["GITHUB_TOKEN"] },
+      { name: "Linear", category: "Developer Tools", description: "Issue tracking and project management", icon: "layout", envVarKeys: ["LINEAR_API_KEY"] },
+      { name: "Jira", category: "Developer Tools", description: "Agile project management and issue tracking", icon: "clipboard", envVarKeys: ["JIRA_API_TOKEN", "JIRA_BASE_URL", "JIRA_EMAIL"] },
       { name: "AWS S3", category: "Cloud Storage", description: "Object storage for files and assets", icon: "cloud", envVarKeys: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_BUCKET"] },
       { name: "SendGrid", category: "Communication", description: "Email delivery service", icon: "mail", envVarKeys: ["SENDGRID_API_KEY"] },
       { name: "Twilio", category: "Communication", description: "SMS and voice communication", icon: "phone", envVarKeys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"] },
       { name: "Firebase", category: "Backend Services", description: "Authentication, database, and hosting", icon: "flame", envVarKeys: ["FIREBASE_API_KEY", "FIREBASE_PROJECT_ID"] },
       { name: "Supabase", category: "Backend Services", description: "Open source Firebase alternative", icon: "zap", envVarKeys: ["SUPABASE_URL", "SUPABASE_ANON_KEY"] },
-    ]);
+      { name: "Slack", category: "Communication", description: "Team messaging and workflow automation", icon: "message-square", envVarKeys: ["SLACK_BOT_TOKEN", "SLACK_SIGNING_SECRET"] },
+      { name: "Discord", category: "Communication", description: "Community chat and bot platform", icon: "message-circle", envVarKeys: ["DISCORD_BOT_TOKEN"] },
+      { name: "Telegram", category: "Communication", description: "Messaging platform with bot API", icon: "send", envVarKeys: ["TELEGRAM_BOT_TOKEN"] },
+      { name: "WhatsApp", category: "Communication", description: "WhatsApp Business messaging API", icon: "smartphone", envVarKeys: ["WHATSAPP_API_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"] },
+      { name: "Microsoft Outlook", category: "Communication", description: "Email, calendar, and contacts via Microsoft Graph", icon: "mail", envVarKeys: ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_TENANT_ID"] },
+      { name: "Notion", category: "Productivity", description: "All-in-one workspace for notes, docs, and databases", icon: "book-open", envVarKeys: ["NOTION_API_KEY"] },
+      { name: "Google Sheets", category: "Productivity", description: "Cloud spreadsheet with real-time collaboration", icon: "table", envVarKeys: ["GOOGLE_SERVICE_ACCOUNT_KEY"] },
+      { name: "Google Calendar", category: "Productivity", description: "Calendar scheduling and event management", icon: "calendar", envVarKeys: ["GOOGLE_SERVICE_ACCOUNT_KEY"] },
+      { name: "HubSpot", category: "CRM & Marketing", description: "CRM, marketing, and sales automation platform", icon: "users", envVarKeys: ["HUBSPOT_ACCESS_TOKEN"] },
+      { name: "Spotify", category: "Media", description: "Music streaming API for playlists and playback", icon: "music", envVarKeys: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"] },
+    ];
+    for (const entry of entries) {
+      await db.insert(integrationCatalog).values(entry).onConflictDoUpdate({
+        target: integrationCatalog.name,
+        set: { category: entry.category, description: entry.description, icon: entry.icon, envVarKeys: entry.envVarKeys },
+      });
+    }
   }
 
   async getProjectIntegrations(projectId: string): Promise<(ProjectIntegration & { integration: IntegrationCatalogEntry })[]> {
@@ -1309,14 +1326,13 @@ export class DatabaseStorage implements IStorage {
     const [pi] = await db.insert(projectIntegrations).values({
       projectId,
       integrationId,
-      status: "connected",
+      status: "pending",
       config,
     }).returning();
     return pi;
   }
 
   async disconnectIntegration(projectId: string, id: string): Promise<boolean> {
-    await db.delete(integrationLogs).where(eq(integrationLogs.projectIntegrationId, id));
     const result = await db.delete(projectIntegrations).where(and(eq(projectIntegrations.id, id), eq(projectIntegrations.projectId, projectId))).returning();
     return result.length > 0;
   }
