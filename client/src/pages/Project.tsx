@@ -34,6 +34,7 @@ import CheckpointsPanel from "@/components/CheckpointsPanel";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
 import type { UserPreferences } from "@shared/schema";
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
+import FileHistoryPanel from "@/components/FileHistoryPanel";
 import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
 import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
@@ -284,7 +285,7 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings";
+  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings";
   const [mobileTab, setMobileTab] = useState<MobileTabType>("ai");
   const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
@@ -295,10 +296,11 @@ function _projectPage() {
   const [moreMenuSwipeY, setMoreMenuSwipeY] = useState(0);
   const moreMenuTouchStartY = useRef(0);
   const lastScrollY = useRef(0);
-  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings"] as const;
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "fileHistory", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings"] as const;
   const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
     { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
     { id: "search", icon: Search, label: "Search", color: "#0079F2" },
+    { id: "fileHistory", icon: Clock, label: "File History", color: "#F5A623" },
     { id: "deployments", icon: Rocket, label: "Deployments", color: "#0079F2" },
     { id: "packages", icon: Package, label: "Packages", color: "#0CCE6B" },
     { id: "database", icon: Database, label: "Database", color: "#F26522" },
@@ -379,10 +381,11 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars";
+  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
+    { id: "fileHistory", label: "File History", icon: Clock, color: "#F5A623" },
     { id: "deployments", label: "Deployments", icon: Rocket, color: "#0079F2" },
     { id: "packages", label: "Packages", icon: Package, color: "#0CCE6B" },
     { id: "database", label: "Database", icon: Database, color: "#F26522" },
@@ -4366,6 +4369,11 @@ function _projectPage() {
                   <GitHubPanel projectId={projectId} projectName={project?.name || "project"} />
                 </div>
               )}
+              {mobileTab === "fileHistory" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-file-history-panel">
+                  <FileHistoryPanel projectId={projectId} files={(filesQuery.data || []).map(f => ({ id: f.id, filename: f.filename, content: f.content }))} onClose={() => setMobileTab("editor")} onFileRestored={(fileId, _filename, content) => { setFileContents(prev => ({ ...prev, [fileId]: content })); setDirtyFiles(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} />
+                </div>
+              )}
               {mobileTab === "deployments" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-deployments-panel">
                   <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
@@ -4805,6 +4813,19 @@ function _projectPage() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Source Control</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${isPanelOpen("fileHistory") ? "text-[#F5A623]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => openPanel("fileHistory")}
+                    data-testid="activity-file-history"
+                  >
+                    {isPanelOpen("fileHistory") && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
+                    <Clock className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">File History</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -6451,6 +6472,12 @@ function _projectPage() {
             {activePanelTab === "checkpoints" && (
               <div className="flex-1 flex flex-col" data-testid="checkpoints-sidebar">
                 <CheckpointsPanel projectId={projectId} onClose={() => closePanel("checkpoints")} />
+              </div>
+            )}
+
+            {activePanelTab === "fileHistory" && (
+              <div className="flex-1 flex flex-col" data-testid="file-history-sidebar">
+                <FileHistoryPanel projectId={projectId} files={(filesQuery.data || []).map(f => ({ id: f.id, filename: f.filename, content: f.content }))} onClose={() => closePanel("fileHistory")} onFileRestored={(fileId, _filename, content) => { setFileContents(prev => ({ ...prev, [fileId]: content })); setDirtyFiles(prev => { const next = new Set(prev); next.delete(fileId); return next; }); }} />
               </div>
             )}
 

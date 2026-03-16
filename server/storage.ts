@@ -173,6 +173,9 @@ export interface IStorage {
   saveGitRepoState(projectId: string, packData: string): Promise<void>;
 
   getCommits(projectId: string, branchName?: string): Promise<Commit[]>;
+  getAllCommits(projectId: string, branchName?: string): Promise<Commit[]>;
+  getCommitCount(projectId: string, branchName?: string): Promise<number>;
+  getCommitsPaginated(projectId: string, branchName: string, limit: number, offset: number): Promise<Commit[]>;
   getCommit(id: string): Promise<Commit | undefined>;
   createCommit(data: InsertCommit): Promise<Commit>;
   getBranches(projectId: string): Promise<Branch[]>;
@@ -886,6 +889,31 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(commits.createdAt)).limit(50);
     }
     return db.select().from(commits).where(eq(commits.projectId, projectId)).orderBy(desc(commits.createdAt)).limit(50);
+  }
+
+  async getAllCommits(projectId: string, branchName?: string): Promise<Commit[]> {
+    if (branchName) {
+      return db.select().from(commits)
+        .where(and(eq(commits.projectId, projectId), eq(commits.branchName, branchName)))
+        .orderBy(desc(commits.createdAt));
+    }
+    return db.select().from(commits).where(eq(commits.projectId, projectId)).orderBy(desc(commits.createdAt));
+  }
+
+  async getCommitCount(projectId: string, branchName?: string): Promise<number> {
+    const condition = branchName
+      ? and(eq(commits.projectId, projectId), eq(commits.branchName, branchName))
+      : eq(commits.projectId, projectId);
+    const [result] = await db.select({ value: count() }).from(commits).where(condition);
+    return result?.value ?? 0;
+  }
+
+  async getCommitsPaginated(projectId: string, branchName: string, lim: number, offset: number): Promise<Commit[]> {
+    return db.select().from(commits)
+      .where(and(eq(commits.projectId, projectId), eq(commits.branchName, branchName)))
+      .orderBy(desc(commits.createdAt))
+      .limit(lim)
+      .offset(offset);
   }
 
   async getCommit(id: string): Promise<Commit | undefined> {

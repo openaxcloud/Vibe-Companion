@@ -2615,6 +2615,115 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/projects/:id/file-history/:filename", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const filename = req.params.filename;
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
+
+      const totalCommits = await storage.getCommitCount(project.id, "main");
+      const batchSize = 100;
+      const history: { commitId: string; message: string; authorId: string; authorName: string; createdAt: string; content: string }[] = [];
+      const authorCache = new Map<string, string>();
+
+      async function getAuthorName(authorId: string): Promise<string> {
+        if (authorCache.has(authorId)) return authorCache.get(authorId)!;
+        const author = await storage.getUser(authorId);
+        const name = author?.displayName || author?.email || authorId.slice(0, 7);
+        authorCache.set(authorId, name);
+        return name;
+      }
+
+      let previousContent: string | undefined = undefined;
+      let offset = totalCommits;
+
+      while (offset > 0) {
+        const batchStart = Math.max(0, offset - batchSize);
+        const batchLen = offset - batchStart;
+        const batch = await storage.getCommitsPaginated(project.id, "main", batchLen, batchStart);
+        batch.reverse();
+
+        for (const commit of batch) {
+          const snapshot = commit.snapshot as Record<string, string>;
+          if (!snapshot || !(filename in snapshot)) {
+            if (previousContent !== undefined) {
+              const authorName = await getAuthorName(commit.authorId);
+              history.unshift({
+                commitId: commit.id, message: commit.message, authorId: commit.authorId, authorName,
+                createdAt: commit.createdAt instanceof Date ? commit.createdAt.toISOString() : String(commit.createdAt),
+                content: "",
+              });
+              previousContent = undefined;
+            }
+            continue;
+          }
+          const currentContent = snapshot[filename];
+          if (previousContent === undefined || currentContent !== previousContent) {
+            const authorName = await getAuthorName(commit.authorId);
+            history.unshift({
+              commitId: commit.id, message: commit.message, authorId: commit.authorId, authorName,
+              createdAt: commit.createdAt instanceof Date ? commit.createdAt.toISOString() : String(commit.createdAt),
+              content: currentContent,
+            });
+          }
+          previousContent = currentContent;
+        }
+        offset = batchStart;
+      }
+
+      const totalVersions = history.length;
+      const startIdx = (page - 1) * pageSize;
+      const paginated = history.slice(startIdx, startIdx + pageSize);
+
+      return res.json({
+        entries: paginated,
+        pagination: {
+          page,
+          pageSize,
+          totalVersions,
+          totalPages: Math.ceil(totalVersions / pageSize),
+          hasMore: startIdx + pageSize < totalVersions,
+        },
+      });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch file history" });
+    }
+  });
+
+  app.post("/api/projects/:id/file-history/restore", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filename, content, commitId } = z.object({ filename: z.string(), content: z.string(), commitId: z.string().optional() }).parse(req.body);
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const projectFiles = await storage.getFiles(project.id);
+      const file = projectFiles.find(f => f.filename === filename);
+      if (!file) return res.status(404).json({ message: "File not found" });
+      const updated = await storage.updateFileContent(file.id, content);
+      const snapshot: Record<string, string> = {};
+      const latestFiles = await storage.getFiles(project.id);
+      latestFiles.forEach(f => { snapshot[f.filename] = f.content; });
+      const existingCommits = await storage.getCommits(project.id, "main");
+      const parentCommitId = existingCommits.length > 0 ? existingCommits[0].id : undefined;
+      const commitMsg = `Restore ${filename}${commitId ? ` to version ${commitId.slice(0, 7)}` : ""}`;
+      const newCommit = await storage.createCommit({
+        projectId: project.id, branchName: "main", message: commitMsg,
+        authorId: req.session.userId!, parentCommitId: parentCommitId || null, snapshot,
+      });
+      let branch = await storage.getBranch(project.id, "main");
+      if (!branch) {
+        await storage.createBranch({ projectId: project.id, name: "main", headCommitId: newCommit.id, isDefault: true });
+      } else {
+        await storage.updateBranchHead(branch.id, newCommit.id);
+      }
+      return res.json({ file: updated, commit: newCommit });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to restore file" });
+    }
+  });
+
   app.get("/api/projects/:id/branches", requireAuth, async (req: Request, res: Response) => {
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
