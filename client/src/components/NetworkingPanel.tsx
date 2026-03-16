@@ -8,18 +8,24 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Network, Loader2, Plus, Trash2, X, Globe, Lock, Unlock, Copy, Check,
   ExternalLink, ChevronDown, ChevronRight, Wifi, AlertTriangle, Circle,
+  ArrowRightLeft, Search,
 } from "lucide-react";
 
 interface PortConfig {
   id: string;
   projectId: string;
   port: number;
+  internalPort: number;
+  externalPort: number;
   label: string;
   protocol: string;
   isPublic: boolean;
+  exposeLocalhost: boolean;
   createdAt: string;
   listening: boolean;
+  localhostOnly: boolean;
   proxyUrl: string | null;
+  externalUrl: string;
 }
 
 interface CustomDomain {
@@ -118,6 +124,15 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
     },
   });
 
+  const toggleExposeMutation = useMutation({
+    mutationFn: async ({ id, exposeLocalhost }: { id: string; exposeLocalhost: boolean }) => {
+      await apiRequest("PATCH", `/api/projects/${projectId}/networking/ports/${id}`, { exposeLocalhost });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "networking", "ports"] });
+    },
+  });
+
   const deletePortMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/projects/${projectId}/networking/ports/${id}`);
@@ -125,6 +140,19 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "networking", "ports"] });
       toast({ title: "Port removed" });
+    },
+  });
+
+  const scanPortsMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/projects/${projectId}/networking/ports/scan`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "networking", "ports"] });
+      toast({ title: "Port scan complete" });
+    },
+    onError: () => {
+      toast({ title: "Port scan failed", variant: "destructive" });
     },
   });
 
@@ -241,9 +269,14 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
             {portsOpen ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)]" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />}
             <Wifi className="w-3 h-3 text-blue-400" />
             <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase">Ports ({ports.length})</span>
-            <Button variant="ghost" size="icon" className="w-5 h-5 ml-auto text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={(e) => { e.stopPropagation(); setAddPortMode(true); setPortsOpen(true); }} data-testid="button-add-port">
-              <Plus className="w-3 h-3" />
-            </Button>
+            <div className="flex items-center gap-0.5 ml-auto">
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={(e) => { e.stopPropagation(); scanPortsMutation.mutate(); }} title="Auto-detect ports" data-testid="button-scan-ports">
+                {scanPortsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+              </Button>
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={(e) => { e.stopPropagation(); setAddPortMode(true); setPortsOpen(true); }} data-testid="button-add-port">
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
           </button>
 
           {portsOpen && (
@@ -251,7 +284,7 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
               {addPortMode && (
                 <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
                   <div className="flex gap-1.5">
-                    <Input type="number" placeholder="Port" value={newPort} onChange={(e) => setNewPort(e.target.value)} className="h-7 text-xs bg-[var(--ide-bg)] w-20" data-testid="input-port-number" />
+                    <Input type="number" placeholder="Internal Port" value={newPort} onChange={(e) => setNewPort(e.target.value)} className="h-7 text-xs bg-[var(--ide-bg)] w-24" data-testid="input-port-number" />
                     <Input placeholder="Label" value={newPortLabel} onChange={(e) => setNewPortLabel(e.target.value)} className="h-7 text-xs bg-[var(--ide-bg)] flex-1" data-testid="input-port-label" />
                   </div>
                   <select value={newPortProtocol} onChange={(e) => setNewPortProtocol(e.target.value)} className="w-full h-7 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 text-[var(--ide-text)]" data-testid="select-port-protocol">
@@ -277,9 +310,13 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                 ports.map((p) => (
                   <div key={p.id} className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid={`port-${p.id}`}>
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-blue-400">{p.port}</div>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-blue-400">{p.internalPort}</div>
+                        <ArrowRightLeft className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
+                        <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-green-400">{p.externalPort === 80 ? "80" : p.externalPort}</div>
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <span className="text-[11px] text-[var(--ide-text)] block truncate">{p.label || `Port ${p.port}`}</span>
+                        <span className="text-[11px] text-[var(--ide-text)] block truncate">{p.label || `Port ${p.internalPort}`}</span>
                         <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1">
                           {p.protocol.toUpperCase()}
                           {p.isPublic ? <Unlock className="w-2.5 h-2.5 text-green-400" /> : <Lock className="w-2.5 h-2.5" />}
@@ -289,7 +326,7 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                       <div className="flex items-center gap-1" data-testid={`port-status-${p.id}`}>
                         <Circle className={`w-2 h-2 ${p.listening ? "fill-green-400 text-green-400" : "fill-red-400 text-red-400"}`} />
                         <span className={`text-[9px] ${p.listening ? "text-green-400" : "text-red-400"}`}>
-                          {p.listening ? "Listening" : "Inactive"}
+                          {p.listening ? (p.localhostOnly ? "Localhost" : "Listening") : "Inactive"}
                         </span>
                       </div>
                       <Switch checked={p.isPublic} onCheckedChange={(checked) => togglePortMutation.mutate({ id: p.id, isPublic: checked })} className="scale-75" data-testid={`toggle-port-${p.id}`} />
@@ -297,8 +334,32 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[9px] text-[var(--ide-text-muted)]">
+                        <span>Expose localhost:</span>
+                        <Switch checked={p.exposeLocalhost} onCheckedChange={(checked) => toggleExposeMutation.mutate({ id: p.id, exposeLocalhost: checked })} className="scale-[0.6]" data-testid={`toggle-expose-${p.id}`} />
+                      </div>
+                      <span className="text-[9px] font-mono text-[var(--ide-text-muted)]">
+                        :{p.internalPort} → :{p.externalPort}
+                      </span>
+                    </div>
+                    {p.externalUrl && (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <Globe className="w-2.5 h-2.5 text-green-400 shrink-0" />
+                        <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-green-400 flex-1 truncate" data-testid={`external-url-${p.id}`}>
+                          {p.externalUrl}
+                        </code>
+                        <Button
+                          variant="ghost" size="icon" className="w-4 h-4"
+                          onClick={() => { navigator.clipboard.writeText(p.externalUrl); toast({ title: "External URL copied" }); }}
+                          data-testid={`copy-external-url-${p.id}`}
+                        >
+                          <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+                        </Button>
+                      </div>
+                    )}
                     {p.proxyUrl && (
-                      <div className="mt-1.5 flex items-center gap-1.5">
+                      <div className="mt-1 flex items-center gap-1.5">
                         <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-blue-400 flex-1 truncate" data-testid={`proxy-url-${p.id}`}>
                           {window.location.origin}{p.proxyUrl}
                         </code>

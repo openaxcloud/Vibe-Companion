@@ -394,7 +394,7 @@ export interface IStorage {
   getPortConfigs(projectId: string): Promise<PortConfig[]>;
   getPortConfig(id: string): Promise<PortConfig | undefined>;
   createPortConfig(data: InsertPortConfig): Promise<PortConfig>;
-  updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean }>): Promise<PortConfig | undefined>;
+  updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean; exposeLocalhost: boolean }>): Promise<PortConfig | undefined>;
   deletePortConfig(id: string): Promise<boolean>;
 
   getSkills(projectId: string): Promise<Skill[]>;
@@ -2257,7 +2257,7 @@ export class DatabaseStorage implements IStorage {
     return p;
   }
 
-  async updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean }>): Promise<PortConfig | undefined> {
+  async updatePortConfig(id: string, data: Partial<{ label: string; protocol: string; isPublic: boolean; exposeLocalhost: boolean }>): Promise<PortConfig | undefined> {
     const [p] = await db.update(portConfigs).set(data).where(eq(portConfigs.id, id)).returning();
     return p;
   }

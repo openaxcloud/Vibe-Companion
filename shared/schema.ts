@@ -1337,24 +1337,35 @@ export const insertSkillSchema = createInsertSchema(skills).omit({
 export type InsertSkill = z.infer<typeof insertSkillSchema>;
 export type Skill = typeof skills.$inferSelect;
 
+export const ALLOWED_EXTERNAL_PORTS = [80, 3000, 3001, 3002, 3003, 4200, 5000, 5173, 6000, 6800, 8000, 8008, 8080, 8081] as const;
+export const BLOCKED_PORTS = [22, 8283] as const;
+
 export const portConfigs = pgTable("port_configs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   port: integer("port").notNull(),
+  internalPort: integer("internal_port").notNull(),
+  externalPort: integer("external_port").notNull(),
   label: text("label").notNull().default(""),
   protocol: text("protocol").notNull().default("http"),
-  isPublic: boolean("is_public").notNull().default(true),
+  isPublic: boolean("is_public").notNull().default(false),
+  exposeLocalhost: boolean("expose_localhost").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("port_configs_project_idx").on(table.projectId),
   uniqueIndex("port_configs_project_port_unique").on(table.projectId, table.port),
+  uniqueIndex("port_configs_project_internal_unique").on(table.projectId, table.internalPort),
+  uniqueIndex("port_configs_project_external_unique").on(table.projectId, table.externalPort),
 ]);
 export const insertPortConfigSchema = createInsertSchema(portConfigs).pick({
   projectId: true,
   port: true,
+  internalPort: true,
+  externalPort: true,
   label: true,
   protocol: true,
   isPublic: true,
+  exposeLocalhost: true,
 });
 export type InsertPortConfig = z.infer<typeof insertPortConfigSchema>;
 export type PortConfig = typeof portConfigs.$inferSelect;

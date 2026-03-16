@@ -272,6 +272,7 @@ function _projectPage() {
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
   const devUrl = projectId ? `${projectId}.dev.e-code.ai` : null;
   const fullDevUrl = devUrl ? `${window.location.protocol}//${devUrl}` : null;
+  const [selectedPreviewPort, setSelectedPreviewPort] = useState<number | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -2157,6 +2158,16 @@ function _projectPage() {
     refetchInterval: wsStatus === "starting" || wsStatus === "running" ? 5000 : false,
   });
 
+  const previewPortsQuery = useQuery<{ id: string; internalPort: number; externalPort: number; label: string; isPublic: boolean; proxyUrl: string | null }[]>({
+    queryKey: ["/api/projects", projectId, "networking", "ports"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/networking/ports`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 15000,
+  });
+
   const prevWsStatus = useRef(wsStatus);
   useEffect(() => {
     if (workspaceStatusQuery.data?.status) {
@@ -3469,6 +3480,36 @@ function _projectPage() {
           </form>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
+          {(previewPortsQuery.data?.length ?? 0) > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[9px] font-mono text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] gap-1 rounded" data-testid="button-preview-port-selector">
+                  <Wifi className="w-2.5 h-2.5" />
+                  {selectedPreviewPort ? `:${selectedPreviewPort}` : "Ports"}
+                  <ChevronDown className="w-2 h-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[140px]" align="end">
+                {previewPortsQuery.data?.map((p) => (
+                  <DropdownMenuItem key={p.id} className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer font-mono"
+                    onClick={() => {
+                      setSelectedPreviewPort(p.externalPort);
+                      if (p.proxyUrl) {
+                        const iframe = document.getElementById("webview-tab-iframe") as HTMLIFrameElement;
+                        if (iframe) iframe.src = `${window.location.origin}${p.proxyUrl}`;
+                      }
+                    }}
+                    data-testid={`preview-port-option-${p.externalPort}`}
+                  >
+                    <span className={selectedPreviewPort === p.externalPort ? "text-blue-400" : ""}>
+                      :{p.internalPort} → :{p.externalPort}
+                    </span>
+                    <span className="text-[var(--ide-text-muted)] text-[9px] ml-auto">{p.label || ""}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
           <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
           {livePreviewUrl && (
@@ -4348,6 +4389,36 @@ function _projectPage() {
               <span className="text-[11px] text-[var(--ide-text-secondary)] truncate cursor-pointer" onClick={() => { if (fullDevUrl) { navigator.clipboard.writeText(fullDevUrl); toast({ title: "Development URL copied" }); } }} data-testid="text-preview-dev-url">{devUrl || livePreviewUrl}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              {(previewPortsQuery.data?.length ?? 0) > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[9px] font-mono text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] gap-0.5" data-testid="button-panel-port-selector">
+                      <Wifi className="w-2.5 h-2.5" />
+                      {selectedPreviewPort ? `:${selectedPreviewPort}` : "Ports"}
+                      <ChevronDown className="w-2 h-2" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[140px]" align="end">
+                    {previewPortsQuery.data?.map((p) => (
+                      <DropdownMenuItem key={p.id} className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer font-mono"
+                        onClick={() => {
+                          setSelectedPreviewPort(p.externalPort);
+                          if (p.proxyUrl) {
+                            const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement;
+                            if (iframe) iframe.src = `${window.location.origin}${p.proxyUrl}`;
+                          }
+                        }}
+                        data-testid={`panel-port-option-${p.externalPort}`}
+                      >
+                        <span className={selectedPreviewPort === p.externalPort ? "text-blue-400" : ""}>
+                          :{p.internalPort} → :{p.externalPort}
+                        </span>
+                        <span className="text-[var(--ide-text-muted)] text-[9px] ml-auto">{p.label || ""}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
               <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
               <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"

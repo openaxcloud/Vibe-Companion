@@ -3215,6 +3215,15 @@ export async function registerRoutes(
       const deployConfig = deployConfigSchema.parse(req.body || {});
       const deploymentType = deployConfig.deploymentType || "static";
 
+      if (deploymentType === "autoscale" || deploymentType === "reserved-vm") {
+        const { validatePortForDeployment } = await import("./portDetection");
+        const portConfigsList = await storage.getPortConfigs(project.id);
+        const validation = await validatePortForDeployment(portConfigsList, deploymentType);
+        if (!validation.valid) {
+          return res.status(400).json({ message: validation.error });
+        }
+      }
+
       if (deployConfig.isPrivate === true) {
         const quota = await storage.getUserQuota(req.session.userId!);
         if (!quota || quota.plan !== "team") {
@@ -5966,6 +5975,9 @@ export async function registerRoutes(
         }
       }
       await storage.updateWorkspaceStatus(workspace.id, "running");
+      const { startPortScanning, autoDetectPorts } = await import("./portDetection");
+      autoDetectPorts(project.id).catch(() => {});
+      startPortScanning(project.id);
       return res.json({ status: "running", systemModules: systemModules.length, systemDeps: systemDeps.length });
     } catch (err: any) {
       log(`Runner start error: ${err.message}`, "runner");
@@ -5983,6 +5995,8 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Workspace not found" });
     }
     try {
+      const { stopPortScanning } = await import("./portDetection");
+      stopPortScanning(project.id);
       await runnerClient.stopWorkspace(workspace.id);
       await storage.updateWorkspaceStatus(workspace.id, "stopped");
       return res.json({ status: "stopped" });
@@ -12479,25 +12493,15 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const ports = await storage.getPortConfigs(project.id);
-      const workspace = await storage.getWorkspaceByProject(project.id);
+      const { checkPortListening } = await import("./portDetection");
       const portsWithStatus = await Promise.all(
         ports.map(async (p) => {
-          let listening = false;
-          if (workspace) {
-            try {
-              const probeResult = await runnerClient.execInWorkspace(workspace.id, "node", [
-                "-e",
-                `const s=require("net").createConnection(${p.port},"127.0.0.1");s.on("connect",()=>{console.log("LISTENING");s.destroy();process.exit(0)});s.on("error",()=>{console.log("CLOSED");process.exit(0)});s.setTimeout(1500,()=>{console.log("CLOSED");s.destroy();process.exit(0)})`
-              ]);
-              if (probeResult && probeResult.stdout.trim() === "LISTENING") {
-                listening = true;
-              }
-            } catch {
-              listening = false;
-            }
-          }
-          const proxyUrl = (p.isPublic && workspace) ? `/proxy/${project.id}/${p.port}/` : null;
-          return { ...p, listening, proxyUrl };
+          const { listening, localhostOnly } = await checkPortListening(p.internalPort);
+          const proxyUrl = p.isPublic ? `/proxy/${project.id}/${p.externalPort}/` : null;
+          const externalUrl = p.externalPort === 80
+            ? `${req.protocol}://${req.hostname}`
+            : `${req.protocol}://${req.hostname}:${p.externalPort}`;
+          return { ...p, listening, localhostOnly, proxyUrl, externalUrl };
         })
       );
       res.json(portsWithStatus);
@@ -12509,9 +12513,35 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const { port, label, protocol } = req.body;
+      const { port, label, protocol, externalPort } = req.body;
       if (!port) return res.status(400).json({ message: "Port is required" });
-      const config = await storage.createPortConfig({ projectId: project.id, port, label: label || "", protocol: protocol || "http", isPublic: true });
+      const internalPort = parseInt(port, 10);
+      if (!Number.isInteger(internalPort) || internalPort < 1 || internalPort > 65535) {
+        return res.status(400).json({ message: "Port must be an integer between 1 and 65535" });
+      }
+      const { isPortBlocked, isAllowedInternalPort, isValidExternalPort, getNextAvailableExternalPort } = await import("./portDetection");
+      if (isPortBlocked(internalPort)) return res.status(400).json({ message: `Port ${internalPort} is blocked` });
+      if (!isAllowedInternalPort(internalPort)) return res.status(400).json({ message: `Port ${internalPort} is not in the allowed port list (3000-3003, 4200, 5000, 5173, 6000, 6800, 8000, 8008, 8080, 8081)` });
+      const existingConfigs = await storage.getPortConfigs(project.id);
+      const usedExternalPorts = existingConfigs.map(c => c.externalPort);
+      let targetExternalPort = externalPort ? parseInt(externalPort, 10) : null;
+      if (targetExternalPort) {
+        if (!isValidExternalPort(targetExternalPort)) return res.status(400).json({ message: `External port ${targetExternalPort} is not in the allowed set (80, 3000-3003, 4200, 5000, 5173, 6000, 6800, 8000, 8008, 8080, 8081)` });
+        if (usedExternalPorts.includes(targetExternalPort)) return res.status(409).json({ message: `External port ${targetExternalPort} is already in use` });
+      } else {
+        targetExternalPort = existingConfigs.length === 0 ? 80 : getNextAvailableExternalPort(usedExternalPorts);
+        if (targetExternalPort === null) return res.status(400).json({ message: "No available external ports" });
+      }
+      const config = await storage.createPortConfig({
+        projectId: project.id,
+        port: internalPort,
+        internalPort,
+        externalPort: targetExternalPort,
+        label: label || "",
+        protocol: protocol || "http",
+        isPublic: false,
+        exposeLocalhost: false,
+      });
       res.status(201).json(config);
     } catch (err: any) {
       if (err.code === "23505") return res.status(409).json({ message: "Port already configured" });
@@ -12526,7 +12556,13 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const portConfig = await storage.getPortConfig(req.params.portId);
       if (!portConfig || portConfig.projectId !== project.id) return res.status(404).json({ message: "Port config not found" });
-      const updated = await storage.updatePortConfig(req.params.portId, req.body);
+      const { isPublic, exposeLocalhost, label, protocol } = req.body;
+      const updateData: Partial<{ label: string; protocol: string; isPublic: boolean; exposeLocalhost: boolean }> = {};
+      if (typeof isPublic === "boolean") updateData.isPublic = isPublic;
+      if (typeof exposeLocalhost === "boolean") updateData.exposeLocalhost = exposeLocalhost;
+      if (typeof label === "string") updateData.label = label;
+      if (typeof protocol === "string") updateData.protocol = protocol;
+      const updated = await storage.updatePortConfig(req.params.portId, updateData);
       res.json(updated);
     } catch { res.status(500).json({ message: "Failed to update port" }); }
   });
@@ -12541,6 +12577,18 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       await storage.deletePortConfig(req.params.portId);
       res.json({ deleted: true });
     } catch { res.status(500).json({ message: "Failed to delete port" }); }
+  });
+
+  app.post("/api/projects/:id/networking/ports/scan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { autoDetectPorts } = await import("./portDetection");
+      await autoDetectPorts(project.id);
+      const ports = await storage.getPortConfigs(project.id);
+      res.json(ports);
+    } catch { res.status(500).json({ message: "Failed to scan ports" }); }
   });
 
   app.get("/api/projects/:id/networking/domains", requireAuth, async (req: Request, res: Response) => {
@@ -12596,39 +12644,42 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   });
 
   // --- REVERSE PROXY FOR PORT FORWARDING ---
-  const ALLOWED_PROXY_PORTS = { min: 1024, max: 65535 };
   app.all("/proxy/:projectId/:port/{*path}", requireAuth, async (req: Request, res: Response) => {
     try {
       const { projectId, port: portStr } = req.params;
-      const targetPort = parseInt(portStr, 10);
-      if (isNaN(targetPort) || targetPort < ALLOWED_PROXY_PORTS.min || targetPort > ALLOWED_PROXY_PORTS.max) {
-        return res.status(400).json({ message: "Invalid port (must be 1024-65535)" });
+      const requestedExternalPort = parseInt(portStr, 10);
+      if (isNaN(requestedExternalPort)) {
+        return res.status(400).json({ message: "Invalid port" });
       }
 
       if (!await verifyProjectAccess(projectId, req.session.userId!)) {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      const portConfig = await storage.getPortConfigs(projectId);
-      const config = portConfig.find(p => p.port === targetPort);
+      const portConfigs = await storage.getPortConfigs(projectId);
+      const config = portConfigs.find(p => p.externalPort === requestedExternalPort);
       if (!config || !config.isPublic) {
         return res.status(403).json({ message: "Port not configured or not public" });
       }
 
-      const workspace = await storage.getWorkspaceByProject(projectId);
-      if (!workspace) {
-        return res.status(502).json({ message: "No workspace running for this project" });
+      const { checkPortListening, isPortBlocked, isAllowedInternalPort } = await import("./portDetection");
+      if (isPortBlocked(config.internalPort) || !isAllowedInternalPort(config.internalPort)) {
+        return res.status(403).json({ message: "Target port is not allowed for proxying" });
+      }
+      const { listening, localhostOnly } = await checkPortListening(config.internalPort);
+      if (!listening) {
+        return res.status(502).json({ message: "No process listening on the internal port" });
+      }
+      if (localhostOnly && !config.exposeLocalhost) {
+        return res.status(403).json({ message: "Port is bound to localhost only. Enable 'Expose Localhost' to proxy this port." });
       }
 
-      const previewBaseUrl = runnerClient.previewUrl(workspace.id, targetPort);
       const rawPath = req.params.path;
       const proxyPath = Array.isArray(rawPath) ? rawPath.join("/") : (rawPath || "");
       const queryString = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-      const targetUrl = `${previewBaseUrl}/${proxyPath}${queryString}`;
+      const targetUrl = `http://127.0.0.1:${config.internalPort}/${proxyPath}${queryString}`;
 
       const http = require("http") as typeof import("http");
-      const https = require("https") as typeof import("https");
-      const protocol = targetUrl.startsWith("https") ? https : http;
 
       const HOP_BY_HOP_HEADERS = new Set([
         "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -12643,12 +12694,13 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       }
       forwardHeaders["x-forwarded-for"] = req.ip || "unknown";
       forwardHeaders["x-forwarded-proto"] = req.protocol;
+      forwardHeaders["host"] = `127.0.0.1:${config.internalPort}`;
 
       const RESPONSE_HOP_HEADERS = new Set([
         "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
         "te", "trailer", "transfer-encoding", "upgrade",
       ]);
-      const proxyReq = protocol.request(targetUrl, {
+      const proxyReq = http.request(targetUrl, {
         method: req.method,
         headers: forwardHeaders,
         timeout: 30000,
