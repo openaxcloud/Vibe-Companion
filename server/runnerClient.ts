@@ -144,6 +144,20 @@ export async function fetchPreviewContent(workspaceId: string, port: number, sub
   return { status: res.status, headers: responseHeaders, body: buf, contentType };
 }
 
+export async function configureWorkspaceEnv(
+  workspaceId: string,
+  config: {
+    systemModules: { name: string; version: string | null }[];
+    systemDeps: string[];
+  }
+): Promise<void> {
+  const res = await runnerFetch(`/api/workspaces/${workspaceId}/env`, {
+    method: "POST",
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error(`Runner: env config failed (${res.status})`);
+}
+
 export async function execInWorkspace(workspaceId: string, command: string, args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string } | null> {
   try {
     const res = await runnerFetch(`/api/workspaces/${workspaceId}/exec`, {

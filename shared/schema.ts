@@ -1662,3 +1662,33 @@ export const DEFAULT_LIGHT_SYNTAX_COLORS: SyntaxColors = {
   operators: "#DC2626",
   brackets: "#475569",
 };
+
+export const systemModules = pgTable("system_modules", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  version: text("version"),
+}, (table) => [
+  index("system_modules_project_idx").on(table.projectId),
+]);
+export const insertSystemModuleSchema = createInsertSchema(systemModules).pick({
+  projectId: true,
+  name: true,
+  version: true,
+});
+export type InsertSystemModule = z.infer<typeof insertSystemModuleSchema>;
+export type SystemModule = typeof systemModules.$inferSelect;
+
+export const systemDeps = pgTable("system_deps", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+}, (table) => [
+  index("system_deps_project_idx").on(table.projectId),
+]);
+export const insertSystemDepSchema = createInsertSchema(systemDeps).pick({
+  projectId: true,
+  name: true,
+});
+export type InsertSystemDep = z.infer<typeof insertSystemDepSchema>;
+export type SystemDep = typeof systemDeps.$inferSelect;

@@ -1880,15 +1880,123 @@ export async function registerRoutes(
     return result;
   }
 
-  async function getProjectPackageManager(projectId: string): Promise<"npm" | "pip" | "none"> {
+  async function getProjectPackageManager(projectId: string): Promise<"npm" | "pip" | "poetry" | "none"> {
     const files = await storage.getFiles(projectId);
     return detectPackageManager(files);
   }
 
-  function detectPackageManager(files: { filename: string; content: string | null }[]): "npm" | "pip" | "none" {
+  function detectPackageManager(files: { filename: string; content: string | null }[]): "npm" | "pip" | "poetry" | "none" {
     if (files.find(f => f.filename === "package.json")) return "npm";
-    if (files.find(f => f.filename === "requirements.txt") || files.find(f => f.filename === "pyproject.toml")) return "pip";
+    const pyprojectFile = files.find(f => f.filename === "pyproject.toml");
+    if (pyprojectFile && pyprojectFile.content && pyprojectFile.content.includes("[tool.poetry]")) return "poetry";
+    if (files.find(f => f.filename === "requirements.txt") || pyprojectFile) return "pip";
     return "none";
+  }
+
+  function detectAllManagers(files: { filename: string; content: string | null }[]): ("npm" | "pip" | "poetry")[] {
+    const managers: ("npm" | "pip" | "poetry")[] = [];
+    if (files.find(f => f.filename === "package.json")) managers.push("npm");
+    const pyprojectFile = files.find(f => f.filename === "pyproject.toml");
+    if (pyprojectFile && pyprojectFile.content && pyprojectFile.content.includes("[tool.poetry]")) {
+      managers.push("poetry");
+    } else if (files.find(f => f.filename === "requirements.txt") || pyprojectFile) {
+      managers.push("pip");
+    }
+    return managers;
+  }
+
+  async function getPackagesForManager(
+    projectId: string,
+    pm: "npm" | "pip" | "poetry",
+    files: { filename: string; content: string | null }[]
+  ): Promise<{ name: string; version: string; dev?: boolean }[]> {
+    const packages: { name: string; version: string; dev?: boolean }[] = [];
+    if (pm === "npm") {
+      let commandSucceeded = false;
+      try {
+        const result = await runProjectCommand(projectId, "npm", ["ls", "--json", "--depth=0"]);
+        if (result.stdout) {
+          const parsed = JSON.parse(result.stdout);
+          const deps = parsed.dependencies || {};
+          const pkgFile = files.find(f => f.filename === "package.json");
+          let devDeps: Record<string, string> = {};
+          if (pkgFile) {
+            try { devDeps = JSON.parse(pkgFile.content || "{}").devDependencies || {}; } catch {}
+          }
+          for (const [name, info] of Object.entries(deps) as [string, any][]) {
+            packages.push({ name, version: info.version || "unknown", dev: !!devDeps[name] });
+          }
+          commandSucceeded = true;
+        }
+      } catch {}
+      if (!commandSucceeded) {
+        const pkgFile = files.find(f => f.filename === "package.json");
+        if (pkgFile) {
+          try {
+            const pkg = JSON.parse(pkgFile.content || "{}");
+            if (pkg.dependencies) Object.entries(pkg.dependencies).forEach(([name, version]) => packages.push({ name, version: String(version) }));
+            if (pkg.devDependencies) Object.entries(pkg.devDependencies).forEach(([name, version]) => packages.push({ name, version: String(version), dev: true }));
+          } catch {}
+        }
+      }
+    } else if (pm === "poetry") {
+      let commandSucceeded = false;
+      try {
+        const result = await runProjectCommand(projectId, "poetry", ["show", "--no-ansi"]);
+        if (result.exitCode === 0 && result.stdout) {
+          const lines = result.stdout.split("\n").filter(l => l.trim());
+          for (const line of lines) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 2) {
+              packages.push({ name: parts[0], version: parts[1] });
+            }
+          }
+          commandSucceeded = true;
+        }
+      } catch {}
+      if (!commandSucceeded) {
+        const pyproject = files.find(f => f.filename === "pyproject.toml");
+        if (pyproject && pyproject.content) {
+          const depMatch = pyproject.content.match(/\[tool\.poetry\.dependencies\]([\s\S]*?)(?:\[|$)/);
+          if (depMatch) {
+            depMatch[1].split("\n").forEach(l => {
+              const m = l.match(/^(\w[\w.-]*)\s*=\s*"?([^"]*)"?/);
+              if (m && m[1] !== "python") packages.push({ name: m[1], version: m[2] || "latest" });
+            });
+          }
+          const devMatch = pyproject.content.match(/\[tool\.poetry\.dev-dependencies\]([\s\S]*?)(?:\[|$)/);
+          if (devMatch) {
+            devMatch[1].split("\n").forEach(l => {
+              const m = l.match(/^(\w[\w.-]*)\s*=\s*"?([^"]*)"?/);
+              if (m) packages.push({ name: m[1], version: m[2] || "latest", dev: true });
+            });
+          }
+        }
+      }
+    } else if (pm === "pip") {
+      let commandSucceeded = false;
+      try {
+        const result = await runProjectCommand(projectId, "pip", ["list", "--format=json"]);
+        if (result.exitCode === 0 && result.stdout) {
+          const parsed = JSON.parse(result.stdout);
+          for (const p of parsed as { name: string; version: string }[]) {
+            packages.push({ name: p.name, version: p.version });
+          }
+          commandSucceeded = true;
+        }
+      } catch {}
+      if (!commandSucceeded) {
+        const reqFile = files.find(f => f.filename === "requirements.txt");
+        if (reqFile) {
+          const lines = (reqFile.content || "").split("\n").filter(l => l.trim() && !l.startsWith("#"));
+          for (const line of lines) {
+            const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
+            if (match) packages.push({ name: match[1], version: match[2] || "latest" });
+          }
+        }
+      }
+    }
+    return packages;
   }
 
   app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
@@ -1896,94 +2004,138 @@ export async function registerRoutes(
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const files = await storage.getFiles(req.params.id);
-      const pm = detectPackageManager(files);
-      let packages: { name: string; version: string; dev?: boolean }[] = [];
+      const managers = detectAllManagers(files);
+      const pm = managers[0] || "none";
 
-      if (pm === "npm") {
-        let commandSucceeded = false;
-        try {
-          const result = await runProjectCommand(project.id, "npm", ["ls", "--json", "--depth=0"]);
-          if (result.stdout) {
-            const parsed = JSON.parse(result.stdout);
-            const deps = parsed.dependencies || {};
-            const pkgFile = files.find(f => f.filename === "package.json");
-            let devDeps: Record<string, string> = {};
-            if (pkgFile) {
-              try { devDeps = JSON.parse(pkgFile.content || "{}").devDependencies || {}; } catch {}
-            }
-            for (const [name, info] of Object.entries(deps) as [string, any][]) {
-              packages.push({ name, version: info.version || "unknown", dev: !!devDeps[name] });
-            }
-            commandSucceeded = true;
-          }
-        } catch {}
-        if (!commandSucceeded) {
-          const pkgFile = files.find(f => f.filename === "package.json");
-          if (pkgFile) {
-            try {
-              const pkg = JSON.parse(pkgFile.content || "{}");
-              if (pkg.dependencies) Object.entries(pkg.dependencies).forEach(([name, version]) => packages.push({ name, version: String(version) }));
-              if (pkg.devDependencies) Object.entries(pkg.devDependencies).forEach(([name, version]) => packages.push({ name, version: String(version), dev: true }));
-            } catch {}
-          }
-        }
-      } else if (pm === "pip") {
-        let commandSucceeded = false;
-        try {
-          const result = await runProjectCommand(project.id, "pip", ["list", "--format=json"]);
-          if (result.exitCode === 0 && result.stdout) {
-            const parsed = JSON.parse(result.stdout);
-            packages = parsed.map((p: { name: string; version: string }) => ({ name: p.name, version: p.version }));
-            commandSucceeded = true;
-          }
-        } catch {}
-        if (!commandSucceeded) {
-          const reqFile = files.find(f => f.filename === "requirements.txt");
-          if (reqFile) {
-            const lines = (reqFile.content || "").split("\n").filter(l => l.trim() && !l.startsWith("#"));
-            for (const line of lines) {
-              const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
-              if (match) packages.push({ name: match[1], version: match[2] || "latest" });
-            }
-          }
-        }
+      const groups: Record<string, { packages: { name: string; version: string; dev?: boolean }[]; manager: string; language: string }> = {};
+      for (const mgr of managers) {
+        const lang = mgr === "npm" ? "javascript" : "python";
+        const packages = await getPackagesForManager(project.id, mgr, files);
+        groups[lang] = { packages, manager: mgr, language: lang };
       }
-      return res.json({ packages, packageManager: pm, language: project.language });
+
+      const allPackages = Object.values(groups).flatMap(g => g.packages);
+      return res.json({
+        packages: allPackages,
+        packageManager: pm,
+        managers,
+        groups,
+        language: project.language,
+      });
     } catch {
       return res.status(500).json({ message: "Failed to get packages" });
     }
   });
 
+  function extractBaseName(name: string): string {
+    let baseName = name;
+    if (baseName.startsWith("@")) {
+      const slashIdx = baseName.indexOf("/");
+      if (slashIdx > 0) {
+        const afterSlash = baseName.substring(slashIdx + 1);
+        const atIdx = afterSlash.indexOf("@");
+        if (atIdx > 0) baseName = baseName.substring(0, slashIdx + 1 + atIdx);
+        else baseName = baseName.replace(/[=<>!~].*$/, "");
+      }
+    } else {
+      const atIdx = baseName.indexOf("@");
+      if (atIdx > 0) baseName = baseName.substring(0, atIdx);
+      baseName = baseName.replace(/[=<>!~].*$/, "");
+    }
+    return baseName;
+  }
+
+  function validatePackageName(name: string): boolean {
+    const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
+    return pkgNamePattern.test(name) && !name.startsWith("-") && !name.startsWith(".");
+  }
+
+  function buildInstallCmd(pm: string, baseName: string, version?: string, dev?: boolean): { command: string; args: string[] } {
+    if (pm === "poetry") {
+      const pkgSpec = version ? `${baseName}==${version}` : baseName;
+      return { command: "poetry", args: dev ? ["add", "--group", "dev", pkgSpec] : ["add", pkgSpec] };
+    } else if (pm === "pip") {
+      const pkgSpec = version ? `${baseName}==${version}` : baseName;
+      return { command: "pip", args: ["install", pkgSpec] };
+    } else {
+      const pkgSpec = version ? `${baseName}@${version}` : baseName;
+      return { command: "npm", args: dev ? ["install", "--save-dev", pkgSpec] : ["install", pkgSpec] };
+    }
+  }
+
+  function buildUninstallCmd(pm: string, name: string): { command: string; args: string[] } {
+    if (pm === "poetry") return { command: "poetry", args: ["remove", name] };
+    if (pm === "pip") return { command: "pip", args: ["uninstall", "-y", name] };
+    return { command: "npm", args: ["uninstall", name] };
+  }
+
+  function buildUpdateCmd(pm: string, name?: string): { command: string; args: string[] } {
+    if (pm === "poetry") return { command: "poetry", args: name ? ["update", name] : ["update"] };
+    if (pm === "pip") return { command: "pip", args: name ? ["install", "--upgrade", name] : ["install", "--upgrade", "-r", "requirements.txt"] };
+    return { command: "npm", args: name ? ["update", name] : ["update"] };
+  }
+
+  async function withInstallLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
+    if (projectInstallLocks.get(projectId)) {
+      throw new Error("Another package operation is in progress for this project. Please wait.");
+    }
+    projectInstallLocks.set(projectId, true);
+    try {
+      return await fn();
+    } finally {
+      projectInstallLocks.delete(projectId);
+    }
+  }
+
+  async function streamCommand(res: any, projectId: string, command: string, args: string[]) {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    const sendEvent = (event: string, data: any) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    sendEvent("start", { command: `${command} ${args.join(" ")}` });
+    try {
+      const result = await withInstallLock(projectId, () => runProjectCommand(projectId, command, args));
+      const output = (result.stdout + "\n" + result.stderr).trim();
+      const lines = output.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        sendEvent("output", { line: lines[i], index: i });
+      }
+      sendEvent("done", { success: result.exitCode === 0, output, exitCode: result.exitCode, command: `${command} ${args.join(" ")}` });
+    } catch (execErr: any) {
+      sendEvent("error", { message: execErr.message || "Execution failed" });
+    }
+    res.end();
+  }
+
   app.post("/api/projects/:id/packages/add", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const { name, dev } = z.object({ name: z.string().min(1).max(200), dev: z.boolean().optional() }).parse(req.body);
+      const { name, dev, version, manager: requestedManager } = z.object({
+        name: z.string().min(1).max(200),
+        dev: z.boolean().optional(),
+        version: z.string().optional(),
+        manager: z.enum(["npm", "pip", "poetry"]).optional(),
+      }).parse(req.body);
 
-      const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
-      if (!pkgNamePattern.test(name) || name.startsWith("-") || name.startsWith(".")) {
-        return res.status(400).json({ message: "Invalid package name" });
-      }
+      const baseName = extractBaseName(name);
+      if (!validatePackageName(baseName)) return res.status(400).json({ message: "Invalid package name" });
 
-      const isPython = project.language === "python" || project.language === "python3";
+      const files = await storage.getFiles(project.id);
+      const pm = requestedManager || detectPackageManager(files);
+      const { command, args } = buildInstallCmd(pm, baseName, version, dev);
 
-      let command: string;
-      let args: string[];
-      if (isPython) {
-        command = "pip";
-        args = ["install", name];
-      } else {
-        command = "npm";
-        args = dev ? ["install", "--save-dev", name] : ["install", name];
-      }
-
-      const result = await runProjectCommand(project.id, command, args);
+      const result = await withInstallLock(project.id, () => runProjectCommand(project.id, command, args));
       const output = (result.stdout + "\n" + result.stderr).trim();
 
       if (result.exitCode !== 0) {
-        return res.status(400).json({ success: false, message: `Installation failed`, output, command: `${command} ${args.join(" ")}` });
+        return res.status(400).json({ success: false, message: "Installation failed", output, command: `${command} ${args.join(" ")}` });
       }
-
       return res.json({ success: true, output, command: `${command} ${args.join(" ")}` });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1991,40 +2143,571 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/projects/:id/packages/install-stream", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name, dev, version, manager: requestedManager } = z.object({
+        name: z.string().min(1).max(200),
+        dev: z.boolean().optional(),
+        version: z.string().optional(),
+        manager: z.enum(["npm", "pip", "poetry"]).optional(),
+      }).parse(req.body);
+
+      const baseName = extractBaseName(name);
+      if (!validatePackageName(baseName)) {
+        return res.status(400).json({ message: "Invalid package name" });
+      }
+
+      const files = await storage.getFiles(project.id);
+      const pm = requestedManager || detectPackageManager(files);
+      const { command, args } = buildInstallCmd(pm, baseName, version, dev);
+
+      await streamCommand(res, project.id, command, args);
+    } catch (err: any) {
+      if (!res.headersSent) {
+        if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+        return res.status(500).json({ message: err.message || "Failed to install package" });
+      }
+      res.end();
+    }
+  });
+
   app.post("/api/projects/:id/packages/remove", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const { name } = z.object({ name: z.string().min(1) }).parse(req.body);
+      const { name, manager: requestedManager } = z.object({
+        name: z.string().min(1),
+        manager: z.enum(["npm", "pip", "poetry"]).optional(),
+      }).parse(req.body);
 
-      const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
-      if (!pkgNamePattern.test(name) || name.startsWith("-") || name.startsWith(".")) {
-        return res.status(400).json({ message: "Invalid package name" });
-      }
+      if (!validatePackageName(name)) return res.status(400).json({ message: "Invalid package name" });
 
-      const isPython = project.language === "python" || project.language === "python3";
+      const files = await storage.getFiles(project.id);
+      const pm = requestedManager || detectPackageManager(files);
+      const { command, args } = buildUninstallCmd(pm, name);
 
-      let command: string;
-      let args: string[];
-      if (isPython) {
-        command = "pip";
-        args = ["uninstall", "-y", name];
-      } else {
-        command = "npm";
-        args = ["uninstall", name];
-      }
-
-      const result = await runProjectCommand(project.id, command, args);
+      const result = await withInstallLock(project.id, () => runProjectCommand(project.id, command, args));
       const output = (result.stdout + "\n" + result.stderr).trim();
 
       if (result.exitCode !== 0) {
-        return res.status(400).json({ success: false, message: `Removal failed`, output, command: `${command} ${args.join(" ")}` });
+        return res.status(400).json({ success: false, message: "Removal failed", output, command: `${command} ${args.join(" ")}` });
       }
-
       return res.json({ success: true, output, command: `${command} ${args.join(" ")}` });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       return res.status(500).json({ message: err.message || "Failed to remove package" });
+    }
+  });
+
+  app.post("/api/projects/:id/packages/remove-stream", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name, manager: requestedManager } = z.object({
+        name: z.string().min(1),
+        manager: z.enum(["npm", "pip", "poetry"]).optional(),
+      }).parse(req.body);
+
+      if (!validatePackageName(name)) return res.status(400).json({ message: "Invalid package name" });
+
+      const files = await storage.getFiles(project.id);
+      const pm = requestedManager || detectPackageManager(files);
+      const { command, args } = buildUninstallCmd(pm, name);
+
+      await streamCommand(res, project.id, command, args);
+    } catch (err: any) {
+      if (!res.headersSent) {
+        if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+        return res.status(500).json({ message: err.message || "Failed to remove package" });
+      }
+      res.end();
+    }
+  });
+
+  app.post("/api/projects/:id/packages/update", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name, manager: requestedManager } = z.object({
+        name: z.string().optional(),
+        manager: z.enum(["npm", "pip", "poetry"]).optional(),
+      }).parse(req.body);
+
+      if (name && !validatePackageName(name)) return res.status(400).json({ message: "Invalid package name" });
+
+      const files = await storage.getFiles(project.id);
+      const pm = requestedManager || detectPackageManager(files);
+      const { command, args } = buildUpdateCmd(pm, name);
+
+      const result = await withInstallLock(project.id, () => runProjectCommand(project.id, command, args));
+      const output = (result.stdout + "\n" + result.stderr).trim();
+
+      if (result.exitCode !== 0) {
+        return res.status(400).json({ success: false, message: "Update failed", output, command: `${command} ${args.join(" ")}` });
+      }
+      return res.json({ success: true, output, command: `${command} ${args.join(" ")}` });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: err.message || "Failed to update package" });
+    }
+  });
+
+  app.post("/api/projects/:id/packages/update-stream", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name, manager: requestedManager } = z.object({
+        name: z.string().optional(),
+        manager: z.enum(["npm", "pip", "poetry"]).optional(),
+      }).parse(req.body);
+
+      if (name && !validatePackageName(name)) return res.status(400).json({ message: "Invalid package name" });
+
+      const files = await storage.getFiles(project.id);
+
+      if (!name && !requestedManager) {
+        const managers = detectAllManagers(files);
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        });
+        const sendEvent = (event: string, data: any) => {
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        };
+        let allOutput = "";
+        let allSuccess = true;
+        for (const pm of managers) {
+          const { command, args } = buildUpdateCmd(pm);
+          sendEvent("start", { command: `${command} ${args.join(" ")}`, manager: pm });
+          try {
+            const result = await withInstallLock(project.id, () => runProjectCommand(project.id, command, args));
+            const output = (result.stdout + "\n" + result.stderr).trim();
+            const lines = output.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+              sendEvent("output", { line: lines[i], index: i, manager: pm });
+            }
+            allOutput += `\n--- ${pm} ---\n${output}`;
+            if (result.exitCode !== 0) allSuccess = false;
+          } catch (err: any) {
+            sendEvent("error", { message: err.message, manager: pm });
+            allSuccess = false;
+          }
+        }
+        sendEvent("done", { success: allSuccess, output: allOutput.trim(), command: "update all" });
+        outdatedCache.delete(project.id);
+        res.end();
+        return;
+      }
+
+      const pm = requestedManager || detectPackageManager(files);
+      const { command, args } = buildUpdateCmd(pm, name);
+
+      await streamCommand(res, project.id, command, args);
+      outdatedCache.delete(project.id);
+    } catch (err: any) {
+      if (!res.headersSent) {
+        if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+        return res.status(500).json({ message: err.message || "Failed to update package" });
+      }
+      res.end();
+    }
+  });
+
+  const outdatedCache = new Map<string, { data: any; ts: number }>();
+  const OUTDATED_CACHE_TTL = 120000;
+
+  app.get("/api/projects/:id/packages/outdated", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const cached = outdatedCache.get(project.id);
+      if (cached && Date.now() - cached.ts < OUTDATED_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const files = await storage.getFiles(project.id);
+      const managers = detectAllManagers(files);
+
+      const outdated: { name: string; current: string; latest: string; wanted: string; manager: string }[] = [];
+
+      for (const pm of managers) {
+        try {
+          if (pm === "npm") {
+            const result = await runProjectCommand(project.id, "npm", ["outdated", "--json"]);
+            const stdout = result.stdout.trim();
+            if (stdout) {
+              try {
+                const parsed = JSON.parse(stdout);
+                for (const [name, info] of Object.entries(parsed as Record<string, any>)) {
+                  outdated.push({ name, current: info.current || "", latest: info.latest || "", wanted: info.wanted || "", manager: "npm" });
+                }
+              } catch {}
+            }
+          } else if (pm === "pip") {
+            const result = await runProjectCommand(project.id, "pip", ["list", "--outdated", "--format=json"]);
+            if (result.stdout.trim()) {
+              try {
+                const parsed = JSON.parse(result.stdout) as any[];
+                for (const pkg of parsed) {
+                  outdated.push({ name: pkg.name, current: pkg.version, latest: pkg.latest_version, wanted: pkg.latest_version, manager: "pip" });
+                }
+              } catch {}
+            }
+          } else if (pm === "poetry") {
+            const result = await runProjectCommand(project.id, "poetry", ["show", "--outdated", "--no-ansi"]);
+            if (result.stdout.trim()) {
+              for (const line of result.stdout.trim().split("\n")) {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 3) {
+                  outdated.push({ name: parts[0], current: parts[1], latest: parts[2], wanted: parts[2], manager: "poetry" });
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const result = { outdated };
+      outdatedCache.set(project.id, { data: result, ts: Date.now() });
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to check outdated packages" });
+    }
+  });
+
+  const searchRateLimits = new Map<string, number>();
+  const SEARCH_RATE_MS = 300;
+
+  const projectInstallLocks = new Map<string, boolean>();
+
+  // --- PACKAGE REGISTRY SEARCH ---
+  app.get("/api/packages/search", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const lastSearch = searchRateLimits.get(userId) || 0;
+      if (Date.now() - lastSearch < SEARCH_RATE_MS) {
+        return res.status(429).json({ message: "Too many search requests, please slow down" });
+      }
+      searchRateLimits.set(userId, Date.now());
+
+      const { q, registry } = z.object({
+        q: z.string().min(1).max(200),
+        registry: z.enum(["npm", "pypi"]).default("npm"),
+      }).parse(req.query);
+
+      const sanitizedQuery = q.replace(/[<>&"'\\]/g, "").trim();
+      if (!sanitizedQuery) return res.json({ results: [], registry });
+
+      if (registry === "npm") {
+        const npmRes = await fetch(`https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(sanitizedQuery)}&size=15`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!npmRes.ok) return res.status(502).json({ message: "npm registry search failed" });
+        const data = await npmRes.json() as any;
+        const results = (data.objects || []).map((obj: any) => ({
+          name: obj.package?.name || "",
+          description: (obj.package?.description || "").substring(0, 200),
+          version: obj.package?.version || "",
+          downloads: obj.score?.detail?.popularity ? Math.round(obj.score.detail.popularity * 1000000) : 0,
+        }));
+        return res.json({ results, registry: "npm" });
+      } else {
+        const exactRes = await fetch(`https://pypi.org/pypi/${encodeURIComponent(sanitizedQuery)}/json`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        const exactResults: { name: string; description: string; version: string; downloads: number }[] = [];
+        if (exactRes.ok) {
+          const data = await exactRes.json() as any;
+          exactResults.push({
+            name: data.info?.name || sanitizedQuery,
+            description: (data.info?.summary || "").substring(0, 200),
+            version: data.info?.version || "",
+            downloads: 0,
+          });
+        }
+
+        const searchResults: { name: string; description: string; version: string; downloads: number }[] = [];
+        try {
+          const htmlRes = await fetch(`https://pypi.org/search/?q=${encodeURIComponent(sanitizedQuery)}&page=1`, {
+            headers: { "Accept": "text/html" },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (htmlRes.ok) {
+            const html = await htmlRes.text();
+            const snippetRe = /<a class="package-snippet"[^>]*href="\/project\/([^/"]+)\/"[^>]*>[\s\S]*?<span class="package-snippet__name">([^<]*)<\/span>\s*<span class="package-snippet__version">([^<]*)<\/span>[\s\S]*?<p class="package-snippet__description">([^<]*)<\/p>/g;
+            let match;
+            const seen = new Set(exactResults.map(r => r.name.toLowerCase()));
+            while ((match = snippetRe.exec(html)) && searchResults.length < 14) {
+              const pkgName = (match[2] || match[1]).trim();
+              if (!seen.has(pkgName.toLowerCase())) {
+                seen.add(pkgName.toLowerCase());
+                searchResults.push({
+                  name: pkgName,
+                  description: (match[4] || "").trim().substring(0, 200),
+                  version: (match[3] || "").trim(),
+                  downloads: 0,
+                });
+              }
+            }
+          }
+        } catch {}
+
+        const allResults = [...exactResults, ...searchResults];
+        if (allResults.length === 0) {
+          allResults.push({ name: sanitizedQuery, description: "Package not found in index — install to verify", version: "", downloads: 0 });
+        }
+        return res.json({ results: allResults.slice(0, 15), registry: "pypi" });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Package search failed" });
+    }
+  });
+
+  // --- PACKAGE VERSION LOOKUP ---
+  app.get("/api/packages/versions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { name, registry } = z.object({
+        name: z.string().min(1),
+        registry: z.enum(["npm", "pypi"]).default("npm"),
+      }).parse(req.query);
+
+      if (registry === "npm") {
+        const npmPkgPath = name.startsWith("@") ? `@${encodeURIComponent(name.substring(1))}` : encodeURIComponent(name);
+        const npmRes = await fetch(`https://registry.npmjs.org/${npmPkgPath}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!npmRes.ok) return res.status(404).json({ message: "Package not found" });
+        const data = await npmRes.json() as any;
+        const allVersions = Object.keys(data.versions || {});
+        const stableVersions = allVersions.filter(v => !/alpha|beta|rc|canary|dev|next|pre/i.test(v));
+        const versions = (stableVersions.length > 0 ? stableVersions : allVersions).reverse().slice(0, 20);
+        return res.json({ name, versions, latest: data["dist-tags"]?.latest || versions[0] });
+      } else {
+        const pypiRes = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!pypiRes.ok) return res.status(404).json({ message: "Package not found" });
+        const data = await pypiRes.json() as any;
+        const allPyVersions = Object.keys(data.releases || {});
+        const stablePyVersions = allPyVersions.filter(v => !/dev|alpha|beta|rc|pre/i.test(v) && (data.releases[v]?.length > 0));
+        const versions = (stablePyVersions.length > 0 ? stablePyVersions : allPyVersions).reverse().slice(0, 20);
+        return res.json({ name, versions, latest: data.info?.version || versions[0] });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Version lookup failed" });
+    }
+  });
+
+  // --- IMPORT GUESSING ---
+  app.get("/api/projects/:id/imports/missing", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const files = await storage.getFiles(project.id);
+      const pm = detectPackageManager(files);
+
+      const detectedImports = new Set<string>();
+      const isJsProject = pm === "npm" || project.language === "javascript" || project.language === "typescript";
+      const isPyProject = pm === "pip" || pm === "poetry" || project.language === "python" || project.language === "python3";
+
+      for (const file of files) {
+        if (!file.content) continue;
+        const ext = file.filename.split(".").pop()?.toLowerCase() || "";
+
+        if (isJsProject && ["js", "jsx", "ts", "tsx", "mjs", "cjs"].includes(ext)) {
+          const jsImportRe = /(?:import\s+(?:.*?from\s+)?['"]([^'"./][^'"]*?)['"]|export\s+.*?from\s+['"]([^'"./][^'"]*?)['"]|require\s*\(\s*['"]([^'"./][^'"]*?)['"]\s*\))/g;
+          let match;
+          while ((match = jsImportRe.exec(file.content)) !== null) {
+            const raw = match[1] || match[2] || match[3];
+            if (!raw) continue;
+            if (raw.startsWith("@")) {
+              const parts = raw.split("/");
+              if (parts.length >= 2) detectedImports.add(parts.slice(0, 2).join("/"));
+            } else {
+              detectedImports.add(raw.split("/")[0]);
+            }
+          }
+        }
+
+        if (isPyProject && ["py"].includes(ext)) {
+          const pyImportRe = /(?:^\s*import\s+(\w+)|^\s*from\s+(\w+)\s+import)/gm;
+          let match;
+          while ((match = pyImportRe.exec(file.content)) !== null) {
+            detectedImports.add(match[1] || match[2]);
+          }
+        }
+      }
+
+      const nodeBuiltins = new Set(["fs", "path", "http", "https", "url", "os", "crypto", "util", "stream", "events", "buffer", "child_process", "cluster", "dgram", "dns", "net", "readline", "tls", "vm", "zlib", "assert", "querystring", "string_decoder", "timers", "tty", "v8", "worker_threads", "perf_hooks", "module", "console", "process"]);
+      const pyBuiltins = new Set(["os", "sys", "re", "json", "math", "datetime", "collections", "itertools", "functools", "io", "pathlib", "typing", "abc", "copy", "enum", "hashlib", "hmac", "logging", "pickle", "random", "shutil", "socket", "sqlite3", "string", "subprocess", "tempfile", "threading", "time", "traceback", "unittest", "urllib", "uuid", "warnings", "xml", "argparse", "base64", "contextlib", "csv", "dataclasses", "decimal", "difflib", "email", "glob", "gzip", "heapq", "html", "http", "importlib", "inspect", "ipaddress", "operator", "pprint", "queue", "signal", "statistics", "struct", "textwrap", "zipfile"]);
+
+      const installedNames = new Set<string>();
+      let pkgFile;
+      if (isJsProject) {
+        pkgFile = files.find(f => f.filename === "package.json");
+        if (pkgFile && pkgFile.content) {
+          try {
+            const pkg = JSON.parse(pkgFile.content);
+            if (pkg.dependencies) Object.keys(pkg.dependencies).forEach(n => installedNames.add(n));
+            if (pkg.devDependencies) Object.keys(pkg.devDependencies).forEach(n => installedNames.add(n));
+          } catch {}
+        }
+      }
+      if (isPyProject) {
+        const reqFile = files.find(f => f.filename === "requirements.txt");
+        if (reqFile && reqFile.content) {
+          reqFile.content.split("\n").filter(l => l.trim() && !l.startsWith("#")).forEach(l => {
+            const m = l.match(/^([a-zA-Z0-9_.-]+)/);
+            if (m) installedNames.add(m[1].toLowerCase());
+          });
+        }
+        const pyproject = files.find(f => f.filename === "pyproject.toml");
+        if (pyproject && pyproject.content) {
+          const depMatch = pyproject.content.match(/\[tool\.poetry\.dependencies\]([\s\S]*?)(?:\[|$)/);
+          if (depMatch) {
+            depMatch[1].split("\n").forEach(l => {
+              const m = l.match(/^(\w[\w.-]*)\s*=/);
+              if (m) installedNames.add(m[1].toLowerCase());
+            });
+          }
+        }
+      }
+
+      const builtins = isJsProject ? nodeBuiltins : pyBuiltins;
+      const projectFileNames = new Set(files.map(f => f.filename.replace(/\.[^.]+$/, "").replace(/\//g, ".")));
+
+      const missing = Array.from(detectedImports)
+        .filter(imp => !builtins.has(imp) && !installedNames.has(imp.toLowerCase()) && !projectFileNames.has(imp))
+        .map(imp => ({ name: imp, suggestedPackage: imp }));
+
+      return res.json({ missing, packageManager: pm, language: project.language });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to analyze imports" });
+    }
+  });
+
+  // --- SYSTEM MODULES ---
+  app.get("/api/projects/:id/system-modules", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const modules = await storage.getSystemModules(project.id);
+      return res.json({ modules });
+    } catch {
+      return res.status(500).json({ message: "Failed to get system modules" });
+    }
+  });
+
+  app.post("/api/projects/:id/system-modules", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name, version } = z.object({ name: z.string().min(1).max(100), version: z.string().max(50).optional() }).parse(req.body);
+      const existing = await storage.getSystemModules(project.id);
+      if (existing.find(m => m.name === name)) return res.status(409).json({ message: "Module already added" });
+      const mod = await storage.createSystemModule({ projectId: project.id, name, version: version || null });
+      return res.json({ module: mod });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: err.message || "Failed to add system module" });
+    }
+  });
+
+  app.delete("/api/projects/:id/system-modules/:moduleId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const modules = await storage.getSystemModules(project.id);
+      const target = modules.find(m => m.id === req.params.moduleId);
+      if (!target) return res.status(404).json({ message: "Module not found" });
+      await storage.deleteSystemModule(req.params.moduleId);
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to remove system module" });
+    }
+  });
+
+  // --- SYSTEM DEPENDENCIES ---
+  app.get("/api/projects/:id/system-deps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deps = await storage.getSystemDeps(project.id);
+      return res.json({ deps });
+    } catch {
+      return res.status(500).json({ message: "Failed to get system dependencies" });
+    }
+  });
+
+  app.post("/api/projects/:id/system-deps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { name } = z.object({ name: z.string().min(1).max(200) }).parse(req.body);
+      const existing = await storage.getSystemDeps(project.id);
+      if (existing.find(d => d.name === name)) return res.status(409).json({ message: "Dependency already added" });
+      const dep = await storage.createSystemDep({ projectId: project.id, name });
+      return res.json({ dep });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: err.message || "Failed to add system dependency" });
+    }
+  });
+
+  app.delete("/api/projects/:id/system-deps/:depId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deps = await storage.getSystemDeps(project.id);
+      const target = deps.find(d => d.id === req.params.depId);
+      if (!target) return res.status(404).json({ message: "Dependency not found" });
+      await storage.deleteSystemDep(req.params.depId);
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to remove system dependency" });
+    }
+  });
+
+  // --- NIX PACKAGE SEARCH ---
+  app.get("/api/nix/search", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { q } = z.object({ q: z.string().min(1).max(100) }).parse(req.query);
+      const nixRes = await fetch(`https://search.nixos.org/backend/latest-42-nixos-unstable/_search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: 0,
+          size: 15,
+          query: {
+            bool: {
+              should: [
+                { match: { "package_attr_name": { query: q, boost: 3 } } },
+                { match: { "package_pname": { query: q, boost: 2 } } },
+                { wildcard: { "package_attr_name": { value: `*${q}*` } } },
+              ],
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!nixRes.ok) {
+        return res.json({ results: [] });
+      }
+      const data = await nixRes.json() as any;
+      const results = (data.hits?.hits || []).map((hit: any) => ({
+        name: hit._source?.package_attr_name || "",
+        pname: hit._source?.package_pname || "",
+        version: hit._source?.package_version || "",
+        description: hit._source?.package_description || "",
+      }));
+      return res.json({ results });
+    } catch {
+      return res.json({ results: [] });
     }
   });
 
@@ -4608,9 +5291,23 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Workspace not found" });
     }
     try {
+      const [systemModules, systemDeps] = await Promise.all([
+        storage.getSystemModules(project.id),
+        storage.getSystemDeps(project.id),
+      ]);
       await runnerClient.startWorkspace(workspace.id);
+      if (systemModules.length > 0 || systemDeps.length > 0) {
+        try {
+          await runnerClient.configureWorkspaceEnv(workspace.id, {
+            systemModules: systemModules.map(m => ({ name: m.name, version: m.version })),
+            systemDeps: systemDeps.map(d => d.name),
+          });
+        } catch (configErr: any) {
+          log(`Runner env config warning: ${configErr.message}`, "runner");
+        }
+      }
       await storage.updateWorkspaceStatus(workspace.id, "running");
-      return res.json({ status: "running" });
+      return res.json({ status: "running", systemModules: systemModules.length, systemDeps: systemDeps.length });
     } catch (err: any) {
       log(`Runner start error: ${err.message}`, "runner");
       return res.status(502).json({ message: "Runner unavailable" });

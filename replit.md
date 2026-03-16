@@ -49,6 +49,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Shell-to-Git Sync**: `GET /git/state-hash` returns SHA-256 hash of HEAD+branch+statusMatrix. Frontend polls every 4s when Git pane open, auto-invalidates React Query caches on change.
 - **Developer Frameworks**: Users can publish projects as reusable frameworks (`/frameworks` route, `Frameworks.tsx`). Official templates are seeded as verified frameworks. Features: search, category/language filtering, fork with one click, update messages. API: `GET/POST /api/frameworks`, `GET /api/frameworks/:id`, `POST /api/projects/:id/publish-as-framework`, `POST /api/frameworks/:id/updates`. Categories: frontend, backend, fullstack, systems, scripting, other.
 - **Mobile App Projects**: React Native/Expo project type (`projectType: "mobile-app"`). 3 starter templates: `mobile-blank`, `mobile-tabs`, `mobile-social-feed`. Device-frame preview component (`MobilePreview.tsx`) with 6 device presets (iPhone SE/15/Pro Max, Pixel 8, Galaxy S24, iPad Air), dynamic island rendering, and iframe preview. AI agent detects mobile projects and injects React Native-specific coding instructions. Dashboard shows phone icons for mobile projects with purple accent. AI project generation supports mobile-app projectType.
+- **Dependency Management**: Production-quality IDE dependency panel (`PackagesPanel.tsx`) with two-tab UI (Imports + System Advanced). npm/PyPI registry search with rate limiting (300ms per user). SSE streaming install/remove/update output via `/packages/install-stream`, `/packages/remove-stream`, `/packages/update-stream`. Auto-detection of package manager (npm/pip/poetry) from project files. Import guessing from source code. Version pinning with version picker. Outdated detection with amber badges (`/packages/outdated` with 2-min cache). Per-package and update-all buttons with multi-manager fan-out. System modules and Nix deps CRUD (`system_modules`, `system_deps` tables). Per-project concurrency locks prevent parallel installs. Package name validation with strict regex. Multi-language grouping in UI.
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id, keyboard_shortcuts (JSON)
@@ -109,6 +110,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
 - `mcp_servers`: id (uuid), project_id (indexed), name, description, command, args (JSON string[]), env (JSON), is_built_in, status, created_at — unique(project_id, name)
 - `mcp_tools`: id (uuid), server_id (indexed), name, description, input_schema (JSON), created_at
+- `system_modules`: id (uuid), project_id (indexed), name, version — language runtime modules for workspace configuration
+- `system_deps`: id (uuid), project_id (indexed), name — Nix system-level dependencies for workspace environment
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
@@ -163,7 +166,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Team invites**: Email notifications for team invitations
 - **Teams & Organizations**: Create teams, invite members, role-based access (owner/admin/member)
 - **Admin Dashboard**: Platform metrics, user management, analytics (admin-only)
-- **Package Management**: Detect package.json/requirements.txt, add/remove packages, activity bar icon
+- **Dependency Management**: Full two-tab Dependencies panel (Imports + System Advanced). Imports tab: registry search (npm/PyPI), version picker, missing import detection with one-click install, poetry support, language dropdown. System tab: system modules (language runtimes) and Nix dependencies CRUD. API endpoints: `GET /api/packages/search`, `GET /api/packages/versions`, `GET /api/projects/:id/imports/missing`, `GET/POST/DELETE /api/projects/:id/system-modules`, `GET/POST/DELETE /api/projects/:id/system-deps`
 - **Database Viewer**: Activity bar panel to browse database tables, view columns/types, run SQL queries (read-only SELECT/WITH/EXPLAIN/SHOW), results table display. Component: `DatabasePanel.tsx`, API: `POST /api/projects/:id/database/query`
 - **Test Runner**: Activity bar panel to detect test files (Jest/Vitest/Mocha/pytest patterns), run all or single tests, display pass/fail/skip results with duration. Component: `TestRunnerPanel.tsx`, API: `GET /api/projects/:id/tests/detect`, `POST /api/projects/:id/tests/run`
 - **AI Commit Messages**: "AI" button in git commit textarea that generates a commit message by analyzing file changes since last commit using Claude Sonnet. API: `POST /api/projects/:id/git/generate-commit-message`

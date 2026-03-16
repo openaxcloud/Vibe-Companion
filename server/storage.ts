@@ -96,6 +96,9 @@ import {
   type VideoDataRecord, type InsertVideoData,
   type SlideData, type SlideTheme,
   type VideoScene, type VideoAudioTrack,
+  systemModules, systemDeps,
+  type SystemModule, type InsertSystemModule,
+  type SystemDep, type InsertSystemDep,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -463,6 +466,13 @@ export interface IStorage {
   createVideoData(data: InsertVideoData): Promise<VideoDataRecord>;
   updateVideoData(projectId: string, data: Partial<{ scenes: VideoScene[]; audioTracks: VideoAudioTrack[]; resolution: { width: number; height: number }; fps: number }>): Promise<VideoDataRecord | undefined>;
   deleteVideoData(projectId: string): Promise<boolean>;
+
+  getSystemModules(projectId: string): Promise<SystemModule[]>;
+  createSystemModule(data: InsertSystemModule): Promise<SystemModule>;
+  deleteSystemModule(id: string): Promise<boolean>;
+  getSystemDeps(projectId: string): Promise<SystemDep[]>;
+  createSystemDep(data: InsertSystemDep): Promise<SystemDep>;
+  deleteSystemDep(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2729,19 +2739,33 @@ export class DatabaseStorage implements IStorage {
     const result = await db.delete(videoData).where(eq(videoData.projectId, projectId)).returning();
     return result.length > 0;
   }
-}
 
-function colorDistance(hex1: string, hex2: string): number {
-  const parse = (h: string) => {
-    const c = h.replace("#", "");
-    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
-  };
-  try {
-    const [r1, g1, b1] = parse(hex1);
-    const [r2, g2, b2] = parse(hex2);
-    return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
-  } catch {
-    return Infinity;
+  async getSystemModules(projectId: string): Promise<SystemModule[]> {
+    return db.select().from(systemModules).where(eq(systemModules.projectId, projectId));
+  }
+
+  async createSystemModule(data: InsertSystemModule): Promise<SystemModule> {
+    const [m] = await db.insert(systemModules).values(data).returning();
+    return m;
+  }
+
+  async deleteSystemModule(id: string): Promise<boolean> {
+    const result = await db.delete(systemModules).where(eq(systemModules.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getSystemDeps(projectId: string): Promise<SystemDep[]> {
+    return db.select().from(systemDeps).where(eq(systemDeps.projectId, projectId));
+  }
+
+  async createSystemDep(data: InsertSystemDep): Promise<SystemDep> {
+    const [d] = await db.insert(systemDeps).values(data).returning();
+    return d;
+  }
+
+  async deleteSystemDep(id: string): Promise<boolean> {
+    const result = await db.delete(systemDeps).where(eq(systemDeps.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

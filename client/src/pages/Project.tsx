@@ -4663,7 +4663,10 @@ function _projectPage() {
               )}
               {mobileTab === "packages" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-packages-panel">
-                  <PackagesPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                  <PackagesPanel projectId={projectId} onClose={() => setMobileTab("editor")} onOpenFile={(filename) => {
+                    const file = filesQuery.data?.find((f: any) => f.filename === filename);
+                    if (file) { openFile(file); setMobileTab("editor"); }
+                  }} />
                 </div>
               )}
               {mobileTab === "database" && (
@@ -6490,7 +6493,10 @@ function _projectPage() {
 
             {activePanelTab === "packages" && (
               <div className="flex-1 flex flex-col">
-                <PackagesPanel projectId={projectId} onClose={() => closePanel("packages")} />
+                <PackagesPanel projectId={projectId} onClose={() => closePanel("packages")} onOpenFile={(filename) => {
+                  const file = filesQuery.data?.find((f: any) => f.filename === filename);
+                  if (file) openFile(file);
+                }} />
               </div>
             )}
 
