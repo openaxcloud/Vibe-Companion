@@ -229,6 +229,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/billing/webhook",
   "/api/analytics/track",
   "/api/webhooks/automation",
+  "/api/slack/events",
 ];
 
 function csrfProtection(req: Request, res: Response, next: NextFunction) {
@@ -4938,7 +4939,13 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const list = await storage.getAutomations(req.params.id);
-      res.json(list);
+      const sanitized = list.map(a => ({
+        ...a,
+        slackBotToken: a.slackBotToken ? "****" + a.slackBotToken.slice(-4) : null,
+        slackSigningSecret: a.slackSigningSecret ? "****" + a.slackSigningSecret.slice(-4) : null,
+        telegramBotToken: a.telegramBotToken ? "****" + a.telegramBotToken.slice(-4) : null,
+      }));
+      res.json(sanitized);
     } catch {
       res.status(500).json({ message: "Failed to fetch automations" });
     }
@@ -4947,10 +4954,12 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/automations", requireAuth, async (req: Request, res: Response) => {
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const { name, type, cronExpression, script, language } = req.body;
+      const { name, type, cronExpression, script, language, slackBotToken, slackSigningSecret, telegramBotToken } = req.body;
       if (!name || !type) return res.status(400).json({ message: "Name and type are required" });
 
-      const data: any = { projectId: req.params.id, name, type, script: script || "", language: language || "javascript" };
+      const data: Parameters<typeof storage.createAutomation>[0] = {
+        projectId: req.params.id, name, type, script: script || "", language: language || "javascript",
+      };
       if (type === "cron" && cronExpression) {
         const { validateCronExpression } = await import("./automationScheduler");
         if (!validateCronExpression(cronExpression)) return res.status(400).json({ message: "Invalid cron expression" });
@@ -4960,12 +4969,31 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         const { generateWebhookToken } = await import("./automationScheduler");
         data.webhookToken = generateWebhookToken();
       }
+      if (type === "slack") {
+        if (!slackBotToken || !slackSigningSecret) return res.status(400).json({ message: "Slack bot token and signing secret are required" });
+        data.slackBotToken = slackBotToken;
+        data.slackSigningSecret = slackSigningSecret;
+      }
+      if (type === "telegram") {
+        if (!telegramBotToken) return res.status(400).json({ message: "Telegram bot token is required" });
+        data.telegramBotToken = telegramBotToken;
+      }
 
       const automation = await storage.createAutomation(data);
 
       if (type === "cron" && cronExpression && automation.enabled) {
         const { scheduleAutomation } = await import("./automationScheduler");
         scheduleAutomation(automation.id, cronExpression);
+      }
+      if (type === "slack" && automation.enabled && automation.slackBotToken && automation.slackSigningSecret) {
+        const { startSlackBot } = await import("./slackBot");
+        startSlackBot(automation.id, automation.slackBotToken, automation.slackSigningSecret).catch(err =>
+          log(`Failed to start Slack bot: ${err.message}`, "automation"));
+      }
+      if (type === "telegram" && automation.enabled && automation.telegramBotToken) {
+        const { startTelegramBot } = await import("./telegramBot");
+        startTelegramBot(automation.id, automation.telegramBotToken).catch(err =>
+          log(`Failed to start Telegram bot: ${err.message}`, "automation"));
       }
 
       res.status(201).json(automation);
@@ -4990,15 +5018,34 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         if (!validateCronExpression(req.body.cronExpression)) return res.status(400).json({ message: "Invalid cron expression" });
         updates.cronExpression = req.body.cronExpression;
       }
+      if (req.body.slackBotToken !== undefined) updates.slackBotToken = req.body.slackBotToken;
+      if (req.body.slackSigningSecret !== undefined) updates.slackSigningSecret = req.body.slackSigningSecret;
+      if (req.body.telegramBotToken !== undefined) updates.telegramBotToken = req.body.telegramBotToken;
 
       const updated = await storage.updateAutomation(req.params.automationId, updates);
 
-      const { scheduleAutomation, unscheduleAutomation } = await import("./automationScheduler");
+      const { scheduleAutomation, unscheduleAutomation, stopBotAutomation } = await import("./automationScheduler");
       if (updated && updated.type === "cron") {
         if (updated.enabled && updated.cronExpression) {
           scheduleAutomation(updated.id, updated.cronExpression);
         } else {
           unscheduleAutomation(updated.id);
+        }
+      }
+      if (updated && updated.type === "slack") {
+        const { startSlackBot, stopSlackBot } = await import("./slackBot");
+        if (updated.enabled && updated.slackBotToken && updated.slackSigningSecret) {
+          await startSlackBot(updated.id, updated.slackBotToken, updated.slackSigningSecret);
+        } else {
+          await stopSlackBot(updated.id);
+        }
+      }
+      if (updated && updated.type === "telegram") {
+        const { startTelegramBot, stopTelegramBot } = await import("./telegramBot");
+        if (updated.enabled && updated.telegramBotToken) {
+          await startTelegramBot(updated.id, updated.telegramBotToken);
+        } else {
+          await stopTelegramBot(updated.id);
         }
       }
 
@@ -5014,8 +5061,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!automation) return res.status(404).json({ message: "Not found" });
       if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
 
-      const { unscheduleAutomation } = await import("./automationScheduler");
+      const { unscheduleAutomation, stopBotAutomation } = await import("./automationScheduler");
       unscheduleAutomation(req.params.automationId);
+      await stopBotAutomation(req.params.automationId);
 
       await storage.deleteAutomation(req.params.automationId);
       res.json({ success: true });
@@ -5031,7 +5079,32 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
 
       const { executeAutomation } = await import("./automationScheduler");
-      const result = await executeAutomation(req.params.automationId, "manual");
+      let triggeredBy = "manual";
+      let eventPayload: string | undefined;
+
+      if (req.body.testMessage && (automation.type === "slack" || automation.type === "telegram")) {
+        triggeredBy = `${automation.type}-test`;
+        if (automation.type === "slack") {
+          eventPayload = JSON.stringify({
+            type: "slack_message",
+            text: req.body.testMessage,
+            user: "test-user",
+            channel: "test-channel",
+            ts: String(Date.now()),
+          });
+        } else {
+          eventPayload = JSON.stringify({
+            type: "telegram_message",
+            messageId: Date.now(),
+            text: req.body.testMessage,
+            from: { id: 0, firstName: "Test", lastName: "User", username: "test_user" },
+            chat: { id: 0, type: "private", title: undefined },
+            date: Math.floor(Date.now() / 1000),
+          });
+        }
+      }
+
+      const result = await executeAutomation(req.params.automationId, triggeredBy, eventPayload);
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to trigger automation" });
@@ -5062,6 +5135,51 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.json(result);
     } catch {
       res.status(500).json({ message: "Webhook execution failed" });
+    }
+  });
+
+  app.post("/api/automations/test-slack", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { botToken, signingSecret } = req.body;
+      if (!botToken || !signingSecret) return res.status(400).json({ message: "Bot token and signing secret are required" });
+      const { testSlackConnection } = await import("./slackBot");
+      const result = await testSlackConnection(botToken, signingSecret);
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Failed to test Slack connection" });
+    }
+  });
+
+  app.post("/api/automations/test-telegram", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { botToken } = req.body;
+      if (!botToken) return res.status(400).json({ message: "Bot token is required" });
+      const { testTelegramConnection } = await import("./telegramBot");
+      const result = await testTelegramConnection(botToken);
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Failed to test Telegram connection" });
+    }
+  });
+
+  app.get("/api/automations/:automationId/bot-status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const automation = await storage.getAutomation(req.params.automationId);
+      if (!automation) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      let status = automation.botStatus || "disconnected";
+      if (automation.type === "slack") {
+        const { getSlackBotStatus } = await import("./slackBot");
+        status = getSlackBotStatus(automation.id);
+      } else if (automation.type === "telegram") {
+        const { getTelegramBotStatus } = await import("./telegramBot");
+        status = getTelegramBotStatus(automation.id);
+      }
+
+      res.json({ status });
+    } catch {
+      res.status(500).json({ message: "Failed to get bot status" });
     }
   });
 
@@ -5710,6 +5828,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   log("Plan configs seeded", "seed");
   await storage.seedIntegrationCatalog();
   log("Integration catalog seeded", "seed");
+
+  const { setExpressApp } = await import("./slackBot");
+  setExpressApp(app);
 
   const { startAutomationScheduler } = await import("./automationScheduler");
   startAutomationScheduler().catch(err => log(`Automation scheduler error: ${err.message}`, "automation"));

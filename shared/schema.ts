@@ -617,6 +617,10 @@ export const automations = pgTable("automations", {
   type: text("type").notNull().default("cron"),
   cronExpression: text("cron_expression"),
   webhookToken: text("webhook_token"),
+  slackBotToken: text("slack_bot_token"),
+  slackSigningSecret: text("slack_signing_secret"),
+  telegramBotToken: text("telegram_bot_token"),
+  botStatus: text("bot_status").default("disconnected"),
   script: text("script").notNull().default(""),
   language: text("language").notNull().default("javascript"),
   enabled: boolean("enabled").notNull().default(true),
@@ -633,6 +637,9 @@ export const insertAutomationSchema = createInsertSchema(automations).pick({
   script: true,
   language: true,
   enabled: true,
+  slackBotToken: true,
+  slackSigningSecret: true,
+  telegramBotToken: true,
 });
 export type InsertAutomation = z.infer<typeof insertAutomationSchema>;
 export type Automation = typeof automations.$inferSelect;

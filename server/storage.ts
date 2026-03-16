@@ -236,8 +236,8 @@ export interface IStorage {
 
   getAutomations(projectId: string): Promise<Automation[]>;
   getAutomation(id: string): Promise<Automation | undefined>;
-  createAutomation(data: InsertAutomation & { webhookToken?: string }): Promise<Automation>;
-  updateAutomation(id: string, data: Partial<{ name: string; cronExpression: string; script: string; language: string; enabled: boolean; lastRunAt: Date }>): Promise<Automation | undefined>;
+  createAutomation(data: InsertAutomation & { webhookToken?: string; botStatus?: string }): Promise<Automation>;
+  updateAutomation(id: string, data: Partial<{ name: string; cronExpression: string; script: string; language: string; enabled: boolean; lastRunAt: Date; slackBotToken: string; slackSigningSecret: string; telegramBotToken: string; botStatus: string }>): Promise<Automation | undefined>;
   deleteAutomation(id: string): Promise<boolean>;
   getAutomationByWebhookToken(token: string): Promise<Automation | undefined>;
   createAutomationRun(automationId: string, triggeredBy: string): Promise<AutomationRun>;
@@ -1296,12 +1296,12 @@ export class DatabaseStorage implements IStorage {
     return a;
   }
 
-  async createAutomation(data: InsertAutomation & { webhookToken?: string }): Promise<Automation> {
+  async createAutomation(data: InsertAutomation & { webhookToken?: string; botStatus?: string }): Promise<Automation> {
     const [a] = await db.insert(automations).values(data).returning();
     return a;
   }
 
-  async updateAutomation(id: string, data: Partial<{ name: string; cronExpression: string; script: string; language: string; enabled: boolean; lastRunAt: Date }>): Promise<Automation | undefined> {
+  async updateAutomation(id: string, data: Partial<{ name: string; cronExpression: string; script: string; language: string; enabled: boolean; lastRunAt: Date; slackBotToken: string; slackSigningSecret: string; telegramBotToken: string; botStatus: string }>): Promise<Automation | undefined> {
     const [a] = await db.update(automations).set(data).where(eq(automations.id, id)).returning();
     return a;
   }

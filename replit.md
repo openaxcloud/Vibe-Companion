@@ -58,7 +58,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `integration_catalog`: id, name (unique), category, description, icon, env_var_keys (JSON string[])
 - `project_integrations`: id, project_id (indexed), integration_id, status, config (JSON), connected_at — unique(project_id, integration_id)
 - `integration_logs`: id, project_integration_id (indexed), level, message, created_at
-- `automations`: id (uuid), project_id (indexed), name, type (cron/webhook/on-deploy), cron_expression, webhook_token (unique), script, language, enabled, last_run_at, created_at
+- `automations`: id (uuid), project_id (indexed), name, type (cron/webhook/on-deploy/slack/telegram), cron_expression, webhook_token (unique), slack_bot_token, slack_signing_secret, telegram_bot_token, bot_status, script, language, enabled, last_run_at, created_at
 - `automation_runs`: id (uuid), automation_id (indexed), status, stdout, stderr, exit_code, duration_ms, triggered_by, started_at, finished_at
 - `workflows`: id (uuid), project_id (indexed), name, trigger_event, enabled, created_at
 - `workflow_steps`: id (uuid), workflow_id (indexed), name, command, order_index, continue_on_error
@@ -77,7 +77,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - CRUD projects (create, list, duplicate, delete) with project limit enforcement
 - **Usage quotas**: Per-user daily limits (50 executions, 20 AI calls on free plan), project limits (5 on free), storage limits, with live usage display in dashboard sidebar
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
-- **Automations**: Cron scheduling (node-cron), webhook triggers (unique token per automation), on-deploy triggers, execution history with stdout/stderr. Panel in activity bar (Zap icon, #F5A623).
+- **Automations**: Cron scheduling (node-cron), webhook triggers (unique token per automation), on-deploy triggers, Slack bot triggers (@slack/bolt with ExpressReceiver), Telegram bot triggers (telegraf with long-polling), execution history with stdout/stderr. Bot credentials stored securely (masked in API responses). Connection status indicators. Panel in activity bar (Zap icon, #F5A623).
 - **Workflows**: Multi-step sequential build/run workflows with templates (CI/CD, Build & Test, Lint & Format), live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
 - **Monitoring**: CPU, memory, request, and error metric tracking with configurable alerts (gt/lt/eq thresholds). Demo data generation. Panel in activity bar (Activity icon, #10B981).
 - **Threads**: Code discussion threads per-file with line number references, open/resolved status, comments. Panel in activity bar (MessageSquare icon, #8B5CF6).

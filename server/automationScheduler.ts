@@ -12,22 +12,36 @@ export function generateWebhookToken(): string {
 
 export async function startAutomationScheduler() {
   try {
-    const allAutomations = await getAllEnabledCronAutomations();
+    const allAutomations = await getAllEnabledAutomations();
+    let cronCount = 0;
+    let slackCount = 0;
+    let telegramCount = 0;
+
     for (const automation of allAutomations) {
-      scheduleAutomation(automation.id, automation.cronExpression!);
+      if (automation.type === "cron" && automation.cronExpression) {
+        scheduleAutomation(automation.id, automation.cronExpression);
+        cronCount++;
+      } else if (automation.type === "slack" && automation.slackBotToken && automation.slackSigningSecret) {
+        const { startSlackBot } = await import("./slackBot");
+        await startSlackBot(automation.id, automation.slackBotToken, automation.slackSigningSecret);
+        slackCount++;
+      } else if (automation.type === "telegram" && automation.telegramBotToken) {
+        const { startTelegramBot } = await import("./telegramBot");
+        await startTelegramBot(automation.id, automation.telegramBotToken);
+        telegramCount++;
+      }
     }
-    log(`Automation scheduler started with ${allAutomations.length} cron jobs`, "automation");
+    log(`Automation scheduler started: ${cronCount} cron, ${slackCount} slack, ${telegramCount} telegram`, "automation");
   } catch (err: any) {
     log(`Failed to start automation scheduler: ${err.message}`, "automation");
   }
 }
 
-async function getAllEnabledCronAutomations() {
+async function getAllEnabledAutomations() {
   const { db } = await import("./db");
   const { automations } = await import("@shared/schema");
-  const { eq, and } = await import("drizzle-orm");
-  return db.select().from(automations)
-    .where(and(eq(automations.enabled, true), eq(automations.type, "cron")));
+  const { eq } = await import("drizzle-orm");
+  return db.select().from(automations).where(eq(automations.enabled, true));
 }
 
 export function scheduleAutomation(automationId: string, cronExpression: string) {
@@ -54,7 +68,14 @@ export function unscheduleAutomation(automationId: string) {
   }
 }
 
-export async function executeAutomation(automationId: string, triggeredBy: string): Promise<{ success: boolean; runId?: string; error?: string }> {
+export async function stopBotAutomation(automationId: string) {
+  const { stopSlackBot } = await import("./slackBot");
+  const { stopTelegramBot } = await import("./telegramBot");
+  await stopSlackBot(automationId);
+  await stopTelegramBot(automationId);
+}
+
+export async function executeAutomation(automationId: string, triggeredBy: string, eventPayload?: string): Promise<{ success: boolean; runId?: string; error?: string; response?: string }> {
   const automation = await storage.getAutomation(automationId);
   if (!automation) return { success: false, error: "Automation not found" };
   if (!automation.enabled) return { success: false, error: "Automation is disabled" };
@@ -63,7 +84,21 @@ export async function executeAutomation(automationId: string, triggeredBy: strin
   const startTime = Date.now();
 
   try {
-    const result = await executeCode(automation.script, automation.language);
+    let scriptToRun = automation.script;
+    if (eventPayload) {
+      const b64Payload = Buffer.from(eventPayload).toString("base64");
+      let payloadInjection: string;
+      if (automation.language === "python") {
+        payloadInjection = `import json, base64\nEVENT = json.loads(base64.b64decode("${b64Payload}").decode("utf-8"))\n`;
+      } else if (automation.language === "bash") {
+        payloadInjection = `EVENT=$(echo "${b64Payload}" | base64 -d)\n`;
+      } else {
+        payloadInjection = `const EVENT = JSON.parse(Buffer.from("${b64Payload}", "base64").toString("utf-8"));\n`;
+      }
+      scriptToRun = payloadInjection + scriptToRun;
+    }
+
+    const result = await executeCode(scriptToRun, automation.language);
     const durationMs = Date.now() - startTime;
 
     await storage.updateAutomationRun(run.id, {
@@ -77,8 +112,10 @@ export async function executeAutomation(automationId: string, triggeredBy: strin
 
     await storage.updateAutomation(automationId, { lastRunAt: new Date() });
 
+    const response = result.stdout?.trim() || undefined;
+
     log(`Automation ${automation.name} (${triggeredBy}): exit=${result.exitCode}, duration=${durationMs}ms`, "automation");
-    return { success: result.exitCode === 0, runId: run.id };
+    return { success: result.exitCode === 0, runId: run.id, response };
   } catch (err: any) {
     const durationMs = Date.now() - startTime;
     await storage.updateAutomationRun(run.id, {
@@ -97,6 +134,13 @@ export function stopAllScheduledJobs() {
     task.stop();
   }
   scheduledJobs.clear();
+}
+
+export async function stopAllBots() {
+  const { stopAllSlackBots } = await import("./slackBot");
+  const { stopAllTelegramBots } = await import("./telegramBot");
+  await stopAllSlackBots();
+  await stopAllTelegramBots();
 }
 
 export function validateCronExpression(expr: string): boolean {
