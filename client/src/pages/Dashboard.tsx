@@ -8,7 +8,7 @@ import {
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
   Bell, CreditCard, Menu, X, Terminal, FileText, User, Lock,
   Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw, LayoutGrid, List as ListIcon,
-  Box
+  Box, Cog, PenTool, Table2
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -60,7 +60,7 @@ const LANG_ICONS: Record<string, { color: string; bg: string; label: string; bor
 
 const APP_CATEGORIES = [
   {
-    id: "website", label: "Website", icon: Globe,
+    id: "web", label: "Web", icon: Globe,
     prompts: [
       "Portfolio website with 3D scroll animations and project showcase gallery",
       "SaaS landing page with animated pricing tiers, testimonials carousel, and waitlist signup",
@@ -73,8 +73,8 @@ const APP_CATEGORIES = [
   {
     id: "mobile", label: "Mobile", icon: Smartphone,
     prompts: [
-      "Fitness tracker app with workout logging, progress charts, and streak system",
-      "Habit tracking app with daily streaks, push notifications, and analytics dashboard",
+      "Fitness tracker PWA with workout logging, progress charts, and streak system",
+      "Habit tracking app with daily streaks, notifications, and analytics dashboard",
       "Social recipe sharing app with ingredient scanner and meal planning calendar",
       "Language flashcard app with spaced repetition algorithm and pronunciation guide",
       "Expense splitting app for groups with receipt scanning and payment tracking",
@@ -82,25 +82,14 @@ const APP_CATEGORIES = [
     ],
   },
   {
-    id: "design", label: "Design", icon: Palette,
-    prompts: [
-      "Collaborative whiteboard tool with real-time drawing and sticky notes",
-      "Color palette generator with accessibility contrast checker and export options",
-      "Mood board creator with drag-and-drop image arrangement and font pairing",
-      "Design system documentation site with live component previews",
-      "SVG icon editor with path manipulation and batch export tools",
-      "Brand identity kit generator with logo variations and style guide output",
-    ],
-  },
-  {
     id: "slides", label: "Slides", icon: Presentation,
     prompts: [
-      "Startup pitch deck builder with animated transitions and speaker notes",
-      "Interactive presentation tool with live audience polling and Q&A",
+      "Startup pitch deck with animated transitions and speaker notes",
+      "Interactive presentation with live audience polling and Q&A",
       "Product launch slide deck with embedded demo videos and timeline",
-      "Educational slideshow maker with quiz slides and progress tracking",
-      "Conference talk builder with code syntax highlighting and live demos",
-      "Sales deck generator with dynamic charts and CRM data integration",
+      "Educational slideshow with quiz slides and progress tracking",
+      "Conference talk with code syntax highlighting and live demos",
+      "Sales deck with dynamic charts and data integration",
     ],
   },
   {
@@ -115,7 +104,18 @@ const APP_CATEGORIES = [
     ],
   },
   {
-    id: "data-viz", label: "Data Viz", icon: BarChart3,
+    id: "design", label: "Design", icon: Palette,
+    prompts: [
+      "Collaborative whiteboard tool with real-time drawing and sticky notes",
+      "Color palette generator with accessibility contrast checker and export options",
+      "Mood board creator with drag-and-drop image arrangement and font pairing",
+      "Design system documentation site with live component previews",
+      "SVG icon editor with path manipulation and batch export tools",
+      "Brand identity kit generator with logo variations and style guide output",
+    ],
+  },
+  {
+    id: "data-visualization", label: "Data Viz", icon: BarChart3,
     prompts: [
       "Real-time stock market dashboard with WebSocket feeds and candlestick charts",
       "COVID-style epidemic tracker with interactive maps and trend analysis",
@@ -126,7 +126,18 @@ const APP_CATEGORIES = [
     ],
   },
   {
-    id: "game", label: "Game", icon: Gamepad2,
+    id: "automation", label: "Automation", icon: Cog,
+    prompts: [
+      "File watcher that auto-organizes downloads by type and date",
+      "Email digest automation that summarizes daily notifications",
+      "Data pipeline that fetches, transforms, and stores API data on a schedule",
+      "Automated backup script with rotation, compression, and cloud sync",
+      "Web scraper with scheduling, deduplication, and CSV export",
+      "Log monitoring bot that alerts on error patterns and anomalies",
+    ],
+  },
+  {
+    id: "3d-game", label: "3D Game", icon: Gamepad2,
     prompts: [
       "3D racing game with physics engine, nitro boost, and procedural tracks",
       "Multiplayer trivia game with real-time scoring and category selection",
@@ -137,25 +148,25 @@ const APP_CATEGORIES = [
     ],
   },
   {
-    id: "api", label: "API", icon: Database,
+    id: "document", label: "Document", icon: PenTool,
     prompts: [
-      "RESTful API with JWT authentication, rate limiting, and Swagger docs",
-      "GraphQL API gateway with schema stitching and real-time subscriptions",
-      "Webhook relay service with retry logic, payload transformation, and logs",
-      "API mocking server with dynamic response templates and latency simulation",
-      "OAuth2 provider with token management, scopes, and admin dashboard",
-      "Event-driven microservice with message queues and dead letter handling",
+      "Markdown editor with live preview, syntax highlighting, and export to PDF",
+      "Rich text editor with formatting toolbar, image embedding, and templates",
+      "Collaborative note-taking app with tagging, search, and version history",
+      "Resume builder with multiple templates and PDF export",
+      "Meeting notes app with agenda templates, action items, and sharing",
+      "Technical documentation site with sidebar navigation and code examples",
     ],
   },
   {
-    id: "dashboard", label: "Dashboard", icon: LayoutDashboard,
+    id: "spreadsheet", label: "Spreadsheet", icon: Table2,
     prompts: [
-      "B2B project management app with Kanban board, Gantt chart, and team chat",
-      "Admin panel with role-based access, audit logs, and data table CRUD",
-      "IoT device monitoring dashboard with real-time sensor readings and alerts",
-      "Customer support ticketing system with SLA tracking and agent analytics",
-      "Inventory management system with barcode scanning and reorder automation",
-      "HR employee portal with time tracking, leave management, and org chart",
+      "Budget tracker spreadsheet with categories, charts, and monthly comparison",
+      "Project timeline spreadsheet with Gantt chart and resource allocation",
+      "Inventory management grid with formulas, sorting, and CSV import/export",
+      "Grade book spreadsheet with weighted averages and student analytics",
+      "Sales pipeline tracker with deal stages, probability, and forecasting",
+      "Data cleaning tool with column mapping, deduplication, and validation",
     ],
   },
   {
@@ -167,17 +178,6 @@ const APP_CATEGORIES = [
       "Generate an invoice PDF with line items, tax calculations, and company branding",
       "Create a meeting minutes DOCX template with action items and attendee list",
       "Generate a technical specification document with diagrams and code snippets",
-    ],
-  },
-  {
-    id: "spreadsheet", label: "Spreadsheet", icon: BarChart3,
-    prompts: [
-      "Generate a financial budget XLSX with multiple sheets, formulas, and summary charts",
-      "Create a project tracker spreadsheet with task status, deadlines, and progress metrics",
-      "Build an inventory management XLSX with stock levels, reorder points, and supplier data",
-      "Generate a sales report CSV with monthly breakdowns and year-over-year comparisons",
-      "Create an employee directory spreadsheet with departments, roles, and contact info",
-      "Build a grade book XLSX with student scores, weighted averages, and class statistics",
     ],
   },
   {
@@ -271,6 +271,13 @@ export default function Dashboard() {
     "product-demo-video": "slides-video",
     "explainer-video": "slides-video",
     "social-intro-video": "slides-video",
+    "canvas-animation": "frontend",
+    "design-canvas": "frontend",
+    "data-dashboard": "frontend",
+    "automation-script": "cli",
+    "threejs-game": "frontend",
+    "markdown-editor": "frontend",
+    "spreadsheet-app": "frontend",
   };
 
   const getExamplePrompts = useCallback((categoryId: string, seed: number) => {
@@ -394,10 +401,10 @@ export default function Dashboard() {
   });
 
   const generateProject = useMutation({
-    mutationFn: async ({ prompt, model }: { prompt: string; model: string }) => {
+    mutationFn: async ({ prompt, model, outputType }: { prompt: string; model: string; outputType?: string }) => {
       setGenerationError(null);
       setGenerationStep(0);
-      const res = await apiRequest("POST", "/api/projects/generate", { prompt, model });
+      const res = await apiRequest("POST", "/api/projects/generate", { prompt, model, outputType: outputType || selectedCategory });
       return res.json();
     },
     onSuccess: (data: { project: Project }) => {

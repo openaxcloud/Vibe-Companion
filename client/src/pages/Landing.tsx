@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, Eye, Menu, X, Send, Loader2 } from "lucide-react";
+import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, ChevronLeft, Eye, Menu, X, Send, Loader2, Smartphone, Presentation, Palette, BarChart3, Gamepad2, Cog, PenTool, Table2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 function ECodeLogo({ size = 32 }: { size?: number }) {
@@ -81,23 +81,65 @@ function CodeDemo() {
   );
 }
 
-const examplePrompts = [
-  "Build a todo app with authentication",
-  "Create a REST API with Express and PostgreSQL",
-  "Make a real-time chat app with WebSockets",
-  "Build a portfolio website with dark mode",
-  "Create a weather dashboard using an API",
-  "Build a markdown editor with live preview",
+const typewriterPrompts = [
+  "Build a project tracker for my team",
+  "Design a landing page for my coffee shop",
+  "Add Stripe payments to my app",
+  "Create a fitness dashboard with charts",
+  "Build a recipe sharing community",
+  "Make an interactive data visualization",
 ];
 
-function PromptInput({ onSubmit, isLoading }: { onSubmit: (prompt: string) => void; isLoading: boolean }) {
+const OUTPUT_TYPE_OPTIONS = [
+  { id: "web", label: "Web", icon: Globe },
+  { id: "mobile", label: "Mobile", icon: Smartphone },
+  { id: "slides", label: "Slides", icon: Presentation },
+  { id: "animation", label: "Animation", icon: Play },
+  { id: "design", label: "Design", icon: Palette },
+  { id: "data-visualization", label: "Data Viz", icon: BarChart3 },
+  { id: "automation", label: "Automation", icon: Cog },
+  { id: "3d-game", label: "3D Game", icon: Gamepad2 },
+  { id: "document", label: "Document", icon: PenTool },
+  { id: "spreadsheet", label: "Spreadsheet", icon: Table2 },
+];
+
+function useTypewriter(texts: string[], typingSpeed = 50, pauseMs = 2000) {
+  const [display, setDisplay] = useState("");
+  const [index, setIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    const text = texts[index];
+    if (!deleting && charIndex < text.length) {
+      const t = setTimeout(() => { setDisplay(text.slice(0, charIndex + 1)); setCharIndex(charIndex + 1); }, typingSpeed);
+      return () => clearTimeout(t);
+    } else if (!deleting && charIndex === text.length) {
+      const t = setTimeout(() => setDeleting(true), pauseMs);
+      return () => clearTimeout(t);
+    } else if (deleting && charIndex > 0) {
+      const t = setTimeout(() => { setDisplay(text.slice(0, charIndex - 1)); setCharIndex(charIndex - 1); }, typingSpeed / 2);
+      return () => clearTimeout(t);
+    } else if (deleting && charIndex === 0) {
+      setDeleting(false);
+      setIndex((index + 1) % texts.length);
+    }
+  }, [charIndex, deleting, index, texts, typingSpeed, pauseMs]);
+
+  return display;
+}
+
+function PromptInput({ onSubmit, isLoading }: { onSubmit: (prompt: string, outputType: string) => void; isLoading: boolean }) {
   const [prompt, setPrompt] = useState("");
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const typewriterText = useTypewriter(typewriterPrompts);
 
   const handleSubmit = () => {
     const trimmed = prompt.trim();
     if (!trimmed || isLoading) return;
-    onSubmit(trimmed);
+    onSubmit(trimmed, selectedType || "web");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -107,22 +149,33 @@ function PromptInput({ onSubmit, isLoading }: { onSubmit: (prompt: string) => vo
     }
   };
 
-  const handleExampleClick = (example: string) => {
-    setPrompt(example);
-    textareaRef.current?.focus();
+  const scrollCarousel = (dir: "left" | "right") => {
+    if (carouselRef.current) {
+      carouselRef.current.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
+    }
   };
 
   return (
     <div className="w-full max-w-2xl mx-auto">
       <div className="relative rounded-2xl border border-[var(--ide-border)] bg-[var(--ide-panel)] shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden transition-all focus-within:border-[#0079F2]/50 focus-within:shadow-[0_8px_32px_rgba(0,121,242,0.15)]">
+        {selectedType && (
+          <div className="px-5 pt-4 pb-0">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0079F2]/10 border border-[#0079F2]/20 text-[#0079F2] text-[11px] font-medium" data-testid="badge-output-type">
+              {OUTPUT_TYPE_OPTIONS.find(t => t.id === selectedType)?.label || selectedType}
+              <button onClick={() => setSelectedType(null)} className="ml-1 hover:text-white transition-colors" data-testid="button-remove-output-type">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="What do you want to build?"
+          placeholder={prompt ? "What do you want to build?" : typewriterText || "What do you want to build?"}
           rows={2}
-          className="w-full bg-transparent text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] resize-none px-5 pt-5 pb-3 text-[15px] leading-relaxed outline-none"
+          className="w-full bg-transparent text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] resize-none px-5 pt-4 pb-3 text-[15px] leading-relaxed outline-none"
           data-testid="input-prompt"
         />
         <div className="flex items-center justify-between px-4 pb-4">
@@ -148,17 +201,42 @@ function PromptInput({ onSubmit, isLoading }: { onSubmit: (prompt: string) => vo
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        {examplePrompts.map((example) => (
-          <button
-            key={example}
-            onClick={() => handleExampleClick(example)}
-            className="px-3 py-1.5 rounded-lg text-xs text-[var(--ide-text-muted)] border border-[var(--ide-border)] bg-[var(--ide-bg)] hover:bg-[var(--ide-panel)] hover:text-[var(--ide-text)] hover:border-[#3B4B5F] transition-all"
-            data-testid={`button-example-${example.slice(0, 20).replace(/\s/g, "-").toLowerCase()}`}
-          >
-            {example}
-          </button>
-        ))}
+      <div className="mt-5 relative" data-testid="output-type-carousel">
+        <button
+          onClick={() => scrollCarousel("left")}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)] flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:border-[#3B4B5F] transition-all shadow-md -ml-3"
+          data-testid="button-carousel-left"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div ref={carouselRef} className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-6 scroll-smooth">
+          {OUTPUT_TYPE_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const isSelected = selectedType === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setSelectedType(isSelected ? null : opt.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap border transition-all shrink-0 ${
+                  isSelected
+                    ? "bg-[#0079F2]/10 border-[#0079F2]/30 text-[#0079F2]"
+                    : "bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:border-[#3B4B5F]"
+                }`}
+                data-testid={`button-output-type-${opt.id}`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={() => scrollCarousel("right")}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)] flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:border-[#3B4B5F] transition-all shadow-md -mr-3"
+          data-testid="button-carousel-right"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
@@ -186,17 +264,18 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [promptLoading, setPromptLoading] = useState(false);
 
-  const handlePromptSubmit = async (prompt: string) => {
+  const handlePromptSubmit = async (prompt: string, outputType: string = "web") => {
     setPromptLoading(true);
     try {
       const res = await apiRequest("POST", "/api/projects", {
         name: prompt.slice(0, 50),
         language: "javascript",
+        outputType,
       });
       const project = await res.json();
-      setLocation(`/project/${project.id}?prompt=${encodeURIComponent(prompt)}`);
+      setLocation(`/project/${project.id}?prompt=${encodeURIComponent(prompt)}&outputType=${outputType}`);
     } catch {
-      setLocation(`/login?signup=true&prompt=${encodeURIComponent(prompt)}`);
+      setLocation(`/login?signup=true&prompt=${encodeURIComponent(prompt)}&outputType=${outputType}`);
     } finally {
       setPromptLoading(false);
     }

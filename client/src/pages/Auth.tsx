@@ -51,6 +51,7 @@ export default function Auth() {
   useEffect(() => {
     if (!isAuthenticated) return;
     const pendingPrompt = params.get("prompt");
+    const pendingOutputType = params.get("outputType") || "web";
     if (pendingPrompt && !promptHandled.current) {
       promptHandled.current = true;
       (async () => {
@@ -58,9 +59,10 @@ export default function Auth() {
           const res = await apiRequest("POST", "/api/projects", {
             name: pendingPrompt.slice(0, 50),
             language: "javascript",
+            outputType: pendingOutputType,
           });
           const project = await res.json();
-          setLocation(`/project/${project.id}?prompt=${encodeURIComponent(pendingPrompt)}`);
+          setLocation(`/project/${project.id}?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${pendingOutputType}`);
         } catch {
           setLocation("/dashboard");
         }

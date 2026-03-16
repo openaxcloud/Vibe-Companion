@@ -1530,6 +1530,19 @@ function _projectPage() {
 
   const [pendingAIMessage, setPendingAIMessage] = useState<string | null>(null);
 
+  const autoPromptHandled = useRef(false);
+  useEffect(() => {
+    if (autoPromptHandled.current) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoPrompt = urlParams.get("prompt");
+    if (autoPrompt) {
+      autoPromptHandled.current = true;
+      setPendingAIMessage(autoPrompt);
+      setAiPanelOpen(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const handleAgentComplete = useCallback(() => {
     if (userPrefs.agentAudioNotification) playNotificationSound();
     if (userPrefs.agentPushNotification) sendPushNotification("AI Agent", "Your AI agent has finished responding.");
@@ -2476,10 +2489,11 @@ function _projectPage() {
   const project = projectQuery.data;
   const isMobileProject = useMemo(() => {
     if (project?.projectType === "mobile-app") return true;
+    if ((project as any)?.outputType === "mobile") return true;
     const fileList = filesQuery.data;
     if (!fileList) return false;
     return isMobileAppProject(fileList.map(f => ({ filename: f.filename, content: f.content })));
-  }, [project?.projectType, filesQuery.data]);
+  }, [project?.projectType, (project as any)?.outputType, filesQuery.data]);
   const activeIsSpecial = activeFileId ? isSpecialTab(activeFileId) : false;
   const isRunnerTab = !activeIsSpecial && activeFileId?.startsWith("runner:");
   const activeFile = (isRunnerTab || activeIsSpecial) ? null : filesQuery.data?.find((f) => f.id === activeFileId);
@@ -3745,7 +3759,7 @@ function _projectPage() {
     </div>
   );
 
-  const isSlideProject = project?.projectType === "slides";
+  const isSlideProject = project?.projectType === "slides" || (project as any)?.outputType === "slides";
   const isVideoProject = project?.projectType === "video";
   const isMediaProject = isSlideProject || isVideoProject;
 

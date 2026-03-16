@@ -150,6 +150,9 @@ export type User = typeof users.$inferSelect;
 export const projectVisibilityEnum = ["public", "private", "team"] as const;
 export type ProjectVisibility = typeof projectVisibilityEnum[number];
 
+export const OUTPUT_TYPES = ["web", "mobile", "slides", "animation", "design", "data-visualization", "automation", "3d-game", "document", "spreadsheet"] as const;
+export type OutputType = typeof OUTPUT_TYPES[number];
+
 export const projects = pgTable("projects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
@@ -160,6 +163,7 @@ export const projects = pgTable("projects", {
   isPublic: boolean("is_public").notNull().default(false),
   language: text("language").notNull().default("javascript"),
   projectType: text("project_type").notNull().default("web-app"),
+  outputType: text("output_type").notNull().default("web"),
   visibility: text("visibility").notNull().default("public"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublished: boolean("is_published").notNull().default(false),
@@ -184,14 +188,18 @@ export const projects = pgTable("projects", {
 export const projectTypeEnum = z.enum(["web-app", "slides", "video"]);
 export type ProjectType = z.infer<typeof projectTypeEnum>;
 
+export const outputTypeEnum = z.enum(OUTPUT_TYPES);
+
 export const insertProjectSchema = createInsertSchema(projects).pick({
   name: true,
   language: true,
   projectType: true,
+  outputType: true,
   visibility: true,
 }).extend({
   visibility: z.enum(projectVisibilityEnum).optional().default("public"),
   projectType: projectTypeEnum.default("web-app"),
+  outputType: outputTypeEnum.optional().default("web"),
 });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;

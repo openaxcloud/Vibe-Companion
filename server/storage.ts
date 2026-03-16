@@ -134,8 +134,8 @@ export interface IStorage {
   createProject(userId: string, data: InsertProject): Promise<Project>;
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
-  createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined>;
+  createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; outputType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
+  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; outputType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -705,12 +705,13 @@ export class DatabaseStorage implements IStorage {
     return newProject;
   }
 
-  async createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project> {
+  async createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; outputType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project> {
     const [project] = await db.insert(projects).values({
       userId,
       name: data.name,
       language: data.language,
-      projectType: data.projectType || "web",
+      projectType: data.projectType || "web-app",
+      outputType: data.outputType || "web",
       visibility: data.visibility || "public",
     }).returning();
     const hasEcode = data.files.some(f => f.filename === "ecode.md");

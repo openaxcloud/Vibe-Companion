@@ -1685,6 +1685,595 @@ const styles = StyleSheet.create({
       fps: 30,
     },
   },
+  {
+    id: "canvas-animation",
+    name: "Canvas Animation",
+    description: "Interactive particle animation with play/pause and speed controls",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Particle Animation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; display: flex; flex-direction: column; align-items: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #fff; }
+    canvas { display: block; border-radius: 12px; margin-top: 20px; }
+    .controls { display: flex; gap: 12px; margin-top: 16px; align-items: center; }
+    button { padding: 8px 20px; border: 1px solid #333; background: #1a1a1a; color: #fff; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #252525; }
+    button.active { background: #0079F2; border-color: #0079F2; }
+    label { font-size: 13px; color: #888; }
+    input[type=range] { width: 120px; }
+    h1 { margin-top: 24px; font-size: 20px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Particle System</h1>
+  <canvas id="canvas" width="800" height="500"></canvas>
+  <div class="controls">
+    <button id="playBtn" class="active" onclick="togglePlay()">Pause</button>
+    <label>Speed <input type="range" id="speed" min="1" max="10" value="3" oninput="setSpeed(this.value)"></label>
+    <label>Count <input type="range" id="count" min="20" max="500" value="150" oninput="setCount(this.value)"></label>
+    <button onclick="resetParticles()">Reset</button>
+  </div>
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let playing = true, speed = 3, particleCount = 150;
+    let particles = [];
+    function createParticle() {
+      return { x: Math.random() * canvas.width, y: Math.random() * canvas.height, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, r: Math.random() * 3 + 1, hue: Math.random() * 360, alpha: Math.random() * 0.5 + 0.5 };
+    }
+    function resetParticles() { particles = Array.from({ length: particleCount }, createParticle); }
+    resetParticles();
+    function togglePlay() { playing = !playing; document.getElementById("playBtn").textContent = playing ? "Pause" : "Play"; document.getElementById("playBtn").classList.toggle("active", playing); }
+    function setSpeed(v) { speed = parseInt(v); }
+    function setCount(v) { particleCount = parseInt(v); while (particles.length < particleCount) particles.push(createParticle()); particles.length = particleCount; }
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!playing) return;
+      ctx.fillStyle = "rgba(10,10,10,0.15)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.vx * speed; p.y += p.vy * speed;
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = \`hsla(\${p.hue}, 80%, 60%, \${p.alpha})\`; ctx.fill();
+      });
+      particles.forEach((a, i) => { particles.slice(i + 1).forEach(b => { const dx = a.x - b.x, dy = a.y - b.y, dist = Math.sqrt(dx * dx + dy * dy); if (dist < 100) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.strokeStyle = \`rgba(255,255,255,\${0.1 * (1 - dist / 100)})\`; ctx.stroke(); } }); });
+    }
+    animate();
+  </script>
+</body>
+</html>`,
+      },
+    ],
+  },
+  {
+    id: "design-canvas",
+    name: "Design Canvas",
+    description: "Interactive drawing tool with color picker, shapes, and export",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design Canvas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a2e; font-family: system-ui, sans-serif; color: #fff; display: flex; height: 100vh; }
+    .toolbar { width: 60px; background: #16213e; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; border-right: 1px solid #0f3460; }
+    .tool { width: 40px; height: 40px; border-radius: 8px; border: none; background: transparent; color: #ccc; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+    .tool.active { background: #0079F2; color: #fff; }
+    .tool:hover { background: #1a365d; }
+    .topbar { height: 48px; background: #16213e; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid #0f3460; }
+    .topbar label { font-size: 12px; color: #888; }
+    .topbar input[type=color] { width: 32px; height: 24px; border: none; border-radius: 4px; cursor: pointer; }
+    .topbar input[type=range] { width: 80px; }
+    .topbar button { padding: 6px 14px; background: #0079F2; border: none; color: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .topbar button:hover { background: #0066cc; }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    canvas { flex: 1; cursor: crosshair; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="tool active" id="penTool" onclick="setTool('pen')" title="Pen">&#9998;</button>
+    <button class="tool" id="rectTool" onclick="setTool('rect')" title="Rectangle">&#9634;</button>
+    <button class="tool" id="circleTool" onclick="setTool('circle')" title="Circle">&#9675;</button>
+    <button class="tool" id="eraserTool" onclick="setTool('eraser')" title="Eraser">&#8999;</button>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <label>Color <input type="color" id="colorPicker" value="#0079F2" oninput="strokeColor=this.value"></label>
+      <label>Size <input type="range" id="sizePicker" min="1" max="30" value="3" oninput="lineSize=parseInt(this.value)"></label>
+      <button onclick="clearCanvas()">Clear</button>
+      <button onclick="exportPNG()">Export PNG</button>
+      <button onclick="undo()">Undo</button>
+    </div>
+    <canvas id="canvas"></canvas>
+  </div>
+  <script>
+    const canvas = document.getElementById("canvas"), ctx = canvas.getContext("2d");
+    let tool = "pen", strokeColor = "#0079F2", lineSize = 3, drawing = false, startX, startY;
+    let history = [], current;
+    function resize() { const r = canvas.parentElement.getBoundingClientRect(); canvas.width = r.width; canvas.height = r.height - 48; if (history.length) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = history[history.length - 1]; } }
+    window.addEventListener("resize", resize); resize();
+    function saveState() { history.push(canvas.toDataURL()); if (history.length > 50) history.shift(); }
+    function undo() { if (history.length < 2) { ctx.clearRect(0, 0, canvas.width, canvas.height); history = []; return; } history.pop(); const img = new Image(); img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); }; img.src = history[history.length - 1]; }
+    function setTool(t) { tool = t; document.querySelectorAll(".tool").forEach(b => b.classList.remove("active")); document.getElementById(t + "Tool").classList.add("active"); }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); saveState(); }
+    function exportPNG() { const a = document.createElement("a"); a.download = "design.png"; a.href = canvas.toDataURL(); a.click(); }
+    canvas.addEventListener("mousedown", e => { drawing = true; startX = e.offsetX; startY = e.offsetY; if (tool === "pen" || tool === "eraser") { current = canvas.toDataURL(); ctx.beginPath(); ctx.moveTo(startX, startY); } });
+    canvas.addEventListener("mousemove", e => { if (!drawing) return; if (tool === "pen") { ctx.strokeStyle = strokeColor; ctx.lineWidth = lineSize; ctx.lineCap = "round"; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } else if (tool === "eraser") { ctx.strokeStyle = "#1a1a2e"; ctx.lineWidth = lineSize * 4; ctx.lineCap = "round"; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } });
+    canvas.addEventListener("mouseup", e => { if (!drawing) return; drawing = false; if (tool === "rect") { ctx.strokeStyle = strokeColor; ctx.lineWidth = lineSize; ctx.strokeRect(startX, startY, e.offsetX - startX, e.offsetY - startY); } else if (tool === "circle") { const rx = (e.offsetX - startX) / 2, ry = (e.offsetY - startY) / 2; ctx.beginPath(); ctx.ellipse(startX + rx, startY + ry, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI * 2); ctx.strokeStyle = strokeColor; ctx.lineWidth = lineSize; ctx.stroke(); } saveState(); });
+    saveState();
+  </script>
+</body>
+</html>`,
+      },
+    ],
+  },
+  {
+    id: "data-dashboard",
+    name: "Data Dashboard",
+    description: "Interactive Chart.js dashboard with multiple chart types",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f172a; font-family: system-ui, sans-serif; color: #e2e8f0; padding: 24px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+    .card h3 { font-size: 14px; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stats { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px 20px; flex: 1; min-width: 140px; }
+    .stat .val { font-size: 28px; font-weight: 700; }
+    .stat .label { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .stat.green .val { color: #22c55e; } .stat.blue .val { color: #3b82f6; } .stat.purple .val { color: #8b5cf6; } .stat.amber .val { color: #f59e0b; }
+    canvas { max-height: 260px; }
+  </style>
+</head>
+<body>
+  <h1>Analytics Dashboard</h1>
+  <p class="subtitle">Real-time metrics and performance overview</p>
+  <div class="stats">
+    <div class="stat green"><div class="val">$48.2K</div><div class="label">Revenue (MTD)</div></div>
+    <div class="stat blue"><div class="val">12,847</div><div class="label">Active Users</div></div>
+    <div class="stat purple"><div class="val">3.2%</div><div class="label">Conversion Rate</div></div>
+    <div class="stat amber"><div class="val">98.7%</div><div class="label">Uptime</div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h3>Revenue Over Time</h3><canvas id="lineChart"></canvas></div>
+    <div class="card"><h3>Users by Source</h3><canvas id="doughnutChart"></canvas></div>
+    <div class="card"><h3>Monthly Signups</h3><canvas id="barChart"></canvas></div>
+    <div class="card"><h3>Performance Metrics</h3><canvas id="radarChart"></canvas></div>
+  </div>
+  <script>
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const colors = { blue: "#3b82f6", green: "#22c55e", purple: "#8b5cf6", amber: "#f59e0b", red: "#ef4444" };
+    Chart.defaults.color = "#94a3b8"; Chart.defaults.borderColor = "#334155";
+    new Chart(document.getElementById("lineChart"), { type: "line", data: { labels: months, datasets: [{ label: "Revenue", data: [12,19,15,25,22,30,28,35,32,42,38,48], borderColor: colors.blue, backgroundColor: colors.blue + "20", fill: true, tension: 0.4 }, { label: "Expenses", data: [8,12,10,15,14,18,16,20,19,24,22,26], borderColor: colors.red, backgroundColor: colors.red + "20", fill: true, tension: 0.4 }] }, options: { responsive: true, plugins: { legend: { position: "bottom" } }, scales: { y: { beginAtZero: true, ticks: { callback: v => "$" + v + "K" } } } } });
+    new Chart(document.getElementById("doughnutChart"), { type: "doughnut", data: { labels: ["Organic","Social","Referral","Direct","Email"], datasets: [{ data: [35,25,20,12,8], backgroundColor: [colors.blue, colors.green, colors.purple, colors.amber, colors.red] }] }, options: { responsive: true, plugins: { legend: { position: "bottom" } } } });
+    new Chart(document.getElementById("barChart"), { type: "bar", data: { labels: months, datasets: [{ label: "Signups", data: [320,420,380,520,480,610,580,720,690,850,800,950], backgroundColor: colors.purple + "80", borderColor: colors.purple, borderWidth: 1, borderRadius: 4 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+    new Chart(document.getElementById("radarChart"), { type: "radar", data: { labels: ["Speed","Reliability","Security","UX","Scalability","Cost"], datasets: [{ label: "Current", data: [85,90,78,88,72,65], borderColor: colors.blue, backgroundColor: colors.blue + "30" }, { label: "Target", data: [95,95,90,92,88,80], borderColor: colors.green, backgroundColor: colors.green + "20" }] }, options: { responsive: true, plugins: { legend: { position: "bottom" } }, scales: { r: { beginAtZero: true, max: 100 } } } });
+  </script>
+</body>
+</html>`,
+      },
+    ],
+  },
+  {
+    id: "automation-script",
+    name: "File Automation",
+    description: "Node.js automation script with scheduling and file processing",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.js",
+        content: `const fs = require("fs");
+const path = require("path");
+
+const LOG_FILE = "automation.log";
+const WATCH_DIR = "./data";
+const OUTPUT_DIR = "./processed";
+const SCHEDULE_INTERVAL = 5000;
+
+function log(message) {
+  const timestamp = new Date().toISOString();
+  const entry = \`[\${timestamp}] \${message}\`;
+  console.log(entry);
+  fs.appendFileSync(LOG_FILE, entry + "\\n");
+}
+
+function ensureDirs() {
+  [WATCH_DIR, OUTPUT_DIR].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      log(\`Created directory: \${dir}\`);
+    }
+  });
+}
+
+function processFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const filename = path.basename(filePath);
+  const content = fs.readFileSync(filePath, "utf-8");
+
+  let processed;
+  if (ext === ".csv") {
+    const lines = content.split("\\n").filter(l => l.trim());
+    const headers = lines[0].split(",");
+    const data = lines.slice(1).map(l => l.split(","));
+    processed = JSON.stringify({ headers, rows: data, count: data.length }, null, 2);
+    const outPath = path.join(OUTPUT_DIR, filename.replace(".csv", ".json"));
+    fs.writeFileSync(outPath, processed);
+    log(\`Processed CSV -> JSON: \${filename} (\${data.length} rows)\`);
+  } else if (ext === ".txt") {
+    const words = content.split(/\\s+/).length;
+    const lines = content.split("\\n").length;
+    const chars = content.length;
+    processed = \`File: \${filename}\\nWords: \${words}\\nLines: \${lines}\\nCharacters: \${chars}\\n\`;
+    const outPath = path.join(OUTPUT_DIR, filename.replace(".txt", ".stats.txt"));
+    fs.writeFileSync(outPath, processed);
+    log(\`Processed text stats: \${filename} (\${words} words, \${lines} lines)\`);
+  } else {
+    const outPath = path.join(OUTPUT_DIR, filename);
+    fs.copyFileSync(filePath, outPath);
+    log(\`Copied file: \${filename}\`);
+  }
+}
+
+function runAutomation() {
+  const files = fs.readdirSync(WATCH_DIR).filter(f => !f.startsWith("."));
+  if (files.length === 0) {
+    log("No files to process. Waiting...");
+    return;
+  }
+  log(\`Found \${files.length} file(s) to process\`);
+  files.forEach(file => {
+    try {
+      processFile(path.join(WATCH_DIR, file));
+    } catch (err) {
+      log(\`Error processing \${file}: \${err.message}\`);
+    }
+  });
+  log("Batch complete.");
+}
+
+log("=== File Automation Started ===");
+log(\`Watching: \${WATCH_DIR} | Output: \${OUTPUT_DIR}\`);
+log(\`Schedule: every \${SCHEDULE_INTERVAL / 1000}s\`);
+ensureDirs();
+
+fs.writeFileSync(path.join(WATCH_DIR, "sample.csv"), "name,email,role\\nAlice,alice@example.com,admin\\nBob,bob@example.com,user\\nCarol,carol@example.com,editor");
+fs.writeFileSync(path.join(WATCH_DIR, "notes.txt"), "Meeting notes from the team standup.\\nDiscussed automation pipeline.\\nAction items assigned to each member.\\nNext meeting scheduled for Friday.");
+log("Created sample files in data directory");
+
+runAutomation();
+setInterval(runAutomation, SCHEDULE_INTERVAL);
+`,
+      },
+    ],
+  },
+  {
+    id: "threejs-game",
+    name: "3D Game",
+    description: "Three.js 3D game with controls, physics, and scoring",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Cube Runner</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #000; font-family: system-ui, sans-serif; }
+    #ui { position: fixed; top: 20px; left: 20px; color: #fff; z-index: 10; }
+    #score { font-size: 28px; font-weight: 700; }
+    #info { font-size: 13px; color: #888; margin-top: 4px; }
+    #gameOver { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
+    #gameOver h2 { font-size: 36px; margin-bottom: 8px; }
+    #gameOver p { color: #888; margin-bottom: 20px; }
+    #gameOver button { padding: 10px 28px; background: #0079F2; border: none; color: #fff; border-radius: 8px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="ui"><div id="score">Score: 0</div><div id="info">Use arrow keys or WASD to move. Avoid red obstacles!</div></div>
+  <div id="gameOver"><h2>Game Over!</h2><p id="finalScore">Score: 0</p><button onclick="restart()">Play Again</button></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    let scene, camera, renderer, player, obstacles = [], score = 0, speed = 0.08, alive = true;
+    function init() {
+      scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0a1a); scene.fog = new THREE.Fog(0x0a0a1a, 10, 50);
+      camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 100); camera.position.set(0, 3, 8);
+      renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 200), new THREE.MeshPhongMaterial({ color: 0x111122 }));
+      ground.rotation.x = -Math.PI / 2; ground.position.z = -80; scene.add(ground);
+      const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(5, 10, 5); scene.add(light);
+      scene.add(new THREE.AmbientLight(0x404060));
+      player = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), new THREE.MeshPhongMaterial({ color: 0x0079F2, emissive: 0x003366 }));
+      player.position.y = 0.5; scene.add(player);
+      for (let i = 0; i < 20; i++) spawnObstacle(-10 - i * 5);
+      window.addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+    }
+    const keys = {};
+    window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+    function spawnObstacle(z) {
+      const size = 0.5 + Math.random() * 1.2;
+      const ob = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshPhongMaterial({ color: 0xe54d4d, emissive: 0x330000 }));
+      ob.position.set((Math.random() - 0.5) * 8, size / 2, z || -100 - Math.random() * 20);
+      scene.add(ob); obstacles.push(ob);
+    }
+    function checkCollision() {
+      const pb = new THREE.Box3().setFromObject(player);
+      for (const ob of obstacles) { if (pb.intersectsBox(new THREE.Box3().setFromObject(ob))) return true; }
+      return false;
+    }
+    function gameOver() {
+      alive = false; document.getElementById("gameOver").style.display = "flex";
+      document.getElementById("finalScore").textContent = "Score: " + score;
+    }
+    function restart() { obstacles.forEach(o => scene.remove(o)); obstacles = []; score = 0; speed = 0.08; alive = true; player.position.set(0, 0.5, 0); document.getElementById("gameOver").style.display = "none"; for (let i = 0; i < 20; i++) spawnObstacle(-10 - i * 5); }
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!alive) { renderer.render(scene, camera); return; }
+      if (keys["arrowleft"] || keys["a"]) player.position.x = Math.max(player.position.x - 0.12, -4.5);
+      if (keys["arrowright"] || keys["d"]) player.position.x = Math.min(player.position.x + 0.12, 4.5);
+      obstacles.forEach(ob => { ob.position.z += speed; ob.rotation.x += 0.02; ob.rotation.y += 0.01; if (ob.position.z > 10) { ob.position.z = -100; ob.position.x = (Math.random() - 0.5) * 8; } });
+      if (checkCollision()) { gameOver(); return; }
+      score++; speed = 0.08 + score * 0.00002;
+      document.getElementById("score").textContent = "Score: " + score;
+      camera.lookAt(player.position);
+      renderer.render(scene, camera);
+    }
+    init(); animate();
+  </script>
+</body>
+</html>`,
+      },
+    ],
+  },
+  {
+    id: "markdown-editor",
+    name: "Markdown Editor",
+    description: "Rich Markdown editor with live preview and HTML export",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markdown Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+    .toolbar { display: flex; align-items: center; gap: 4px; padding: 8px 12px; background: #1e293b; border-bottom: 1px solid #334155; flex-wrap: wrap; }
+    .toolbar button { padding: 6px 10px; background: #334155; border: none; color: #94a3b8; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .toolbar button:hover { background: #475569; color: #e2e8f0; }
+    .toolbar .sep { width: 1px; height: 20px; background: #334155; margin: 0 4px; }
+    .editor-container { flex: 1; display: flex; overflow: hidden; }
+    .editor { flex: 1; resize: none; background: #0f172a; color: #e2e8f0; border: none; padding: 20px; font-family: "JetBrains Mono", monospace; font-size: 14px; line-height: 1.7; outline: none; border-right: 1px solid #334155; }
+    .preview { flex: 1; padding: 20px; overflow-y: auto; background: #1e293b; }
+    .preview h1 { font-size: 28px; margin-bottom: 16px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+    .preview h2 { font-size: 22px; margin: 20px 0 10px; }
+    .preview h3 { font-size: 18px; margin: 16px 0 8px; }
+    .preview p { margin-bottom: 12px; line-height: 1.7; }
+    .preview code { background: #334155; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .preview pre { background: #0f172a; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+    .preview pre code { background: none; padding: 0; }
+    .preview ul, .preview ol { margin: 8px 0 8px 24px; }
+    .preview blockquote { border-left: 3px solid #3b82f6; padding-left: 12px; margin: 12px 0; color: #94a3b8; }
+    .preview a { color: #3b82f6; }
+    .preview img { max-width: 100%; border-radius: 8px; }
+    .status { padding: 4px 12px; background: #1e293b; border-top: 1px solid #334155; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="insertMd('**', '**')" title="Bold"><b>B</b></button>
+    <button onclick="insertMd('*', '*')" title="Italic"><i>I</i></button>
+    <button onclick="insertMd('~~', '~~')" title="Strikethrough"><s>S</s></button>
+    <span class="sep"></span>
+    <button onclick="insertLine('# ')" title="Heading 1">H1</button>
+    <button onclick="insertLine('## ')" title="Heading 2">H2</button>
+    <button onclick="insertLine('### ')" title="Heading 3">H3</button>
+    <span class="sep"></span>
+    <button onclick="insertLine('- ')" title="Bullet List">&#8226; List</button>
+    <button onclick="insertLine('1. ')" title="Numbered List">1. List</button>
+    <button onclick="insertLine('> ')" title="Blockquote">&ldquo; Quote</button>
+    <button onclick="insertMd('\\n\`\`\`\\n', '\\n\`\`\`\\n')" title="Code Block">&lt;/&gt;</button>
+    <span class="sep"></span>
+    <button onclick="insertMd('[', '](url)')" title="Link">Link</button>
+    <button onclick="insertMd('![alt](', ')')" title="Image">Image</button>
+    <span class="sep"></span>
+    <button onclick="exportHtml()">Export HTML</button>
+  </div>
+  <div class="editor-container">
+    <textarea id="editor" class="editor" placeholder="Write Markdown here..."></textarea>
+    <div id="preview" class="preview"></div>
+  </div>
+  <div class="status"><span id="wordCount">0 words</span><span>Markdown</span></div>
+  <script>
+    const editor = document.getElementById("editor");
+    const preview = document.getElementById("preview");
+    const wordCount = document.getElementById("wordCount");
+    const defaultContent = "# Welcome to Markdown Editor\\n\\nStart writing your document here. The preview updates in real-time.\\n\\n## Features\\n\\n- **Bold**, *italic*, and ~~strikethrough~~ text\\n- Headings (H1, H2, H3)\\n- Bullet and numbered lists\\n- Blockquotes and code blocks\\n- Links and images\\n- Export to HTML\\n\\n> This is a blockquote\\n\\n\`\`\`javascript\\nconst greeting = \\"Hello, World!\\";\\nconsole.log(greeting);\\n\`\`\`\\n\\nEnjoy writing!";
+    editor.value = defaultContent;
+    function updatePreview() { preview.innerHTML = marked.parse(editor.value); const words = editor.value.trim().split(/\\s+/).filter(w => w).length; wordCount.textContent = words + " words"; }
+    editor.addEventListener("input", updatePreview);
+    function insertMd(before, after) { const s = editor.selectionStart, e = editor.selectionEnd, text = editor.value; const selected = text.substring(s, e) || "text"; editor.value = text.substring(0, s) + before + selected + after + text.substring(e); editor.focus(); editor.selectionStart = s + before.length; editor.selectionEnd = s + before.length + selected.length; updatePreview(); }
+    function insertLine(prefix) { const s = editor.selectionStart, text = editor.value; const lineStart = text.lastIndexOf("\\n", s - 1) + 1; editor.value = text.substring(0, lineStart) + prefix + text.substring(lineStart); editor.focus(); updatePreview(); }
+    function exportHtml() { const html = "<!DOCTYPE html>\\n<html><head><meta charset=\\"UTF-8\\"><title>Document</title><style>body{font-family:system-ui;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;color:#333}code{background:#f0f0f0;padding:2px 6px;border-radius:4px}pre{background:#f8f8f8;padding:16px;border-radius:8px;overflow-x:auto}pre code{background:none}blockquote{border-left:3px solid #3b82f6;padding-left:12px;color:#666}</style></head><body>" + marked.parse(editor.value) + "</body></html>"; const blob = new Blob([html], { type: "text/html" }); const a = document.createElement("a"); a.download = "document.html"; a.href = URL.createObjectURL(blob); a.click(); }
+    updatePreview();
+  </script>
+</body>
+</html>`,
+      },
+    ],
+  },
+  {
+    id: "spreadsheet-app",
+    name: "Spreadsheet",
+    description: "Interactive spreadsheet with formulas, sorting, and CSV import/export",
+    language: "javascript",
+    projectType: "web-app",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spreadsheet</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    .toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #1e293b; border-bottom: 1px solid #334155; }
+    .toolbar button { padding: 6px 14px; background: #334155; border: none; color: #94a3b8; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .toolbar button:hover { background: #475569; color: #e2e8f0; }
+    .toolbar .sep { width: 1px; height: 20px; background: #334155; }
+    #formulaBar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #1e293b; border-bottom: 1px solid #334155; }
+    #cellRef { width: 60px; background: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 12px; text-align: center; }
+    #formulaInput { flex: 1; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-family: "JetBrains Mono", monospace; }
+    .grid-container { overflow: auto; height: calc(100vh - 88px); }
+    table { border-collapse: collapse; width: max-content; }
+    th { background: #1e293b; color: #64748b; font-size: 11px; font-weight: 600; padding: 6px 8px; border: 1px solid #334155; position: sticky; top: 0; z-index: 2; min-width: 100px; cursor: pointer; user-select: none; }
+    th:hover { background: #334155; }
+    th.row-header { min-width: 40px; position: sticky; left: 0; z-index: 3; }
+    td { padding: 0; border: 1px solid #334155; min-width: 100px; height: 28px; }
+    td.row-num { background: #1e293b; color: #64748b; font-size: 11px; text-align: center; min-width: 40px; position: sticky; left: 0; z-index: 1; }
+    td input { width: 100%; height: 100%; background: transparent; border: none; color: #e2e8f0; padding: 4px 8px; font-size: 13px; outline: none; font-family: "JetBrains Mono", monospace; }
+    td input:focus { background: #1e293b; box-shadow: inset 0 0 0 2px #3b82f6; }
+    td.formula-result { color: #22c55e; }
+    .status { padding: 4px 12px; background: #1e293b; border-top: 1px solid #334155; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; position: fixed; bottom: 0; left: 0; right: 0; }
+    input[type=file] { display: none; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="document.getElementById('csvImport').click()">Import CSV</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <span class="sep"></span>
+    <button onclick="sortColumn(true)">Sort A-Z</button>
+    <button onclick="sortColumn(false)">Sort Z-A</button>
+    <span class="sep"></span>
+    <button onclick="clearAll()">Clear All</button>
+    <input type="file" id="csvImport" accept=".csv" onchange="importCSV(event)">
+  </div>
+  <div id="formulaBar">
+    <input id="cellRef" readonly value="A1">
+    <input id="formulaInput" placeholder="Enter value or formula (=SUM(A1:A10))" onkeydown="if(event.key==='Enter'){applyFormula(); event.preventDefault();}">
+  </div>
+  <div class="grid-container"><table id="grid"></table></div>
+  <div class="status"><span id="statusInfo">Ready</span><span id="selectionInfo">-</span></div>
+  <script>
+    const ROWS = 50, COLS = 26;
+    const data = Array.from({ length: ROWS }, () => Array(COLS).fill(""));
+    let selectedRow = 0, selectedCol = 0, sortCol = null;
+    function colLabel(c) { return String.fromCharCode(65 + c); }
+    function cellId(r, c) { return colLabel(c) + (r + 1); }
+    function parseCellRef(ref) { const m = ref.match(/^([A-Z])(\\d+)$/); if (!m) return null; return [parseInt(m[2]) - 1, m[1].charCodeAt(0) - 65]; }
+    function evaluate(val) {
+      if (!val || !val.startsWith("=")) return val;
+      const formula = val.substring(1).toUpperCase();
+      try {
+        const sumMatch = formula.match(/^SUM\\(([A-Z])(\\d+):([A-Z])(\\d+)\\)$/);
+        const avgMatch = formula.match(/^AVG\\(([A-Z])(\\d+):([A-Z])(\\d+)\\)$/);
+        const countMatch = formula.match(/^COUNT\\(([A-Z])(\\d+):([A-Z])(\\d+)\\)$/);
+        if (sumMatch || avgMatch || countMatch) {
+          const m = sumMatch || avgMatch || countMatch;
+          const c1 = m[1].charCodeAt(0) - 65, r1 = parseInt(m[2]) - 1, c2 = m[3].charCodeAt(0) - 65, r2 = parseInt(m[4]) - 1;
+          let sum = 0, count = 0;
+          for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+            for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+              const v = parseFloat(evaluate(data[r]?.[c]));
+              if (!isNaN(v)) { sum += v; count++; }
+            }
+          }
+          if (sumMatch) return sum; if (avgMatch) return count > 0 ? (sum / count).toFixed(2) : 0; if (countMatch) return count;
+        }
+        const cellRefs = formula.replace(/([A-Z])(\\d+)/g, (_, c, r) => { const v = evaluate(data[parseInt(r)-1]?.[c.charCodeAt(0)-65]); return isNaN(v) ? 0 : v; });
+        return Function(\`"use strict"; return (\${cellRefs})\`)();
+      } catch { return "#ERR"; }
+    }
+    function render() {
+      const table = document.getElementById("grid");
+      let html = "<tr><th class='row-header'></th>";
+      for (let c = 0; c < COLS; c++) html += \`<th onclick="sortByCol(\${c})" title="Click to sort">\${colLabel(c)}</th>\`;
+      html += "</tr>";
+      for (let r = 0; r < ROWS; r++) {
+        html += \`<tr><td class="row-num">\${r + 1}</td>\`;
+        for (let c = 0; c < COLS; c++) {
+          const raw = data[r][c];
+          const display = raw.startsWith?.("=") ? evaluate(raw) : raw;
+          const isFormula = raw.startsWith?.("=");
+          html += \`<td class="\${isFormula ? 'formula-result' : ''}"><input value="\${String(display).replace(/"/g, '&quot;')}" onfocus="selectCell(\${r},\${c})" onblur="updateCell(\${r},\${c},this.value)" data-r="\${r}" data-c="\${c}"></td>\`;
+        }
+        html += "</tr>";
+      }
+      table.innerHTML = html;
+    }
+    function selectCell(r, c) { selectedRow = r; selectedCol = c; document.getElementById("cellRef").value = cellId(r, c); document.getElementById("formulaInput").value = data[r][c]; updateStatus(); }
+    function updateCell(r, c, val) { data[r][c] = val; render(); updateStatus(); }
+    function applyFormula() { const val = document.getElementById("formulaInput").value; data[selectedRow][selectedCol] = val; render(); }
+    function sortByCol(c) { sortCol = c; const rows = data.slice(0, ROWS); rows.sort((a, b) => { const va = a[c], vb = b[c]; const na = parseFloat(va), nb = parseFloat(vb); if (!isNaN(na) && !isNaN(nb)) return na - nb; return String(va).localeCompare(String(vb)); }); for (let i = 0; i < ROWS; i++) for (let j = 0; j < COLS; j++) data[i][j] = rows[i][j]; render(); document.getElementById("statusInfo").textContent = \`Sorted by column \${colLabel(c)}\`; }
+    function sortColumn(asc) { if (sortCol === null) sortCol = selectedCol; const rows = data.slice(0, ROWS); rows.sort((a, b) => { const va = a[sortCol], vb = b[sortCol]; const na = parseFloat(va), nb = parseFloat(vb); if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na; return asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va)); }); for (let i = 0; i < ROWS; i++) for (let j = 0; j < COLS; j++) data[i][j] = rows[i][j]; render(); }
+    function exportCSV() { let csv = ""; for (let r = 0; r < ROWS; r++) { const row = []; for (let c = 0; c < COLS; c++) { const v = data[r][c].startsWith?.("=") ? evaluate(data[r][c]) : data[r][c]; row.push(\`"\${String(v).replace(/"/g, '""')}"\`); } if (row.some(v => v !== '""')) csv += row.join(",") + "\\n"; } const blob = new Blob([csv], { type: "text/csv" }); const a = document.createElement("a"); a.download = "spreadsheet.csv"; a.href = URL.createObjectURL(blob); a.click(); document.getElementById("statusInfo").textContent = "Exported CSV"; }
+    function importCSV(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const lines = e.target.result.split("\\n"); lines.forEach((line, r) => { if (r >= ROWS) return; const cols = line.split(",").map(v => v.replace(/^"|"$/g, "").replace(/""/g, '"')); cols.forEach((val, c) => { if (c < COLS) data[r][c] = val; }); }); render(); document.getElementById("statusInfo").textContent = \`Imported \${lines.length} rows\`; }; reader.readAsText(file); event.target.value = ""; }
+    function clearAll() { for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) data[r][c] = ""; render(); document.getElementById("statusInfo").textContent = "Cleared"; }
+    function updateStatus() { const filled = data.flat().filter(v => v).length; document.getElementById("selectionInfo").textContent = \`\${cellId(selectedRow, selectedCol)} | \${filled} cells used\`; }
+    data[0][0] = "Item"; data[0][1] = "Qty"; data[0][2] = "Price"; data[0][3] = "Total";
+    data[1][0] = "Widget A"; data[1][1] = "10"; data[1][2] = "5.99"; data[1][3] = "=B2*C2";
+    data[2][0] = "Widget B"; data[2][1] = "25"; data[2][2] = "3.49"; data[2][3] = "=B3*C3";
+    data[3][0] = "Widget C"; data[3][1] = "8"; data[3][2] = "12.00"; data[3][3] = "=B4*C4";
+    data[4][0] = "Total"; data[4][3] = "=SUM(D2:D4)";
+    data[5][0] = "Average"; data[5][3] = "=AVG(D2:D4)";
+    data[6][0] = "Count"; data[6][3] = "=COUNT(D2:D4)";
+    render(); updateStatus();
+  </script>
+</body>
+</html>`,
+      },
+    ],
+  },
 ];
 
 export function getTemplateById(id: string): ProjectTemplate | undefined {
@@ -1692,5 +2281,5 @@ export function getTemplateById(id: string): ProjectTemplate | undefined {
 }
 
 export function getAllTemplates(): { id: string; name: string; description: string; language: string; projectType: string }[] {
-  return PROJECT_TEMPLATES.map(({ id, name, description, language, projectType }) => ({ id, name, description, language, projectType: projectType || "web" }));
+  return PROJECT_TEMPLATES.map(({ id, name, description, language, projectType }) => ({ id, name, description, language, projectType: projectType || "web-app" }));
 }

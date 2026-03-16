@@ -6298,7 +6298,7 @@ export async function registerRoutes(
 
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
     try {
-      const { prompt, model: requestedModel } = req.body;
+      const { prompt, model: requestedModel, outputType: reqOutputType } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
         return res.status(400).json({ message: "Please provide a project description (at least 3 characters)" });
       }
@@ -6311,13 +6311,31 @@ export async function registerRoutes(
         return res.status(403).json({ message: `Project limit reached (${genProjectLimit.current}/${genProjectLimit.limit}). Upgrade to Pro for more.` });
       }
 
-      const systemPrompt = `You are a senior software engineer. Given a project description, generate a project specification as JSON.
+      const validOutputTypes = ["web", "mobile", "slides", "animation", "design", "data-visualization", "automation", "3d-game", "document", "spreadsheet"];
+      const outputType = validOutputTypes.includes(reqOutputType) ? reqOutputType : "web";
+
+      const outputTypeInstructions: Record<string, string> = {
+        "web": "Generate a web app. Put everything in a single HTML file with inline CSS/JS when possible. Use modern HTML5, CSS3, and vanilla JS or include CDN links for frameworks.",
+        "mobile": "Generate a responsive PWA with mobile-first layout. Include viewport meta tag, touch-friendly interactions, a web app manifest, and service worker registration stub. Use CSS media queries for responsiveness. Include install prompt UI.",
+        "slides": "Generate an HTML-based slide presentation using Reveal.js (include CDN). Create multiple slides with navigation, transitions, and speaker notes. Include a title slide and content slides.",
+        "animation": "Generate a Canvas/CSS/SVG animation with controls (play/pause/speed). Use requestAnimationFrame for smooth rendering. Include interactive controls to adjust animation parameters.",
+        "design": "Generate a design tool/canvas with interactive elements. Include color pickers, drawing tools (pen, shapes, text), canvas element, and export functionality. Use Canvas API or SVG.",
+        "data-visualization": "Generate a data visualization dashboard using Chart.js (include CDN). Create multiple chart types (bar, line, pie) with real sample data. Include interactive filters and responsive layout.",
+        "automation": "Generate a Node.js automation script. Include file processing, scheduling (cron-like with setInterval), logging, and error handling. Make it a complete working script with clear console output.",
+        "3d-game": "Generate a 3D game using Three.js (include CDN). Include camera controls, basic physics/collision detection, a game loop with requestAnimationFrame, scoring, and keyboard/mouse input handling.",
+        "document": "Generate a rich text editor or Markdown editor. Include a toolbar with formatting options (bold, italic, headers, lists), live preview panel, and export to HTML functionality. Use contentEditable or textarea with parsing.",
+        "spreadsheet": "Generate an interactive data grid/spreadsheet. Include formula support (basic SUM, AVG, COUNT), sorting, filtering, cell editing, and CSV import/export. Use an HTML table with contentEditable cells.",
+      };
+
+      const formatInstruction = outputTypeInstructions[outputType] || outputTypeInstructions["web"];
+
+      const systemPrompt = `You are a senior software engineer. Given a project description and output format, generate a project specification as JSON.
 
 Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this structure:
 {
   "name": "project-name-slug",
   "language": "javascript",
-  "projectType": "web",
+  "projectType": "web-app",
   "files": [
     { "filename": "index.js", "content": "// code" }
   ]
@@ -6326,12 +6344,13 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this s
 Rules:
 - name: short kebab-case slug (max 30 chars)
 - language: one of javascript, typescript, python
-- projectType: "web" for websites/APIs, "mobile-app" for mobile apps
+- projectType: "web-app" for most output types
 - files: generate 1-3 concise, working files. Keep code SHORT but functional.
-- For web apps: put everything in a single HTML file with inline CSS/JS when possible
-- For mobile apps: use React Native/Expo with View, Text, TouchableOpacity, StyleSheet.create(). Include app.json with Expo config and package.json with expo/react-native/react-native-web dependencies. Use "typescript" as the language.
 - IMPORTANT: Keep total response under 3000 tokens. Prefer fewer, smaller files.
-- Do NOT add any text before or after the JSON object`;
+- Do NOT add any text before or after the JSON object
+
+OUTPUT FORMAT: ${outputType}
+${formatInstruction}`;
 
       let text = "";
 
@@ -6457,12 +6476,13 @@ Rules:
       const validLangs = ["javascript", "typescript", "python"];
       if (!validLangs.includes(spec.language)) spec.language = "javascript";
 
-      const detectedProjectType = spec.projectType === "mobile-app" ? "mobile-app" : "web";
+      const detectedProjectType = spec.projectType === "mobile-app" ? "mobile-app" : "web-app";
 
       const project = await storage.createProject(req.session.userId!, {
         name: spec.name.slice(0, 50),
         language: spec.language,
         projectType: detectedProjectType,
+        outputType: outputType,
       });
 
       for (const file of spec.files.slice(0, 10)) {
@@ -7723,11 +7743,22 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         }
       }
 
+      const outputTypeContextMap: Record<string, string> = {
+        "mobile": "\n\nThis project's output type is MOBILE (PWA). Generate responsive, mobile-first code with viewport meta, touch interactions, service worker stubs, and install prompts. Use CSS media queries and mobile-friendly UI patterns.",
+        "animation": "\n\nThis project's output type is ANIMATION. Generate Canvas/CSS/SVG animations with play/pause/speed controls. Use requestAnimationFrame for smooth rendering and include interactive parameter controls.",
+        "design": "\n\nThis project's output type is DESIGN. Generate design tools with canvas elements, color pickers, drawing tools (pen, shapes, text), layers, and export functionality. Use Canvas API or SVG.",
+        "data-visualization": "\n\nThis project's output type is DATA VISUALIZATION. Generate dashboards with Chart.js or D3.js (via CDN). Create multiple chart types with real sample data, interactive filters, and responsive layout.",
+        "automation": "\n\nThis project's output type is AUTOMATION. Generate Node.js automation scripts with file processing, scheduling (setInterval/cron patterns), logging, error handling, and clear console output.",
+        "3d-game": "\n\nThis project's output type is 3D GAME. Generate Three.js games (via CDN) with camera controls, physics/collision, game loop, scoring, and keyboard/mouse input. Include a game over/restart mechanism.",
+        "document": "\n\nThis project's output type is DOCUMENT. Generate rich text or Markdown editors with formatting toolbars (bold, italic, headers, lists), live preview, and export to HTML. Use contentEditable or textarea with parsing.",
+        "spreadsheet": "\n\nThis project's output type is SPREADSHEET. Generate interactive data grids with formula support (SUM, AVG, COUNT), sorting, filtering, cell editing, and CSV import/export. Use HTML tables with contentEditable cells.",
+      };
+
       const projectTypeContext = project.projectType === "slides"
         ? `\n\nThis is a SLIDES project. The user is building a presentation. You have access to the create_slide and edit_slide tools to create/modify slides. Each slide has an id, order, layout, and blocks array. Block types: title, body, image, code, list. You can also set a theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, and accentColor.`
         : project.projectType === "video"
         ? `\n\nThis is a VIDEO project. The user is creating a video composition. You have access to the create_video_scene and edit_video_scene tools to create/modify video scenes. Each scene has an id, order, duration (seconds), backgroundColor, elements array, and transition type. Element types: text, image, shape, overlay. Each element has position (x, y as %), size (width, height as %), startTime, endTime, style, and animation.`
-        : "";
+        : (outputTypeContextMap[(project as any).outputType] || "");
 
       const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
