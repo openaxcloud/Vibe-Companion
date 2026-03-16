@@ -24,6 +24,7 @@ import Project from "@/pages/Project";
 import Frameworks from "@/pages/Frameworks";
 import ThemeEditor from "@/pages/ThemeEditor";
 import ThemesExplore from "@/pages/ThemesExplore";
+import Import from "@/pages/Import";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -113,6 +114,7 @@ function App() {
                 <Route path="/themes">{() => <ProtectedRoute component={ThemesExplore} />}</Route>
                 <Route path="/themes/editor">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
                 <Route path="/themes/editor/:id">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
+                <Route path="/import">{() => <ProtectedRoute component={Import} />}</Route>
                 <Route path="/pricing" component={Pricing} />
                 <Route path="/demo" component={DemoProject} />
                 <Route path="/shared/:id" component={SharedProject} />

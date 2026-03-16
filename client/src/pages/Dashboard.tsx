@@ -931,7 +931,7 @@ export default function Dashboard() {
               <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setDialogOpen(true)} data-testid="button-create-repl">
                 <Plus className="w-3.5 h-3.5" /> New Repl
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" data-testid="button-import-github">
+              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setLocation("/import?source=github")} data-testid="button-import-github">
                 <GitBranch className="w-3.5 h-3.5" /> Import from GitHub
               </DropdownMenuItem>
             </DropdownMenuContent>

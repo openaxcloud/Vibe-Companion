@@ -129,16 +129,58 @@ export async function getAuthenticatedUser(): Promise<any> {
   }
 }
 
-export async function getRepoTree(owner: string, repo: string, branch: string = "main"): Promise<any[]> {
+export async function getRepoTree(owner: string, repo: string, branch: string = "main"): Promise<{ tree: any[]; truncated: boolean }> {
   try {
     const response = await connectors.proxy("github", `/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, {
       method: "GET",
     });
-    if (!response.ok) return [];
+    if (!response.ok) return { tree: [], truncated: false };
     const data = await response.json();
-    return (data.tree || []).filter((item: any) => item.type === "blob");
+    const blobs = (data.tree || []).filter((item: any) => item.type === "blob");
+    return { tree: blobs, truncated: !!data.truncated };
   } catch {
-    return [];
+    return { tree: [], truncated: false };
+  }
+}
+
+export async function getRepoTreePaginated(owner: string, repo: string, branch: string = "main", maxFiles: number = 5000): Promise<{ tree: any[]; truncated: boolean }> {
+  const result = await getRepoTree(owner, repo, branch);
+  if (!result.truncated || result.tree.length >= maxFiles) {
+    return { tree: result.tree.slice(0, maxFiles), truncated: result.truncated || result.tree.length > maxFiles };
+  }
+
+  try {
+    const topLevel = await getRepoContents(owner, repo);
+    const allBlobs: any[] = [...result.tree];
+    const seen = new Set(allBlobs.map((b: any) => b.path));
+
+    const fetchSubtree = async (dirPath: string) => {
+      try {
+        const subResponse = await connectors.proxy("github", `/repos/${owner}/${repo}/git/trees/${branch}:${dirPath}?recursive=1`, {
+          method: "GET",
+        });
+        if (subResponse.ok) {
+          const subData = await subResponse.json();
+          for (const sub of (subData.tree || [])) {
+            if (sub.type === "blob" && !seen.has(`${dirPath}/${sub.path}`)) {
+              allBlobs.push({ ...sub, path: `${dirPath}/${sub.path}` });
+              seen.add(`${dirPath}/${sub.path}`);
+            }
+          }
+        }
+      } catch {}
+    };
+
+    const dirItems = topLevel.filter((item: any) => item.type === "dir");
+    const SUBTREE_BATCH = 5;
+    for (let i = 0; i < dirItems.length && allBlobs.length < maxFiles; i += SUBTREE_BATCH) {
+      const batch = dirItems.slice(i, i + SUBTREE_BATCH);
+      await Promise.allSettled(batch.map((item: any) => fetchSubtree(item.path)));
+    }
+
+    return { tree: allBlobs.slice(0, maxFiles), truncated: allBlobs.length >= maxFiles };
+  } catch {
+    return result;
   }
 }
 

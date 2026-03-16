@@ -46,6 +46,7 @@ import { registerImageRoutes } from "./replit_integrations/image";
 import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "./fileGeneration";
 import PDFDocument from "pdfkit";
 import * as fs from "fs";
+import { importFromGitHub, importFromZip, importFromFigma, importFromVercel, importFromBolt, importFromLovable, validateImportSource, startAsyncImport, startAsyncZipImport, getImportJob, validateZipBuffer, fetchFigmaDesignContext } from "./importService";
 
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
@@ -3447,52 +3448,118 @@ export async function registerRoutes(
   });
 
   app.post("/api/github/import", requireAuth, async (req: Request, res: Response) => {
-    const { owner, repo, name, visibility } = req.body;
+    const { owner, repo, name, branch, async: asyncMode } = req.body;
     if (!owner || !repo) return res.status(400).json({ message: "owner and repo required" });
+    if (asyncMode) {
+      const { startAsyncImport } = await import("./importService");
+      const jobId = startAsyncImport("github", req.session.userId!, { owner, repo, name, branch });
+      return res.status(202).json({ jobId, async: true });
+    }
     try {
-      const projectCheck = await storage.checkProjectLimit(req.session.userId!);
-      if (!projectCheck.allowed) {
-        return res.status(429).json({ message: `Project limit reached` });
+      if (asyncMode) {
+        const jobId = startAsyncImport("github", req.session.userId!, { owner, repo, name, branch });
+        return res.status(202).json({ jobId, async: true });
       }
-      const validVis = ["public", "private"];
-      const requestedVis = validVis.includes(visibility) ? visibility : "public";
-      if (requestedVis === "private") {
-        const quota = await storage.getUserQuota(req.session.userId!);
-        if (!quota.plan || quota.plan === "free") {
-          return res.status(403).json({ message: "Private projects require a Pro or Team plan. Upgrade to unlock private projects." });
-        }
-      }
-      const contents = await github.getRepoContents(owner, repo);
-      const repoInfo = await github.getRepo(owner, repo);
-      const lang = repoInfo.language === "Python" ? "python" : repoInfo.language === "TypeScript" ? "typescript" : "javascript";
-      const project = await storage.createProject(req.session.userId!, {
-        name: (name || repo).slice(0, 50),
-        language: lang,
-        visibility: requestedVis,
-      });
-      const importFiles = contents.filter((c: any) => c.type === "file").slice(0, 20);
-      let importedEcode = false;
-      for (const item of importFiles) {
-        if (item.path === "ecode.md") { importedEcode = true; continue; }
-        try {
-          const content = await github.getFileContent(owner, repo, item.path);
-          await storage.createFile(project.id, { filename: item.path, content: content.slice(0, 500000) });
-        } catch {}
-      }
-      if (importedEcode) {
-        try {
-          const ecodeContent = await github.getFileContent(owner, repo, "ecode.md");
-          const existingEcode = (await storage.getFiles(project.id)).find(f => f.filename === "ecode.md");
-          if (existingEcode) {
-            await storage.updateFileContent(existingEcode.id, ecodeContent.slice(0, 500000));
-          }
-        } catch {}
-      }
-      const files = await storage.getFiles(project.id);
-      return res.status(201).json({ project, files });
+      const result = await importFromGitHub(req.session.userId!, owner, repo, name, branch);
+      await storage.trackEvent(req.session.userId!, "github_import", { repo: `${owner}/${repo}`, fileCount: result.fileCount });
+      const files = await storage.getFiles(result.project.id);
+      return res.status(201).json({ project: result.project, files, warnings: result.warnings, fileCount: result.fileCount, jobId: result.jobId });
     } catch (err: any) {
       return res.status(502).json({ message: err.message || "Failed to import from GitHub" });
     }
+  });
+
+  app.post("/api/import/validate", requireAuth, async (req: Request, res: Response) => {
+    const { source, input } = req.body;
+    if (!source || !input) return res.status(400).json({ message: "source and input required" });
+    try {
+      const result = await validateImportSource(source, input);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Validation failed" });
+    }
+  });
+
+  const zipUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
+
+  app.post("/api/import/validate-zip", requireAuth, zipUpload.single("file"), async (req: Request, res: Response) => {
+    if (!req.file) return res.status(400).json({ message: "ZIP file required" });
+    try {
+      const result = validateZipBuffer(req.file.buffer);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "ZIP validation failed" });
+    }
+  });
+
+  app.get("/api/import/progress/:jobId", requireAuth, (req: Request, res: Response) => {
+    const job = getImportJob(req.params.jobId, req.session.userId!);
+    if (!job) return res.status(404).json({ message: "Import job not found" });
+    return res.json({
+      status: job.status,
+      progress: job.progress,
+      totalFiles: job.totalFiles,
+      importedFiles: job.importedFiles,
+      currentFile: job.currentFile,
+      message: job.message,
+      error: job.error,
+      result: job.status === "complete" ? job.result : undefined,
+    });
+  });
+
+  app.post("/api/import/zip", requireAuth, zipUpload.single("file"), async (req: Request, res: Response) => {
+    if (!req.file) return res.status(400).json({ message: "ZIP file required" });
+    const projectName = (req.body.name || "zip-import").slice(0, 50);
+    const { startAsyncZipImport } = await import("./importService");
+    const jobId = startAsyncZipImport(req.session.userId!, req.file.buffer, projectName);
+    return res.status(202).json({ jobId, async: true });
+  });
+
+  app.post("/api/import/figma/design-context", requireAuth, async (req: Request, res: Response) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ message: "Figma URL required" });
+    try {
+      const parsed = url.match(/\/(file|design|proto)\/([a-zA-Z0-9]+)/);
+      if (!parsed) return res.status(400).json({ message: "Invalid Figma URL format" });
+      const fileKey = parsed[2];
+      const nodeIdParam = new URL(url).searchParams.get("node-id") || undefined;
+      const context = await fetchFigmaDesignContext(fileKey, nodeIdParam);
+      return res.json({ designContext: context });
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Failed to fetch Figma design context" });
+    }
+  });
+
+  app.post("/api/import/figma", requireAuth, async (req: Request, res: Response) => {
+    const { url, name, provider, designContext } = req.body;
+    if (!url) return res.status(400).json({ message: "Figma URL required" });
+    const { startAsyncImport } = await import("./importService");
+    const jobId = startAsyncImport("figma", req.session.userId!, { url, name: name || "figma-import", provider: provider || "openai", designContext });
+    return res.status(202).json({ jobId, async: true });
+  });
+
+  app.post("/api/import/vercel", requireAuth, async (req: Request, res: Response) => {
+    const { url, name } = req.body;
+    if (!url) return res.status(400).json({ message: "Vercel URL required" });
+    const { startAsyncImport } = await import("./importService");
+    const jobId = startAsyncImport("vercel", req.session.userId!, { url, name });
+    return res.status(202).json({ jobId, async: true });
+  });
+
+  app.post("/api/import/bolt", requireAuth, async (req: Request, res: Response) => {
+    const { url, name } = req.body;
+    if (!url) return res.status(400).json({ message: "GitHub repo URL required" });
+    const { startAsyncImport } = await import("./importService");
+    const jobId = startAsyncImport("bolt", req.session.userId!, { url, name });
+    return res.status(202).json({ jobId, async: true });
+  });
+
+  app.post("/api/import/lovable", requireAuth, async (req: Request, res: Response) => {
+    const { url, name } = req.body;
+    if (!url) return res.status(400).json({ message: "GitHub repo URL required" });
+    const { startAsyncImport } = await import("./importService");
+    const jobId = startAsyncImport("lovable", req.session.userId!, { url, name });
+    return res.status(202).json({ jobId, async: true });
   });
 
   app.post("/api/github/export", requireAuth, async (req: Request, res: Response) => {
