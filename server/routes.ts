@@ -20,6 +20,7 @@ import type { DeploymentType } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
 import { DEFAULT_SHORTCUTS, isValidShortcutValue, findConflict, mergeWithDefaults } from "@shared/keyboardShortcuts";
 import { createCheckpoint, restoreCheckpoint, getCheckpointDiff } from "./checkpointService";
+import { triggerBackupAsync, createBackup, restoreFromBackup, getBackupStatus, verifyBackupIntegrity } from "./gitBackupService";
 import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById, getACMEChallengeResponse } from "./domainManager";
 import {
   checkUserRateLimit,
@@ -79,16 +80,74 @@ async function loadCommitHistoryForRepo(projectId: string) {
 async function ensureRepoWithPersistence(
   projectId: string,
   files: Array<{ filename: string; content: string }>
-) {
+): Promise<{ recovered?: boolean }> {
+  let recovered = false;
   const dbPackedState = await storage.getGitRepoState(projectId);
   const commitHistory = dbPackedState ? undefined : await loadCommitHistoryForRepo(projectId);
-  await gitService.ensureRepo(projectId, files, { commitHistory, dbPackedState });
+
+  try {
+    await gitService.ensureRepo(projectId, files, { commitHistory, dbPackedState });
+    if (gitService.isRepoInitialized(projectId)) {
+      try {
+        await gitService.getLog(projectId, undefined, 1);
+      } catch {
+        throw new Error("Git repo corruption detected");
+      }
+    }
+  } catch (err) {
+    console.error(`[git-recovery] Corruption detected for project ${projectId}, attempting restore...`);
+    const restoredFromBackup = await restoreFromBackup(projectId);
+    if (restoredFromBackup) {
+      let verified = false;
+      try {
+        await gitService.getLog(projectId, undefined, 1);
+        verified = true;
+      } catch {}
+      if (verified) {
+        console.log(`[git-recovery] Restored and verified from backup for project ${projectId}`);
+        recovered = true;
+        broadcastToProject(projectId, { type: "git_recovery", message: "Repository automatically restored from backup" });
+      } else {
+        console.warn(`[git-recovery] Backup restore failed verification for project ${projectId}, trying fallback...`);
+      }
+    }
+    if (!recovered && dbPackedState) {
+      try {
+        gitService.restoreGitStateFromPack(projectId, dbPackedState);
+        let fallbackVerified = false;
+        try {
+          await gitService.getLog(projectId, undefined, 1);
+          fallbackVerified = true;
+        } catch {}
+        if (fallbackVerified) {
+          console.log(`[git-recovery] Restored and verified from git_repo_state for project ${projectId}`);
+          recovered = true;
+          broadcastToProject(projectId, { type: "git_recovery", message: "Repository automatically restored from saved state" });
+        } else {
+          console.warn(`[git-recovery] git_repo_state restore failed verification for project ${projectId}, reinitializing...`);
+          await gitService.ensureRepo(projectId, files, {});
+          recovered = true;
+        }
+      } catch {
+        await gitService.ensureRepo(projectId, files, {});
+        recovered = true;
+      }
+    } else if (!recovered) {
+      await gitService.ensureRepo(projectId, files, { commitHistory });
+      recovered = true;
+    }
+  }
+
+  return { recovered };
 }
 
-async function persistRepoState(projectId: string) {
+async function persistRepoState(projectId: string, backupTrigger?: "commit" | "deploy" | "agent" | "manual") {
   const packed = gitService.getSerializedGitState(projectId);
   if (packed) {
     await storage.saveGitRepoState(projectId, packed);
+    if (backupTrigger) {
+      triggerBackupAsync(projectId, backupTrigger);
+    }
   }
 }
 import { getTemplateById, getAllTemplates } from "./templates";
@@ -3649,6 +3708,7 @@ export async function registerRoutes(
       await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version, deploymentType });
       if (build.status === "live") {
         createCheckpoint(project.id, req.session.userId!, "deployment", `Deployment v${version} successful`).catch(() => {});
+        triggerBackupAsync(project.id, "deploy");
         createAndBroadcastNotification(req.session.userId!, {
           category: "deployment",
           title: "Deployment successful",
@@ -5892,7 +5952,7 @@ export async function registerRoutes(
         snapshot,
       });
       await storage.updateBranchHead(branch.id, dbCommit.id);
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
 
       return res.status(201).json({
         id: result.sha,
@@ -5967,7 +6027,7 @@ export async function registerRoutes(
       const dbFiles = await storage.getFiles(req.params.projectId);
       await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
       await gitService.createBranch(req.params.projectId, name.trim(), fromBranch);
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
       return res.status(201).json({
         id: `git-branch-${name.trim()}`,
         projectId: req.params.projectId,
@@ -6000,7 +6060,7 @@ export async function registerRoutes(
       const dbFiles = await storage.getFiles(req.params.projectId);
       await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
       await gitService.deleteBranch(req.params.projectId, branchName);
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
       return res.json({ success: true });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Failed to delete branch";
@@ -6041,7 +6101,7 @@ export async function registerRoutes(
         await storage.createFile(req.params.projectId, { filename, content });
       }
 
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
       return res.json({ success: true, filesRestored: workingFiles.length });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Checkout failed";
@@ -6175,7 +6235,7 @@ export async function registerRoutes(
         return res.status(500).json({ message: result.error || "Push failed" });
       }
 
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
       return res.json({ success: true, filesPushed: dbFiles.length, filesDeleted: 0 });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Push failed";
@@ -6236,7 +6296,7 @@ export async function registerRoutes(
         await storage.createFile(req.params.projectId, { filename, content });
       }
 
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
       return res.json({ success: true, filesPulled: result.files.length, skipped: 0 });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Pull failed";
@@ -6275,7 +6335,7 @@ export async function registerRoutes(
         await storage.createFile(req.params.projectId, { filename, content });
       }
 
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
       return res.json({ success: true, sha: result.sha });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Conflict resolution failed";
@@ -6330,12 +6390,79 @@ export async function registerRoutes(
 
       const repoFullName = `${owner}/${repo}`;
       await storage.updateProject(req.params.projectId, { githubRepo: repoFullName });
-      await persistRepoState(req.params.projectId);
+      await persistRepoState(req.params.projectId, "commit");
 
       return res.json({ success: true, filesCloned: clonedFiles.length, githubRepo: repoFullName });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Clone failed";
       return res.status(500).json({ message });
+    }
+  });
+
+  // --- GIT BACKUP & RECOVERY ---
+  app.get("/api/projects/:id/git/backup-status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const status = await getBackupStatus(project.id);
+      return res.json(status);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to get backup status" });
+    }
+  });
+
+  app.post("/api/projects/:id/git/backup", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const backup = await createBackup(project.id, "manual");
+      if (!backup) return res.status(400).json({ message: "No git state to backup" });
+      return res.status(201).json({ id: backup.id, version: backup.version, sizeBytes: backup.sizeBytes, trigger: backup.trigger, createdAt: backup.createdAt });
+    } catch (err) {
+      return res.status(500).json({ message: err instanceof Error ? err.message : "Failed to create backup" });
+    }
+  });
+
+  app.post("/api/projects/:id/git/backup/restore", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { version } = z.object({ version: z.number().optional() }).parse(req.body);
+      const success = await restoreFromBackup(project.id, version);
+      if (!success) return res.status(404).json({ message: "No backup found to restore" });
+      await persistRepoState(project.id);
+      return res.json({ success: true, message: "Repository restored from backup" });
+    } catch (err) {
+      return res.status(500).json({ message: err instanceof Error ? err.message : "Failed to restore from backup" });
+    }
+  });
+
+  app.get("/api/projects/:id/git/backups", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const backups = await storage.getGitBackups(project.id);
+      return res.json(backups.map(b => ({
+        id: b.id,
+        version: b.version,
+        sizeBytes: b.sizeBytes,
+        trigger: b.trigger,
+        createdAt: b.createdAt,
+      })));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to list backups" });
+    }
+  });
+
+  app.get("/api/admin/git/stale-backups", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const { maxAgeHours } = z.object({ maxAgeHours: z.coerce.number().default(24) }).parse(req.query);
+      const stale = await storage.getStaleBackupProjects(maxAgeHours);
+      return res.json({ staleProjects: stale, count: stale.length });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to check stale backups" });
     }
   });
 
@@ -9197,6 +9324,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
 
       if (agentFileOpsCount.value > 0) {
         createCheckpoint(projectId, req.session.userId!, "feature_complete", `AI agent: ${agentFileOpsCount.value} file operation${agentFileOpsCount.value > 1 ? "s" : ""}`).catch(() => {});
+        triggerBackupAsync(projectId, "agent");
         agentFileOpsCount.value = 0;
       }
 

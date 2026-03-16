@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
 import DatabasePanel from "@/components/DatabasePanel";
+import BackupRecoverySection from "@/components/BackupRecoverySection";
 import TestRunnerPanel from "@/components/TestRunnerPanel";
 import SecurityScannerPanel from "@/components/SecurityScannerPanel";
 import AppStoragePanel from "@/components/AppStoragePanel";
@@ -720,6 +721,23 @@ function _projectPage() {
     onJoinNotification,
   } = useCollaboration(projectId, user?.id, activeFileId);
   const collabEditorRef = useRef<{ view?: { state: { selection: { main: { anchor: number; head: number } }; doc: { length: number } } } } | null>(null);
+
+  const lastRecoveryRef = useRef<string | null>(null);
+  useEffect(() => {
+    const recoveryMsgs = messages.filter((m) => m.type === "git_recovery");
+    if (recoveryMsgs.length > 0) {
+      const latest = recoveryMsgs[recoveryMsgs.length - 1];
+      const latestMsg = (latest as { message?: string }).message || "Repository automatically restored from backup";
+      const key = `${recoveryMsgs.length}-${latestMsg}`;
+      if (lastRecoveryRef.current !== key) {
+        lastRecoveryRef.current = key;
+        toast({
+          title: "Git Recovery",
+          description: latestMsg,
+        });
+      }
+    }
+  }, [messages]);
 
   const projectQuery = useQuery<ProjectType>({
     queryKey: ["/api/projects", projectId],
@@ -5219,6 +5237,9 @@ function _projectPage() {
               {mobileTab === "git" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-git-panel">
                   <GitHubPanel projectId={projectId} projectName={project?.name || "project"} />
+                  <div className="overflow-y-auto">
+                    <BackupRecoverySection projectId={projectId} />
+                  </div>
                 </div>
               )}
               {mobileTab === "fileHistory" && (
@@ -7230,6 +7251,8 @@ function _projectPage() {
                     </div>
                     <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={(newProjectId) => { if (newProjectId) { setLocation(`/project/${newProjectId}`); } else { filesQuery.refetch(); } }} onCloned={() => { setFileContents({}); setOpenTabs([]); setActiveFileId(null); filesQuery.refetch(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] }); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] }); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] }); }} />
                   </div>
+
+                  <BackupRecoverySection projectId={projectId} />
                 </div>
               </div>
             )}

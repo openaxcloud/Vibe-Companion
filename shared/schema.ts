@@ -476,6 +476,31 @@ export const gitRepoState = pgTable("git_repo_state", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const backupTriggerEnum = ["commit", "deploy", "agent", "manual"] as const;
+export type BackupTrigger = typeof backupTriggerEnum[number];
+
+export const gitBackups = pgTable("git_backups", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  version: integer("version").notNull(),
+  compressedData: text("compressed_data").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  trigger: text("trigger").notNull().$type<BackupTrigger>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("git_backups_project_version_idx").on(table.projectId, table.version),
+]);
+
+export const insertGitBackupSchema = createInsertSchema(gitBackups).pick({
+  projectId: true,
+  version: true,
+  compressedData: true,
+  sizeBytes: true,
+  trigger: true,
+});
+export type InsertGitBackup = z.infer<typeof insertGitBackupSchema>;
+export type GitBackup = typeof gitBackups.$inferSelect;
+
 export const commits = pgTable("commits", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

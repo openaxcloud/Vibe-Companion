@@ -111,6 +111,8 @@ import {
   type Notification, type InsertNotification,
   type NotificationPreferences, type InsertNotificationPreferences,
   type FileVersion, type InsertFileVersion,
+  gitBackups,
+  type GitBackup, type InsertGitBackup,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -538,6 +540,14 @@ export interface IStorage {
   getLatestFileVersionNumber(fileId: string): Promise<number>;
   deleteOldFileVersions(fileId: string, keepCount: number): Promise<number>;
   purgeFileVersionsOlderThan(days: number): Promise<number>;
+
+  getGitBackups(projectId: string): Promise<GitBackup[]>;
+  getGitBackupByVersion(projectId: string, version: number): Promise<GitBackup | undefined>;
+  getLatestGitBackup(projectId: string): Promise<GitBackup | undefined>;
+  getLatestGitBackupVersion(projectId: string): Promise<number>;
+  createGitBackup(data: InsertGitBackup): Promise<GitBackup>;
+  pruneGitBackups(projectId: string, keepCount: number): Promise<number>;
+  getStaleBackupProjects(maxAgeHours: number): Promise<{ projectId: string; lastBackupAt: Date | null }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3161,6 +3171,71 @@ export class DatabaseStorage implements IStorage {
   async deleteSystemDep(id: string): Promise<boolean> {
     const result = await db.delete(systemDeps).where(eq(systemDeps.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getGitBackups(projectId: string): Promise<GitBackup[]> {
+    return db.select().from(gitBackups).where(eq(gitBackups.projectId, projectId)).orderBy(desc(gitBackups.version));
+  }
+
+  async getGitBackupByVersion(projectId: string, version: number): Promise<GitBackup | undefined> {
+    const [backup] = await db.select().from(gitBackups)
+      .where(and(eq(gitBackups.projectId, projectId), eq(gitBackups.version, version)))
+      .limit(1);
+    return backup;
+  }
+
+  async getLatestGitBackup(projectId: string): Promise<GitBackup | undefined> {
+    const [backup] = await db.select().from(gitBackups)
+      .where(eq(gitBackups.projectId, projectId))
+      .orderBy(desc(gitBackups.version))
+      .limit(1);
+    return backup;
+  }
+
+  async getLatestGitBackupVersion(projectId: string): Promise<number> {
+    const [result] = await db.select({ maxVersion: sql<number>`COALESCE(MAX(${gitBackups.version}), 0)` })
+      .from(gitBackups)
+      .where(eq(gitBackups.projectId, projectId));
+    return result?.maxVersion ?? 0;
+  }
+
+  async createGitBackup(data: InsertGitBackup): Promise<GitBackup> {
+    const [backup] = await db.insert(gitBackups).values(data).returning();
+    return backup;
+  }
+
+  async pruneGitBackups(projectId: string, keepCount: number): Promise<number> {
+    const allBackups = await db.select({ id: gitBackups.id })
+      .from(gitBackups)
+      .where(eq(gitBackups.projectId, projectId))
+      .orderBy(desc(gitBackups.version));
+
+    if (allBackups.length <= keepCount) return 0;
+
+    const toDelete = allBackups.slice(keepCount).map(b => b.id);
+    if (toDelete.length === 0) return 0;
+
+    const result = await db.delete(gitBackups).where(inArray(gitBackups.id, toDelete));
+    return result.rowCount ?? 0;
+  }
+
+  async getStaleBackupProjects(maxAgeHours: number): Promise<{ projectId: string; lastBackupAt: Date | null }[]> {
+    const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+    const allProjects = await db.select({ id: projects.id }).from(projects);
+    const results: { projectId: string; lastBackupAt: Date | null }[] = [];
+
+    for (const p of allProjects) {
+      const [latest] = await db.select({ createdAt: gitBackups.createdAt })
+        .from(gitBackups)
+        .where(eq(gitBackups.projectId, p.id))
+        .orderBy(desc(gitBackups.version))
+        .limit(1);
+
+      if (!latest || new Date(latest.createdAt) < cutoff) {
+        results.push({ projectId: p.id, lastBackupAt: latest ? new Date(latest.createdAt) : null });
+      }
+    }
+    return results;
   }
 }
 
