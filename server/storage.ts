@@ -68,6 +68,8 @@ export interface IStorage {
   getUserByGithubId(githubId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
   updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined>;
+  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>;
+  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(limit?: number, offset?: number): Promise<{ users: User[]; total: number }>;
 
@@ -179,6 +181,7 @@ export interface IStorage {
   getDeployment(id: string): Promise<Deployment | undefined>;
   getProjectDeployments(projectId: string): Promise<Deployment[]>;
   updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date }>): Promise<Deployment | undefined>;
+  demotePreviousLiveDeployments(projectId: string, excludeDeploymentId: string): Promise<void>;
 
   createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain>;
   getCustomDomain(id: string): Promise<CustomDomain | undefined>;
@@ -307,6 +310,20 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
+  }
+
+  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }> {
+    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark" };
+    const user = await this.getUser(userId);
+    if (!user || !user.preferences) return defaults;
+    return { ...defaults, ...user.preferences };
+  }
+
+  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }> {
+    const current = await this.getUserPreferences(userId);
+    const merged = { ...current, ...prefs };
+    await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
+    return merged;
   }
 
   async deleteUser(id: string): Promise<boolean> {
@@ -942,6 +959,18 @@ export class DatabaseStorage implements IStorage {
     return dep;
   }
 
+  async demotePreviousLiveDeployments(projectId: string, excludeDeploymentId: string): Promise<void> {
+    await db.update(deployments)
+      .set({ status: "stopped" })
+      .where(
+        and(
+          eq(deployments.projectId, projectId),
+          eq(deployments.status, "live"),
+          sql`${deployments.id} != ${excludeDeploymentId}`
+        )
+      );
+  }
+
   async createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain> {
     const [domain] = await db.insert(customDomains).values(data).returning();
     return domain;
@@ -1374,9 +1403,9 @@ export class DatabaseStorage implements IStorage {
     const responseTimes = recent.filter(m => m.metricType === "response_time");
     const avgResponseMs = responseTimes.length > 0 ? Math.round(responseTimes.reduce((s, m) => s + m.value, 0) / responseTimes.length) : 0;
     const cpuEntries = recent.filter(m => m.metricType === "cpu_usage");
-    const cpuPercent = cpuEntries.length > 0 ? Math.round(cpuEntries[cpuEntries.length - 1].value) : Math.round(Math.random() * 30 + 5);
+    const cpuPercent = cpuEntries.length > 0 ? Math.round(cpuEntries[cpuEntries.length - 1].value) : 0;
     const memEntries = recent.filter(m => m.metricType === "memory_usage");
-    const memoryMb = memEntries.length > 0 ? memEntries[memEntries.length - 1].value : Math.round(Math.random() * 150 + 50);
+    const memoryMb = memEntries.length > 0 ? memEntries[memEntries.length - 1].value : 0;
     return { requests, errors, avgResponseMs, uptime: errors > 10 ? 99.5 : 100, cpuPercent, memoryMb };
   }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -92,9 +92,20 @@ export default function MonitoringPanel({ projectId, onClose }: { projectId: str
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "monitoring"] });
-      toast({ title: "Metrics recorded" });
     },
   });
+
+  const autoRecordRef = useRef(false);
+  useEffect(() => {
+    if (!autoRecordRef.current) {
+      autoRecordRef.current = true;
+      recordMetricMutation.mutate();
+    }
+    const interval = setInterval(() => {
+      recordMetricMutation.mutate();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [projectId]);
 
   const createAlertMutation = useMutation({
     mutationFn: async (data: { name: string; metricType: string; threshold: number }) => {
@@ -140,7 +151,7 @@ export default function MonitoringPanel({ projectId, onClose }: { projectId: str
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
         <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Monitoring</span>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => recordMetricMutation.mutate()} disabled={recordMetricMutation.isPending} data-testid="button-record-metrics">
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => { recordMetricMutation.mutate(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "monitoring"] }); }} disabled={recordMetricMutation.isPending} title="Refresh metrics" data-testid="button-refresh-metrics">
             <RefreshCw className={`w-3.5 h-3.5 ${recordMetricMutation.isPending ? "animate-spin" : ""}`} />
           </Button>
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-monitoring">

@@ -329,9 +329,64 @@ function _projectPage() {
   const [connectGithubInput, setConnectGithubInput] = useState("");
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
-  const [editorFontSize, setEditorFontSize] = useState(14);
-  const [editorTabSize, setEditorTabSize] = useState(2);
-  const [editorWordWrap, setEditorWordWrap] = useState(false);
+  const [editorFontSize, setEditorFontSizeLocal] = useState(14);
+  const [editorTabSize, setEditorTabSizeLocal] = useState(2);
+  const [editorWordWrap, setEditorWordWrapLocal] = useState(false);
+  const [editorTheme, setEditorThemeLocal] = useState<string>("dark");
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user/preferences", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(prefs => {
+        if (prefs) {
+          setEditorFontSizeLocal(prefs.fontSize ?? 14);
+          setEditorTabSizeLocal(prefs.tabSize ?? 2);
+          setEditorWordWrapLocal(prefs.wordWrap ?? false);
+          setEditorThemeLocal(prefs.theme ?? "dark");
+        }
+        setPrefsLoaded(true);
+      })
+      .catch(() => setPrefsLoaded(true));
+  }, []);
+
+  const savePrefsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePrefs = useCallback((prefs: { fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string }) => {
+    if (!prefsLoaded) return;
+    if (savePrefsTimeout.current) clearTimeout(savePrefsTimeout.current);
+    savePrefsTimeout.current = setTimeout(() => {
+      fetch("/api/user/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(prefs),
+      }).catch(() => {});
+    }, 500);
+  }, [prefsLoaded]);
+
+  const setEditorFontSize = useCallback((v: number | ((prev: number) => number)) => {
+    setEditorFontSizeLocal(prev => {
+      const next = typeof v === "function" ? v(prev) : v;
+      savePrefs({ fontSize: next });
+      return next;
+    });
+  }, [savePrefs]);
+
+  const setEditorTabSize = useCallback((v: number) => {
+    setEditorTabSizeLocal(v);
+    savePrefs({ tabSize: v });
+  }, [savePrefs]);
+
+  const setEditorWordWrap = useCallback((v: boolean) => {
+    setEditorWordWrapLocal(v);
+    savePrefs({ wordWrap: v });
+  }, [savePrefs]);
+
+  const setEditorTheme = useCallback((v: string) => {
+    setEditorThemeLocal(v);
+    savePrefs({ theme: v });
+  }, [savePrefs]);
+
   const [packagesPanelOpen, setPackagesPanelOpen] = useState(false);
   const [databasePanelOpen, setDatabasePanelOpen] = useState(false);
   const [testsPanelOpen, setTestsPanelOpen] = useState(false);
@@ -1232,6 +1287,33 @@ function _projectPage() {
     },
     onError: (err: any) => {
       toast({ title: "Publish failed", description: err.message || "Could not toggle publish state. Please try again.", variant: "destructive" });
+    },
+  });
+
+  const deploymentsQuery = useQuery<{ id: string; version: number; status: string; buildLog: string | null; url: string | null; createdAt: string; finishedAt: string | null }[]>({
+    queryKey: ["/api/projects", projectId, "deployments"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/deployments`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load deployments");
+      return res.json();
+    },
+    enabled: !!projectId,
+    retry: 1,
+  });
+
+  const [expandedDeployId, setExpandedDeployId] = useState<string | null>(null);
+
+  const rollbackMutation = useMutation({
+    mutationFn: async (version: number) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/deploy/rollback`, { version });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deployments"] });
+      toast({ title: "Rollback successful", description: data.message });
+    },
+    onError: (err: any) => {
+      toast({ title: "Rollback failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -3247,15 +3329,64 @@ function _projectPage() {
                     <div className="px-3 py-3 border-b border-[var(--ide-border)]">
                       <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Deployment History</span>
                       <div className="mt-2 space-y-1.5">
-                        {project?.isPublished ? (
-                          <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] text-[var(--ide-text)] font-medium">Production</p>
-                              <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date().toLocaleDateString()} · Live</p>
-                            </div>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Active</span>
+                        {deploymentsQuery.isError ? (
+                          <div className="py-4 text-center">
+                            <p className="text-[10px] text-red-400">Failed to load deployments</p>
+                            <Button size="sm" variant="ghost" className="h-6 text-[10px] text-[var(--ide-text-muted)] mt-1" onClick={() => deploymentsQuery.refetch()} data-testid="mobile-retry-deployments">Retry</Button>
                           </div>
+                        ) : deploymentsQuery.isLoading ? (
+                          <div className="py-4 text-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mx-auto" /></div>
+                        ) : (deploymentsQuery.data || []).length > 0 ? (
+                          (() => {
+                            const deps = deploymentsQuery.data || [];
+                            const currentLiveIdx = deps.findIndex(d => d.status === "live");
+                            return deps.map((dep, idx) => {
+                              const isCurrentLive = idx === currentLiveIdx;
+                              const statusColors: Record<string, string> = {
+                                live: "bg-green-500/10 text-green-400 border-green-500/20",
+                                building: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                                failed: "bg-red-500/10 text-red-400 border-red-500/20",
+                                stopped: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+                              };
+                              const dotColors: Record<string, string> = {
+                                live: "bg-[#0CCE6B]",
+                                building: "bg-blue-400",
+                                failed: "bg-red-400",
+                                stopped: "bg-gray-400",
+                              };
+                              const duration = dep.finishedAt && dep.createdAt ? Math.round((new Date(dep.finishedAt).getTime() - new Date(dep.createdAt).getTime()) / 1000) : null;
+                              return (
+                                <div key={dep.id} className={`rounded-md bg-[var(--ide-bg)] border ${isCurrentLive ? "border-green-500/30" : "border-[var(--ide-border)]"}`} data-testid={`mobile-deployment-${dep.id}`}>
+                                  <button className="flex items-center gap-2 px-2.5 py-2 w-full text-left" onClick={() => setExpandedDeployId(expandedDeployId === dep.id ? null : dep.id)} data-testid={`mobile-toggle-deployment-${dep.id}`}>
+                                    {expandedDeployId === dep.id ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />}
+                                    <span className={`w-1.5 h-1.5 rounded-full ${dotColors[dep.status] || "bg-gray-400"} shrink-0`} />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[10px] text-[var(--ide-text)] font-medium">v{dep.version}</p>
+                                      <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date(dep.createdAt).toLocaleString()}{duration !== null ? ` · ${duration}s` : ""}</p>
+                                    </div>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${statusColors[dep.status] || statusColors.stopped}`}>{isCurrentLive ? "Live" : dep.status}</span>
+                                  </button>
+                                  {expandedDeployId === dep.id && (
+                                    <div className="px-2.5 pb-2.5 space-y-2">
+                                      {dep.buildLog && (
+                                        <div className="bg-[var(--ide-panel)] rounded p-2 max-h-[120px] overflow-y-auto">
+                                          <pre className="text-[9px] text-[var(--ide-text-muted)] font-mono whitespace-pre-wrap" data-testid={`mobile-build-log-${dep.id}`}>{dep.buildLog}</pre>
+                                        </div>
+                                      )}
+                                      {dep.url && (
+                                        <a href={dep.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#0079F2] hover:underline block truncate" data-testid={`mobile-deploy-url-${dep.id}`}>{dep.url}</a>
+                                      )}
+                                      {!isCurrentLive && (dep.status === "live" || dep.status === "stopped") && (
+                                        <Button size="sm" variant="outline" className="h-6 text-[10px] w-full border-[var(--ide-border)] text-[var(--ide-text-secondary)]" onClick={() => rollbackMutation.mutate(dep.version)} disabled={rollbackMutation.isPending} data-testid={`mobile-rollback-${dep.id}`}>
+                                          {rollbackMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : `Rollback to v${dep.version}`}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            });
+                          })()
                         ) : (
                           <div className="py-4 text-center">
                             <p className="text-[10px] text-[var(--ide-text-muted)]">No deployments yet</p>
@@ -3403,10 +3534,10 @@ function _projectPage() {
                     <div className="px-3 py-3 border-b border-[var(--ide-border)]">
                       <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Theme</span>
                       <div className="mt-2 flex gap-2">
-                        <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0079F2]/10 border border-[#0079F2]/30 text-[11px] text-[var(--ide-text)]" data-testid="mobile-button-theme-dark">
+                        <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "dark" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("dark")} data-testid="mobile-button-theme-dark">
                           <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] border border-[var(--ide-border)]" /> Dark
                         </button>
-                        <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] opacity-50 cursor-not-allowed" disabled data-testid="mobile-button-theme-light">
+                        <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "light" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("light")} data-testid="mobile-button-theme-light">
                           <span className="w-4 h-4 rounded-full bg-white border border-gray-300" /> Light
                         </button>
                       </div>
@@ -4154,15 +4285,64 @@ function _projectPage() {
                   <div className="px-3 py-3 border-b border-[var(--ide-border)]">
                     <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Deployment History</span>
                     <div className="mt-2 space-y-1.5">
-                      {project?.isPublished ? (
-                        <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] text-[var(--ide-text)] font-medium">Production</p>
-                            <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date().toLocaleDateString()} · Live</p>
-                          </div>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Active</span>
+                      {deploymentsQuery.isError ? (
+                        <div className="py-4 text-center">
+                          <p className="text-[10px] text-red-400">Failed to load deployments</p>
+                          <Button size="sm" variant="ghost" className="h-6 text-[10px] text-[var(--ide-text-muted)] mt-1" onClick={() => deploymentsQuery.refetch()} data-testid="retry-deployments">Retry</Button>
                         </div>
+                      ) : deploymentsQuery.isLoading ? (
+                        <div className="py-4 text-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mx-auto" /></div>
+                      ) : (deploymentsQuery.data || []).length > 0 ? (
+                        (() => {
+                          const deps = deploymentsQuery.data || [];
+                          const currentLiveIdx = deps.findIndex(d => d.status === "live");
+                          return deps.map((dep, idx) => {
+                            const isCurrentLive = idx === currentLiveIdx;
+                            const statusColors: Record<string, string> = {
+                              live: "bg-green-500/10 text-green-400 border-green-500/20",
+                              building: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                              failed: "bg-red-500/10 text-red-400 border-red-500/20",
+                              stopped: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+                            };
+                            const dotColors: Record<string, string> = {
+                              live: "bg-[#0CCE6B]",
+                              building: "bg-blue-400",
+                              failed: "bg-red-400",
+                              stopped: "bg-gray-400",
+                            };
+                            const duration = dep.finishedAt && dep.createdAt ? Math.round((new Date(dep.finishedAt).getTime() - new Date(dep.createdAt).getTime()) / 1000) : null;
+                            return (
+                              <div key={dep.id} className={`rounded-md bg-[var(--ide-bg)] border ${isCurrentLive ? "border-green-500/30" : "border-[var(--ide-border)]"}`} data-testid={`deployment-${dep.id}`}>
+                                <button className="flex items-center gap-2 px-2.5 py-2 w-full text-left" onClick={() => setExpandedDeployId(expandedDeployId === dep.id ? null : dep.id)} data-testid={`toggle-deployment-${dep.id}`}>
+                                  {expandedDeployId === dep.id ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />}
+                                  <span className={`w-1.5 h-1.5 rounded-full ${dotColors[dep.status] || "bg-gray-400"} shrink-0`} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[10px] text-[var(--ide-text)] font-medium">v{dep.version}</p>
+                                    <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date(dep.createdAt).toLocaleString()}{duration !== null ? ` · ${duration}s` : ""}</p>
+                                  </div>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${statusColors[dep.status] || statusColors.stopped}`}>{isCurrentLive ? "Live" : dep.status}</span>
+                                </button>
+                                {expandedDeployId === dep.id && (
+                                  <div className="px-2.5 pb-2.5 space-y-2">
+                                    {dep.buildLog && (
+                                      <div className="bg-[var(--ide-panel)] rounded p-2 max-h-[150px] overflow-y-auto">
+                                        <pre className="text-[9px] text-[var(--ide-text-muted)] font-mono whitespace-pre-wrap" data-testid={`build-log-${dep.id}`}>{dep.buildLog}</pre>
+                                      </div>
+                                    )}
+                                    {dep.url && (
+                                      <a href={dep.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#0079F2] hover:underline block truncate" data-testid={`deploy-url-${dep.id}`}>{dep.url}</a>
+                                    )}
+                                    {!isCurrentLive && (dep.status === "live" || dep.status === "stopped") && (
+                                      <Button size="sm" variant="outline" className="h-6 text-[10px] w-full border-[var(--ide-border)] text-[var(--ide-text-secondary)]" onClick={() => rollbackMutation.mutate(dep.version)} disabled={rollbackMutation.isPending} data-testid={`rollback-${dep.id}`}>
+                                        {rollbackMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : `Rollback to v${dep.version}`}
+                                      </Button>
+                                    )}
+                                  </div>
+                              )}
+                            </div>
+                            );
+                          });
+                        })()
                       ) : (
                         <div className="py-4 text-center">
                           <p className="text-[10px] text-[var(--ide-text-muted)]">No deployments yet</p>
@@ -4726,11 +4906,11 @@ function _projectPage() {
                   <div className="px-3 py-3 border-b border-[var(--ide-border)]">
                     <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Theme</span>
                     <div className="mt-2 flex gap-2">
-                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[#0079F2]/10 border border-[#0079F2]/30 text-[11px] text-[var(--ide-text)]" data-testid="button-theme-dark">
+                      <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "dark" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("dark")} data-testid="button-theme-dark">
                         <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] border border-[var(--ide-border)]" />
                         Dark
                       </button>
-                      <button className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[11px] text-[var(--ide-text-muted)] opacity-50 cursor-not-allowed" disabled data-testid="button-theme-light">
+                      <button className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-[11px] ${editorTheme === "light" ? "bg-[#0079F2]/10 border border-[#0079F2]/30 text-[var(--ide-text)]" : "bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-muted)]"}`} onClick={() => setEditorTheme("light")} data-testid="button-theme-light">
                         <span className="w-4 h-4 rounded-full bg-white border border-gray-300" />
                         Light
                       </button>

@@ -15,6 +15,7 @@ import { getOrCreateTerminal, resizeTerminal } from "./terminal";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
 import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment } from "./deploymentEngine";
+import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
 import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
 import {
   checkUserRateLimit,
@@ -322,6 +323,16 @@ export async function registerRoutes(
     },
   });
   app.use(sessionMiddleware);
+
+  app.use((req, res, next) => {
+    incrementRequests();
+    const start = Date.now();
+    res.on("finish", () => {
+      recordResponseTime(Date.now() - start);
+      if (res.statusCode >= 400) incrementErrors();
+    });
+    next();
+  });
 
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -826,6 +837,30 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/user/preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const prefs = await storage.getUserPreferences(req.session.userId!);
+      res.json(prefs);
+    } catch { res.status(500).json({ message: "Failed to load preferences" }); }
+  });
+
+  app.put("/api/user/preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({
+        fontSize: z.number().int().min(10).max(24).optional(),
+        tabSize: z.number().int().min(1).max(8).optional(),
+        wordWrap: z.boolean().optional(),
+        theme: z.enum(["dark", "light"]).optional(),
+      });
+      const prefs = schema.parse(req.body);
+      const updated = await storage.updateUserPreferences(req.session.userId!, prefs);
+      res.json(updated);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid preferences" });
+      res.status(500).json({ message: "Failed to save preferences" });
+    }
+  });
+
   // --- TEAMS ---
   app.get("/api/teams", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -1262,9 +1297,9 @@ export async function registerRoutes(
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const projectFiles = await storage.getFiles(project.id);
       if (projectFiles.length === 0) return res.status(400).json({ message: "No files to deploy" });
-      const deployment = await storage.createDeployment({ projectId: project.id, userId: req.session.userId! });
       const existingDeps = await storage.getProjectDeployments(project.id);
-      const version = existingDeps.length;
+      const version = existingDeps.length > 0 ? Math.max(...existingDeps.map(d => d.version)) + 1 : 1;
+      const deployment = await storage.createDeployment({ projectId: project.id, userId: req.session.userId!, version });
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
 
       const build = await buildAndDeploy(
@@ -1280,6 +1315,7 @@ export async function registerRoutes(
 
       const deployUrl = build.url;
       if (build.status === "live") {
+        await storage.demotePreviousLiveDeployments(project.id, deployment.id);
         await storage.updateProject(project.id, { isPublished: true, publishedSlug: slug });
       }
       await storage.updateDeployment(deployment.id, {
@@ -1289,7 +1325,7 @@ export async function registerRoutes(
         finishedAt: new Date(),
       });
       await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version });
-      return res.json({ deployment: { ...deployment, status: build.status, buildLog: build.buildLog, url: deployUrl }, slug, url: deployUrl, version });
+      return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl }, slug, url: deployUrl, version });
     } catch (err: any) {
       log(`Deploy error: ${err.message}`, "deploy");
       return res.status(500).json({ message: "Deployment failed" });
@@ -1337,6 +1373,8 @@ export async function registerRoutes(
 
   app.get("/api/projects/:id/deployments", requireAuth, async (req: Request, res: Response) => {
     try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const deps = await storage.getProjectDeployments(req.params.id);
       return res.json(deps);
     } catch {
@@ -5079,7 +5117,12 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const summary = await storage.getMonitoringSummary(project.id);
-      res.json(summary);
+      const realMetrics = getRealMetrics();
+      res.json({
+        ...summary,
+        cpuPercent: summary.cpuPercent || realMetrics.cpuPercent,
+        memoryMb: summary.memoryMb || realMetrics.memoryMb,
+      });
     } catch { res.status(500).json({ message: "Failed to load summary" }); }
   });
 
@@ -5088,15 +5131,14 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const cpuVal = Math.round(Math.random() * 40 + 5);
-      const memVal = Math.round(Math.random() * 200 + 50);
-      const reqVal = Math.round(Math.random() * 50 + 1);
-      const respVal = Math.round(Math.random() * 200 + 20);
+      const realMetrics = getRealMetrics();
+      const counters = getAndResetCounters();
       await Promise.all([
-        storage.recordMonitoringMetric(project.id, "cpu_usage", cpuVal),
-        storage.recordMonitoringMetric(project.id, "memory_usage", memVal),
-        storage.recordMonitoringMetric(project.id, "request_count", reqVal),
-        storage.recordMonitoringMetric(project.id, "response_time", respVal),
+        storage.recordMonitoringMetric(project.id, "cpu_usage", Math.round(realMetrics.cpuPercent)),
+        storage.recordMonitoringMetric(project.id, "memory_usage", realMetrics.memoryMb),
+        storage.recordMonitoringMetric(project.id, "request_count", counters.requests),
+        storage.recordMonitoringMetric(project.id, "response_time", counters.avgResponseMs),
+        ...(counters.errors > 0 ? [storage.recordMonitoringMetric(project.id, "error_count", counters.errors)] : []),
       ]);
       res.json({ recorded: true });
     } catch { res.status(500).json({ message: "Failed to record metrics" }); }

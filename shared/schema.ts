@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   githubId: text("github_id"),
+  preferences: json("preferences").$type<{ fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -432,6 +433,7 @@ export const deployments = pgTable("deployments", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   userId: varchar("user_id", { length: 36 }).notNull(),
+  version: integer("version").notNull().default(0),
   status: text("status").notNull().default("building"),
   buildLog: text("build_log"),
   url: text("url"),
@@ -443,6 +445,7 @@ export const deployments = pgTable("deployments", {
 export const insertDeploymentSchema = createInsertSchema(deployments).pick({
   projectId: true,
   userId: true,
+  version: true,
 });
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;
