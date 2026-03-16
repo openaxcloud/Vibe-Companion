@@ -955,8 +955,14 @@ export const securityFindings = pgTable("security_findings", {
   line: integer("line"),
   code: text("code"),
   suggestion: text("suggestion"),
+  category: text("category").notNull().default("sast"),
+  isDirect: boolean("is_direct"),
+  hidden: boolean("hidden").notNull().default(false),
+  hiddenAt: timestamp("hidden_at"),
+  agentSessionId: varchar("agent_session_id", { length: 36 }),
 }, (table) => [
   index("security_findings_scan_idx").on(table.scanId),
+  index("security_findings_hidden_idx").on(table.hidden),
 ]);
 export const insertSecurityFindingSchema = createInsertSchema(securityFindings).pick({
   scanId: true,
@@ -967,6 +973,8 @@ export const insertSecurityFindingSchema = createInsertSchema(securityFindings).
   line: true,
   code: true,
   suggestion: true,
+  category: true,
+  isDirect: true,
 });
 export type InsertSecurityFinding = z.infer<typeof insertSecurityFindingSchema>;
 export type SecurityFinding = typeof securityFindings.$inferSelect;

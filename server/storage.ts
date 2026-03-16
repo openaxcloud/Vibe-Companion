@@ -305,7 +305,10 @@ export interface IStorage {
   getProjectScans(projectId: string): Promise<SecurityScan[]>;
   createSecurityFinding(data: InsertSecurityFinding): Promise<SecurityFinding>;
   createSecurityFindings(data: InsertSecurityFinding[]): Promise<SecurityFinding[]>;
-  getScanFindings(scanId: string): Promise<SecurityFinding[]>;
+  getScanFindings(scanId: string, hidden?: boolean): Promise<SecurityFinding[]>;
+  hideSecurityFinding(id: string): Promise<SecurityFinding | undefined>;
+  unhideSecurityFinding(id: string): Promise<SecurityFinding | undefined>;
+  setFindingAgentSession(id: string, agentSessionId: string): Promise<SecurityFinding | undefined>;
 
   getProjectCollaborators(projectId: string): Promise<(ProjectCollaborator & { user: Pick<User, 'id' | 'email' | 'displayName' | 'avatarUrl'> })[]>;
   addProjectCollaborator(data: InsertProjectCollaborator): Promise<ProjectCollaborator>;
@@ -1757,7 +1760,10 @@ export class DatabaseStorage implements IStorage {
     return db.insert(securityFindings).values(data).returning();
   }
 
-  async getScanFindings(scanId: string): Promise<SecurityFinding[]> {
+  async getScanFindings(scanId: string, hidden?: boolean): Promise<SecurityFinding[]> {
+    if (hidden !== undefined) {
+      return db.select().from(securityFindings).where(and(eq(securityFindings.scanId, scanId), eq(securityFindings.hidden, hidden)));
+    }
     return db.select().from(securityFindings).where(eq(securityFindings.scanId, scanId));
   }
 
@@ -1815,6 +1821,21 @@ export class DatabaseStorage implements IStorage {
   async deactivateProjectInviteLink(id: string, projectId: string): Promise<boolean> {
     const result = await db.update(projectInviteLinks).set({ isActive: false }).where(and(eq(projectInviteLinks.id, id), eq(projectInviteLinks.projectId, projectId))).returning();
     return result.length > 0;
+  }
+
+  async hideSecurityFinding(id: string): Promise<SecurityFinding | undefined> {
+    const [finding] = await db.update(securityFindings).set({ hidden: true, hiddenAt: new Date() }).where(eq(securityFindings.id, id)).returning();
+    return finding;
+  }
+
+  async unhideSecurityFinding(id: string): Promise<SecurityFinding | undefined> {
+    const [finding] = await db.update(securityFindings).set({ hidden: false, hiddenAt: null }).where(eq(securityFindings.id, id)).returning();
+    return finding;
+  }
+
+  async setFindingAgentSession(id: string, agentSessionId: string): Promise<SecurityFinding | undefined> {
+    const [finding] = await db.update(securityFindings).set({ agentSessionId }).where(eq(securityFindings.id, id)).returning();
+    return finding;
   }
 
   async getStorageKvEntries(projectId: string): Promise<StorageKv[]> {
