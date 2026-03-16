@@ -8,6 +8,9 @@ import { createServer } from "http";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
+import { startAutoMetricsCollector } from "./metricsCollector";
+import { getAllManagedProcesses, performHealthCheck } from "./deploymentEngine";
+import { renewExpiringCertificates } from "./domainManager";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -198,6 +201,25 @@ async function initStripe() {
     },
     () => {
       log(`serving on port ${port}`);
+
+      startAutoMetricsCollector(
+        () => Array.from(getAllManagedProcesses().keys()),
+        (projectId, metricType, value, metadata) =>
+          storage.recordMonitoringMetric(projectId, metricType, value, metadata),
+        async (projectId) => {
+          const result = await performHealthCheck(projectId);
+          return { healthy: result.healthy, status: result.status };
+        },
+        60000,
+      );
+
+      setInterval(async () => {
+        try {
+          await renewExpiringCertificates(30);
+        } catch (err: any) {
+          log(`[ssl-renewal] Certificate renewal check failed: ${err.message}`);
+        }
+      }, 12 * 60 * 60 * 1000);
     },
   );
 })();

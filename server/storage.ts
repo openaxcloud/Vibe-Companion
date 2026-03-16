@@ -124,6 +124,8 @@ export interface IStorage {
   updateUserPreferences(userId: string, prefs: Partial<UserPreferencesStored>): Promise<UserPreferences>;
   getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>>;
   updateKeyboardShortcuts(userId: string, shortcuts: Record<string, string | null>): Promise<Record<string, string | null>>;
+  getPaneLayout(userId: string, projectId: string): Promise<Record<string, unknown> | null>;
+  savePaneLayout(userId: string, projectId: string, layout: Record<string, unknown>): Promise<void>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(limit?: number, offset?: number): Promise<{ users: User[]; total: number }>;
 
@@ -591,6 +593,24 @@ export class DatabaseStorage implements IStorage {
     const merged = { ...prefs, keyboardShortcuts: shortcuts };
     await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
     return shortcuts;
+  }
+
+  async getPaneLayout(userId: string, projectId: string): Promise<Record<string, unknown> | null> {
+    const user = await this.getUser(userId);
+    if (!user || !user.preferences) return null;
+    const prefs = user.preferences as Record<string, unknown>;
+    const layouts = (prefs.paneLayouts || {}) as Record<string, unknown>;
+    const layout = layouts[projectId];
+    return layout ? layout as Record<string, unknown> : null;
+  }
+
+  async savePaneLayout(userId: string, projectId: string, layout: Record<string, unknown>): Promise<void> {
+    const user = await this.getUser(userId);
+    const prefs = (user?.preferences || {}) as Record<string, unknown>;
+    const layouts = ((prefs.paneLayouts || {}) as Record<string, unknown>);
+    layouts[projectId] = layout;
+    const merged = { ...prefs, paneLayouts: layouts };
+    await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
   }
 
   async deleteUser(id: string): Promise<boolean> {
@@ -2163,7 +2183,9 @@ export class DatabaseStorage implements IStorage {
     const cpuPercent = cpuEntries.length > 0 ? Math.round(cpuEntries[cpuEntries.length - 1].value) : 0;
     const memEntries = recent.filter(m => m.metricType === "memory_usage");
     const memoryMb = memEntries.length > 0 ? memEntries[memEntries.length - 1].value : 0;
-    return { requests, errors, avgResponseMs, uptime: errors > 10 ? 99.5 : 100, cpuPercent, memoryMb };
+    const uptimeEntries = recent.filter(m => m.metricType === "uptime");
+    const uptime = uptimeEntries.length > 0 ? Math.round(uptimeEntries[uptimeEntries.length - 1].value * 100) / 100 : 100;
+    return { requests, errors, avgResponseMs, uptime, cpuPercent, memoryMb };
   }
 
   async getMonitoringAlerts(projectId: string): Promise<MonitoringAlert[]> {

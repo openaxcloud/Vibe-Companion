@@ -20,7 +20,7 @@ import type { DeploymentType } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
 import { DEFAULT_SHORTCUTS, isValidShortcutValue, findConflict, mergeWithDefaults } from "@shared/keyboardShortcuts";
 import { createCheckpoint, restoreCheckpoint, getCheckpointDiff } from "./checkpointService";
-import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
+import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById, getACMEChallengeResponse } from "./domainManager";
 import {
   checkUserRateLimit,
   checkIpRateLimit,
@@ -402,9 +402,60 @@ async function testIntegrationConnection(
               redisHost === "169.254.169.254") {
             return { success: false, message: "REDIS_URL must not point to internal/private hosts" };
           }
-          return { success: false, noLiveTest: true, message: `Format valid (${redisUrl.hostname}:${redisUrl.port || "6379"}) — live TCP probe not available in this environment` };
-        } catch {
-          return { success: false, message: "Invalid REDIS_URL format" };
+          const redisPort = parseInt(redisUrl.port || "6379", 10);
+          const net = await import("net");
+          const dnsModule = await import("dns/promises");
+          const resolvedIps = await dnsModule.resolve4(redisUrl.hostname).catch(() => []);
+          const blockedIp = resolvedIps.find((ip: string) =>
+            ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("127.") ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(ip) || ip === "0.0.0.0" || ip === "169.254.169.254"
+          );
+          if (blockedIp) return { success: false, message: `REDIS_URL resolves to private/internal IP (${blockedIp})` };
+          const tcpResult = await new Promise<{ success: boolean; message: string }>((resolve) => {
+            const socket = new net.Socket();
+            const connTimeout = Math.min(timeout - 1000, 5000);
+            socket.setTimeout(connTimeout);
+            socket.connect(redisPort, redisUrl.hostname, () => {
+              const password = redisUrl.password;
+              if (password) {
+                socket.write(`AUTH ${password}\r\n`);
+                socket.once("data", (data) => {
+                  const response = data.toString().trim();
+                  if (response.startsWith("-")) {
+                    socket.destroy();
+                    resolve({ success: false, message: `Connected to ${redisUrl.hostname}:${redisPort} — authentication failed: ${response.slice(1, 80)}` });
+                    return;
+                  }
+                  socket.write("PING\r\n");
+                  socket.once("data", (pingData) => {
+                    const pingResponse = pingData.toString().trim();
+                    socket.destroy();
+                    resolve({ success: pingResponse.includes("PONG"), message: pingResponse.includes("PONG")
+                      ? `Connected to ${redisUrl.hostname}:${redisPort} — authenticated, PING/PONG OK`
+                      : `Connected to ${redisUrl.hostname}:${redisPort} — auth accepted but PING failed: ${pingResponse.slice(0, 80)}` });
+                  });
+                });
+              } else {
+                socket.write("PING\r\n");
+                socket.once("data", (data) => {
+                  const response = data.toString().trim();
+                  socket.destroy();
+                  if (response.includes("PONG")) {
+                    resolve({ success: true, message: `Connected to ${redisUrl.hostname}:${redisPort} — PING/PONG OK (no auth required)` });
+                  } else if (response.includes("NOAUTH")) {
+                    resolve({ success: false, message: `Connected to ${redisUrl.hostname}:${redisPort} — server requires authentication (NOAUTH)` });
+                  } else {
+                    resolve({ success: false, message: `Connected to ${redisUrl.hostname}:${redisPort} — unexpected response: ${response.slice(0, 80)}` });
+                  }
+                });
+              }
+            });
+            socket.on("timeout", () => { socket.destroy(); resolve({ success: false, message: `Connection to ${redisUrl.hostname}:${redisPort} timed out after ${connTimeout}ms` }); });
+            socket.on("error", (err: any) => { socket.destroy(); resolve({ success: false, message: `Connection failed: ${err.message?.slice(0, 100) || "Unknown error"}` }); });
+          });
+          return tcpResult;
+        } catch (err: any) {
+          return { success: false, message: `Redis connection error: ${err.message?.slice(0, 100) || "Invalid REDIS_URL format"}` };
         }
       }
       case "MongoDB": {
@@ -425,9 +476,46 @@ async function testIntegrationConnection(
             return { success: false, message: "MONGODB_URI must not point to internal/private hosts" };
           }
           if (!mongoUrl.username) return { success: false, message: "Missing username in MONGODB_URI" };
-          return { success: false, noLiveTest: true, message: `Format valid (${mongoUrl.hostname}) — live TCP probe not available in this environment` };
-        } catch {
-          return { success: false, message: "Invalid MONGODB_URI format" };
+          const net = await import("net");
+          const dnsModule = await import("dns/promises");
+          const isPrivateIp = (ip: string) =>
+            ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("127.") ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(ip) || ip === "0.0.0.0" || ip === "169.254.169.254";
+          async function tcpProbe(host: string, port: number, connTimeout: number): Promise<{ success: boolean; message: string }> {
+            const resolvedIps = await dnsModule.resolve4(host).catch(() => []);
+            const blockedIp = resolvedIps.find((ip: string) => isPrivateIp(ip));
+            if (blockedIp) return { success: false, message: `${host} resolves to private/internal IP (${blockedIp})` };
+            return new Promise((resolve) => {
+              const socket = new net.Socket();
+              socket.setTimeout(connTimeout);
+              socket.connect(port, host, () => { socket.destroy(); resolve({ success: true, message: `${host}:${port} — TCP reachable` }); });
+              socket.on("timeout", () => { socket.destroy(); resolve({ success: false, message: `${host}:${port} timed out` }); });
+              socket.on("error", (err: any) => { socket.destroy(); resolve({ success: false, message: `${host}:${port} — ${err.message?.slice(0, 80) || "error"}` }); });
+            });
+          }
+          const connTimeout = Math.min(timeout - 1000, 5000);
+          const isSrv = config.MONGODB_URI.startsWith("mongodb+srv://");
+          if (isSrv) {
+            try {
+              const srvRecords = await dnsModule.resolveSrv(`_mongodb._tcp.${mongoHost}`);
+              if (srvRecords.length === 0) return { success: false, message: `SRV lookup for ${mongoHost} returned no records` };
+              const primarySrv = srvRecords[0];
+              const probeResult = await tcpProbe(primarySrv.name, primarySrv.port, connTimeout);
+              if (probeResult.success) {
+                return { success: true, message: `SRV resolved: ${srvRecords.length} host(s) for ${mongoHost}. TCP verified on ${primarySrv.name}:${primarySrv.port}` };
+              }
+              return { success: false, message: `SRV resolved (${srvRecords.length} hosts) but TCP probe failed: ${probeResult.message}` };
+            } catch (srvErr: any) {
+              return { success: false, message: `SRV lookup failed for ${mongoHost}: ${srvErr.message?.slice(0, 100)}` };
+            }
+          }
+          const mongoPort = parseInt(mongoUrl.port || "27017", 10);
+          const probeResult = await tcpProbe(mongoUrl.hostname, mongoPort, connTimeout);
+          return { success: probeResult.success, message: probeResult.success
+            ? `Connected to ${mongoUrl.hostname}:${mongoPort} — MongoDB port reachable`
+            : `MongoDB connection failed: ${probeResult.message}` };
+        } catch (err: any) {
+          return { success: false, message: `MongoDB connection error: ${err.message?.slice(0, 100) || "Invalid MONGODB_URI format"}` };
         }
       }
       case "AWS S3": {
@@ -440,7 +528,51 @@ async function testIntegrationConnection(
         if (config.AWS_SECRET_ACCESS_KEY.length < 20) {
           return { success: false, message: "AWS secret access key appears too short" };
         }
-        return { success: false, noLiveTest: true, message: `Key format valid (${config.AWS_ACCESS_KEY_ID.slice(0, 4)}...) — STS verification requires AWS SDK` };
+        try {
+          const crypto = await import("crypto");
+          const region = config.AWS_REGION || "us-east-1";
+          const service = "sts";
+          const host = `sts.${region}.amazonaws.com`;
+          const amzDate = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+          const dateStamp = amzDate.slice(0, 8);
+          const canonicalUri = "/";
+          const canonicalQuerystring = "Action=GetCallerIdentity&Version=2011-06-15";
+          const hasSessionToken = !!config.AWS_SESSION_TOKEN;
+          const canonicalHeaders = hasSessionToken
+            ? `host:${host}\nx-amz-date:${amzDate}\nx-amz-security-token:${config.AWS_SESSION_TOKEN}\n`
+            : `host:${host}\nx-amz-date:${amzDate}\n`;
+          const signedHeaders = hasSessionToken ? "host;x-amz-date;x-amz-security-token" : "host;x-amz-date";
+          const payloadHash = crypto.createHash("sha256").update("").digest("hex");
+          const canonicalRequest = `GET\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+          const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+          const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;
+          const kDate = crypto.createHmac("sha256", `AWS4${config.AWS_SECRET_ACCESS_KEY}`).update(dateStamp).digest();
+          const kRegion = crypto.createHmac("sha256", kDate).update(region).digest();
+          const kService = crypto.createHmac("sha256", kRegion).update(service).digest();
+          const kSigning = crypto.createHmac("sha256", kService).update("aws4_request").digest();
+          const signature = crypto.createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+          const authorizationHeader = `AWS4-HMAC-SHA256 Credential=${config.AWS_ACCESS_KEY_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+          const fetchHeaders: Record<string, string> = { "Host": host, "X-Amz-Date": amzDate, "Authorization": authorizationHeader };
+          if (hasSessionToken) {
+            fetchHeaders["X-Amz-Security-Token"] = config.AWS_SESSION_TOKEN;
+          }
+          const stsRes = await fetch(`https://${host}/?${canonicalQuerystring}`, {
+            method: "GET",
+            headers: fetchHeaders,
+            signal: AbortSignal.timeout(Math.min(timeout - 1000, 5000)),
+          });
+          if (stsRes.ok) {
+            const body = await stsRes.text();
+            const arnMatch = body.match(/<Arn>([^<]+)<\/Arn>/);
+            const accountMatch = body.match(/<Account>([^<]+)<\/Account>/);
+            return { success: true, message: `AWS credentials verified — Account: ${accountMatch?.[1] || "unknown"}, ARN: ${arnMatch?.[1]?.slice(0, 50) || "verified"}` };
+          }
+          const errBody = await stsRes.text();
+          const errMsg = errBody.match(/<Message>([^<]+)<\/Message>/)?.[1] || `HTTP ${stsRes.status}`;
+          return { success: false, message: `AWS STS verification failed: ${errMsg.slice(0, 100)}` };
+        } catch (err: any) {
+          return { success: false, message: `AWS verification error: ${err.message?.slice(0, 100) || "Unknown error"}` };
+        }
       }
       case "Firebase": {
         if (!config.FIREBASE_API_KEY || !config.FIREBASE_PROJECT_ID) {
@@ -870,6 +1002,15 @@ export async function registerRoutes(
   const serverStartTime = Date.now();
   const errorBuffer: Array<{ timestamp: string; method: string; path: string; status: number; message: string }> = [];
   const MAX_ERROR_BUFFER = 100;
+
+  app.get("/.well-known/acme-challenge/:token", (req: Request, res: Response) => {
+    const response = getACMEChallengeResponse(req.params.token);
+    if (response) {
+      res.type("text/plain").send(response);
+    } else {
+      res.status(404).send("Challenge not found");
+    }
+  });
 
   app.get("/api/health", async (_req: Request, res: Response) => {
     const uptime = Math.floor((Date.now() - serverStartTime) / 1000);
@@ -1622,6 +1763,56 @@ export async function registerRoutes(
     } catch (err: any) {
       if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid preferences" });
       res.status(500).json({ message: "Failed to save preferences" });
+    }
+  });
+
+  app.get("/api/user/pane-layout/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = String(req.params.projectId);
+      const layout = await storage.getPaneLayout(req.session.userId!, projectId);
+      res.json(layout);
+    } catch { res.status(500).json({ message: "Failed to load pane layout" }); }
+  });
+
+  const paneNodeSchema: z.ZodType<Record<string, unknown>> = z.lazy(() =>
+    z.object({
+      id: z.string(),
+      type: z.enum(["leaf", "split"]),
+      tabs: z.array(z.string()).optional(),
+      activeTab: z.string().nullable().optional(),
+      direction: z.enum(["horizontal", "vertical"]).optional(),
+      sizes: z.array(z.number()).optional(),
+      children: z.array(paneNodeSchema).optional(),
+    })
+  );
+
+  const paneLayoutSchema = z.object({
+    root: paneNodeSchema,
+    floatingPanes: z.array(z.object({
+      id: z.string(),
+      tabs: z.array(z.string()),
+      activeTab: z.string().nullable(),
+      x: z.number(),
+      y: z.number(),
+      width: z.number(),
+      height: z.number(),
+      zIndex: z.number(),
+    })),
+    maximizedPaneId: z.string().nullable(),
+    activePaneId: z.string(),
+  });
+
+  app.put("/api/user/pane-layout/:projectId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = String(req.params.projectId);
+      const layout = paneLayoutSchema.parse(req.body);
+      await storage.savePaneLayout(req.session.userId!, projectId, layout);
+      res.json({ ok: true });
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "name" in err && err.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid pane layout data" });
+      }
+      res.status(500).json({ message: "Failed to save pane layout" });
     }
   });
 
@@ -11945,9 +12136,13 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const metrics = await storage.getMonitoringMetrics(project.id);
+      const limit = parseInt(req.query.limit as string) || 50;
+      const metrics = await storage.getMonitoringMetrics(project.id, limit);
       res.json(metrics);
-    } catch { res.status(500).json({ message: "Failed to load metrics" }); }
+    } catch (err: any) {
+      log(`[monitoring] Failed to load metrics for project ${req.params.id}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load metrics" });
+    }
   });
 
   app.get("/api/projects/:id/monitoring/summary", requireAuth, async (req: Request, res: Response) => {
@@ -11956,16 +12151,30 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const summary = await storage.getMonitoringSummary(project.id);
-      if (!summary) {
-        return res.json(null);
-      }
       const realMetrics = getRealMetrics();
+      if (!summary) {
+        return res.json({
+          requests: 0,
+          errors: 0,
+          avgResponseMs: 0,
+          uptime: 100,
+          cpuPercent: realMetrics.cpuPercent,
+          memoryMb: realMetrics.memoryMb,
+          systemMemory: realMetrics.systemMemory,
+          loadAverage: realMetrics.loadAverage,
+        });
+      }
       res.json({
         ...summary,
         cpuPercent: summary.cpuPercent || realMetrics.cpuPercent,
         memoryMb: summary.memoryMb || realMetrics.memoryMb,
+        systemMemory: realMetrics.systemMemory,
+        loadAverage: realMetrics.loadAverage,
       });
-    } catch { res.status(500).json({ message: "Failed to load summary" }); }
+    } catch (err: any) {
+      log(`[monitoring] Failed to load summary for project ${req.params.id}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load summary" });
+    }
   });
 
   app.post("/api/projects/:id/monitoring/record", requireAuth, async (req: Request, res: Response) => {
@@ -11975,15 +12184,23 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const realMetrics = getRealMetrics();
       const counters = getAndResetCounters();
+      const { getUptimePercent } = await import("./metricsCollector");
+      const uptime = getUptimePercent(project.id);
       await Promise.all([
         storage.recordMonitoringMetric(project.id, "cpu_usage", Math.round(realMetrics.cpuPercent)),
         storage.recordMonitoringMetric(project.id, "memory_usage", realMetrics.memoryMb),
         storage.recordMonitoringMetric(project.id, "request_count", counters.requests),
         storage.recordMonitoringMetric(project.id, "response_time", counters.avgResponseMs),
+        storage.recordMonitoringMetric(project.id, "uptime", uptime),
+        storage.recordMonitoringMetric(project.id, "system_memory_percent", realMetrics.systemMemory.usedPercent),
+        storage.recordMonitoringMetric(project.id, "load_avg_1m", realMetrics.loadAverage.load1),
         ...(counters.errors > 0 ? [storage.recordMonitoringMetric(project.id, "error_count", counters.errors)] : []),
       ]);
-      res.json({ recorded: true });
-    } catch { res.status(500).json({ message: "Failed to record metrics" }); }
+      res.json({ recorded: true, metrics: realMetrics });
+    } catch (err: any) {
+      log(`[monitoring] Failed to record metrics for project ${req.params.id}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to record metrics" });
+    }
   });
 
   app.get("/api/projects/:id/monitoring/alerts", requireAuth, async (req: Request, res: Response) => {
@@ -11993,7 +12210,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const alerts = await storage.getMonitoringAlerts(project.id);
       res.json(alerts);
-    } catch { res.status(500).json({ message: "Failed to load alerts" }); }
+    } catch (err: any) {
+      log(`[monitoring] Failed to load alerts for project ${req.params.id}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load alerts" });
+    }
   });
 
   app.post("/api/projects/:id/monitoring/alerts", requireAuth, async (req: Request, res: Response) => {
@@ -12005,7 +12225,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!name || !metricType || threshold === undefined) return res.status(400).json({ message: "Missing fields" });
       const alert = await storage.createMonitoringAlert({ projectId: project.id, name, metricType, threshold, condition: condition || "gt", enabled: true });
       res.status(201).json(alert);
-    } catch { res.status(500).json({ message: "Failed to create alert" }); }
+    } catch (err: any) {
+      log(`[monitoring] Failed to create alert for project ${req.params.id}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to create alert" });
+    }
   });
 
   app.patch("/api/projects/:id/monitoring/alerts/:alertId", requireAuth, async (req: Request, res: Response) => {
@@ -12019,7 +12242,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const alert = await storage.updateMonitoringAlert(req.params.alertId, req.body);
       if (!alert) return res.status(404).json({ message: "Alert not found" });
       res.json(alert);
-    } catch { res.status(500).json({ message: "Failed to update alert" }); }
+    } catch (err: any) {
+      log(`[monitoring] Failed to update alert ${req.params.alertId}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to update alert" });
+    }
   });
 
   app.delete("/api/projects/:id/monitoring/alerts/:alertId", requireAuth, async (req: Request, res: Response) => {
@@ -12032,7 +12258,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!existing) return res.status(404).json({ message: "Alert not found" });
       await storage.deleteMonitoringAlert(req.params.alertId);
       res.json({ deleted: true });
-    } catch { res.status(500).json({ message: "Failed to delete alert" }); }
+    } catch (err: any) {
+      log(`[monitoring] Failed to delete alert ${req.params.alertId}: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to delete alert" });
+    }
   });
 
   // ===================== THREADS ROUTES =====================

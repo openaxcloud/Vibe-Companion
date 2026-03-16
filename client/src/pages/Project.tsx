@@ -1,5 +1,5 @@
 /* @refresh reset */
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as Y from "yjs";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,13 @@ import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
 import SlideEditor from "@/components/SlideEditor";
 import VideoEditor from "@/components/VideoEditor";
+import {
+  usePaneLayout, PaneOptionsMenu, ResizeHandle, FloatingPaneWrapper,
+  useWorkspaceBroadcast, savePaneLayout, loadPaneLayout,
+  savePaneLayoutToServer, loadPaneLayoutFromServer,
+  type PaneNode, type PaneLayoutState, type FloatingPane, type PaneBroadcastMessage,
+  getAllLeafPanes as getPaneLeaves, getAllLayoutTabs,
+} from "@/components/PaneManager";
 import type { Project as ProjectType, File, ProjectGuest } from "@shared/schema";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
@@ -647,6 +654,10 @@ function _projectPage() {
   const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);
   const showMinimap = userPrefs.minimap;
+
+  const paneLayout = usePaneLayout([], null);
+  const { broadcast: broadcastPaneState, onMessage: onPaneBroadcast, openInNewWindow } = useWorkspaceBroadcast(projectId);
+  const paneContainerRef = useRef<HTMLDivElement>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { matchesCommand, getShortcutDisplay } = useKeyboardShortcuts();
   const [fileDragOver, setFileDragOver] = useState(false);
@@ -871,7 +882,7 @@ function _projectPage() {
   });
 
   useEffect(() => {
-    if (!useRunnerFS && filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0) {
+    if (!useRunnerFS && filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0 && !layoutRestoredRef.current) {
       const f = filesQuery.data[0];
       setOpenTabs([f.id]);
       setActiveFileId(f.id);
@@ -1254,6 +1265,7 @@ function _projectPage() {
     setActiveRunnerPath(null);
     if (window.innerWidth < 768) setSidebarOpen(false);
     scrollTabIntoView(file.id);
+    broadcastPaneState({ type: "tab-opened", tabId: file.id });
   };
 
   const openRunnerFile = async (entry: FsEntry) => {
@@ -1292,6 +1304,7 @@ function _projectPage() {
         setActiveRunnerPath(null);
       }
     }
+    broadcastPaneState({ type: "tab-closed", tabId: fileId });
   };
 
   const closeOtherTabs = (keepTabId: string) => {
@@ -3074,6 +3087,94 @@ function _projectPage() {
     return null;
   };
 
+  useEffect(() => {
+    paneLayout.syncTabsToLayout(openTabs, activeFileId);
+  }, [openTabs, activeFileId]);
+
+  const layoutRestoredRef = useRef(false);
+  useEffect(() => {
+    if (projectId) {
+      const localSaved = loadPaneLayout(projectId);
+      if (localSaved) {
+        paneLayout.setLayout(localSaved);
+        const tabs: string[] = [];
+        getAllLayoutTabs(localSaved.root, tabs);
+        localSaved.floatingPanes.forEach(fp => fp.tabs.forEach(t => tabs.push(t)));
+        const uniqueTabs = Array.from(new Set(tabs));
+        if (uniqueTabs.length > 0) {
+          setOpenTabs(uniqueTabs);
+          layoutRestoredRef.current = true;
+          const activeLeaf = getPaneLeaves(localSaved.root).find(p => p.id === localSaved.activePaneId);
+          if (activeLeaf?.activeTab) setActiveFileId(activeLeaf.activeTab);
+          else setActiveFileId(uniqueTabs[0]);
+        }
+      }
+      loadPaneLayoutFromServer(projectId).then(serverSaved => {
+        if (serverSaved) {
+          paneLayout.setLayout(serverSaved);
+          savePaneLayout(projectId, serverSaved);
+          const tabs: string[] = [];
+          getAllLayoutTabs(serverSaved.root, tabs);
+          serverSaved.floatingPanes.forEach(fp => fp.tabs.forEach(t => tabs.push(t)));
+          const uniqueTabs = Array.from(new Set(tabs));
+          if (uniqueTabs.length > 0) {
+            setOpenTabs(uniqueTabs);
+            layoutRestoredRef.current = true;
+            const activeLeaf = getPaneLeaves(serverSaved.root).find(p => p.id === serverSaved.activePaneId);
+            if (activeLeaf?.activeTab) setActiveFileId(activeLeaf.activeTab);
+            else setActiveFileId(uniqueTabs[0]);
+          }
+        }
+      });
+    }
+  }, [projectId]);
+
+  const layoutBroadcastRef = useRef(false);
+  const suppressBroadcastRef = useRef(false);
+  const paneSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (projectId) {
+      savePaneLayout(projectId, paneLayout.layout);
+      if (paneSaveTimerRef.current) clearTimeout(paneSaveTimerRef.current);
+      paneSaveTimerRef.current = setTimeout(() => {
+        savePaneLayoutToServer(projectId, paneLayout.layout);
+      }, 2000);
+      if (layoutBroadcastRef.current && !suppressBroadcastRef.current) {
+        broadcastPaneState({ type: "layout-sync", layout: paneLayout.layout });
+      }
+      suppressBroadcastRef.current = false;
+      layoutBroadcastRef.current = true;
+    }
+  }, [paneLayout.layout, projectId]);
+
+  useEffect(() => {
+    return onPaneBroadcast((msg: PaneBroadcastMessage) => {
+      if (msg.type === "tab-opened") {
+        if (!openTabs.includes(msg.tabId)) {
+          setOpenTabs(prev => [...prev, msg.tabId]);
+        }
+      }
+      if (msg.type === "tab-closed") {
+        setOpenTabs(prev => prev.filter(t => t !== msg.tabId));
+      }
+      if (msg.type === "layout-sync") {
+        suppressBroadcastRef.current = true;
+        paneLayout.setLayout(msg.layout);
+        const layoutTabs: string[] = [];
+        getAllLayoutTabs(msg.layout.root, layoutTabs);
+        msg.layout.floatingPanes.forEach(fp => fp.tabs.forEach(t => layoutTabs.push(t)));
+        const uniqueTabs = Array.from(new Set(layoutTabs));
+        setOpenTabs(uniqueTabs);
+        if (uniqueTabs.length > 0 && (!activeFileId || !uniqueTabs.includes(activeFileId))) {
+          setActiveFileId(uniqueTabs[0]);
+        }
+      }
+    });
+  }, [onPaneBroadcast, openTabs, activeFileId]);
+
+  const allLeafPanes = useMemo(() => getPaneLeaves(paneLayout.layout.root), [paneLayout.layout.root]);
+  const isMultiPane = allLeafPanes.length > 1;
+
   const editorTabBar = openTabs.length > 0 ? (
     <div className={`flex items-center shrink-0 h-9 overflow-hidden relative ${"bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"}`}>
       {tabBarOverflow && !isMobile && (
@@ -3644,6 +3745,254 @@ function _projectPage() {
   const isSlideProject = project?.projectType === "slides";
   const isVideoProject = project?.projectType === "video";
   const isMediaProject = isSlideProject || isVideoProject;
+
+  const renderPaneContentForTab = (tabId: string | null) => {
+    if (!tabId) return (
+      <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] text-[var(--ide-text-muted)]">
+        <FileCode2 className="w-7 h-7 mb-2 opacity-40" />
+        <p className="text-xs">No file open</p>
+      </div>
+    );
+
+    if (tabId === SPECIAL_TABS.WEBVIEW) return webviewTabContent;
+    if (tabId === SPECIAL_TABS.SHELL) return shellTabContent;
+    if (tabId === SPECIAL_TABS.CONSOLE) return consoleTabContent;
+
+    if (isConflictTab(tabId)) {
+      return (
+        <div className="flex-1 overflow-auto bg-[var(--ide-bg)] p-0">
+          <div className="sticky top-0 z-10 bg-red-500/10 border-b border-red-500/30 px-4 py-2 flex items-center gap-2">
+            <span className="text-[11px] font-bold text-red-400">CONFLICT</span>
+            <span className="text-[11px] text-[var(--ide-text)] font-mono">{tabId.slice(CONFLICT_TAB_PREFIX.length)}</span>
+          </div>
+          <textarea
+            className="w-full min-h-[400px] bg-[var(--ide-bg)] text-[var(--ide-text)] font-mono text-[13px] p-4 outline-none resize-none border-none leading-relaxed"
+            value={fileContents[tabId] ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFileContents(prev => ({ ...prev, [tabId]: val }));
+            }}
+            data-testid={`editor-conflict-pane-${tabId.slice(CONFLICT_TAB_PREFIX.length)}`}
+          />
+        </div>
+      );
+    }
+
+    const isRunner = tabId.startsWith("runner:");
+    const file = (!isRunner) ? filesQuery.data?.find((f) => f.id === tabId) : null;
+    const fileName = isRunner ? (tabId.slice(7).split("/").pop() || "") : (file?.filename || "");
+    const isBinary = file?.isBinary || (file?.content?.startsWith("data:") && file?.content?.includes(";base64,"));
+    const code = fileContents[tabId] ?? file?.content ?? "";
+    const lang = fileName ? detectLanguage(fileName) : "javascript";
+
+    if (isBinary) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 h-full bg-[var(--ide-bg)]">
+          {file?.mimeType?.startsWith("image/") || file?.content?.startsWith("data:image/") ? (
+            <img src={file?.content || ""} alt={fileName} className="max-w-full max-h-[60vh] object-contain rounded border border-[var(--ide-border)]" />
+          ) : (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <FileIcon className="w-16 h-16 text-[var(--ide-text-muted)] opacity-40" />
+              <p className="text-sm text-[var(--ide-text-secondary)]">{fileName}</p>
+              <p className="text-xs text-[var(--ide-text-muted)]">{file?.mimeType || "Binary file"}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <CodeEditor
+        value={code}
+        onChange={(val) => {
+          setFileContents(prev => ({ ...prev, [tabId]: val }));
+          setDirtyFiles(prev => new Set(prev).add(tabId));
+          autoSave(tabId, val);
+        }}
+        language={lang}
+        onCursorChange={tabId === activeFileId ? handleCursorChange : undefined}
+        fontSize={editorFontSize}
+        tabSize={editorTabSize}
+        wordWrap={editorWordWrap}
+        blameData={tabId === activeFileId && blameEnabled ? blameQuery.data?.blame : undefined}
+        aiCompletions={true}
+      />
+    );
+  };
+
+  const renderPaneTabBar = (paneId: string, paneTabs: string[], paneActiveTab: string | null) => {
+    const otherPaneIds = allLeafPanes.filter(p => p.id !== paneId).map(p => p.id);
+
+    return (
+      <div className="flex items-center shrink-0 h-9 overflow-hidden relative bg-[var(--ide-bg)] border-b border-[var(--ide-border)]">
+        <div className="flex items-center h-full flex-1 min-w-0 overflow-x-auto scrollbar-hide"
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const draggedTabId = e.dataTransfer.getData("text/pane-tab-id");
+            const sourcePaneId = e.dataTransfer.getData("text/source-pane-id");
+            if (draggedTabId && sourcePaneId && sourcePaneId !== paneId) {
+              paneLayout.moveTabToPane(draggedTabId, sourcePaneId, paneId);
+            }
+          }}
+        >
+          {paneTabs.map((tabId) => {
+            const specialInfo = getSpecialTabInfo(tabId);
+            const isRunnerTab = !specialInfo && tabId.startsWith("runner:");
+            const file = (!specialInfo && !isRunnerTab) ? filesQuery.data?.find((f) => f.id === tabId) : null;
+            const tabName = specialInfo ? specialInfo.name : isRunnerTab ? tabId.slice(7).split("/").pop() || tabId : file?.filename || tabId;
+            if (!specialInfo && !isRunnerTab && !file) return null;
+            const isActive = tabId === paneActiveTab;
+            return (
+              <div
+                key={tabId}
+                className={`group relative flex items-center gap-1.5 px-3 h-full cursor-pointer shrink-0 border-b-2 transition-colors duration-100 select-none ${isActive ? "bg-[var(--ide-panel)] text-[var(--ide-text)] border-b-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-panel)]/40 border-b-transparent"}`}
+                onClick={() => {
+                  paneLayout.setActiveTabInPane(paneId, tabId);
+                  setActiveFileId(tabId);
+                  if (tabId.startsWith("runner:")) {
+                    setActiveRunnerPath(tabId.slice(7));
+                  } else {
+                    setActiveRunnerPath(null);
+                  }
+                  if (file && fileContents[tabId] === undefined) {
+                    setFileContents((prev) => ({ ...prev, [tabId]: file.content }));
+                  }
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/pane-tab-id", tabId);
+                  e.dataTransfer.setData("text/source-pane-id", paneId);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                data-testid={`pane-tab-${paneId}-${tabId}`}
+              >
+                {specialInfo ? specialInfo.icon : <FileTypeIcon filename={tabName} />}
+                <span className="text-[11px] max-w-[120px] truncate font-medium whitespace-nowrap">{tabName}</span>
+                {!specialInfo && dirtyFiles.has(tabId) && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-0.5" />
+                )}
+                <button
+                  className={`p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-opacity duration-100 shrink-0 ml-0.5 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(tabId, e);
+                  }}
+                  data-testid={`button-pane-close-tab-${paneId}-${tabId}`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center shrink-0 border-l border-[var(--ide-border)]">
+          <PaneOptionsMenu
+            paneId={paneId}
+            activeTab={paneActiveTab}
+            tabs={paneTabs}
+            otherPaneIds={otherPaneIds}
+            isMaximized={paneLayout.layout.maximizedPaneId === paneId}
+            isMultiPane={isMultiPane}
+            onSplitRight={() => paneLayout.splitPane(paneId, "horizontal")}
+            onSplitDown={() => paneLayout.splitPane(paneId, "vertical")}
+            onMaximize={() => paneLayout.maximizePane(paneId)}
+            onToggleFloat={() => paneLayout.toggleFloating(paneId)}
+            onMoveTab={(toPaneId) => {
+              if (paneActiveTab) paneLayout.moveTabToPane(paneActiveTab, paneId, toPaneId);
+            }}
+            onCloseTab={() => {
+              if (paneActiveTab) closeTab(paneActiveTab);
+            }}
+            onCloseOtherTabs={() => {
+              if (paneActiveTab) {
+                const removedTabs = paneTabs.filter(t => t !== paneActiveTab);
+                paneLayout.closeOtherTabsInPane(paneId, paneActiveTab);
+                if (removedTabs.length > 0) {
+                  setOpenTabs(prev => prev.filter(t => !removedTabs.includes(t)));
+                }
+              }
+            }}
+            onClosePane={() => {
+              const otherLeaves = allLeafPanes.filter(p => p.id !== paneId);
+              if (otherLeaves.length > 0 && paneTabs.length > 0) {
+                const target = otherLeaves[0];
+                paneTabs.forEach(t => {
+                  if (!(target.tabs || []).includes(t)) {
+                    paneLayout.moveTabToPane(t, paneId, target.id);
+                  }
+                });
+              }
+              paneLayout.closePane(paneId);
+            }}
+            onOpenNewWindow={openInNewWindow}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderPaneNode = (node: PaneNode, depth: number = 0): React.ReactNode => {
+    if (node.type === "leaf") {
+      if (paneLayout.layout.maximizedPaneId && paneLayout.layout.maximizedPaneId !== node.id) {
+        return null;
+      }
+      const paneTabs = node.tabs || [];
+      const paneActiveTab = node.activeTab || null;
+      return (
+        <div
+          className={`flex flex-col overflow-hidden min-w-0 min-h-0 flex-1 ${paneLayout.layout.activePaneId === node.id ? "ring-1 ring-[#0079F2]/30" : ""}`}
+          onClick={() => paneLayout.setActivePaneId(node.id)}
+          data-testid={`pane-leaf-${node.id}`}
+        >
+          {renderPaneTabBar(node.id, paneTabs, paneActiveTab)}
+          <div className="flex-1 overflow-hidden">
+            {renderPaneContentForTab(paneActiveTab)}
+          </div>
+        </div>
+      );
+    }
+
+    const dir = node.direction || "horizontal";
+    const sizes = node.sizes || (node.children || []).map(() => 100 / (node.children || []).length);
+    const visibleChildren = (node.children || []).filter(child => {
+      if (paneLayout.layout.maximizedPaneId) {
+        const leaves = getPaneLeaves(child);
+        return leaves.some(l => l.id === paneLayout.layout.maximizedPaneId);
+      }
+      return true;
+    });
+
+    if (paneLayout.layout.maximizedPaneId && visibleChildren.length === 1) {
+      return renderPaneNode(visibleChildren[0], depth + 1);
+    }
+
+    return (
+      <div
+        ref={depth === 0 ? paneContainerRef : undefined}
+        className={`flex ${dir === "horizontal" ? "flex-row" : "flex-col"} flex-1 overflow-hidden min-w-0 min-h-0`}
+        data-testid={`pane-split-${node.id}`}
+      >
+        {(node.children || []).map((child, i) => (
+          <React.Fragment key={child.id}>
+            {i > 0 && (
+              <ResizeHandle
+                direction={dir}
+                splitId={node.id}
+                index={i - 1}
+                sizes={sizes}
+                onResize={paneLayout.updateSplitSizes}
+                containerRef={paneContainerRef}
+              />
+            )}
+            <div style={{ [dir === "horizontal" ? "width" : "height"]: `${sizes[i]}%` }} className="overflow-hidden flex min-w-0 min-h-0">
+              {renderPaneNode(child, depth + 1)}
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  };
 
   const editorContent = isMediaProject ? (
     <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
@@ -6900,11 +7249,13 @@ function _projectPage() {
             </div>
 
             {/* MAIN EDITOR + TERMINAL + PREVIEW AREA */}
-            <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0">
+            <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0 relative">
               <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={previewPanelOpen ? { width: `${100 - previewPanelWidth}%` } : undefined}>
-                {editorTabBar}
                 <div className="flex-1 overflow-hidden min-w-0">
-                  {editorContent}
+                  {/* Desktop/tablet only: multi-pane layout. Mobile uses single-pane editorTabBar+editorContent via the isMobile ternary above */}
+                  {!isMobile ? renderPaneNode(paneLayout.layout.root) : (
+                    <>{editorTabBar}{editorContent}</>
+                  )}
                 </div>
                 {terminalVisible && (
                   <div className="shrink-0 border-t border-[var(--ide-border)]" style={{ height: `${terminalHeight}px` }}>
@@ -6912,6 +7263,46 @@ function _projectPage() {
                   </div>
                 )}
               </div>
+              {!isMobile && paneLayout.layout.floatingPanes.map(fp => (
+                <FloatingPaneWrapper
+                  key={fp.id}
+                  pane={fp}
+                  onPositionChange={paneLayout.updateFloatingPosition}
+                  onBringToFront={paneLayout.bringFloatingToFront}
+                  onDock={paneLayout.dockFloatingPane}
+                  onClose={(pId, tId) => { closeTab(tId); }}
+                >
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-center h-7 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 overflow-x-auto scrollbar-hide">
+                      {fp.tabs.map(tabId => {
+                        const specialInfo = getSpecialTabInfo(tabId);
+                        const file = !specialInfo ? filesQuery.data?.find(f => f.id === tabId) : null;
+                        const tabName = specialInfo ? specialInfo.name : file?.filename || tabId;
+                        return (
+                          <div
+                            key={tabId}
+                            className={`flex items-center gap-1 px-2 h-full cursor-pointer shrink-0 text-[10px] ${tabId === fp.activeTab ? "text-[var(--ide-text)] bg-[var(--ide-panel)]" : "text-[var(--ide-text-muted)]"}`}
+                            onClick={() => {
+                              paneLayout.setLayout(prev => ({
+                                ...prev,
+                                floatingPanes: prev.floatingPanes.map(f => f.id === fp.id ? { ...f, activeTab: tabId } : f),
+                              }));
+                              setActiveFileId(tabId);
+                            }}
+                            data-testid={`floating-tab-${fp.id}-${tabId}`}
+                          >
+                            {specialInfo ? specialInfo.icon : <FileTypeIcon filename={tabName} />}
+                            <span className="truncate max-w-[100px]">{tabName}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      {renderPaneContentForTab(fp.activeTab)}
+                    </div>
+                  </div>
+                </FloatingPaneWrapper>
+              ))}
               {previewPanelOpen && (
                 <>
                   <div className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[var(--ide-surface)]/50" onMouseDown={handlePreviewDragStart}>
