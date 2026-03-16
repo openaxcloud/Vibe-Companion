@@ -7652,6 +7652,307 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   registerImageRoutes(app, requireAuth);
   log("Integration routes registered (image)", "express");
 
+  // ===================== TASK SYSTEM ROUTES =====================
+  const { executeTask, acceptAndExecuteTask, bulkAcceptTasks, cancelTask } = await import("./taskExecutor");
+  const { mergeTaskToMain, getTaskDiff } = await import("./mergeEngine");
+
+  const taskBroadcast = (projectId: string, type: string, data: any) => {
+    broadcastToProject(projectId, { type: `task_${type}`, ...data });
+  };
+
+  const taskExecutorOptions = (projectId: string) => ({
+    onTaskUpdate: (task: any) => taskBroadcast(projectId, "update", { task }),
+    onStepUpdate: (taskId: string, step: any) => taskBroadcast(projectId, "step_update", { taskId, step }),
+    onMessage: (taskId: string, role: string, content: string) => taskBroadcast(projectId, "message", { taskId, role, content }),
+  });
+
+  app.get("/api/projects/:id/tasks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const taskList = await storage.getProjectTasks(project.id);
+      res.json(taskList);
+    } catch { res.status(500).json({ message: "Failed to load tasks" }); }
+  });
+
+  app.post("/api/projects/:id/tasks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { title, description, plan, dependsOn, priority } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+      const task = await storage.createTask({
+        projectId: project.id,
+        userId: req.session.userId!,
+        title,
+        description: description || "",
+        plan: plan || [],
+        dependsOn: dependsOn || [],
+        priority: priority || 0,
+      });
+      if (plan && plan.length > 0) {
+        for (let i = 0; i < plan.length; i++) {
+          await storage.createTaskStep({
+            taskId: task.id,
+            orderIndex: i,
+            title: plan[i],
+            description: plan[i],
+          });
+        }
+      }
+      taskBroadcast(project.id, "created", { task });
+      res.status(201).json(task);
+    } catch { res.status(500).json({ message: "Failed to create task" }); }
+  });
+
+  app.get("/api/projects/:id/tasks/:taskId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const steps = await storage.getTaskSteps(task.id);
+      const diff = task.status === "ready" ? await getTaskDiff(task.id) : [];
+      res.json({ ...task, steps, diff });
+    } catch { res.status(500).json({ message: "Failed to load task" }); }
+  });
+
+  app.patch("/api/projects/:id/tasks/:taskId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { title, description, plan, status, priority } = req.body;
+      const updated = await storage.updateTask(task.id, {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(plan !== undefined && { plan }),
+        ...(status !== undefined && { status }),
+        ...(priority !== undefined && { priority }),
+      });
+      if (updated) taskBroadcast(task.projectId, "update", { task: updated });
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update task" }); }
+  });
+
+  app.delete("/api/projects/:id/tasks/:taskId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (task.status === "active") cancelTask(task.id);
+      await storage.deleteTask(task.id);
+      taskBroadcast(task.projectId, "deleted", { taskId: task.id });
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to delete task" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/:taskId/accept", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const result = await acceptAndExecuteTask(task.id, req.session.userId!, taskExecutorOptions(task.projectId));
+      res.json(result);
+    } catch { res.status(500).json({ message: "Failed to accept task" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/:taskId/apply", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (task.status !== "ready") return res.status(400).json({ message: "Task is not ready for apply" });
+      await storage.updateTask(task.id, { status: "applying" });
+      taskBroadcast(task.projectId, "update", { task: { ...task, status: "applying" } });
+      const mergeResult = await mergeTaskToMain(task.id, task.projectId);
+      if (mergeResult.error) {
+        await storage.updateTask(task.id, { status: "ready", errorMessage: mergeResult.error });
+        const failedTask = await storage.getTask(task.id);
+        if (failedTask) taskBroadcast(task.projectId, "update", { task: failedTask });
+        return res.status(500).json({ message: mergeResult.error });
+      }
+      if (!mergeResult.success || mergeResult.conflicts.length > 0) {
+        await storage.updateTask(task.id, { status: "ready", errorMessage: `${mergeResult.conflicts.length} file(s) have conflicts` });
+        const conflictTask = await storage.getTask(task.id);
+        if (conflictTask) taskBroadcast(task.projectId, "update", { task: conflictTask });
+        return res.json({ success: false, conflicts: mergeResult.conflicts, appliedFiles: mergeResult.appliedFiles });
+      }
+      await storage.updateTask(task.id, { status: "done", completedAt: new Date() });
+      const doneTask = await storage.getTask(task.id);
+      if (doneTask) taskBroadcast(task.projectId, "update", { task: doneTask });
+      broadcastToProject(task.projectId, { type: "files_changed" });
+      res.json({ success: true, ...mergeResult });
+    } catch { res.status(500).json({ message: "Failed to apply task" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/:taskId/dismiss", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (task.status === "active") cancelTask(task.id);
+      await storage.updateTask(task.id, { status: "done", result: "dismissed" });
+      const dismissed = await storage.getTask(task.id);
+      if (dismissed) taskBroadcast(task.projectId, "update", { task: dismissed });
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to dismiss task" }); }
+  });
+
+  app.get("/api/projects/:id/tasks/:taskId/messages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const messages = await storage.getTaskMessages(task.id);
+      res.json(messages);
+    } catch { res.status(500).json({ message: "Failed to load messages" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/:taskId/messages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { content } = req.body;
+      if (!content) return res.status(400).json({ message: "Content is required" });
+      const msg = await storage.addTaskMessage({ taskId: task.id, role: "user", content });
+      taskBroadcast(task.projectId, "message", { taskId: task.id, role: "user", content });
+      res.status(201).json(msg);
+    } catch { res.status(500).json({ message: "Failed to add message" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/propose", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { prompt, model } = req.body;
+      if (!prompt) return res.status(400).json({ message: "Prompt is required" });
+
+      const projectFiles = await storage.getFiles(project.id);
+      const fileList = projectFiles.map(f => f.filename).join(", ");
+      const systemPrompt = `You are a task decomposition agent. Break the user's request into discrete, parallel tasks.
+Each task should be independent and executable in isolation against a copy of the project files.
+The project has these files: ${fileList}
+Language: ${project.language}
+
+Return a JSON array of tasks, each with: title (string), description (string), plan (string[] of step descriptions), dependsOn (string[] of task indices like "0", "1" for tasks that must complete first).
+
+Example format:
+[
+  {"title": "Add user model", "description": "Create user schema", "plan": ["Create user table schema", "Add validation"], "dependsOn": []},
+  {"title": "Add user API", "description": "REST endpoints for users", "plan": ["Create GET /users", "Create POST /users"], "dependsOn": ["0"]}
+]
+
+Respond ONLY with the JSON array, no other text.`;
+
+      let responseText = "";
+      try {
+        const anthropic = new Anthropic();
+        const result = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: prompt }],
+        });
+        responseText = result.content.map((b: any) => b.type === "text" ? b.text : "").join("");
+      } catch {
+        try {
+          const openai = new OpenAI();
+          const result = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 2000,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+          });
+          responseText = result.choices[0]?.message?.content || "";
+        } catch {
+          return res.status(500).json({ message: "AI service unavailable" });
+        }
+      }
+
+      let proposedTasks: any[] = [];
+      try {
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) proposedTasks = JSON.parse(jsonMatch[0]);
+      } catch {
+        return res.status(500).json({ message: "Failed to parse AI response" });
+      }
+
+      const createdTasks = [];
+      const idMap = new Map<string, string>();
+      for (let i = 0; i < proposedTasks.length; i++) {
+        const pt = proposedTasks[i];
+        const deps = (pt.dependsOn || []).map((d: string) => idMap.get(d)).filter(Boolean) as string[];
+        const task = await storage.createTask({
+          projectId: project.id,
+          userId: req.session.userId!,
+          title: pt.title || `Task ${i + 1}`,
+          description: pt.description || "",
+          plan: pt.plan || [],
+          dependsOn: deps,
+          priority: i,
+        });
+        idMap.set(String(i), task.id);
+        if (pt.plan && pt.plan.length > 0) {
+          for (let j = 0; j < pt.plan.length; j++) {
+            await storage.createTaskStep({
+              taskId: task.id,
+              orderIndex: j,
+              title: pt.plan[j],
+              description: pt.plan[j],
+            });
+          }
+        }
+        createdTasks.push(task);
+      }
+
+      taskBroadcast(project.id, "proposed", { tasks: createdTasks });
+      res.json({ tasks: createdTasks });
+    } catch (err: any) { res.status(500).json({ message: "Failed to propose tasks" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/discard-proposed", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { taskIds } = req.body;
+      if (!taskIds || !Array.isArray(taskIds)) return res.status(400).json({ message: "taskIds array is required" });
+      let deleted = 0;
+      for (const tid of taskIds) {
+        const t = await storage.getTask(tid);
+        if (t && t.projectId === project.id && t.status === "draft") {
+          await storage.deleteTask(tid);
+          deleted++;
+        }
+      }
+      taskBroadcast(project.id, "discarded", { taskIds, deleted });
+      res.json({ success: true, deleted });
+    } catch { res.status(500).json({ message: "Failed to discard tasks" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/bulk-accept", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { taskIds } = req.body;
+      if (!taskIds || !Array.isArray(taskIds)) return res.status(400).json({ message: "taskIds array is required" });
+      const validatedIds: string[] = [];
+      for (const tid of taskIds) {
+        const t = await storage.getTask(tid);
+        if (t && t.projectId === project.id) validatedIds.push(tid);
+      }
+      const result = await bulkAcceptTasks(validatedIds, req.session.userId!, taskExecutorOptions(project.id));
+      res.json(result);
+    } catch { res.status(500).json({ message: "Failed to bulk accept tasks" }); }
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
   await storage.seedPlanConfigs();

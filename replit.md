@@ -78,6 +78,10 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `port_configs`: id (uuid), project_id (indexed), port, label, protocol, is_public, created_at — unique(project_id, port)
 - `checkpoints`: id (uuid), project_id (indexed), user_id, description, type (manual/auto), trigger (manual/feature_complete/deployment/pre_risky_op), state_snapshot (JSON: files, envVars, storageKv, storageObjectsMeta, aiConversations, projectConfig, packages), created_at (indexed)
 - `checkpoint_positions`: id (uuid), project_id (unique), current_checkpoint_id, updated_at — tracks current position in checkpoint timeline per project
+- `tasks`: id (uuid), project_id, user_id, title, description, plan (JSON string[]), status (draft/active/queued/ready/applying/done), depends_on (JSON string[]), priority, progress, result, error_message, created_at, updated_at, started_at, completed_at
+- `task_steps`: id (uuid), task_id, order_index, title, description, status (pending/running/completed/failed), output, started_at, completed_at
+- `task_messages`: id (uuid), task_id, role (system/user/assistant), content, created_at
+- `task_file_snapshots`: id (uuid), task_id, filename, content, original_content, is_modified
 - `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
@@ -90,6 +94,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Workflows**: Multi-step sequential build/run workflows with templates (CI/CD, Build & Test, Lint & Format), live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
 - **Monitoring**: CPU, memory, request, and error metric tracking with configurable alerts (gt/lt/eq thresholds). Demo data generation. Panel in activity bar (Activity icon, #10B981).
 - **Threads**: Code discussion threads per-file with line number references, open/resolved status, comments. Panel in activity bar (MessageSquare icon, #8B5CF6).
+- **Build in Parallel (Tasks)**: Kanban board (Drafts/Active/Ready/Done) for parallel task execution. AI Plan mode breaks user prompts into independent tasks. Tasks execute against file snapshots (isolation). Three-way merge engine applies changes back to main. Per-task AI threads. WebSocket real-time updates. Task limits: free=2, pro/team=10 parallel. Components: `TaskBoard.tsx`, `TaskReviewDrawer.tsx`, Plan mode in `AIPanel.tsx`. Backend: `taskExecutor.ts`, `mergeEngine.ts`.
 - **Networking**: Port configuration with labels, protocol (http/https/tcp/ws), public/private toggle, per-project isolation. Panel in activity bar (Network icon, #06B6D4).
 - **Checkpoints**: Full project state snapshots (files, env vars, KV store, packages) with visual timeline. Manual creation, auto-triggered on deployment & AI operations. Rollback/roll-forward with optional database restore. Diff preview before restoring. Panel in activity bar (Clock icon, #7C65CB). Service: `server/checkpointService.ts`.
 - **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)

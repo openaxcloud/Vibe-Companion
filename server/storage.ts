@@ -23,6 +23,7 @@ import {
   frameworkUpdates,
   checkpoints, checkpointPositions,
   accountEnvVars, accountEnvVarLinks,
+  tasks, taskSteps, taskMessages, taskFileSnapshots,
   type User, type InsertUser,
   type Project, type InsertProject,
   type File, type InsertFile,
@@ -71,6 +72,10 @@ import {
   type AccountEnvVar, type AccountEnvVarLink,
   type ConsoleRun, type InsertConsoleRun,
   consoleRuns,
+  type Task, type InsertTask,
+  type TaskStep, type InsertTaskStep,
+  type TaskMessage, type InsertTaskMessage,
+  type TaskFileSnapshot, type InsertTaskFileSnapshot,
   PLAN_LIMITS,
 } from "@shared/schema";
 import { encrypt, decrypt, migrateToEncrypted } from "./encryption";
@@ -336,6 +341,24 @@ export interface IStorage {
   deleteCheckpoint(id: string): Promise<boolean>;
   getCheckpointPosition(projectId: string): Promise<CheckpointPosition | undefined>;
   setCheckpointPosition(projectId: string, checkpointId: string | null, divergedFromId?: string | null): Promise<void>;
+
+  getProjectTasks(projectId: string): Promise<Task[]>;
+  getTask(id: string): Promise<Task | undefined>;
+  createTask(data: InsertTask): Promise<Task>;
+  updateTask(id: string, data: Partial<{ title: string; description: string; plan: string[]; status: string; progress: number; result: string; errorMessage: string; startedAt: Date; completedAt: Date }>): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<boolean>;
+
+  getTaskSteps(taskId: string): Promise<TaskStep[]>;
+  createTaskStep(data: InsertTaskStep): Promise<TaskStep>;
+  updateTaskStep(id: string, data: Partial<{ status: string; output: string; startedAt: Date; completedAt: Date }>): Promise<TaskStep | undefined>;
+
+  getTaskMessages(taskId: string): Promise<TaskMessage[]>;
+  addTaskMessage(data: InsertTaskMessage): Promise<TaskMessage>;
+
+  getTaskFileSnapshots(taskId: string): Promise<TaskFileSnapshot[]>;
+  createTaskFileSnapshot(data: InsertTaskFileSnapshot): Promise<TaskFileSnapshot>;
+  updateTaskFileSnapshot(taskId: string, filename: string, content: string): Promise<TaskFileSnapshot | undefined>;
+  deleteTaskFileSnapshots(taskId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1969,6 +1992,77 @@ export class DatabaseStorage implements IStorage {
     } catch (err: any) {
       console.error(`[migration] Failed to migrate env vars: ${err.message}`);
     }
+  }
+
+  async getProjectTasks(projectId: string): Promise<Task[]> {
+    return db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(desc(tasks.createdAt));
+  }
+
+  async getTask(id: string): Promise<Task | undefined> {
+    const [t] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return t;
+  }
+
+  async createTask(data: InsertTask): Promise<Task> {
+    const [t] = await db.insert(tasks).values(data).returning();
+    return t;
+  }
+
+  async updateTask(id: string, data: Partial<{ title: string; description: string; plan: string[]; status: string; progress: number; result: string; errorMessage: string; startedAt: Date; completedAt: Date }>): Promise<Task | undefined> {
+    const [t] = await db.update(tasks).set({ ...data, updatedAt: new Date() }).where(eq(tasks.id, id)).returning();
+    return t;
+  }
+
+  async deleteTask(id: string): Promise<boolean> {
+    await db.delete(taskFileSnapshots).where(eq(taskFileSnapshots.taskId, id));
+    await db.delete(taskMessages).where(eq(taskMessages.taskId, id));
+    await db.delete(taskSteps).where(eq(taskSteps.taskId, id));
+    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getTaskSteps(taskId: string): Promise<TaskStep[]> {
+    return db.select().from(taskSteps).where(eq(taskSteps.taskId, taskId)).orderBy(taskSteps.orderIndex);
+  }
+
+  async createTaskStep(data: InsertTaskStep): Promise<TaskStep> {
+    const [s] = await db.insert(taskSteps).values(data).returning();
+    return s;
+  }
+
+  async updateTaskStep(id: string, data: Partial<{ status: string; output: string; startedAt: Date; completedAt: Date }>): Promise<TaskStep | undefined> {
+    const [s] = await db.update(taskSteps).set(data).where(eq(taskSteps.id, id)).returning();
+    return s;
+  }
+
+  async getTaskMessages(taskId: string): Promise<TaskMessage[]> {
+    return db.select().from(taskMessages).where(eq(taskMessages.taskId, taskId)).orderBy(taskMessages.createdAt);
+  }
+
+  async addTaskMessage(data: InsertTaskMessage): Promise<TaskMessage> {
+    const [m] = await db.insert(taskMessages).values(data).returning();
+    return m;
+  }
+
+  async getTaskFileSnapshots(taskId: string): Promise<TaskFileSnapshot[]> {
+    return db.select().from(taskFileSnapshots).where(eq(taskFileSnapshots.taskId, taskId)).orderBy(taskFileSnapshots.filename);
+  }
+
+  async createTaskFileSnapshot(data: InsertTaskFileSnapshot): Promise<TaskFileSnapshot> {
+    const [s] = await db.insert(taskFileSnapshots).values(data).returning();
+    return s;
+  }
+
+  async updateTaskFileSnapshot(taskId: string, filename: string, content: string): Promise<TaskFileSnapshot | undefined> {
+    const [s] = await db.update(taskFileSnapshots)
+      .set({ content, isModified: true })
+      .where(and(eq(taskFileSnapshots.taskId, taskId), eq(taskFileSnapshots.filename, filename)))
+      .returning();
+    return s;
+  }
+
+  async deleteTaskFileSnapshots(taskId: string): Promise<void> {
+    await db.delete(taskFileSnapshots).where(eq(taskFileSnapshots.taskId, taskId));
   }
 }
 

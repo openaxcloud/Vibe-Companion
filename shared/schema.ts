@@ -1004,3 +1004,107 @@ export const insertConsoleRunSchema = createInsertSchema(consoleRuns).pick({
 });
 export type InsertConsoleRun = z.infer<typeof insertConsoleRunSchema>;
 export type ConsoleRun = typeof consoleRuns.$inferSelect;
+
+export const TASK_LIMITS = {
+  free: { maxParallelTasks: 2 },
+  pro: { maxParallelTasks: 10 },
+  team: { maxParallelTasks: 10 },
+} as const;
+
+export const tasks = pgTable("tasks", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  plan: json("plan").$type<string[]>(),
+  status: text("status").notNull().default("draft"),
+  dependsOn: json("depends_on").$type<string[]>().default([]),
+  priority: integer("priority").notNull().default(0),
+  progress: integer("progress").notNull().default(0),
+  result: text("result"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("tasks_project_idx").on(table.projectId),
+  index("tasks_user_idx").on(table.userId),
+  index("tasks_status_idx").on(table.status),
+]);
+
+export const insertTaskSchema = createInsertSchema(tasks).pick({
+  projectId: true,
+  userId: true,
+  title: true,
+  description: true,
+  plan: true,
+  dependsOn: true,
+  priority: true,
+});
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+export type Task = typeof tasks.$inferSelect;
+
+export const taskSteps = pgTable("task_steps", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id", { length: 36 }).notNull(),
+  orderIndex: integer("order_index").notNull().default(0),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  status: text("status").notNull().default("pending"),
+  output: text("output"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("task_steps_task_idx").on(table.taskId),
+]);
+
+export const insertTaskStepSchema = createInsertSchema(taskSteps).pick({
+  taskId: true,
+  orderIndex: true,
+  title: true,
+  description: true,
+});
+export type InsertTaskStep = z.infer<typeof insertTaskStepSchema>;
+export type TaskStep = typeof taskSteps.$inferSelect;
+
+export const taskMessages = pgTable("task_messages", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id", { length: 36 }).notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("task_messages_task_idx").on(table.taskId),
+]);
+
+export const insertTaskMessageSchema = createInsertSchema(taskMessages).pick({
+  taskId: true,
+  role: true,
+  content: true,
+});
+export type InsertTaskMessage = z.infer<typeof insertTaskMessageSchema>;
+export type TaskMessage = typeof taskMessages.$inferSelect;
+
+export const taskFileSnapshots = pgTable("task_file_snapshots", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id", { length: 36 }).notNull(),
+  filename: text("filename").notNull(),
+  content: text("content").notNull().default(""),
+  originalContent: text("original_content").notNull().default(""),
+  isModified: boolean("is_modified").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("task_file_snapshots_task_idx").on(table.taskId),
+  uniqueIndex("task_file_snapshots_task_file_unique").on(table.taskId, table.filename),
+]);
+
+export const insertTaskFileSnapshotSchema = createInsertSchema(taskFileSnapshots).pick({
+  taskId: true,
+  filename: true,
+  content: true,
+  originalContent: true,
+});
+export type InsertTaskFileSnapshot = z.infer<typeof insertTaskFileSnapshotSchema>;
+export type TaskFileSnapshot = typeof taskFileSnapshots.$inferSelect;

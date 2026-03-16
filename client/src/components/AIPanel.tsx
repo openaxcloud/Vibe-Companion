@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
@@ -49,7 +49,7 @@ interface AIPanelProps {
 }
 
 type AIModel = "claude" | "gpt" | "gemini";
-type AIMode = "chat" | "agent";
+type AIMode = "chat" | "agent" | "plan";
 
 interface AgentToolsConfig {
   liteMode: boolean;
@@ -193,6 +193,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
   const [imageSize, setImageSize] = useState<string>("1024x1024");
+  const [planLoading, setPlanLoading] = useState(false);
+  const [proposedTasks, setProposedTasks] = useState<any[]>([]);
+  const [showTaskBoard, setShowTaskBoard] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -389,8 +392,57 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   }, [onFileCreated, onFileUpdated]);
 
+  const submitPlanMode = async () => {
+    if (!input.trim() || planLoading || !projectId) return;
+    setPlanLoading(true);
+    setProposedTasks([]);
+    try {
+      const ct = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ct) headers["X-CSRF-Token"] = ct;
+      const res = await fetch(`/api/projects/${projectId}/tasks/propose`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ prompt: input.trim(), model }),
+      });
+      if (!res.ok) throw new Error("Failed to propose tasks");
+      const data = await res.json();
+      setProposedTasks(data.tasks || []);
+      setInput("");
+    } catch (err) {
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: input.trim() };
+      const errMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: "assistant", content: "Failed to generate task plan. Please try again." };
+      setMessages(prev => [...prev, userMsg, errMsg]);
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const acceptProposedTasks = async () => {
+    if (!projectId || proposedTasks.length === 0) return;
+    try {
+      const ct = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ct) headers["X-CSRF-Token"] = ct;
+      const taskIds = proposedTasks.map(t => t.id);
+      await fetch(`/api/projects/${projectId}/tasks/bulk-accept`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ taskIds }),
+      });
+      setProposedTasks([]);
+      setShowTaskBoard(true);
+    } catch {}
+  };
+
   const sendMessage = async () => {
     if ((!input.trim() && attachments.length === 0) || isStreaming) return;
+
+    if (mode === "plan") {
+      return submitPlanMode();
+    }
 
     const imageMatch = input.trim().match(/^\/image\s+(.+)$/i);
     if (imageMatch) {
@@ -1214,6 +1266,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               >
                 <Bot className="w-3 h-3" /> Agent
               </button>
+              <button
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "plan" ? "bg-[#0079F2]/25 text-[#0079F2] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
+                onClick={() => setMode("plan")}
+                data-testid="mode-plan"
+              >
+                <Zap className="w-3 h-3" /> Plan
+              </button>
             </div>
           )}
           {messages.length > 0 && (
@@ -1250,7 +1309,112 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      {mode === "plan" && showTaskBoard && projectId && (
+        <div className="flex-1 overflow-hidden">
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" /></div>}>
+            {React.createElement(
+              React.lazy(() => import("./TaskBoard")),
+              { projectId, onClose: () => setShowTaskBoard(false) }
+            )}
+          </Suspense>
+        </div>
+      )}
+
+      {mode === "plan" && !showTaskBoard && (
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+          {proposedTasks.length === 0 && !planLoading && (
+            <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0079F2]/25 to-[#0079F2]/5 flex items-center justify-center mb-5 ring-1 ring-[#0079F2]/20 shadow-lg shadow-[#0079F2]/10">
+                <Zap className="w-8 h-8 text-[#0079F2]" />
+              </div>
+              <p className="text-[17px] font-bold text-[var(--ide-text)] mb-1.5 tracking-tight" data-testid="text-plan-title">
+                Plan Mode
+              </p>
+              <p className="text-[12px] text-[var(--ide-text-secondary)] max-w-[320px] leading-relaxed mb-4">
+                Describe what you want to build and AI will break it into parallel tasks that execute independently.
+              </p>
+              {projectId && (
+                <button
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[12px] text-[var(--ide-text)] hover:border-[#0079F2]/30 transition-colors"
+                  onClick={() => setShowTaskBoard(true)}
+                  data-testid="button-view-tasks"
+                >
+                  <Zap className="w-3.5 h-3.5 text-[#0079F2]" />
+                  View Task Board
+                </button>
+              )}
+            </div>
+          )}
+          {planLoading && (
+            <div className="flex flex-col items-center justify-center h-full">
+              <Loader2 className="w-8 h-8 text-[#0079F2] animate-spin mb-3" />
+              <p className="text-[12px] text-[var(--ide-text-muted)]">Analyzing and creating task plan...</p>
+            </div>
+          )}
+          {proposedTasks.length > 0 && (
+            <div className="space-y-3 animate-[fade-in_0.3s_ease-out]">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-[#0079F2]" />
+                <span className="text-[13px] font-semibold text-[var(--ide-text)]">Proposed Tasks</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/10 text-[#0079F2]">{proposedTasks.length}</span>
+              </div>
+              {proposedTasks.map((task: any, i: number) => (
+                <div key={task.id || i} className="p-3 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)]" data-testid={`proposed-task-${i}`}>
+                  <div className="flex items-start gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#0079F2]/15 text-[#0079F2] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-[12px] font-medium text-[var(--ide-text)]">{task.title}</h4>
+                      {task.description && <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5">{task.description}</p>}
+                      {task.plan && task.plan.length > 0 && (
+                        <div className="mt-1.5 space-y-0.5">
+                          {(task.plan as string[]).map((step: string, j: number) => (
+                            <div key={j} className="flex items-center gap-1.5 text-[10px] text-[var(--ide-text-secondary)]">
+                              <span className="w-1 h-1 rounded-full bg-[var(--ide-text-muted)]" />
+                              {step}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-2">
+                <button
+                  className="flex-1 h-9 rounded-lg bg-[var(--ide-bg)] text-[var(--ide-text)] text-[12px] border border-[var(--ide-border)] hover:bg-[var(--ide-surface)] transition-colors"
+                  onClick={async () => {
+                    if (projectId && proposedTasks.length > 0) {
+                      try {
+                        const ct = getCsrfToken();
+                        const headers: Record<string, string> = { "Content-Type": "application/json" };
+                        if (ct) headers["X-CSRF-Token"] = ct;
+                        await fetch(`/api/projects/${projectId}/tasks/discard-proposed`, {
+                          method: "POST", credentials: "include", headers,
+                          body: JSON.stringify({ taskIds: proposedTasks.map((t: any) => t.id) }),
+                        });
+                      } catch {}
+                    }
+                    setProposedTasks([]);
+                  }}
+                  data-testid="button-discard-plan"
+                >
+                  Discard
+                </button>
+                <button
+                  className="flex-1 h-9 rounded-lg bg-[#0079F2] text-white text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-[#0069D2] transition-colors"
+                  onClick={acceptProposedTasks}
+                  data-testid="button-accept-plan"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Accept & Start All
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 space-y-4 ${mode === "plan" ? "hidden" : ""}`}>
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7C65CB]/25 to-[#7C65CB]/5 flex items-center justify-center mb-5 ring-1 ring-[#7C65CB]/20 shadow-lg shadow-[#7C65CB]/10">
@@ -1439,7 +1603,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."}
+            placeholder={mode === "plan" ? "Describe what to build in parallel..." : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."}
             rows={3}
             className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
             disabled={isStreaming || isTranscribing || isGeneratingImage}
