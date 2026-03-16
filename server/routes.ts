@@ -3054,28 +3054,73 @@ Rules:
         }
       }
 
+      function sanitizeJsonString(str: string): string {
+        return str.replace(/[\x00-\x1F\x7F]/g, (ch) => {
+          switch (ch) {
+            case '\n': return '\\n';
+            case '\r': return '\\r';
+            case '\t': return '\\t';
+            case '\b': return '\\b';
+            case '\f': return '\\f';
+            default: return '';
+          }
+        });
+      }
+
+      function repairAndParseJson(raw: string): any {
+        try { return JSON.parse(raw); } catch {}
+
+        let fixed = raw;
+        fixed = fixed.replace(/```(?:json)?\s*\n?/g, '').replace(/```/g, '');
+        const first = fixed.indexOf('{');
+        const last = fixed.lastIndexOf('}');
+        if (first !== -1 && last > first) fixed = fixed.slice(first, last + 1);
+        try { return JSON.parse(fixed); } catch {}
+
+        const sanitized = fixed.replace(
+          /"(?:[^"\\]|\\.)*"/g,
+          (match) => {
+            try { JSON.parse(match); return match; } catch {}
+            let inner = match.slice(1, -1);
+            inner = inner.replace(/\\/g, '\\\\');
+            inner = inner.replace(/"/g, '\\"');
+            inner = inner.replace(/\n/g, '\\n');
+            inner = inner.replace(/\r/g, '\\r');
+            inner = inner.replace(/\t/g, '\\t');
+            return '"' + inner + '"';
+          }
+        );
+        try { return JSON.parse(sanitized); } catch {}
+
+        const nameMatch = raw.match(/"name"\s*:\s*"([^"]+)"/);
+        const langMatch = raw.match(/"language"\s*:\s*"([^"]+)"/);
+        const filesRegex = /"filename"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+        const files: { filename: string; content: string }[] = [];
+        let m;
+        while ((m = filesRegex.exec(raw)) !== null) {
+          try {
+            files.push({ filename: m[1], content: JSON.parse('"' + m[2] + '"') });
+          } catch {
+            files.push({ filename: m[1], content: m[2].replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"') });
+          }
+        }
+        if (nameMatch && langMatch && files.length > 0) {
+          return { name: nameMatch[1], language: langMatch[1], files };
+        }
+
+        return null;
+      }
+
       try {
         spec = JSON.parse(jsonStr);
       } catch (parseErr: any) {
-        log(`AI JSON parse error: ${parseErr.message}. Attempting truncated recovery...`, "ai");
-        try {
-          let recovered = jsonStr;
-          if (!recovered.endsWith("}")) {
-            const lastFileEnd = recovered.lastIndexOf("}");
-            if (lastFileEnd > 0) {
-              recovered = recovered.slice(0, lastFileEnd + 1);
-              let openBrackets = (recovered.match(/\[/g) || []).length;
-              let closeBrackets = (recovered.match(/\]/g) || []).length;
-              while (closeBrackets < openBrackets) { recovered += "]"; closeBrackets++; }
-              let openBraces = (recovered.match(/\{/g) || []).length;
-              let closeBraces = (recovered.match(/\}/g) || []).length;
-              while (closeBraces < openBraces) { recovered += "}"; closeBraces++; }
-            }
-          }
-          spec = JSON.parse(recovered);
-          log(`Truncated JSON recovery succeeded`, "ai");
-        } catch {
-          log(`Recovery also failed. Raw text (first 500): ${text.slice(0, 500)}`, "ai");
+        log(`AI JSON parse error: ${parseErr.message}. Attempting recovery...`, "ai");
+        const recovered = repairAndParseJson(jsonStr);
+        if (recovered && recovered.name && recovered.files?.length) {
+          spec = recovered;
+          log(`JSON recovery succeeded via repair`, "ai");
+        } else {
+          log(`Recovery failed. Raw text (first 500): ${text.slice(0, 500)}`, "ai");
           return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
         }
       }
