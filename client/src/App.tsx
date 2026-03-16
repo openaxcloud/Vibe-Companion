@@ -18,6 +18,7 @@ import Admin from "@/pages/Admin";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import VerifyEmail from "@/pages/VerifyEmail";
+import AcceptInvite from "@/pages/AcceptInvite";
 import { useAuth } from "@/hooks/use-auth";
 import { Component, type ReactNode } from "react";
 import Project from "@/pages/Project";
@@ -118,6 +119,7 @@ function App() {
                 <Route path="/pricing" component={Pricing} />
                 <Route path="/demo" component={DemoProject} />
                 <Route path="/shared/:id" component={SharedProject} />
+                <Route path="/invite/:token" component={AcceptInvite} />
                 <Route path="/forgot-password" component={ForgotPassword} />
                 <Route path="/reset-password" component={ResetPassword} />
                 <Route path="/terms" component={Terms} />

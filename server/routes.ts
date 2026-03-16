@@ -93,6 +93,21 @@ async function persistRepoState(projectId: string) {
 }
 import { getTemplateById, getAllTemplates } from "./templates";
 import { generateEcodeContent, getEcodeFilename } from "./ecodeTemplates";
+import {
+  addCollaborator,
+  removeCollaborator,
+  getCollaborators,
+  updateActiveFile,
+  broadcastToCollaborators,
+  broadcastPresence,
+  getOrCreateFileDoc,
+  initializeFileDoc,
+  getFileDocContent,
+  broadcastBinaryToCollaborators,
+  setFilePersister,
+  type CollabMessage,
+  Y,
+} from "./collaboration";
 
 function validateExternalUrl(urlStr: string, allowedDomainSuffixes?: string[]): { valid: boolean; url?: URL; error?: string } {
   let url: URL;
@@ -2856,6 +2871,107 @@ export async function registerRoutes(
     isPrivate: z.boolean().optional(),
     showBadge: z.boolean().optional(),
     enableFeedback: z.boolean().optional(),
+  });
+
+  app.get("/api/projects/:id/collaborators", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const collaborators = await storage.getProjectCollaborators(req.params.id);
+      res.json(collaborators);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get collaborators" });
+    }
+  });
+
+  app.delete("/api/projects/:id/collaborators/:userId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(403).json({ message: "Only the project owner can remove collaborators" });
+      await storage.removeProjectCollaborator(req.params.id, req.params.userId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to remove collaborator" });
+    }
+  });
+
+  app.post("/api/projects/:id/invite-link", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(403).json({ message: "Only the project owner can create invite links" });
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+      const link = await storage.createProjectInviteLink({
+        projectId: req.params.id,
+        token,
+        createdBy: req.session.userId,
+        role: req.body.role || "editor",
+        maxUses: req.body.maxUses || null,
+        expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : null,
+      });
+      res.json({ ...link, url: `/invite/${token}` });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to create invite link" });
+    }
+  });
+
+  app.get("/api/projects/:id/invite-links", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+      const links = await storage.getProjectInviteLinks(req.params.id);
+      res.json(links);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get invite links" });
+    }
+  });
+
+  app.delete("/api/projects/:id/invite-links/:linkId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+      await storage.deactivateProjectInviteLink(req.params.linkId, req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to deactivate invite link" });
+    }
+  });
+
+  app.post("/api/invite/:token/accept", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const link = await storage.getProjectInviteLink(req.params.token);
+      if (!link || !link.isActive) return res.status(404).json({ message: "Invite link not found or expired" });
+      if (link.expiresAt && new Date(link.expiresAt) < new Date()) return res.status(410).json({ message: "Invite link has expired" });
+      if (link.maxUses && link.useCount >= link.maxUses) return res.status(410).json({ message: "Invite link has reached its maximum uses" });
+
+      const project = await storage.getProject(link.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId === req.session.userId) return res.json({ projectId: link.projectId, alreadyOwner: true });
+
+      await storage.addProjectCollaborator({
+        projectId: link.projectId,
+        userId: req.session.userId,
+        role: link.role || "editor",
+        addedBy: link.createdBy,
+      });
+      await storage.useProjectInviteLink(req.params.token);
+      res.json({ projectId: link.projectId, role: link.role });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to accept invite" });
+    }
+  });
+
+  app.get("/api/invite/:token", async (req: Request, res: Response) => {
+    try {
+      const link = await storage.getProjectInviteLink(req.params.token);
+      if (!link || !link.isActive) return res.status(404).json({ message: "Invite link not found" });
+      if (link.expiresAt && new Date(link.expiresAt) < new Date()) return res.status(410).json({ message: "Invite link has expired" });
+      if (link.maxUses && link.useCount >= link.maxUses) return res.status(410).json({ message: "Invite link has reached its maximum uses" });
+      const project = await storage.getProject(link.projectId);
+      res.json({ projectId: link.projectId, projectName: project?.name, role: link.role });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get invite info" });
+    }
   });
 
   app.post("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
@@ -8743,6 +8859,33 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
   const wss = new WebSocketServer({ noServer: true });
   const terminalWss = new WebSocketServer({ noServer: true });
+  const collabWss = new WebSocketServer({ noServer: true });
+
+  setFilePersister(async (fileId: string, content: string) => {
+    try {
+      const file = await storage.getFile(fileId);
+      if (file) {
+        await storage.updateFile(fileId, file.filename, content);
+        log(`Collab auto-persisted file ${fileId}`, "collab");
+      }
+    } catch (err) {
+      log(`Collab persist error for file ${fileId}: ${err}`, "collab");
+    }
+  });
+
+  async function canAccessProject(userId: string, project: { id?: string; userId: string; isDemo?: boolean; teamId?: string | null }): Promise<boolean> {
+    if (project.userId === userId) return true;
+    if (project.isDemo) return true;
+    if (project.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      if (teams.some(t => t.id === project.teamId)) return true;
+    }
+    if (project.id) {
+      const isCollab = await storage.isProjectCollaborator(project.id, userId);
+      if (isCollab) return true;
+    }
+    return false;
+  }
 
   httpServer.on("upgrade", (req: any, socket, head) => {
     const pathname = new URL(req.url || "/", `http://${req.headers.host}`).pathname;
@@ -8755,8 +8898,8 @@ Based on the search results above, provide a comprehensive answer to the user's 
           socket.destroy();
           return;
         }
-        storage.getProject(projectId).then((project) => {
-          if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+        storage.getProject(projectId).then(async (project) => {
+          if (!project || !(await canAccessProject(req.session.userId, project))) {
             socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
             socket.destroy();
             return;
@@ -8786,6 +8929,31 @@ Based on the search results above, provide a comprehensive answer to the user's 
           }
           terminalWss.handleUpgrade(req, socket, head, (ws) => {
             terminalWss.emit("connection", ws, req);
+          });
+        }).catch(() => {
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+        });
+      });
+    } else if (pathname === "/ws/collab") {
+      sessionMiddleware(req, {} as any, () => {
+        const url = new URL(req.url || "/", `http://${req.headers.host}`);
+        const projectId = url.searchParams.get("projectId");
+        if (!req.session?.userId || !projectId) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        storage.getProject(projectId).then(async (project) => {
+          if (!project || !(await canAccessProject(req.session.userId, project))) {
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          collabWss.handleUpgrade(req, socket, head, (ws) => {
+            (ws as WebSocket & { __collabProjectId?: string; __collabUserId?: string }).__collabProjectId = projectId;
+            (ws as WebSocket & { __collabProjectId?: string; __collabUserId?: string }).__collabUserId = req.session.userId;
+            collabWss.emit("connection", ws, req);
           });
         }).catch(() => {
           socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
@@ -8879,6 +9047,233 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
   wss.on("close", () => {
     clearInterval(heartbeatInterval);
+  });
+
+  const collabPingInterval = setInterval(() => {
+    collabWss.clients.forEach((ws: WebSocket & { isAlive?: boolean }) => {
+      if (ws.isAlive === false) {
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  collabWss.on("close", () => {
+    clearInterval(collabPingInterval);
+  });
+
+  collabWss.on("connection", async (ws: WebSocket & { isAlive?: boolean }, req) => {
+    const collabWsExt = ws as WebSocket & { __collabProjectId?: string; __collabUserId?: string };
+    const projectId = collabWsExt.__collabProjectId as string;
+    const userId = collabWsExt.__collabUserId as string;
+
+    if (!projectId || !userId) {
+      ws.close(1008, "Missing projectId or auth");
+      return;
+    }
+
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
+
+    const user = await storage.getUser(userId);
+    if (!user) {
+      ws.close(1008, "User not found");
+      return;
+    }
+
+    let collabUser: ReturnType<typeof addCollaborator> | null = null;
+
+    const MAX_COLLAB_MSG_SIZE = 1024 * 1024;
+    const RATE_LIMIT_WINDOW_MS = 1000;
+    const RATE_LIMIT_MAX_MSGS = 120;
+    let rateLimitCount = 0;
+    let rateLimitWindowStart = Date.now();
+
+    function checkRateLimit(): boolean {
+      const now = Date.now();
+      if (now - rateLimitWindowStart > RATE_LIMIT_WINDOW_MS) {
+        rateLimitCount = 0;
+        rateLimitWindowStart = now;
+      }
+      rateLimitCount++;
+      if (rateLimitCount > RATE_LIMIT_MAX_MSGS) {
+        return false;
+      }
+      return true;
+    }
+
+    function handleDisconnect(): void {
+      const removed = removeCollaborator(ws);
+      if (removed) {
+        broadcastToCollaborators(removed.projectId, null, {
+          type: "collab:user_left",
+          userId: removed.userId,
+          displayName: removed.user.displayName,
+        });
+        broadcastPresence(removed.projectId);
+      }
+    }
+
+    ws.on("message", (rawData, isBinary) => {
+      try {
+        if (!checkRateLimit()) {
+          log(`Rate limit exceeded for user ${userId} in project ${projectId}`, "collab");
+          return;
+        }
+        if (isBinary) {
+          if (!collabUser) return;
+          const buf = rawData instanceof Buffer ? rawData : Buffer.from(rawData as ArrayBuffer);
+          if (buf.length > MAX_COLLAB_MSG_SIZE || buf.length < 2) return;
+
+          const msgType = buf[0];
+          const fileIdLen = buf[1];
+          if (buf.length < 2 + fileIdLen) return;
+          const fileId = buf.slice(2, 2 + fileIdLen).toString("utf8");
+          const payload = buf.slice(2 + fileIdLen);
+
+          if (fileIdLen === 0 || fileIdLen > 255) return;
+
+          const ensureInitialized = async (fId: string): Promise<ReturnType<typeof getOrCreateFileDoc> | null> => {
+            const fd = getOrCreateFileDoc(projectId, fId);
+            if (fd.initialized) return fd;
+            if (fd.initPromise) {
+              await fd.initPromise;
+              return fd.initialized ? fd : null;
+            }
+            fd.initPromise = (async () => {
+              const file = await storage.getFile(fId);
+              if (file && file.projectId === projectId) {
+                initializeFileDoc(projectId, fId, file.content || "");
+              }
+            })();
+            await fd.initPromise;
+            return fd.initialized ? fd : null;
+          };
+
+          const sendSyncResponse = (fId: string, clientSV: Uint8Array, doc: Y.Doc): void => {
+            const update = clientSV.length > 0
+              ? Y.encodeStateAsUpdate(doc, clientSV)
+              : Y.encodeStateAsUpdate(doc);
+            const header = Buffer.alloc(2 + Buffer.byteLength(fId, "utf8"));
+            header[0] = 1;
+            header[1] = Buffer.byteLength(fId, "utf8");
+            header.write(fId, 2, "utf8");
+            if (ws.readyState === 1) {
+              ws.send(Buffer.concat([header, Buffer.from(update)]));
+            }
+          };
+
+          if (msgType === 0) {
+            ensureInitialized(fileId).then((fd) => {
+              if (!fd) return;
+              sendSyncResponse(fileId, payload, fd.ydoc);
+            }).catch((err) => { log(`Collab sync init error for file ${fileId}: ${err}`, "collab"); });
+          } else if (msgType === 2) {
+            ensureInitialized(fileId).then((fd) => {
+              if (!fd) return;
+              Y.applyUpdate(fd.ydoc, payload);
+              const header = Buffer.alloc(2 + Buffer.byteLength(fileId, "utf8"));
+              header[0] = 2;
+              header[1] = Buffer.byteLength(fileId, "utf8");
+              header.write(fileId, 2, "utf8");
+              const relayBuf = Buffer.concat([header, Buffer.from(payload)]);
+              broadcastBinaryToCollaborators(projectId, userId, relayBuf, fileId);
+            }).catch((err) => { log(`Collab update error for file ${fileId}: ${err}`, "collab"); });
+          } else if (msgType === 3) {
+            if (payload.length > 4096) return;
+            let parsedState: unknown;
+            try { parsedState = JSON.parse(payload.toString("utf8")); } catch { return; }
+            if (!parsedState || typeof parsedState !== "object") return;
+            ensureInitialized(fileId).then((fd) => {
+              if (!fd) return;
+              broadcastToCollaborators(projectId, userId, {
+                type: "collab:awareness",
+                userId,
+                fileId,
+                state: parsedState,
+              }, fileId);
+            }).catch((err) => { log(`Collab awareness error for file ${fileId}: ${err}`, "collab"); });
+          }
+          return;
+        }
+
+        const raw = typeof rawData === "string" ? rawData : rawData.toString();
+        if (raw.length > MAX_COLLAB_MSG_SIZE) return;
+
+        const data = JSON.parse(raw);
+        if (!data || typeof data.type !== "string") return;
+
+        switch (data.type) {
+          case "collab:join": {
+            collabUser = addCollaborator(
+              projectId,
+              ws,
+              userId,
+              user.displayName || user.email.split("@")[0],
+              user.avatarUrl || null,
+            );
+            ws.send(JSON.stringify({
+              type: "collab:joined",
+              user: {
+                userId: collabUser.userId,
+                displayName: collabUser.displayName,
+                color: collabUser.color,
+              },
+            }));
+            broadcastToCollaborators(projectId, userId, {
+              type: "collab:user_joined",
+              userId: collabUser.userId,
+              displayName: collabUser.displayName,
+              avatarUrl: collabUser.avatarUrl,
+              color: collabUser.color,
+            });
+            broadcastPresence(projectId);
+            break;
+          }
+
+          case "collab:active_file": {
+            if (!collabUser) break;
+            if (typeof data.fileId !== "string") break;
+            updateActiveFile(projectId, userId, data.fileId);
+            broadcastPresence(projectId);
+            break;
+          }
+
+          case "collab:request_sync": {
+            if (!collabUser) break;
+            if (typeof data.fileId !== "string") break;
+            const reqFileId = data.fileId as string;
+            storage.getFile(reqFileId).then((file) => {
+              if (!file || file.projectId !== projectId) return;
+              const syncFd = getOrCreateFileDoc(projectId, reqFileId);
+              if (!syncFd.initialized) {
+                initializeFileDoc(projectId, reqFileId, file.content || "");
+              }
+              const update = Y.encodeStateAsUpdate(syncFd.ydoc);
+              const header = Buffer.alloc(2 + Buffer.byteLength(reqFileId, "utf8"));
+              header[0] = 1;
+              header[1] = Buffer.byteLength(reqFileId, "utf8");
+              header.write(reqFileId, 2, "utf8");
+              if (ws.readyState === 1) {
+                ws.send(Buffer.concat([header, Buffer.from(update)]));
+              }
+            }).catch((err) => { log(`Collab request_sync error for file ${reqFileId}: ${err}`, "collab"); });
+            break;
+          }
+
+          case "ping": {
+            ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+            break;
+          }
+        }
+      } catch (err) {
+        log(`Collab message error: ${err}`, "collab");
+      }
+    });
+
+    ws.on("close", handleDisconnect);
+    ws.on("error", handleDisconnect);
   });
 
   const terminalPingInterval = setInterval(() => {
@@ -9288,6 +9683,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const isGuest = await storage.isProjectGuest(projectId, userId);
       if (isGuest) return true;
     }
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    if (collaborators.some(c => c.userId === userId)) return true;
     return false;
   }
 
@@ -9302,6 +9699,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
     const guest = await storage.getProjectGuestByUserId(projectId, userId);
     if (guest && guest.role === "editor") return true;
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    if (collaborators.some(c => c.userId === userId)) return true;
     return false;
   }
 

@@ -904,6 +904,52 @@ export const insertSecurityFindingSchema = createInsertSchema(securityFindings).
 export type InsertSecurityFinding = z.infer<typeof insertSecurityFindingSchema>;
 export type SecurityFinding = typeof securityFindings.$inferSelect;
 
+export const projectCollaborators = pgTable("project_collaborators", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  role: text("role").notNull().default("editor"),
+  addedBy: varchar("added_by", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("project_collab_unique").on(table.projectId, table.userId),
+  index("project_collab_project_idx").on(table.projectId),
+  index("project_collab_user_idx").on(table.userId),
+]);
+export const insertProjectCollaboratorSchema = createInsertSchema(projectCollaborators).pick({
+  projectId: true,
+  userId: true,
+  role: true,
+  addedBy: true,
+});
+export type InsertProjectCollaborator = z.infer<typeof insertProjectCollaboratorSchema>;
+export type ProjectCollaborator = typeof projectCollaborators.$inferSelect;
+
+export const projectInviteLinks = pgTable("project_invite_links", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  token: text("token").notNull().unique(),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  role: text("role").notNull().default("editor"),
+  maxUses: integer("max_uses"),
+  useCount: integer("use_count").notNull().default(0),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("project_invite_project_idx").on(table.projectId),
+]);
+export const insertProjectInviteLinkSchema = createInsertSchema(projectInviteLinks).pick({
+  projectId: true,
+  token: true,
+  createdBy: true,
+  role: true,
+  maxUses: true,
+  expiresAt: true,
+});
+export type InsertProjectInviteLink = z.infer<typeof insertProjectInviteLinkSchema>;
+export type ProjectInviteLink = typeof projectInviteLinks.$inferSelect;
+
 export const storageKv = pgTable("storage_kv", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

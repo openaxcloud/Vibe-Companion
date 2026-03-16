@@ -10,6 +10,7 @@ import {
   analyticsEvents, deployments,
   customDomains, planConfigs,
   securityScans, securityFindings,
+  projectCollaborators, projectInviteLinks,
   storageKv, storageObjects,
   projectAuthConfig, projectAuthUsers,
   integrationCatalog, projectIntegrations, integrationLogs,
@@ -52,6 +53,8 @@ import {
   type PlanConfig,
   type SecurityScan, type InsertSecurityScan,
   type SecurityFinding, type InsertSecurityFinding,
+  type ProjectCollaborator, type InsertProjectCollaborator,
+  type ProjectInviteLink, type InsertProjectInviteLink,
   type StorageKv, type InsertStorageKv,
   type StorageObject, type InsertStorageObject,
   type ProjectAuthConfig,
@@ -298,6 +301,17 @@ export interface IStorage {
   createSecurityFinding(data: InsertSecurityFinding): Promise<SecurityFinding>;
   createSecurityFindings(data: InsertSecurityFinding[]): Promise<SecurityFinding[]>;
   getScanFindings(scanId: string): Promise<SecurityFinding[]>;
+
+  getProjectCollaborators(projectId: string): Promise<(ProjectCollaborator & { user: Pick<User, 'id' | 'email' | 'displayName' | 'avatarUrl'> })[]>;
+  addProjectCollaborator(data: InsertProjectCollaborator): Promise<ProjectCollaborator>;
+  removeProjectCollaborator(projectId: string, userId: string): Promise<boolean>;
+  isProjectCollaborator(projectId: string, userId: string): Promise<boolean>;
+
+  createProjectInviteLink(data: InsertProjectInviteLink): Promise<ProjectInviteLink>;
+  getProjectInviteLink(token: string): Promise<ProjectInviteLink | undefined>;
+  getProjectInviteLinks(projectId: string): Promise<ProjectInviteLink[]>;
+  useProjectInviteLink(token: string): Promise<ProjectInviteLink | undefined>;
+  deactivateProjectInviteLink(id: string, projectId: string): Promise<boolean>;
 
   getStorageKvEntries(projectId: string): Promise<StorageKv[]>;
   getStorageKvEntry(projectId: string, key: string): Promise<StorageKv | undefined>;
@@ -1714,6 +1728,62 @@ export class DatabaseStorage implements IStorage {
 
   async getScanFindings(scanId: string): Promise<SecurityFinding[]> {
     return db.select().from(securityFindings).where(eq(securityFindings.scanId, scanId));
+  }
+
+  async getProjectCollaborators(projectId: string): Promise<(ProjectCollaborator & { user: Pick<User, 'id' | 'email' | 'displayName' | 'avatarUrl'> })[]> {
+    const collabs = await db.select().from(projectCollaborators).where(eq(projectCollaborators.projectId, projectId));
+    const results: (ProjectCollaborator & { user: Pick<User, 'id' | 'email' | 'displayName' | 'avatarUrl'> })[] = [];
+    for (const c of collabs) {
+      const [u] = await db.select({ id: users.id, email: users.email, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, c.userId)).limit(1);
+      if (u) results.push({ ...c, user: u });
+    }
+    return results;
+  }
+
+  async addProjectCollaborator(data: InsertProjectCollaborator): Promise<ProjectCollaborator> {
+    const [collab] = await db.insert(projectCollaborators).values(data).onConflictDoNothing().returning();
+    if (!collab) {
+      const [existing] = await db.select().from(projectCollaborators).where(and(eq(projectCollaborators.projectId, data.projectId), eq(projectCollaborators.userId, data.userId))).limit(1);
+      return existing;
+    }
+    return collab;
+  }
+
+  async removeProjectCollaborator(projectId: string, userId: string): Promise<boolean> {
+    const result = await db.delete(projectCollaborators).where(and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId))).returning();
+    return result.length > 0;
+  }
+
+  async isProjectCollaborator(projectId: string, userId: string): Promise<boolean> {
+    const [row] = await db.select({ id: projectCollaborators.id }).from(projectCollaborators).where(and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId))).limit(1);
+    return !!row;
+  }
+
+  async createProjectInviteLink(data: InsertProjectInviteLink): Promise<ProjectInviteLink> {
+    const [link] = await db.insert(projectInviteLinks).values(data).returning();
+    return link;
+  }
+
+  async getProjectInviteLink(token: string): Promise<ProjectInviteLink | undefined> {
+    const [link] = await db.select().from(projectInviteLinks).where(eq(projectInviteLinks.token, token)).limit(1);
+    return link;
+  }
+
+  async getProjectInviteLinks(projectId: string): Promise<ProjectInviteLink[]> {
+    return db.select().from(projectInviteLinks).where(and(eq(projectInviteLinks.projectId, projectId), eq(projectInviteLinks.isActive, true)));
+  }
+
+  async useProjectInviteLink(token: string): Promise<ProjectInviteLink | undefined> {
+    const [link] = await db.update(projectInviteLinks)
+      .set({ useCount: sql`${projectInviteLinks.useCount} + 1` })
+      .where(and(eq(projectInviteLinks.token, token), eq(projectInviteLinks.isActive, true)))
+      .returning();
+    return link;
+  }
+
+  async deactivateProjectInviteLink(id: string, projectId: string): Promise<boolean> {
+    const result = await db.update(projectInviteLinks).set({ isActive: false }).where(and(eq(projectInviteLinks.id, id), eq(projectInviteLinks.projectId, projectId))).returning();
+    return result.length > 0;
   }
 
   async getStorageKvEntries(projectId: string): Promise<StorageKv[]> {

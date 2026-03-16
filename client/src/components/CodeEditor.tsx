@@ -10,18 +10,21 @@ import { go } from "@codemirror/lang-go";
 import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
 import { rust } from "@codemirror/lang-rust";
-import { EditorView, gutter, GutterMarker, keymap } from "@codemirror/view";
+import { EditorView, gutter, GutterMarker, keymap, Decoration, WidgetType, type DecorationSet } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap, openSearchPanel } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
 import { useRef, useEffect } from "react";
-import { StateField, StateEffect, RangeSetBuilder, RangeSet } from "@codemirror/state";
+import { StateField, StateEffect, RangeSetBuilder, RangeSet, type Range } from "@codemirror/state";
 import { autocompletion, type CompletionContext, type Completion } from "@codemirror/autocomplete";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { inlineAICompletion } from "./AICompletions";
 import { useTheme, type ThemeData } from "./ThemeProvider";
 import type { SyntaxColors, GlobalColors } from "@shared/schema";
+import type { AwarenessState } from "@/hooks/use-collaboration";
+import * as Y from "yjs";
+import { yCollab } from "y-codemirror.next";
 
 export interface BlameEntry {
   line: number;
@@ -50,6 +53,9 @@ interface CodeEditorProps {
   semanticTokens?: boolean;
   formatPastedText?: boolean;
   acceptSuggestionOnCommit?: boolean;
+  editorRef?: React.MutableRefObject<ReactCodeMirrorRef | null>;
+  ytext?: Y.Text | null;
+  remoteAwareness?: Map<string, AwarenessState>;
 }
 
 function buildHighlightStyle(sc: SyntaxColors): HighlightStyle {
@@ -1035,8 +1041,138 @@ function createPasteFormatterExtension() {
   });
 }
 
-export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false, autoCloseBrackets: autoCloseBracketsEnabled = true, indentationChar = "spaces", minimap: showMinimap = true, indentOnInput: indentOnInputProp = true, multiselectModifier = "Alt", semanticTokens = true, formatPastedText = true, acceptSuggestionOnCommit = true }: CodeEditorProps) {
-  const editorRef = useRef<ReactCodeMirrorRef>(null);
+class RemoteCursorWidget extends WidgetType {
+  constructor(
+    public displayName: string,
+    public color: string,
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const wrapper = document.createElement("span");
+    wrapper.className = "cm-remote-cursor";
+    wrapper.style.borderLeftColor = this.color;
+
+    const label = document.createElement("span");
+    label.className = "cm-remote-cursor-label";
+    label.style.backgroundColor = this.color;
+    label.textContent = this.displayName;
+    wrapper.appendChild(label);
+
+    return wrapper;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+interface AwarenessEntry {
+  userId: string;
+  displayName: string;
+  color: string;
+  cursor: { anchor: number; head: number } | null;
+}
+
+const setAwarenessEffect = StateEffect.define<Map<string, AwarenessEntry>>();
+
+const awarenessField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setAwarenessEffect)) {
+        const states = effect.value;
+        const decos: Range<Decoration>[] = [];
+        const doc = tr.state.doc;
+
+        for (const [, state] of states) {
+          try {
+            if (!state.cursor) continue;
+            const headPos = Math.min(Math.max(0, state.cursor.head), doc.length);
+
+            decos.push(
+              Decoration.widget({
+                widget: new RemoteCursorWidget(state.displayName, state.color),
+                side: 1,
+              }).range(headPos)
+            );
+
+            const anchor = Math.min(Math.max(0, state.cursor.anchor), doc.length);
+            const head = Math.min(Math.max(0, state.cursor.head), doc.length);
+            const from = Math.min(anchor, head);
+            const to = Math.max(anchor, head);
+            if (from !== to) {
+              decos.push(
+                Decoration.mark({
+                  class: "cm-remote-selection",
+                  attributes: {
+                    style: `background-color: ${state.color}22`,
+                  },
+                }).range(from, to)
+              );
+            }
+          } catch {
+          }
+        }
+
+        return Decoration.set(decos, true);
+      }
+    }
+
+    return decorations.map(tr.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+const remoteCursorTheme = EditorView.theme({
+  ".cm-remote-cursor": {
+    position: "relative",
+    borderLeft: "2px solid",
+    marginLeft: "-1px",
+    marginRight: "-1px",
+    pointerEvents: "none",
+  },
+  ".cm-remote-cursor-label": {
+    position: "absolute",
+    top: "-1.4em",
+    left: "-1px",
+    fontSize: "10px",
+    fontFamily: "'IBM Plex Mono', 'JetBrains Mono', sans-serif",
+    padding: "1px 5px",
+    borderRadius: "3px 3px 3px 0",
+    color: "#fff",
+    whiteSpace: "nowrap",
+    pointerEvents: "none",
+    lineHeight: "1.3",
+    zIndex: "10",
+    fontWeight: "500",
+  },
+  ".cm-remote-selection": {
+    mixBlendMode: "multiply",
+  },
+  ".cm-ySelectionInfo": {
+    position: "absolute",
+    top: "-1.4em",
+    left: "-1px",
+    fontSize: "10px",
+    fontFamily: "'IBM Plex Mono', 'JetBrains Mono', sans-serif",
+    padding: "1px 5px",
+    borderRadius: "3px 3px 3px 0",
+    color: "#fff",
+    whiteSpace: "nowrap",
+    pointerEvents: "none",
+    lineHeight: "1.3",
+    zIndex: "10",
+    fontWeight: "500",
+  },
+});
+
+export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false, autoCloseBrackets: autoCloseBracketsEnabled = true, indentationChar = "spaces", minimap: showMinimap = true, indentOnInput: indentOnInputProp = true, multiselectModifier = "Alt", semanticTokens = true, formatPastedText = true, acceptSuggestionOnCommit = true, editorRef: externalEditorRef, ytext, remoteAwareness }: CodeEditorProps) {
+  const internalEditorRef = useRef<ReactCodeMirrorRef>(null);
+  const editorRef = externalEditorRef || internalEditorRef;
   const onCursorChangeRef = useRef(onCursorChange);
   onCursorChangeRef.current = onCursorChange;
 
@@ -1064,6 +1200,11 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     [activeTheme.syntaxColors]
   );
 
+  const collabExtension = useMemo(() => {
+    if (!ytext) return [];
+    return [yCollab(ytext, null, { undoManager: false })];
+  }, [ytext]);
+
   const extensions = useMemo(() => {
     const indentStr = indentationChar === "tabs" ? "\t" : " ".repeat(tabSize);
     const ext = [
@@ -1074,8 +1215,11 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       indentUnit.of(indentStr),
       cursorTracker,
       blameField,
+      awarenessField,
+      remoteCursorTheme,
       search({ top: true }),
       keymap.of(searchKeymap),
+      ...collabExtension,
     ];
     if (showBlame) ext.push(blameGutter);
     if (wordWrap) ext.push(EditorView.lineWrapping);
@@ -1086,7 +1230,7 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       ext.push(EditorView.mouseSelectionStyle.of(() => null));
     }
     return ext;
-  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, indentationChar, multiselectModifier, semanticTokens, formatPastedText, acceptSuggestionOnCommit]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, indentationChar, multiselectModifier, semanticTokens, formatPastedText, acceptSuggestionOnCommit, collabExtension]);
 
   useEffect(() => {
     const view = editorRef.current?.view;
@@ -1095,11 +1239,18 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     }
   }, [blameData]);
 
+  useEffect(() => {
+    const view = editorRef.current?.view;
+    if (view && remoteAwareness) {
+      view.dispatch({ effects: setAwarenessEffect.of(remoteAwareness) });
+    }
+  }, [remoteAwareness]);
+
   return (
     <CodeMirror
       ref={editorRef}
-      value={value}
-      onChange={onChange}
+      value={ytext ? undefined : value}
+      onChange={ytext ? undefined : onChange}
       extensions={extensions}
       theme="none"
       basicSetup={{
@@ -1118,3 +1269,4 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     />
   );
 }
+

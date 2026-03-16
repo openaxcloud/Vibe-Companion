@@ -1,5 +1,6 @@
 /* @refresh reset */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import * as Y from "yjs";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
+import { useCollaboration, type RemoteUser } from "@/hooks/use-collaboration";
 import { toast } from "@/hooks/use-toast";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -235,6 +237,10 @@ function _projectPage() {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
   const [frameworkCheckbox, setFrameworkCheckbox] = useState(false);
   const [frameworkDesc, setFrameworkDesc] = useState("");
   const [frameworkCategory, setFrameworkCategory] = useState("other");
@@ -671,6 +677,16 @@ function _projectPage() {
 
   const { user, logout: logoutMutation } = useAuth();
   const { messages, connected, connectionQuality, retryWebSocket } = useProjectWebSocket(projectId);
+  const {
+    remoteUsers,
+    remoteAwareness,
+    connected: collabConnected,
+    sendAwareness: collabSendAwareness,
+    getFileDoc,
+    isFileSynced,
+    onJoinNotification,
+  } = useCollaboration(projectId, user?.id, activeFileId);
+  const collabEditorRef = useRef<{ view?: { state: { selection: { main: { anchor: number; head: number } }; doc: { length: number } } } } | null>(null);
 
   const projectQuery = useQuery<ProjectType>({
     queryKey: ["/api/projects", projectId],
@@ -973,10 +989,92 @@ function _projectPage() {
     }
   }, [activeFileId, autoSave, previewPanelOpen]);
 
+  const handleGenerateInviteLink = useCallback(async () => {
+    if (!projectId) return;
+    setInviteLoading(true);
+    setInviteLinkCopied(false);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/invite-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "editor" }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to create invite link");
+      const data = await res.json();
+      const fullUrl = `${window.location.origin}/invite/${data.token}`;
+      setInviteLink(fullUrl);
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to generate invite link", variant: "destructive" });
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [projectId, toast]);
+
+  const handleCopyInviteLink = useCallback(() => {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setInviteLinkCopied(true);
+      setTimeout(() => setInviteLinkCopied(false), 2000);
+    });
+  }, [inviteLink]);
+
+  useEffect(() => {
+    onJoinNotification((userName: string, action: "joined" | "left") => {
+      toast({
+        title: action === "joined" ? `${userName} joined` : `${userName} left`,
+        description: action === "joined" ? "Collaborating on this project" : "No longer editing",
+        duration: 3000,
+      });
+    });
+  }, [onJoinNotification]);
+
+  const activeYtext = useMemo(() => {
+    if (!activeFileId || !collabConnected) return null;
+    if (!isFileSynced(activeFileId)) return null;
+    const doc = getFileDoc(activeFileId);
+    return doc.ytext;
+  }, [activeFileId, collabConnected, isFileSynced, getFileDoc]);
+
+  useEffect(() => {
+    if (!activeYtext || !activeFileId) return;
+    const fileId = activeFileId;
+    const observer = (event: Y.YTextEvent) => {
+      const content = activeYtext.toString();
+      setFileContents(prev => {
+        if (prev[fileId] === content) return prev;
+        return { ...prev, [fileId]: content };
+      });
+      const isLocal = event.transaction.origin !== "remote";
+      if (isLocal) {
+        autoSave(fileId, content);
+      }
+      if (previewPanelOpen) {
+        clearTimeout(previewRefreshTimer.current);
+        previewRefreshTimer.current = setTimeout(() => {
+          const html = generateHtmlPreviewRef.current?.();
+          if (html) setPreviewHtml(html);
+        }, 500);
+      }
+    };
+    activeYtext.observe(observer);
+    return () => {
+      activeYtext.unobserve(observer);
+    };
+  }, [activeYtext, activeFileId, autoSave, previewPanelOpen]);
+
   const handleCursorChange = useCallback((line: number, col: number) => {
     setCursorLine(line);
     setCursorCol(col);
-  }, []);
+    if (activeFileId && collabConnected) {
+      const view = collabEditorRef.current?.view;
+      const selection = view ? {
+        anchor: view.state.selection.main.anchor,
+        head: view.state.selection.main.head,
+      } : null;
+      collabSendAwareness(activeFileId, selection);
+    }
+  }, [activeFileId, collabConnected, collabSendAwareness]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -3607,7 +3705,7 @@ function _projectPage() {
                     </p>
                   </div>
                 ) : (
-                  <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={userPrefs.aiCodeCompletion} autoCloseBrackets={userPrefs.autoCloseBrackets} indentationChar={userPrefs.indentationChar} minimap={userPrefs.minimap} indentOnInput={userPrefs.indentationDetection} multiselectModifier={userPrefs.multiselectModifier} semanticTokens={userPrefs.semanticTokens} formatPastedText={userPrefs.formatPastedText} acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit} />
+                  <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={userPrefs.aiCodeCompletion} autoCloseBrackets={userPrefs.autoCloseBrackets} indentationChar={userPrefs.indentationChar} minimap={userPrefs.minimap} indentOnInput={userPrefs.indentationDetection} multiselectModifier={userPrefs.multiselectModifier} semanticTokens={userPrefs.semanticTokens} formatPastedText={userPrefs.formatPastedText} acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit} editorRef={collabEditorRef as React.MutableRefObject<import("@uiw/react-codemirror").ReactCodeMirrorRef | null>} ytext={activeYtext} remoteAwareness={remoteAwareness} />
                 )}
               </div>
               {splitEditorFileId && (
@@ -4102,7 +4200,7 @@ function _projectPage() {
                   <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setPublishDialogOpen(true)}>
                     <Rocket className="w-3.5 h-3.5" /> Publish
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })}>
+                  <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => { setInviteDialogOpen(true); handleGenerateInviteLink(); }}>
                     <Users className="w-3.5 h-3.5" /> Invite
                   </DropdownMenuItem>
                   <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => openPanel("git")}>
@@ -4113,10 +4211,50 @@ function _projectPage() {
             </>
           ) : (
             <>
+              {remoteUsers.length > 0 && (
+                <TooltipProvider delayDuration={200}>
+                  <div className="flex items-center gap-1 mr-1" data-testid="presence-indicators">
+                    {remoteUsers.slice(0, 5).map((ru) => (
+                      <Tooltip key={ru.userId}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="relative flex items-center justify-center w-6 h-6 rounded-full text-[9px] font-semibold text-white cursor-default shrink-0 ring-2 ring-[var(--ide-bg)]"
+                            style={{ backgroundColor: ru.color }}
+                            data-testid={`presence-avatar-${ru.userId}`}
+                          >
+                            {ru.avatarUrl ? (
+                              <img src={ru.avatarUrl} alt={ru.displayName} className="w-full h-full rounded-full object-cover" />
+                            ) : (
+                              ru.displayName.charAt(0).toUpperCase()
+                            )}
+                            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#0CCE6B] ring-1 ring-[var(--ide-bg)]" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ru.color }} />
+                            {ru.displayName}
+                            {ru.activeFileId && (
+                              <span className="text-[var(--ide-text-muted)]">
+                                {(() => { const file = filesQuery.data?.find((file) => file.id === ru.activeFileId); return file ? `editing ${file.filename}` : ""; })()}
+                              </span>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                    {remoteUsers.length > 5 && (
+                      <div className="w-6 h-6 rounded-full bg-[var(--ide-surface)] text-[9px] text-[var(--ide-text-muted)] flex items-center justify-center font-medium ring-2 ring-[var(--ide-bg)]">
+                        +{remoteUsers.length - 5}
+                      </div>
+                    )}
+                  </div>
+                </TooltipProvider>
+              )}
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" onClick={() => toast({ title: "Coming soon", description: "Invite feature coming soon" })} data-testid="button-invite">
+                    <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" onClick={() => { setInviteDialogOpen(true); handleGenerateInviteLink(); }} data-testid="button-invite">
                       <Users className="w-3.5 h-3.5" /> Invite
                     </Button>
                   </TooltipTrigger>
@@ -6782,6 +6920,12 @@ function _projectPage() {
                  connectionQuality === "disconnected" ? "Off" :
                  "WS"}
               </span>
+              {remoteUsers.length > 0 && (
+                <span className="text-[10px] flex items-center gap-1 text-[var(--ide-text-muted)]" data-testid="status-collaborators">
+                  <Users className="w-2.5 h-2.5" />
+                  {remoteUsers.length + 1}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
@@ -7070,6 +7214,42 @@ function _projectPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Invite Collaborators</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Share this link to invite others to collaborate on this project in real-time</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {inviteLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" />
+              </div>
+            ) : inviteLink ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-[var(--ide-text-secondary)]">Invite Link</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={inviteLink} className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-xs text-[var(--ide-text)] rounded-lg flex-1 font-mono" data-testid="input-invite-link" />
+                    <Button size="sm" variant="ghost" className="h-9 px-3 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] shrink-0" onClick={handleCopyInviteLink} data-testid="button-copy-invite">
+                      {inviteLinkCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-[var(--ide-text-muted)]">Anyone with this link can join your project as an editor and collaborate in real-time.</p>
+                <Button variant="outline" size="sm" className="w-full h-8 text-xs border-[var(--ide-border)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={handleGenerateInviteLink} data-testid="button-new-invite-link">
+                  Generate New Link
+                </Button>
+              </>
+            ) : (
+              <Button className="w-full h-9 bg-[#0079F2] hover:bg-[#0068D6] text-white rounded-lg text-xs font-medium" onClick={handleGenerateInviteLink} data-testid="button-generate-invite">
+                Generate Invite Link
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
         <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
           <DialogHeader>
