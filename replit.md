@@ -67,6 +67,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `code_threads`: id (uuid), project_id (indexed), user_id, filename (indexed), line_number, title, status, created_at, resolved_at
 - `thread_comments`: id (uuid), thread_id (indexed), user_id, content, created_at
 - `port_configs`: id (uuid), project_id (indexed), port, label, protocol, is_public, created_at — unique(project_id, port)
+- `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
 
 ## Key Features
