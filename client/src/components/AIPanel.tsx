@@ -39,6 +39,8 @@ interface AIPanelProps {
   onFileCreated?: (file: FileInfo) => void;
   onFileUpdated?: (file: FileInfo) => void;
   onApplyCode?: (filename: string, code: string) => void;
+  pendingMessage?: string | null;
+  onPendingMessageConsumed?: () => void;
 }
 
 type AIModel = "claude" | "gpt" | "gemini";
@@ -155,7 +157,7 @@ class AIPanelErrorBoundary extends React.Component<
   }
 }
 
-function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode }: AIPanelProps) {
+function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -234,6 +236,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 160) + "px";
     }
   }, [input]);
+
+  useEffect(() => {
+    if (pendingMessage && conversationLoaded && !isStreaming) {
+      setInput(pendingMessage);
+      onPendingMessageConsumed?.();
+    }
+  }, [pendingMessage, conversationLoaded, isStreaming]);
 
   const processSSEStream = useCallback(async (
     response: Response,

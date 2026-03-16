@@ -69,6 +69,8 @@ import {
   type FrameworkUpdate, type InsertFrameworkUpdate,
   type Checkpoint, type InsertCheckpoint, type CheckpointPosition,
   type AccountEnvVar, type AccountEnvVarLink,
+  type ConsoleRun, type InsertConsoleRun,
+  consoleRuns,
   PLAN_LIMITS,
 } from "@shared/schema";
 import { encrypt, decrypt, migrateToEncrypted } from "./encryption";
@@ -103,6 +105,12 @@ export interface IStorage {
   updateRun(id: string, data: Partial<Run>): Promise<Run | undefined>;
   getRun(id: string): Promise<Run | undefined>;
   getRunsByProject(projectId: string): Promise<Run[]>;
+
+  createConsoleRun(data: InsertConsoleRun): Promise<ConsoleRun>;
+  updateConsoleRun(id: string, data: Partial<ConsoleRun>): Promise<ConsoleRun | undefined>;
+  getConsoleRun(id: string): Promise<ConsoleRun | undefined>;
+  getConsoleRunsByProject(projectId: string, limit?: number): Promise<ConsoleRun[]>;
+  clearConsoleRuns(projectId: string, excludeRunId?: string): Promise<void>;
 
   publishProject(id: string, userId: string): Promise<Project | undefined>;
   getPublishedProject(id: string): Promise<{project: Project, files: File[]} | undefined>;
@@ -531,6 +539,35 @@ export class DatabaseStorage implements IStorage {
 
   async getRunsByProject(projectId: string): Promise<Run[]> {
     return db.select().from(runs).where(eq(runs.projectId, projectId)).orderBy(desc(runs.startedAt)).limit(20);
+  }
+
+  async createConsoleRun(data: InsertConsoleRun): Promise<ConsoleRun> {
+    const [run] = await db.insert(consoleRuns).values(data).returning();
+    return run;
+  }
+
+  async updateConsoleRun(id: string, data: Partial<ConsoleRun>): Promise<ConsoleRun | undefined> {
+    const [run] = await db.update(consoleRuns).set(data).where(eq(consoleRuns.id, id)).returning();
+    return run;
+  }
+
+  async getConsoleRun(id: string): Promise<ConsoleRun | undefined> {
+    const [run] = await db.select().from(consoleRuns).where(eq(consoleRuns.id, id)).limit(1);
+    return run;
+  }
+
+  async getConsoleRunsByProject(projectId: string, limit: number = 50): Promise<ConsoleRun[]> {
+    return db.select().from(consoleRuns).where(eq(consoleRuns.projectId, projectId)).orderBy(desc(consoleRuns.startedAt)).limit(limit);
+  }
+
+  async clearConsoleRuns(projectId: string, excludeRunId?: string): Promise<void> {
+    if (excludeRunId) {
+      await db.delete(consoleRuns).where(
+        and(eq(consoleRuns.projectId, projectId), sql`${consoleRuns.id} != ${excludeRunId}`)
+      );
+    } else {
+      await db.delete(consoleRuns).where(eq(consoleRuns.projectId, projectId));
+    }
   }
 
   async publishProject(id: string, userId: string): Promise<Project | undefined> {

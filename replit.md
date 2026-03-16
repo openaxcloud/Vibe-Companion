@@ -23,6 +23,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **AI Agent**: Tool-use endpoint that can create/edit files and create skills directly in the project
 - **Agent Skills**: Per-project reusable skills (patterns, conventions, domain knowledge) that are automatically injected into AI context. CRUD via REST API + Skills panel in sidebar. AI agent has a `create_skill` tool. Skills stored in `skills` table.
+- **Console Panel**: `ConsolePanel.tsx` — structured run-based console with collapsible run entries, "Show Only Latest" toggle, "Clear past runs" with confirmation, "Ask AI" button per run entry, stop button for active runs. Run history persisted to `console_runs` table. Replaces old flat log list.
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
 - **Email**: Nodemailer with SMTP support (env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, APP_URL). Falls back to console logging when SMTP not configured.
 - **Stripe Billing**: Stripe checkout, portal, and webhook integration. Env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRO_PRICE_ID, STRIPE_TEAM_PRICE_ID. Webhook uses raw body for signature verification. Graceful degradation when not configured.
@@ -37,6 +38,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `framework_updates`: id, framework_id (indexed), message, created_at
 - `files`: id, project_id (indexed), filename, content, updated_at
 - `runs`: id, project_id (indexed), user_id (indexed), status, language, code, stdout, stderr, exit_code, started_at, finished_at
+- `console_runs`: id (uuid), project_id (indexed), command, status, logs (JSON array), exit_code, started_at (indexed), finished_at — structured run entries for Console panel with persisted log history
 - `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
 - `workspace_sessions`: id (uuid), workspace_id, user_id, created_at, expires_at
 - `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at

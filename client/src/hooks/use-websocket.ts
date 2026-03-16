@@ -4,6 +4,7 @@ import { toast as showToast } from "@/hooks/use-toast";
 export interface WsMessage {
   type: string;
   runId?: string;
+  consoleRunId?: string;
   status?: string;
   message?: string;
   logType?: "info" | "error" | "success";

@@ -984,3 +984,23 @@ export const insertAccountEnvVarLinkSchema = createInsertSchema(accountEnvVarLin
 });
 export type InsertAccountEnvVarLink = z.infer<typeof insertAccountEnvVarLinkSchema>;
 export type AccountEnvVarLink = typeof accountEnvVarLinks.$inferSelect;
+
+export const consoleRuns = pgTable("console_runs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  command: text("command").notNull(),
+  status: text("status").notNull().default("running"),
+  logs: json("logs").$type<{ id: number; text: string; type: "info" | "error" | "success" }[]>().notNull().default([]),
+  exitCode: integer("exit_code"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+}, (table) => [
+  index("console_runs_project_id_idx").on(table.projectId),
+  index("console_runs_started_at_idx").on(table.startedAt),
+]);
+export const insertConsoleRunSchema = createInsertSchema(consoleRuns).pick({
+  projectId: true,
+  command: true,
+});
+export type InsertConsoleRun = z.infer<typeof insertConsoleRunSchema>;
+export type ConsoleRun = typeof consoleRuns.$inferSelect;

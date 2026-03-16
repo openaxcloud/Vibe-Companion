@@ -537,6 +537,7 @@ export async function executeCode(
   userId?: number,
   projectId?: number,
   envVars?: Record<string, string>,
+  abortSignal?: AbortSignal,
 ): Promise<ExecutionResult> {
   const startTime = Date.now();
   const supported = ["javascript", "typescript", "python", "go", "ruby", "c", "cpp", "java", "bash"];
@@ -819,6 +820,22 @@ export async function executeCode(
         gid: undefined,
       });
 
+      if (abortSignal) {
+        const onAbort = () => {
+          killed = true;
+          proc.kill("SIGTERM");
+          setTimeout(() => {
+            try { proc.kill("SIGKILL"); } catch {}
+          }, 2000);
+        };
+        if (abortSignal.aborted) {
+          onAbort();
+        } else {
+          abortSignal.addEventListener("abort", onAbort, { once: true });
+          proc.on("close", () => abortSignal.removeEventListener("abort", onAbort));
+        }
+      }
+
       const timer = setTimeout(() => {
         killed = true;
         proc.kill("SIGKILL");
@@ -849,7 +866,11 @@ export async function executeCode(
         clearTimeout(timer);
         const durationMs = Date.now() - startTime;
 
-        if (killed) {
+        if (killed && abortSignal?.aborted) {
+          const msg = "Execution stopped by user";
+          onLog?.(msg, "error");
+          resolve({ stdout, stderr: stderr + "\n" + msg, exitCode: 130, durationMs });
+        } else if (killed) {
           const msg = `Execution timed out (${MAX_EXECUTION_TIME_MS / 1000}s limit)`;
           onLog?.(msg, "error");
           resolve({ stdout, stderr: stderr + "\n" + msg, exitCode: 124, durationMs });

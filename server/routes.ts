@@ -2781,7 +2781,7 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const { code, language } = req.body;
+    const { code, language, fileName } = req.body;
     if (code === undefined || code === null || !language) {
       return res.status(400).json({ message: "Code and language are required" });
     }
@@ -2805,13 +2805,20 @@ export async function registerRoutes(
       code,
     });
 
+    const commandLabel = fileName ? `run ${fileName}` : `run ${language}`;
+    const consoleRun = await storage.createConsoleRun({
+      projectId: project.id,
+      command: commandLabel,
+    });
+
     broadcastToProject(project.id, {
       type: "run_status",
       runId: run.id,
+      consoleRunId: consoleRun.id,
       status: "running",
     });
 
-    res.status(202).json({ runId: run.id, status: "running" });
+    res.status(202).json({ runId: run.id, consoleRunId: consoleRun.id, status: "running" });
 
     const codeHash = crypto.createHash("sha256").update(code).digest("hex").slice(0, 16);
 
@@ -2834,8 +2841,24 @@ export async function registerRoutes(
     const user = await storage.getUser(userId);
     envVarsMap["REPLIT_USER"] = user?.displayName || user?.email || userId;
 
+    const consoleLogBuffer: { id: number; text: string; type: "info" | "error" | "success" }[] = [];
+    let logIdCounter = 0;
+    let lastFlushLen = 0;
+    const LOG_FLUSH_INTERVAL = 3000;
+
+    const flushLogs = () => {
+      if (consoleLogBuffer.length > lastFlushLen) {
+        lastFlushLen = consoleLogBuffer.length;
+        storage.updateConsoleRun(consoleRun.id, {
+          logs: consoleLogBuffer.slice(0, 5000),
+        }).catch(() => {});
+      }
+    };
+    const flushTimer = setInterval(flushLogs, LOG_FLUSH_INTERVAL);
+
     try {
       const result = await executionPool.submit(userId, project.id, code, language, (message, type) => {
+        consoleLogBuffer.push({ id: logIdCounter++, text: message, type });
         broadcastToProject(project.id, {
           type: "run_log",
           runId: run.id,
@@ -2844,6 +2867,7 @@ export async function registerRoutes(
           timestamp: Date.now(),
         });
       }, envVarsMap);
+      clearInterval(flushTimer);
 
       const durationMs = Date.now() - startTime;
       const failed = result.exitCode !== 0;
@@ -2868,13 +2892,27 @@ export async function registerRoutes(
         finishedAt: new Date(),
       });
 
+      const exitMsg = failed
+        ? `\x1b[31m✗ Process failed with code ${result.exitCode}\x1b[0m`
+        : `\x1b[32m✓ Process exited with code ${result.exitCode}\x1b[0m`;
+      consoleLogBuffer.push({ id: logIdCounter++, text: exitMsg, type: failed ? "error" : "success" });
+
+      storage.updateConsoleRun(consoleRun.id, {
+        status: failed ? "failed" : "completed",
+        exitCode: result.exitCode,
+        logs: consoleLogBuffer.slice(0, 5000),
+        finishedAt: new Date(),
+      }).catch(() => {});
+
       broadcastToProject(project.id, {
         type: "run_status",
         runId: run.id,
+        consoleRunId: consoleRun.id,
         status: failed ? "failed" : "completed",
         exitCode: result.exitCode,
       });
     } catch (error: any) {
+      clearInterval(flushTimer);
       const durationMs = Date.now() - startTime;
       recordExecution(userId, clientIp, durationMs, true);
 
@@ -2896,9 +2934,20 @@ export async function registerRoutes(
         finishedAt: new Date(),
       });
 
+      consoleLogBuffer.push({ id: logIdCounter++, text: error.message, type: "error" });
+      consoleLogBuffer.push({ id: logIdCounter++, text: `\x1b[31m✗ Process failed with code 1\x1b[0m`, type: "error" });
+
+      storage.updateConsoleRun(consoleRun.id, {
+        status: "failed",
+        exitCode: 1,
+        logs: consoleLogBuffer.slice(0, 5000),
+        finishedAt: new Date(),
+      }).catch(() => {});
+
       broadcastToProject(project.id, {
         type: "run_status",
         runId: run.id,
+        consoleRunId: consoleRun.id,
         status: "failed",
         exitCode: 1,
       });
@@ -2910,6 +2959,59 @@ export async function registerRoutes(
   app.get("/api/projects/:projectId/runs", requireAuth, async (req: Request, res: Response) => {
     const runList = await storage.getRunsByProject(req.params.projectId);
     return res.json(runList);
+  });
+
+  app.get("/api/projects/:projectId/console-runs", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    const limit = parseInt(req.query.limit as string) || 50;
+    const runs = await storage.getConsoleRunsByProject(project.id, limit);
+    return res.json(runs);
+  });
+
+  app.post("/api/projects/:projectId/console-runs", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    const { command } = req.body;
+    if (!command) return res.status(400).json({ message: "command is required" });
+    const run = await storage.createConsoleRun({ projectId: project.id, command });
+    return res.status(201).json(run);
+  });
+
+  app.patch("/api/console-runs/:id", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    const run = await storage.getConsoleRun(req.params.id);
+    if (!run) return res.status(404).json({ message: "Console run not found" });
+    const project = await storage.getProject(run.projectId);
+    if (!project || project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    const { status, logs, exitCode, finishedAt } = req.body;
+    const validStatuses = ["running", "completed", "failed"];
+    const updates: any = {};
+    if (status !== undefined && validStatuses.includes(status)) updates.status = status;
+    if (logs !== undefined && Array.isArray(logs)) updates.logs = logs.slice(0, 5000);
+    if (exitCode !== undefined && typeof exitCode === "number") updates.exitCode = exitCode;
+    if (finishedAt !== undefined) updates.finishedAt = new Date(finishedAt);
+    if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No valid fields to update" });
+    const updated = await storage.updateConsoleRun(run.id, updates);
+    return res.json(updated);
+  });
+
+  app.post("/api/projects/:projectId/stop", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    const cancelled = executionPool.cancelProjectExecution(project.id);
+    return res.json({ stopped: cancelled });
+  });
+
+  app.delete("/api/projects/:projectId/console-runs", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    const excludeRunId = req.query.excludeRunId as string | undefined;
+    await storage.clearConsoleRuns(project.id, excludeRunId);
+    return res.json({ success: true });
   });
 
   app.get("/api/execution-metrics", requireAuth, async (req: Request, res: Response) => {

@@ -32,7 +32,7 @@ import CheckpointsPanel from "@/components/CheckpointsPanel";
 import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useProjectWebSocket } from "@/hooks/use-websocket";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -53,6 +53,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import AIPanel from "@/components/AIPanel";
+import ConsolePanel from "@/components/ConsolePanel";
 import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
 import WorkspaceTerminal from "@/components/WorkspaceTerminal";
 import CommandPalette from "@/components/CommandPalette";
@@ -196,6 +197,7 @@ function _projectPage() {
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [currentConsoleRunId, setCurrentConsoleRunId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
@@ -687,21 +689,15 @@ function _projectPage() {
       if (msg.type === "run_log" && msg.message) {
         setLogs((prev) => [...prev, { id: Date.now() + Math.random(), text: msg.message!, type: msg.logType || "info" }]);
       }
+      if (msg.type === "run_status" && msg.status === "running" && msg.consoleRunId) {
+        setCurrentConsoleRunId(msg.consoleRunId);
+      }
       if (msg.type === "run_status" && (msg.status === "completed" || msg.status === "failed")) {
         setIsRunning(false);
-        const exitCode = (msg as any).exitCode ?? (msg.status === "completed" ? 0 : 1);
-        const timestamp = new Date().toLocaleTimeString();
-        setLogs((prev) => [
-          ...prev,
-          { id: Date.now() + Math.random(), text: "", type: "info" },
-          {
-            id: Date.now() + Math.random(),
-            text: msg.status === "completed"
-              ? `\x1b[32m✓ Process exited with code ${exitCode}\x1b[0m  (${timestamp})`
-              : `\x1b[31m✗ Process failed with code ${exitCode}\x1b[0m  (${timestamp})`,
-            type: msg.status === "completed" ? "success" : "error",
-          },
-        ]);
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "console-runs"] });
+          setCurrentConsoleRunId(null);
+        }, 500);
       }
     }
   }, [messages]);
@@ -1073,11 +1069,15 @@ function _projectPage() {
       const res = await apiRequest("POST", `/api/projects/${projectId}/run`, {
         code,
         language,
+        fileName: activeFileName || undefined,
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       setIsRunning(true);
+      if (data?.consoleRunId) {
+        setCurrentConsoleRunId(data.consoleRunId);
+      }
       if (viewMode === "desktop") {
         setTerminalVisible(true);
       } else {
@@ -1121,6 +1121,31 @@ function _projectPage() {
     setBottomTab("terminal");
     runMutation.mutate();
   };
+
+  const handleStopExecution = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      await fetch(`/api/projects/${projectId}/stop`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+      });
+    } catch {}
+  }, [projectId]);
+
+  const [pendingAIMessage, setPendingAIMessage] = useState<string | null>(null);
+
+  const handleAskAIFromConsole = useCallback((logContent: string) => {
+    const message = `Please analyze these console logs and help me debug any issues:\n\n\`\`\`\n${logContent.slice(0, 4000)}\n\`\`\``;
+    setPendingAIMessage(message);
+    setAiPanelOpen(true);
+    setSidebarOpen(false);
+    setOpenPanelTabs([]);
+    setActivePanelTab(null);
+  }, []);
 
   useEffect(() => {
     hasAutoRun.current = false;
@@ -2872,29 +2897,15 @@ function _projectPage() {
 
   const consoleTabContent = (
     <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
-      <div className="flex items-center justify-between px-2 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
-        <div className="flex items-center gap-2">
-          <Terminal className="w-3 h-3 text-[#F5A623]" />
-          <span className="text-[11px] text-[var(--ide-text-secondary)] font-medium">Console</span>
-          {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B] animate-pulse" />}
-        </div>
-        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-console-tab-clear"><Trash2 className="w-3 h-3" /></Button>
-      </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }} data-testid="console-tab-output">
-        {logs.length === 0 && !isRunning && !runMutation.isPending && <p className="text-[var(--ide-text-muted)] text-center py-4 text-xs">Press Run to execute your code</p>}
-        {(isRunning || runMutation.isPending) && logs.length === 0 && (
-          <div className="flex items-center gap-2 py-1 text-[#0079F2] border-b border-[var(--ide-border)]/50 mb-1">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span className="text-[11px]">Running {activeFileName || "code"}...</span>
-          </div>
-        )}
-        {logs.map((log) => (
-          <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-green-400" : "text-[var(--ide-text-secondary)]"}`}>
-            <span className="whitespace-pre-wrap break-all">{log.text}</span>
-          </div>
-        ))}
-        {isRunning && logs.length > 0 && <span className="animate-pulse text-[#0079F2]">_</span>}
-      </div>
+      <ConsolePanel
+        projectId={projectId!}
+        isRunning={isRunning}
+        logs={logs}
+        onStop={handleStopExecution}
+        onAskAI={handleAskAIFromConsole}
+        activeFileName={activeFileName}
+        currentConsoleRunId={currentConsoleRunId}
+      />
     </div>
   );
 
@@ -3127,26 +3138,15 @@ function _projectPage() {
   );
 
   const terminalContent = (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 animate-fade-in" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "12px", lineHeight: "1.6" }} data-testid="terminal-output">
-      {logs.length === 0 && !isRunning && !runMutation.isPending && (
-        <div className="flex flex-col items-center justify-center py-8 text-[var(--ide-text-muted)]" data-testid="text-terminal-empty">
-          <Terminal className="w-6 h-6 mb-2 opacity-40" />
-          <p className="text-xs">Press <kbd className="px-1.5 py-0.5 mx-1 rounded bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text-secondary)] text-[10px]">F5</kbd> or click <span className="text-[#0CCE6B] font-medium">Run</span> to execute your code</p>
-        </div>
-      )}
-      {(isRunning || runMutation.isPending) && logs.length === 0 && (
-        <div className="flex items-center gap-2 py-1.5 text-[#0079F2] border-b border-[var(--ide-border)]/50 mb-1" data-testid="text-run-header">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          <span className="text-[11px]">Running {activeFileName || "code"}...</span>
-        </div>
-      )}
-      {logs.map((log) => (
-        <div key={log.id} className={`leading-relaxed ${log.type === "error" ? "text-red-400" : log.type === "success" ? "text-[#0CCE6B]" : "text-[#C5C8D4]"}`}>
-          <span className="whitespace-pre-wrap break-all">{log.text.includes('\x1b[') ? parseAnsi(log.text) : log.text}</span>
-        </div>
-      ))}
-      {isRunning && logs.length > 0 && <span className="inline-block w-[7px] h-[14px] bg-[#0079F2] animate-pulse ml-0.5" />}
-    </div>
+    <ConsolePanel
+      projectId={projectId!}
+      isRunning={isRunning}
+      logs={logs}
+      onStop={handleStopExecution}
+      onAskAI={handleAskAIFromConsole}
+      activeFileName={activeFileName}
+      currentConsoleRunId={currentConsoleRunId}
+    />
   );
 
   const previewContent = (
@@ -3287,7 +3287,6 @@ function _projectPage() {
         <div className="flex items-center gap-0.5 pr-1 shrink-0">
           {wsStatusBadge}
           {workspaceButton}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console"><Trash2 className="w-3 h-3" /></Button>
           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
         </div>
       </div>
@@ -3458,9 +3457,6 @@ function _projectPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {mobileShellMode === "console" && (
-                        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setLogs([])} title="Clear Console" data-testid="button-clear-console-mobile"><Trash2 className="w-3 h-3" /></Button>
-                      )}
                       {wsStatusBadge}
                       {workspaceButton}
                     </div>
@@ -3517,6 +3513,8 @@ function _projectPage() {
                     onClose={() => setMobileTab("editor")}
                     projectId={projectId}
                     files={filesQuery.data}
+                    pendingMessage={pendingAIMessage}
+                    onPendingMessageConsumed={() => setPendingAIMessage(null)}
                     onFileCreated={(file) => {
                       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                       setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
@@ -4428,6 +4426,8 @@ function _projectPage() {
                   onClose={() => setAiPanelOpen(false)}
                   projectId={projectId}
                   files={filesQuery.data}
+                  pendingMessage={pendingAIMessage}
+                  onPendingMessageConsumed={() => setPendingAIMessage(null)}
                   onFileCreated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);

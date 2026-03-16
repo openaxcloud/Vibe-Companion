@@ -43,6 +43,13 @@
       "when": 1773970000000,
       "tag": "0005_account_env_vars",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773980000000,
+      "tag": "0006_console_runs",
+      "breakpoints": true
     }
   ]
 }

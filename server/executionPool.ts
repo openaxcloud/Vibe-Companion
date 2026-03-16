@@ -14,6 +14,7 @@ interface ExecutionJob {
   reject: (error: Error) => void;
   queuedAt: number;
   startedAt?: number;
+  abortController?: AbortController;
 }
 
 interface PoolMetrics {
@@ -169,6 +170,9 @@ class ExecutionPool {
     try {
       log(`Job ${job.id.slice(0, 8)} executing (lang=${job.language})`, "pool");
 
+      const abortController = new AbortController();
+      job.abortController = abortController;
+
       const result = await executeCode(
         job.code,
         job.language,
@@ -176,6 +180,7 @@ class ExecutionPool {
         undefined,
         undefined,
         job.envVars,
+        abortController.signal,
       );
 
       const duration = Date.now() - (job.startedAt || job.queuedAt);
@@ -201,6 +206,29 @@ class ExecutionPool {
       this.decrementUserConcurrent(job.userId);
       this.processQueue();
     }
+  }
+
+  cancelProjectExecution(projectId: string): boolean {
+    const entries = Array.from(this.activeJobs.entries());
+    for (const [_id, job] of entries) {
+      if (job.projectId === projectId) {
+        if (job.abortController) {
+          job.abortController.abort();
+        }
+        log(`Job ${_id.slice(0, 8)} cancelled for project ${projectId.slice(0, 8)}`, "pool");
+        return true;
+      }
+    }
+    const queueIdx = this.queue.findIndex(j => j.projectId === projectId);
+    if (queueIdx >= 0) {
+      const job = this.queue.splice(queueIdx, 1)[0];
+      this.metrics.queuedJobs = this.queue.length;
+      job.onLog?.("Execution cancelled", "error");
+      job.resolve({ stdout: "", stderr: "Execution cancelled", exitCode: 130 });
+      this.metrics.failedJobs++;
+      return true;
+    }
+    return false;
   }
 
   getMetrics(): PoolMetrics {
