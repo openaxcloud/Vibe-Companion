@@ -34,6 +34,7 @@ import SkillsPanel from "@/components/SkillsPanel";
 import MCPPanel from "@/components/MCPPanel";
 import SpotlightOverlay from "@/components/SpotlightOverlay";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
+import SSHPanel from "@/components/SSHPanel";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
 import type { UserPreferences } from "@shared/schema";
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
@@ -310,7 +311,7 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings";
+  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings" | "ssh";
   const [mobileTab, setMobileTab] = useState<MobileTabType>("ai");
   const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
@@ -321,7 +322,7 @@ function _projectPage() {
   const [moreMenuSwipeY, setMoreMenuSwipeY] = useState(0);
   const moreMenuTouchStartY = useRef(0);
   const lastScrollY = useRef(0);
-  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "fileHistory", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings"] as const;
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "fileHistory", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings", "ssh"] as const;
   const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
     { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
     { id: "search", icon: Search, label: "Search", color: "#0079F2" },
@@ -340,6 +341,7 @@ function _projectPage() {
     { id: "threads", icon: MessageSquare, label: "Threads", color: "#8B5CF6" },
     { id: "networking", icon: Network, label: "Networking", color: "#06B6D4" },
     { id: "checkpoints", icon: Clock, label: "Checkpoints", color: "#7C65CB" },
+    { id: "ssh", icon: Terminal, label: "SSH", color: "#F5A623" },
     { id: "settings", icon: Settings, label: "Settings", color: "#0079F2" },
   ];
   const overflowTabIds = overflowTabs.map(t => t.id);
@@ -406,7 +408,7 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars";
+  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -430,6 +432,7 @@ function _projectPage() {
     { id: "checkpoints", label: "Checkpoints", icon: Clock, color: "#7C65CB" },
     { id: "settings", label: "Settings", icon: Settings, color: "#0079F2" },
     { id: "envVars", label: "Secrets", icon: Key, color: "#F5A623" },
+    { id: "ssh", label: "SSH", icon: Terminal, color: "#F5A623" },
   ];
   const [openPanelTabs, setOpenPanelTabs] = useState<ToolPanelId[]>([]);
   const [activePanelTab, setActivePanelTab] = useState<ToolPanelId | null>(null);
@@ -5493,6 +5496,11 @@ function _projectPage() {
                   <CheckpointsPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
                 </div>
               )}
+              {mobileTab === "ssh" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-ssh-panel">
+                  <SSHPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
+                </div>
+              )}
               {mobileTab === "settings" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
                   <UserSettingsPanel
@@ -7365,6 +7373,12 @@ function _projectPage() {
             {activePanelTab === "envVars" && (
               <div className="flex-1 flex flex-col" data-testid="env-vars-sidebar">
                 <EnvVarsPanel projectId={projectId} onClose={() => closePanel("envVars")} />
+              </div>
+            )}
+
+            {activePanelTab === "ssh" && (
+              <div className="flex-1 flex flex-col" data-testid="ssh-sidebar">
+                <SSHPanel projectId={projectId} onClose={() => closePanel("ssh")} />
               </div>
             )}
 

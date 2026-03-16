@@ -5,3 +5,5 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .storage
+# SSH host key
+.ssh_host_key

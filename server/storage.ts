@@ -113,6 +113,8 @@ import {
   type FileVersion, type InsertFileVersion,
   gitBackups,
   type GitBackup, type InsertGitBackup,
+  sshKeys,
+  type SshKey, type InsertSshKey,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -548,6 +550,11 @@ export interface IStorage {
   createGitBackup(data: InsertGitBackup): Promise<GitBackup>;
   pruneGitBackups(projectId: string, keepCount: number): Promise<number>;
   getStaleBackupProjects(maxAgeHours: number): Promise<{ projectId: string; lastBackupAt: Date | null }[]>;
+
+  createSshKey(userId: string, label: string, publicKey: string, fingerprint: string): Promise<SshKey>;
+  listSshKeysByUser(userId: string): Promise<SshKey[]>;
+  deleteSshKey(id: string, userId: string): Promise<boolean>;
+  findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3236,6 +3243,25 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return results;
+  }
+
+  async createSshKey(userId: string, label: string, publicKey: string, fingerprint: string): Promise<SshKey> {
+    const [key] = await db.insert(sshKeys).values({ userId, label, publicKey, fingerprint }).returning();
+    return key;
+  }
+
+  async listSshKeysByUser(userId: string): Promise<SshKey[]> {
+    return db.select().from(sshKeys).where(eq(sshKeys.userId, userId)).orderBy(desc(sshKeys.createdAt));
+  }
+
+  async deleteSshKey(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(sshKeys).where(and(eq(sshKeys.id, id), eq(sshKeys.userId, userId))).returning();
+    return result.length > 0;
+  }
+
+  async findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined> {
+    const [key] = await db.select().from(sshKeys).where(eq(sshKeys.fingerprint, fingerprint)).limit(1);
+    return key;
   }
 }
 

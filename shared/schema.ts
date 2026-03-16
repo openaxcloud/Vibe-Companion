@@ -1889,6 +1889,25 @@ export const insertNotificationPreferencesSchema = createInsertSchema(notificati
 export type InsertNotificationPreferences = z.infer<typeof insertNotificationPreferencesSchema>;
 export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
 
+export const sshKeys = pgTable("ssh_keys", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  label: text("label").notNull(),
+  publicKey: text("public_key").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("ssh_keys_user_id_idx").on(table.userId),
+  uniqueIndex("ssh_keys_user_fingerprint_unique").on(table.userId, table.fingerprint),
+]);
+
+export const insertSshKeySchema = createInsertSchema(sshKeys).pick({
+  label: true,
+  publicKey: true,
+});
+export type InsertSshKey = z.infer<typeof insertSshKeySchema>;
+export type SshKey = typeof sshKeys.$inferSelect;
+
 export const systemModules = pgTable("system_modules", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

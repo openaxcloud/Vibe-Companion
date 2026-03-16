@@ -11,6 +11,7 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { startAutoMetricsCollector } from "./metricsCollector";
 import { getAllManagedProcesses, performHealthCheck } from "./deploymentEngine";
 import { renewExpiringCertificates } from "./domainManager";
+import { startSSHServer } from "./sshServer";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -233,6 +234,13 @@ async function initStripe() {
           log(`[ssl-renewal] Certificate renewal check failed: ${err.message}`);
         }
       }, 12 * 60 * 60 * 1000);
+
+      try {
+        const sshPort = parseInt(process.env.SSH_PORT || "2222", 10);
+        startSSHServer(sshPort);
+      } catch (err: any) {
+        log(`SSH server failed to start: ${err.message}`, "ssh");
+      }
     },
   );
 })();
