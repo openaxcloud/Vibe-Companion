@@ -7245,8 +7245,8 @@ Rules:
         const title = toolInput.title;
         const sections = toolInput.sections;
 
-        if (!format || !["pdf", "docx", "xlsx", "csv"].includes(format)) {
-          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid format. Use pdf, docx, xlsx, or csv." })}\n\n`);
+        if (!format || !["pdf", "docx", "xlsx", "csv", "pptx"].includes(format)) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid format. Use pdf, docx, xlsx, csv, or pptx." })}\n\n`);
           return "Error: invalid format";
         }
         if (!filename) {
@@ -7264,7 +7264,7 @@ Rules:
           return "Error: invalid filename";
         }
 
-        const validFormat = format as "pdf" | "docx" | "xlsx" | "csv";
+        const validFormat = format as "pdf" | "docx" | "xlsx" | "csv" | "pptx";
         const fileBuffer = await generateFile({ format: validFormat, filename: safeName, title, sections });
 
         const fsModule = await import("fs");
@@ -7526,7 +7526,7 @@ When the user asks you to generate an image, use the generate_image tool. Choose
 
 When the user asks you to modify or refine an existing generated image, use the edit_image tool with the existing filename and a description of the changes.
 
-When the user asks you to generate a document, report, spreadsheet, or data export, use the generate_file tool. Supported formats: pdf, docx, xlsx, csv. Structure the content using sections with types: heading (with level 1-3), paragraph, table (with headers and rows arrays), and list (with items array). Choose an appropriate filename with the correct extension.
+When the user asks you to generate a document, report, spreadsheet, presentation, or data export, use the generate_file tool. Supported formats: pdf, docx, xlsx, pptx, csv. Structure the content using sections with types: heading (with level 1-3), paragraph, table (with headers and rows arrays), and list (with items array). Choose an appropriate filename with the correct extension.
 
 When the user asks about data from connected services (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex), use the query_connector tool to read data or write_connector to create/update data. Available connectors and operations:
 ${getConnectorDescription()}
@@ -7660,12 +7660,12 @@ Always cite your sources in your response when using information from web search
             },
             {
               name: "generate_file",
-              description: "Generate a downloadable file (PDF, DOCX, XLSX, or CSV) with structured content including headings, paragraphs, tables, and lists",
+              description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV) with structured content including headings, paragraphs, tables, and lists",
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  format: { type: Type.STRING, description: "File format: 'pdf', 'docx', 'xlsx', or 'csv'" },
-                  filename: { type: Type.STRING, description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx')" },
+                  format: { type: Type.STRING, description: "File format: 'pdf', 'docx', 'xlsx', 'pptx', or 'csv'" },
+                  filename: { type: Type.STRING, description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx', 'slides.pptx')" },
                   title: { type: Type.STRING, description: "Document title (optional)" },
                   sections: {
                     type: Type.ARRAY,
@@ -7974,12 +7974,12 @@ Always cite your sources in your response when using information from web search
             type: "function",
             function: {
               name: "generate_file",
-              description: "Generate a downloadable file (PDF, DOCX, XLSX, or CSV) with structured content including headings, paragraphs, tables, and lists",
+              description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV) with structured content including headings, paragraphs, tables, and lists",
               parameters: {
                 type: "object",
                 properties: {
-                  format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv"], description: "File format" },
-                  filename: { type: "string", description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx')" },
+                  format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv", "pptx"], description: "File format" },
+                  filename: { type: "string", description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx', 'slides.pptx')" },
                   title: { type: "string", description: "Document title (optional)" },
                   sections: {
                     type: "array",
@@ -8227,12 +8227,12 @@ Always cite your sources in your response when using information from web search
           },
           {
             name: "generate_file",
-            description: "Generate a downloadable file (PDF, DOCX, XLSX, or CSV) with structured content including headings, paragraphs, tables, and lists",
+            description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV) with structured content including headings, paragraphs, tables, and lists",
             input_schema: {
               type: "object" as const,
               properties: {
-                format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv"], description: "File format" },
-                filename: { type: "string", description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx')" },
+                format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv", "pptx"], description: "File format" },
+                filename: { type: "string", description: "The output filename with extension (e.g. 'report.pdf', 'data.xlsx', 'slides.pptx')" },
                 title: { type: "string", description: "Document title (optional)" },
                 sections: {
                   type: "array",
@@ -10472,8 +10472,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
 
       const { format, filename, title, sections } = req.body;
 
-      if (!format || !["pdf", "docx", "xlsx", "csv"].includes(format)) {
-        return res.status(400).json({ message: "Invalid format. Use pdf, docx, xlsx, or csv." });
+      if (!format || !["pdf", "docx", "xlsx", "csv", "pptx"].includes(format)) {
+        return res.status(400).json({ message: "Invalid format. Use pdf, docx, xlsx, csv, or pptx." });
       }
       if (!filename || typeof filename !== "string") {
         return res.status(400).json({ message: "Filename is required" });

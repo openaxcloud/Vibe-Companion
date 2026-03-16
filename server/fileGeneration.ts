@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType } from "docx";
 import ExcelJS from "exceljs";
+import PptxGenJS from "pptxgenjs";
 
 export interface FileSection {
   type: "heading" | "paragraph" | "table" | "list";
@@ -12,7 +13,7 @@ export interface FileSection {
 }
 
 export interface FileGenerationInput {
-  format: "pdf" | "docx" | "xlsx" | "csv";
+  format: "pdf" | "docx" | "xlsx" | "csv" | "pptx";
   filename: string;
   title?: string;
   sections: FileSection[];
@@ -22,6 +23,7 @@ const MIME_TYPES: Record<string, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   csv: "text/csv",
 };
 
@@ -41,6 +43,8 @@ export async function generateFile(input: FileGenerationInput): Promise<Buffer> 
       return generateDOCX(input);
     case "xlsx":
       return generateXLSX(input);
+    case "pptx":
+      return generatePPTX(input);
     case "csv":
       return generateCSV(input);
     default:
@@ -366,4 +370,132 @@ async function generateCSV(input: FileGenerationInput): Promise<Buffer> {
   }
 
   return Buffer.from(lines.join("\n"), "utf-8");
+}
+
+async function generatePPTX(input: FileGenerationInput): Promise<Buffer> {
+  const pptx = new PptxGenJS();
+  pptx.author = "E-Code IDE";
+  pptx.title = input.title || "Presentation";
+
+  if (input.title) {
+    const titleSlide = pptx.addSlide();
+    titleSlide.addText(input.title, {
+      x: 0.5,
+      y: 1.5,
+      w: 9,
+      h: 2,
+      fontSize: 36,
+      bold: true,
+      align: "center",
+      valign: "middle",
+      color: "1F2937",
+      fontFace: "Calibri",
+    });
+  }
+
+  let currentSlide = input.title ? null : pptx.addSlide();
+  let yPos = 0.5;
+  const maxY = 6.5;
+
+  const ensureSlide = () => {
+    if (!currentSlide || yPos > maxY) {
+      currentSlide = pptx.addSlide();
+      yPos = 0.5;
+    }
+    return currentSlide;
+  };
+
+  for (const section of input.sections) {
+    switch (section.type) {
+      case "heading": {
+        const slide = ensureSlide();
+        const fontSize = section.level === 1 ? 28 : section.level === 2 ? 22 : 18;
+        slide.addText(section.content || "", {
+          x: 0.5,
+          y: yPos,
+          w: 9,
+          h: 0.6,
+          fontSize,
+          bold: true,
+          color: "1F2937",
+          fontFace: "Calibri",
+        });
+        yPos += 0.8;
+        break;
+      }
+      case "paragraph": {
+        const slide = ensureSlide();
+        slide.addText(section.content || "", {
+          x: 0.5,
+          y: yPos,
+          w: 9,
+          h: 1,
+          fontSize: 14,
+          color: "374151",
+          fontFace: "Calibri",
+          valign: "top",
+          wrap: true,
+        });
+        yPos += 1.2;
+        break;
+      }
+      case "list": {
+        if (section.items) {
+          const slide = ensureSlide();
+          const listText = section.items.map(item => ({
+            text: item,
+            options: { bullet: { type: "bullet" as const }, fontSize: 14, color: "374151", fontFace: "Calibri" },
+          }));
+          slide.addText(listText, {
+            x: 0.5,
+            y: yPos,
+            w: 9,
+            h: Math.min(section.items.length * 0.4, maxY - yPos),
+            valign: "top",
+          });
+          yPos += section.items.length * 0.4 + 0.3;
+        }
+        break;
+      }
+      case "table": {
+        if (section.headers || section.rows) {
+          const slide = ensureSlide();
+          const tableRows: PptxGenJS.TableRow[] = [];
+          if (section.headers) {
+            tableRows.push(section.headers.map(h => ({
+              text: h,
+              options: { bold: true, fontSize: 11, color: "FFFFFF", fill: { color: "4472C4" }, fontFace: "Calibri" },
+            })));
+          }
+          if (section.rows) {
+            for (let ri = 0; ri < section.rows.length; ri++) {
+              tableRows.push(section.rows[ri].map(cell => ({
+                text: cell || "",
+                options: {
+                  fontSize: 10,
+                  color: "374151",
+                  fill: { color: ri % 2 === 0 ? "F3F4F6" : "FFFFFF" },
+                  fontFace: "Calibri",
+                },
+              })));
+            }
+          }
+          if (tableRows.length > 0) {
+            slide.addTable(tableRows, {
+              x: 0.5,
+              y: yPos,
+              w: 9,
+              border: { type: "solid", pt: 0.5, color: "D1D5DB" },
+              colW: Array(Math.max(...tableRows.map(r => r.length))).fill(9 / Math.max(...tableRows.map(r => r.length))),
+            });
+            yPos += tableRows.length * 0.4 + 0.5;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  const arrayBuffer = await pptx.write({ outputType: "arraybuffer" }) as ArrayBuffer;
+  return Buffer.from(arrayBuffer);
 }

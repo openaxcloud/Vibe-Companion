@@ -1757,6 +1757,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     pdf: { color: "text-red-400", bg: "bg-red-500/15", label: "PDF" },
     docx: { color: "text-blue-400", bg: "bg-blue-500/15", label: "DOCX" },
     xlsx: { color: "text-green-400", bg: "bg-green-500/15", label: "XLSX" },
+    pptx: { color: "text-orange-400", bg: "bg-orange-500/15", label: "PPTX" },
     csv: { color: "text-amber-400", bg: "bg-amber-500/15", label: "CSV" },
   };
 

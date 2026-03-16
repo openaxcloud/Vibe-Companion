@@ -159,6 +159,28 @@ const APP_CATEGORIES = [
     ],
   },
   {
+    id: "document", label: "Document", icon: FileText,
+    prompts: [
+      "Generate a professional project proposal PDF with executive summary, timeline, and budget",
+      "Create a business report DOCX with charts data, findings, and recommendations",
+      "Build a resume/CV generator that exports to PDF with customizable sections",
+      "Generate an invoice PDF with line items, tax calculations, and company branding",
+      "Create a meeting minutes DOCX template with action items and attendee list",
+      "Generate a technical specification document with diagrams and code snippets",
+    ],
+  },
+  {
+    id: "spreadsheet", label: "Spreadsheet", icon: BarChart3,
+    prompts: [
+      "Generate a financial budget XLSX with multiple sheets, formulas, and summary charts",
+      "Create a project tracker spreadsheet with task status, deadlines, and progress metrics",
+      "Build an inventory management XLSX with stock levels, reorder points, and supplier data",
+      "Generate a sales report CSV with monthly breakdowns and year-over-year comparisons",
+      "Create an employee directory spreadsheet with departments, roles, and contact info",
+      "Build a grade book XLSX with student scores, weighted averages, and class statistics",
+    ],
+  },
+  {
     id: "cli", label: "CLI Tool", icon: Terminal,
     prompts: [
       "Git workflow CLI with interactive branch management and commit templates",

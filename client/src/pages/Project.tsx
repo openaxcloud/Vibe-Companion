@@ -134,6 +134,11 @@ function FileTypeIcon({ filename, className = "" }: { filename: string; classNam
     less: { bg: "bg-purple-500", text: "text-white", label: "LS" },
     vue: { bg: "bg-green-600", text: "text-white", label: "VU" },
     svelte: { bg: "bg-orange-500", text: "text-white", label: "SV" },
+    pdf: { bg: "bg-red-600", text: "text-white", label: "PD" },
+    docx: { bg: "bg-blue-600", text: "text-white", label: "DX" },
+    xlsx: { bg: "bg-green-600", text: "text-white", label: "XL" },
+    pptx: { bg: "bg-orange-600", text: "text-white", label: "PT" },
+    csv: { bg: "bg-amber-500", text: "text-black", label: "CV" },
   };
   const icon = iconMap[ext];
   if (icon) {
@@ -525,6 +530,7 @@ function _projectPage() {
   const gitStateHashRef = useRef<string>("");
   const lastDiffChangesRef = useRef<string>("");
   const [userPrefs, setUserPrefsLocal] = useState<UserPreferences>({ ...DEFAULT_PREFERENCES });
+  const [csvViewMode, setCsvViewMode] = useState<"table" | "raw">("table");
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const editorFontSize = userPrefs.fontSize;
@@ -3706,6 +3712,61 @@ function _projectPage() {
                       {activeFile?.mimeType || "Binary file"} · {activeFile?.content ? formatBytes(Math.ceil((activeFile.content.length * 3) / 4)) : "Unknown size"}
                     </p>
                   </div>
+                ) : activeFileName.endsWith(".csv") && currentCode ? (
+                  <div className="flex-1 flex flex-col h-full bg-[var(--ide-bg)] overflow-hidden" data-testid="csv-preview">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/50 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-[3px] bg-amber-500"><span className="text-[7px] font-bold text-black">CV</span></span>
+                        <span className="text-[11px] font-medium text-[var(--ide-text)]">{activeFileName}</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Table Preview</span>
+                      </div>
+                      <button className="text-[10px] text-[#0079F2] hover:underline" onClick={() => setCsvViewMode(m => m === "table" ? "raw" : "table")} data-testid="button-toggle-csv-view">{csvViewMode === "table" ? "Show Raw" : "Show Table"}</button>
+                    </div>
+                    <div className="flex-1 overflow-auto p-2">
+                      {csvViewMode === "raw" ? (
+                        <pre className="text-[11px] font-mono text-[var(--ide-text-secondary)] whitespace-pre-wrap" data-testid="csv-raw-view">{currentCode}</pre>
+                      ) : (() => {
+                        const lines = currentCode.split("\n").filter(l => l.trim());
+                        const parseRow = (line: string) => {
+                          const result: string[] = [];
+                          let current = "";
+                          let inQuotes = false;
+                          for (let i = 0; i < line.length; i++) {
+                            if (line[i] === '"') { inQuotes = !inQuotes; }
+                            else if (line[i] === "," && !inQuotes) { result.push(current.trim()); current = ""; }
+                            else { current += line[i]; }
+                          }
+                          result.push(current.trim());
+                          return result;
+                        };
+                        const rows = lines.map(parseRow);
+                        const headers = rows[0] || [];
+                        const data = rows.slice(1);
+                        return (
+                          <table className="w-full text-[11px] border-collapse" data-testid="table-csv-data">
+                            <thead>
+                              <tr>
+                                <th className="px-2 py-1.5 text-left font-semibold text-[var(--ide-text-muted)] bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[10px] sticky top-0">#</th>
+                                {headers.map((h, i) => (
+                                  <th key={i} className="px-2 py-1.5 text-left font-semibold text-[var(--ide-text)] bg-[var(--ide-surface)] border border-[var(--ide-border)] sticky top-0">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {data.map((row, ri) => (
+                                <tr key={ri} className="hover:bg-[var(--ide-surface)]/50">
+                                  <td className="px-2 py-1 text-[var(--ide-text-muted)] border border-[var(--ide-border)] text-[10px] font-mono">{ri + 1}</td>
+                                  {row.map((cell, ci) => (
+                                    <td key={ci} className="px-2 py-1 text-[var(--ide-text-secondary)] border border-[var(--ide-border)]">{cell}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 ) : (
                   <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={userPrefs.aiCodeCompletion} autoCloseBrackets={userPrefs.autoCloseBrackets} indentationChar={userPrefs.indentationChar} minimap={userPrefs.minimap} indentOnInput={userPrefs.indentationDetection} multiselectModifier={userPrefs.multiselectModifier} semanticTokens={userPrefs.semanticTokens} formatPastedText={userPrefs.formatPastedText} acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit} editorRef={collabEditorRef as React.MutableRefObject<import("@uiw/react-codemirror").ReactCodeMirrorRef | null>} ytext={activeYtext} remoteAwareness={remoteAwareness} />
                 )}
@@ -4271,6 +4332,81 @@ function _projectPage() {
                   <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Publish your project</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md gap-1.5 transition-colors duration-150" data-testid="button-export-doc">
+                    <Download className="w-3.5 h-3.5" /> Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Export Project Data</div>
+                  <DropdownMenuSeparator className="bg-[var(--ide-border)]" />
+                  {[
+                    { format: "pdf", label: "PDF Document", icon: "PD", color: "bg-red-600" },
+                    { format: "docx", label: "Word Document", icon: "DX", color: "bg-blue-600" },
+                    { format: "xlsx", label: "Excel Spreadsheet", icon: "XL", color: "bg-green-600" },
+                    { format: "pptx", label: "PowerPoint Slides", icon: "PT", color: "bg-orange-600" },
+                    { format: "csv", label: "CSV Data", icon: "CV", color: "bg-amber-500" },
+                  ].map(({ format, label, icon, color }) => (
+                    <DropdownMenuItem
+                      key={format}
+                      className="gap-2.5 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer px-3 py-2"
+                      data-testid={`button-export-${format}`}
+                      onClick={async () => {
+                        try {
+                          const projectFiles = filesQuery.data || [];
+                          const sections = projectFiles.map((f: any) => ({
+                            type: "table" as const,
+                            headers: ["File", "Language"],
+                            rows: [[f.filename, f.language || "unknown"]],
+                          }));
+                          if (sections.length === 0) {
+                            sections.push({ type: "paragraph" as const, content: "No files in this project yet." } as any);
+                          }
+                          const res = await fetch(`/api/projects/${projectId}/generate-file`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "X-CSRF-Token": getCsrfToken()! } : {}) },
+                            credentials: "include",
+                            body: JSON.stringify({
+                              format,
+                              filename: `${project?.name || "project"}-export.${format}`,
+                              title: `${project?.name || "Project"} — Export`,
+                              sections: [{
+                                type: "heading",
+                                content: "Project Files",
+                                level: 1,
+                              }, {
+                                type: "table",
+                                headers: ["Filename", "Language", "Size"],
+                                rows: projectFiles.map((f: any) => [f.filename, f.language || "—", f.content ? `${(f.content.length / 1024).toFixed(1)} KB` : "—"]),
+                              }],
+                            }),
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            const a = document.createElement("a");
+                            a.href = data.downloadUrl;
+                            a.download = data.filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            toast({ title: `Exported as ${format.toUpperCase()}`, description: data.filename });
+                          } else {
+                            toast({ title: "Export failed", variant: "destructive" });
+                          }
+                        } catch {
+                          toast({ title: "Export failed", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-[3px] shrink-0 ${color}`}>
+                        <span className="text-[7px] font-bold leading-none text-white">{icon}</span>
+                      </span>
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-md transition-colors duration-150" data-testid="button-kebab-menu">
