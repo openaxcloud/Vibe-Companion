@@ -36,8 +36,9 @@ import SpotlightOverlay from "@/components/SpotlightOverlay";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
 import SSHPanel from "@/components/SSHPanel";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
-import type { UserPreferences } from "@shared/schema";
+import type { UserPreferences, MergeConflictFile, MergeResolution } from "@shared/schema";
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
+import MergeConflictPanel from "@/components/MergeConflictPanel";
 import FileHistoryPanel from "@/components/FileHistoryPanel";
 import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
@@ -550,9 +551,12 @@ function _projectPage() {
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<Set<string>>(new Set());
-  const [mergeConflicts, setMergeConflicts] = useState<Array<{ filename: string; content: string }>>([]);
+  const [mergeConflicts, setMergeConflicts] = useState<MergeConflictFile[]>([]);
+  const [mergeResolutions, setMergeResolutions] = useState<MergeResolution[]>([]);
+  const [mergeConflictPanelOpen, setMergeConflictPanelOpen] = useState(false);
   const [conflictResolutions, setConflictResolutions] = useState<Record<string, string>>({});
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
+  const mergeInProgress = mergeConflicts.length > 0;
   const gitStateHashRef = useRef<string>("");
   const lastDiffChangesRef = useRef<string>("");
   const [userPrefs, setUserPrefsLocal] = useState<UserPreferences>({ ...DEFAULT_PREFERENCES });
@@ -835,6 +839,25 @@ function _projectPage() {
     },
     enabled: gitPanelOpen,
   });
+
+  const mergeStatusQuery = useQuery<{ status: string; conflicts?: MergeConflictFile[]; resolutions?: MergeResolution[]; branch?: string }>({
+    queryKey: ["/api/projects", projectId, "git/merge-status"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/merge-status`, { credentials: "include" });
+      if (!res.ok) return { status: "none" };
+      return res.json();
+    },
+    enabled: !!projectId,
+    staleTime: 30000,
+  });
+
+  useEffect(() => {
+    if (mergeStatusQuery.data && mergeStatusQuery.data.status === "in_progress" && mergeStatusQuery.data.conflicts) {
+      setMergeConflicts(mergeStatusQuery.data.conflicts);
+      setMergeResolutions(mergeStatusQuery.data.resolutions || []);
+      setMergeConflictPanelOpen(true);
+    }
+  }, [mergeStatusQuery.data]);
 
   useEffect(() => {
     if (!gitPanelOpen || !projectId) return;
@@ -4138,7 +4161,51 @@ function _projectPage() {
     );
   };
 
-  const editorContent = isMediaProject ? (
+  const editorContent = mergeConflictPanelOpen && mergeConflicts.length > 0 ? (
+    <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
+      <MergeConflictPanel
+        projectId={projectId!}
+        conflicts={mergeConflicts}
+        resolutions={mergeResolutions}
+        onClose={() => setMergeConflictPanelOpen(false)}
+        onResolutionChange={(updated) => setMergeResolutions(updated)}
+        onMergeComplete={() => {
+          setMergeConflicts([]);
+          setMergeResolutions([]);
+          setConflictResolutions({});
+          setMergeConflictPanelOpen(false);
+          setOpenTabs(prev => prev.filter(t => !t.startsWith(CONFLICT_TAB_PREFIX)));
+          setFileContents(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(k => { if (k.startsWith(CONFLICT_TAB_PREFIX)) delete next[k]; });
+            return next;
+          });
+          if (activeFileId?.startsWith(CONFLICT_TAB_PREFIX)) setActiveFileId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/merge-status"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+        }}
+        onAbort={() => {
+          setMergeConflicts([]);
+          setMergeResolutions([]);
+          setConflictResolutions({});
+          setMergeConflictPanelOpen(false);
+          setOpenTabs(prev => prev.filter(t => !t.startsWith(CONFLICT_TAB_PREFIX)));
+          setFileContents(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(k => { if (k.startsWith(CONFLICT_TAB_PREFIX)) delete next[k]; });
+            return next;
+          });
+          if (activeFileId?.startsWith(CONFLICT_TAB_PREFIX)) setActiveFileId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/merge-status"] });
+        }}
+      />
+    </div>
+  ) : isMediaProject ? (
     <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
       {isSlideProject && projectId ? <SlideEditor projectId={projectId} /> : null}
       {isVideoProject && projectId ? <VideoEditor projectId={projectId} /> : null}
@@ -6748,7 +6815,8 @@ function _projectPage() {
                           setCurrentBranch(newBranch);
                           checkoutMutation.mutate({ branchName: newBranch });
                         }}
-                        className="flex-1 text-[11px] text-[var(--ide-text)] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1 outline-none focus:border-[#0079F2] cursor-pointer"
+                        disabled={mergeInProgress}
+                        className="flex-1 text-[11px] text-[var(--ide-text)] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1 outline-none focus:border-[#0079F2] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         data-testid="select-git-branch"
                       >
                         {(gitBranchesQuery.data?.length || 0) > 0 ? (
@@ -6759,7 +6827,7 @@ function _projectPage() {
                           <option value="main">main</option>
                         )}
                       </select>
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] shrink-0" onClick={() => setShowBranchDialog(true)} title="Create branch" data-testid="button-create-branch">
+                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] shrink-0" onClick={() => setShowBranchDialog(true)} title="Create branch" disabled={mergeInProgress} data-testid="button-create-branch">
                         <Plus className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -6818,7 +6886,7 @@ function _projectPage() {
                     <Button
                       className="w-full mt-1.5 h-7 text-[11px] bg-[#0079F2] hover:bg-[#0079F2]/90 text-white rounded font-medium gap-1.5"
                       onClick={() => commitMutation.mutate()}
-                      disabled={!commitMessage.trim() || commitMutation.isPending || commitMessage === "Generating..." || stagedFiles.size === 0}
+                      disabled={!commitMessage.trim() || commitMutation.isPending || commitMessage === "Generating..." || stagedFiles.size === 0 || mergeInProgress}
                       data-testid="button-commit"
                     >
                       {commitMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -6906,131 +6974,56 @@ function _projectPage() {
                   {mergeConflicts.length > 0 && (
                     <div className="border-b border-[var(--ide-border)]">
                       <div className="flex items-center justify-between px-3 py-2">
-                        <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Merge Conflicts</span>
-                        <span className="text-[10px] text-red-400 font-mono">{mergeConflicts.length}</span>
+                        <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Merge In Progress</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[9px] text-[#F5A623] hover:bg-[#F5A623]/10 rounded border border-[#F5A623]/30 gap-1"
+                          onClick={() => setMergeConflictPanelOpen(true)}
+                          data-testid="button-open-merge-panel"
+                        >
+                          <GitMerge className="w-3 h-3" />
+                          Open Resolver ({mergeResolutions.length}/{mergeConflicts.length})
+                        </Button>
                       </div>
                       <div className="pb-2 px-3 space-y-1.5">
+                        <div className="rounded border border-yellow-500/30 bg-yellow-500/5 p-2 mb-1">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <AlertTriangle className="w-3 h-3 text-yellow-400 shrink-0" />
+                            <span className="text-[10px] text-yellow-400 font-medium">
+                              Commits, checkouts, and branch changes are disabled during merge
+                            </span>
+                          </div>
+                          <div className="w-full bg-[var(--ide-bg)] rounded-full h-1.5 mt-1.5">
+                            <div
+                              className="bg-[#0CCE6B] h-1.5 rounded-full transition-all duration-300"
+                              style={{ width: `${mergeConflicts.length > 0 ? (mergeResolutions.length / mergeConflicts.length) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] text-[var(--ide-text-muted)] mt-1 block">
+                            {mergeResolutions.length}/{mergeConflicts.length} conflicts resolved
+                          </span>
+                        </div>
                         {mergeConflicts.map((conflict) => {
-                          const stripMarkers = (content: string, side: "ours" | "theirs") => {
-                            return content.replace(
-                              /<<<<<<< HEAD \(yours\)\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> remote \(theirs\)/g,
-                              (_, oursBlock, theirsBlock) => side === "ours" ? oursBlock : theirsBlock
-                            );
-                          };
-                          const ours = stripMarkers(conflict.content, "ours");
-                          const theirs = stripMarkers(conflict.content, "theirs");
-                          const isBinaryConflict = conflict.content.startsWith("[Binary file conflict");
-                          const isResolved = conflictResolutions[conflict.filename] !== undefined;
-
+                          const isResolved = mergeResolutions.some(r => r.filename === conflict.filename);
+                          const isBinaryConflict = conflict.mergedContent?.startsWith("[Binary file conflict");
                           return (
-                            <div key={conflict.filename} className="rounded border border-red-500/30 bg-red-500/5 p-2" data-testid={`conflict-${conflict.filename}`}>
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <span className="text-[10px] font-bold text-red-400">!</span>
-                                <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{conflict.filename}</span>
-                                {isBinaryConflict && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Binary</span>}
-                                {isResolved && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Resolved</span>}
-                              </div>
-                              <div className="flex gap-1 flex-wrap mb-1.5">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-2 text-[9px] text-[#0079F2] hover:bg-[#0079F2]/10 rounded border border-[#0079F2]/30"
-                                  onClick={() => setConflictResolutions(prev => ({ ...prev, [conflict.filename]: ours }))}
-                                  data-testid={`button-accept-ours-${conflict.filename}`}
-                                >
-                                  Accept Ours
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-2 text-[9px] text-[#F26522] hover:bg-[#F26522]/10 rounded border border-[#F26522]/30"
-                                  onClick={() => setConflictResolutions(prev => ({ ...prev, [conflict.filename]: theirs }))}
-                                  data-testid={`button-accept-theirs-${conflict.filename}`}
-                                >
-                                  Accept Theirs
-                                </Button>
-                                {!isBinaryConflict && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-[9px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] rounded border border-[var(--ide-border)]"
-                                    onClick={() => {
-                                      setConflictResolutions(prev => ({ ...prev, [conflict.filename]: conflict.content }));
-                                    }}
-                                    data-testid={`button-manual-edit-${conflict.filename}`}
-                                  >
-                                    Manual Edit
-                                  </Button>
-                                )}
-                                {!isBinaryConflict && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-[9px] text-[#7C65CB] hover:bg-[#7C65CB]/10 rounded border border-[#7C65CB]/30"
-                                    onClick={() => {
-                                      const tabId = `${CONFLICT_TAB_PREFIX}${conflict.filename}`;
-                                      const content = conflictResolutions[conflict.filename] || conflict.content;
-                                      if (!openTabs.includes(tabId)) {
-                                        setOpenTabs(prev => [...prev, tabId]);
-                                      }
-                                      setFileContents(prev => ({ ...prev, [tabId]: content }));
-                                      setActiveFileId(tabId);
-                                      if (!conflictResolutions[conflict.filename]) {
-                                        setConflictResolutions(prev => ({ ...prev, [conflict.filename]: content }));
-                                      }
-                                    }}
-                                    data-testid={`button-open-conflict-${conflict.filename}`}
-                                  >
-                                    Open in Editor
-                                  </Button>
-                                )}
-                              </div>
-                              {isResolved && conflictResolutions[conflict.filename] !== ours && conflictResolutions[conflict.filename] !== theirs && (
-                                <textarea
-                                  className="w-full text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1.5 text-[var(--ide-text)] font-mono resize-none min-h-[80px] outline-none focus:border-[#0079F2]"
-                                  value={conflictResolutions[conflict.filename]}
-                                  onChange={(e) => setConflictResolutions(prev => ({ ...prev, [conflict.filename]: e.target.value }))}
-                                  data-testid={`textarea-conflict-${conflict.filename}`}
-                                />
+                            <div key={conflict.filename} className={`rounded border p-2 flex items-center gap-1.5 ${isResolved ? "border-[#0CCE6B]/30 bg-[#0CCE6B]/5" : "border-red-500/30 bg-red-500/5"}`} data-testid={`conflict-${conflict.filename}`}>
+                              {isResolved ? (
+                                <Check className="w-3 h-3 text-[#0CCE6B] shrink-0" />
+                              ) : (
+                                <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
+                              )}
+                              <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{conflict.filename}</span>
+                              {isBinaryConflict && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Binary</span>}
+                              {isResolved ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Resolved</span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">Conflicting</span>
                               )}
                             </div>
                           );
                         })}
-                        <Button
-                          className="w-full h-7 text-[11px] bg-[#0CCE6B] hover:bg-[#0CCE6B]/90 text-white rounded font-medium gap-1.5 mt-1"
-                          disabled={Object.keys(conflictResolutions).length < mergeConflicts.length || resolvingConflicts}
-                          onClick={async () => {
-                            setResolvingConflicts(true);
-                            try {
-                              const resolvedFiles = mergeConflicts.map(c => ({
-                                filename: c.filename,
-                                content: conflictResolutions[c.filename] || c.content,
-                              }));
-                              await apiRequest("POST", `/api/projects/${projectId}/git/resolve-conflicts`, { resolvedFiles });
-                              setMergeConflicts([]);
-                              setConflictResolutions({});
-                              setOpenTabs(prev => prev.filter(t => !t.startsWith(CONFLICT_TAB_PREFIX)));
-                              setFileContents(prev => {
-                                const next = { ...prev };
-                                Object.keys(next).forEach(k => { if (k.startsWith(CONFLICT_TAB_PREFIX)) delete next[k]; });
-                                return next;
-                              });
-                              if (activeFileId?.startsWith(CONFLICT_TAB_PREFIX)) setActiveFileId(null);
-                              queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
-                              queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
-                              queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-                              toast({ title: "Conflicts resolved", description: "Merge commit created successfully" });
-                            } catch (err: any) {
-                              toast({ title: "Resolution failed", description: err.message, variant: "destructive" });
-                            } finally {
-                              setResolvingConflicts(false);
-                            }
-                          }}
-                          data-testid="button-finalize-merge"
-                        >
-                          {resolvingConflicts ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                          Finalize Merge ({Object.keys(conflictResolutions).length}/{mergeConflicts.length} resolved)
-                        </Button>
                       </div>
                     </div>
                   )}
@@ -7073,10 +7066,10 @@ function _projectPage() {
                                 <button
                                   className="text-[9px] text-[#0079F2] hover:text-[#0079F2]/80 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                   onClick={() => checkoutMutation.mutate({ commitId: commit.id })}
-                                  disabled={checkoutMutation.isPending}
+                                  disabled={checkoutMutation.isPending || mergeInProgress}
                                   data-testid={`button-checkout-${commit.id}`}
                                 >
-                                  {checkoutMutation.isPending ? "Restoring..." : "Restore this version"}
+                                  {mergeInProgress ? "Merge in progress" : checkoutMutation.isPending ? "Restoring..." : "Restore this version"}
                                 </button>
                               </div>
                             </div>
@@ -7182,7 +7175,9 @@ function _projectPage() {
                                   const data = await res.json();
                                   if (res.status === 409 && data.conflicts) {
                                     setMergeConflicts(data.conflicts);
+                                    setMergeResolutions([]);
                                     setConflictResolutions({});
+                                    setMergeConflictPanelOpen(true);
                                     toast({ title: "Merge conflicts detected", description: `${data.conflicts.length} file(s) have conflicts that need resolution`, variant: "destructive" });
                                   } else if (!res.ok) {
                                     toast({ title: "Pull failed", description: data.message || "Pull failed", variant: "destructive" });

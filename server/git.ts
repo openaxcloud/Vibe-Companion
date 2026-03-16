@@ -16,7 +16,7 @@ async function getHttp(): Promise<GitHttpClient> {
 
 const projectDirs = new Map<string, string>();
 
-function getProjectDir(projectId: string): string {
+export function getProjectDir(projectId: string): string {
   const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
   let dir = projectDirs.get(safeId);
   if (!dir) {
@@ -1011,7 +1011,9 @@ export async function pullFromRemoteWithConflicts(
 ): Promise<{
   ok: boolean;
   files: Array<{ filename: string; content: string }>;
-  conflicts?: Array<{ filename: string; content: string }>;
+  conflicts?: Array<{ filename: string; oursContent: string; theirsContent: string; mergedContent: string }>;
+  localOid?: string;
+  remoteOid?: string;
   error?: string;
 }> {
   const dir = getProjectDir(projectId);
@@ -1063,7 +1065,7 @@ export async function pullFromRemoteWithConflicts(
       await git.checkout({ fs, dir, ref: branch, force: false });
       return { ok: true, files: getWorkingTreeFiles(projectId) };
     } catch (mergeErr: unknown) {
-      const conflicts: Array<{ filename: string; content: string }> = [];
+      const conflicts: Array<{ filename: string; oursContent: string; theirsContent: string; mergedContent: string }> = [];
 
       try {
         const localCommit = localOid;
@@ -1132,7 +1134,9 @@ export async function pullFromRemoteWithConflicts(
             if (localContent !== remoteContent) {
               conflicts.push({
                 filename,
-                content: `[Binary file conflict - choose Accept Ours or Accept Theirs]`,
+                oursContent: localContent || "",
+                theirsContent: remoteContent || "",
+                mergedContent: `[Binary file conflict - choose Accept Ours or Accept Theirs]`,
               });
             }
             continue;
@@ -1153,7 +1157,7 @@ export async function pullFromRemoteWithConflicts(
             const baseLines = (base || "").split("\n");
 
             const merged = mergeLines(baseLines, localLines, remoteLines);
-            conflicts.push({ filename, content: merged });
+            conflicts.push({ filename, oursContent: local || "", theirsContent: remote || "", mergedContent: merged });
           }
         }
       } catch {}
@@ -1164,7 +1168,7 @@ export async function pullFromRemoteWithConflicts(
         const mergeMsgPath = path.join(dir, ".git", "MERGE_MSG");
         fs.writeFileSync(mergeMsgPath, `Merge remote-tracking branch 'origin/${branch}'\n`, "utf-8");
 
-        return { ok: false, files: [], conflicts };
+        return { ok: false, files: [], conflicts, localOid: localOid!, remoteOid };
       }
 
       const mergeMsg = mergeErr instanceof Error ? mergeErr.message : String(mergeErr);

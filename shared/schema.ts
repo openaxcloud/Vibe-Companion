@@ -1914,6 +1914,36 @@ export const insertSshKeySchema = createInsertSchema(sshKeys).pick({
 export type InsertSshKey = z.infer<typeof insertSshKeySchema>;
 export type SshKey = typeof sshKeys.$inferSelect;
 
+export interface MergeConflictFile {
+  filename: string;
+  oursContent: string;
+  theirsContent: string;
+  mergedContent: string;
+}
+
+export interface MergeResolution {
+  filename: string;
+  resolvedContent: string;
+}
+
+export const mergeStates = pgTable("merge_states", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull().unique(),
+  branch: text("branch").notNull().default("main"),
+  localOid: text("local_oid").notNull(),
+  remoteOid: text("remote_oid").notNull(),
+  conflicts: json("conflicts").$type<MergeConflictFile[]>().notNull().default([]),
+  resolutions: json("resolutions").$type<MergeResolution[]>().notNull().default([]),
+  status: text("status").notNull().default("in_progress"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("merge_states_project_idx").on(table.projectId),
+]);
+
+export const insertMergeStateSchema = createInsertSchema(mergeStates).omit({ id: true, createdAt: true });
+export type InsertMergeState = z.infer<typeof insertMergeStateSchema>;
+export type MergeState = typeof mergeStates.$inferSelect;
+
 export const systemModules = pgTable("system_modules", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

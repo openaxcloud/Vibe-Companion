@@ -5907,6 +5907,10 @@ export async function registerRoutes(
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
     }
+    const activeMerge = await storage.getMergeState(req.params.projectId);
+    if (activeMerge) {
+      return res.status(409).json({ message: "Cannot commit while a merge is in progress. Resolve all conflicts first." });
+    }
     const { message, branchName = "main", files: selectedFiles } = req.body;
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return res.status(400).json({ message: "Commit message is required" });
@@ -6020,6 +6024,10 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
+    const activeMerge = await storage.getMergeState(req.params.projectId);
+    if (activeMerge) {
+      return res.status(409).json({ message: "Cannot create branches while a merge is in progress." });
+    }
     const { name, fromBranch = "main" } = req.body;
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return res.status(400).json({ message: "Branch name is required" });
@@ -6074,6 +6082,10 @@ export async function registerRoutes(
     const project = await storage.getProject(req.params.projectId);
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
+    }
+    const activeMerge = await storage.getMergeState(req.params.projectId);
+    if (activeMerge) {
+      return res.status(409).json({ message: "Cannot checkout while a merge is in progress. Complete or abort the merge first." });
     }
     const { commitId, branchName } = req.body;
 
@@ -6280,6 +6292,15 @@ export async function registerRoutes(
       });
 
       if (!result.ok && result.conflicts && result.conflicts.length > 0) {
+        await storage.saveMergeState({
+          projectId: req.params.projectId,
+          branch: currentBranch,
+          localOid: result.localOid || "",
+          remoteOid: result.remoteOid || "",
+          conflicts: result.conflicts,
+          resolutions: [],
+          status: "in_progress",
+        });
         return res.status(409).json({
           message: "Merge conflicts detected",
           conflicts: result.conflicts,
@@ -6337,10 +6358,149 @@ export async function registerRoutes(
         await storage.createFile(req.params.projectId, { filename, content });
       }
 
+      await storage.deleteMergeState(req.params.projectId);
       await persistRepoState(req.params.projectId, "commit");
       return res.json({ success: true, sha: result.sha });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Conflict resolution failed";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/projects/:projectId/git/merge-status", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    try {
+      const mergeState = await storage.getMergeState(req.params.projectId);
+      if (!mergeState) {
+        return res.json({ status: "none" });
+      }
+      return res.json({
+        status: mergeState.status,
+        conflicts: mergeState.conflicts,
+        resolutions: mergeState.resolutions,
+        branch: mergeState.branch,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to get merge status";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/git/resolve-conflict", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { path: filePath, resolvedContent } = req.body;
+    if (!filePath || resolvedContent === undefined) {
+      return res.status(400).json({ message: "path and resolvedContent are required" });
+    }
+    try {
+      const mergeState = await storage.getMergeState(req.params.projectId);
+      if (!mergeState) {
+        return res.status(404).json({ message: "No active merge state" });
+      }
+      const isValidFile = mergeState.conflicts.some(c => c.filename === filePath);
+      if (!isValidFile) {
+        return res.status(400).json({ message: "File is not in the active conflict list" });
+      }
+      const updated = await storage.updateMergeResolution(req.params.projectId, {
+        filename: filePath,
+        resolvedContent,
+      });
+      if (!updated) {
+        return res.status(404).json({ message: "No active merge state" });
+      }
+      return res.json({ success: true, resolutions: updated.resolutions });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to resolve conflict";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/git/complete-merge", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    try {
+      const mergeState = await storage.getMergeState(req.params.projectId);
+      if (!mergeState) {
+        return res.status(400).json({ message: "No active merge in progress" });
+      }
+      const conflictFilenames = new Set(mergeState.conflicts.map(c => c.filename));
+      const resolvedFilenames = new Set(mergeState.resolutions.map(r => r.filename));
+      const unresolvedFiles = [...conflictFilenames].filter(f => !resolvedFilenames.has(f));
+      if (unresolvedFiles.length > 0) {
+        return res.status(400).json({ message: `Not all conflicts resolved. Remaining: ${unresolvedFiles.join(", ")}` });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      const authorName = user?.displayName || user?.email || "User";
+      const authorEmail = user?.email || "user@ide.local";
+
+      const resolvedFiles = mergeState.resolutions.map(r => ({
+        filename: r.filename,
+        content: r.resolvedContent,
+      }));
+
+      const result = await gitService.resolveConflicts(
+        req.params.projectId,
+        resolvedFiles,
+        authorName,
+        authorEmail,
+      );
+
+      const updatedFiles = gitService.getWorkingTreeFiles(req.params.projectId);
+      const currentFiles = await storage.getFiles(req.params.projectId);
+      for (const f of currentFiles) {
+        await storage.deleteFile(f.id);
+      }
+      for (const { filename, content } of updatedFiles) {
+        await storage.createFile(req.params.projectId, { filename, content });
+      }
+
+      await storage.deleteMergeState(req.params.projectId);
+      await persistRepoState(req.params.projectId);
+      return res.json({ success: true, sha: result.sha });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to complete merge";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/git/abort-merge", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    try {
+      const mergeState = await storage.getMergeState(req.params.projectId);
+      if (!mergeState) {
+        return res.status(400).json({ message: "No active merge to abort" });
+      }
+
+      const dir = gitService.getProjectDir(req.params.projectId);
+      const fsModule = await import("fs");
+      const pathModule = await import("path");
+      const mergeHeadPath = pathModule.default.join(dir, ".git", "MERGE_HEAD");
+      const mergeMsgPath = pathModule.default.join(dir, ".git", "MERGE_MSG");
+      if (fsModule.default.existsSync(mergeHeadPath)) fsModule.default.unlinkSync(mergeHeadPath);
+      if (fsModule.default.existsSync(mergeMsgPath)) fsModule.default.unlinkSync(mergeMsgPath);
+
+      try {
+        const git = (await import("isomorphic-git")).default;
+        const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+        await git.checkout({ fs: fsModule.default, dir, ref: currentBranch, force: true });
+      } catch {}
+
+      await storage.deleteMergeState(req.params.projectId);
+      return res.json({ success: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to abort merge";
       return res.status(500).json({ message });
     }
   });

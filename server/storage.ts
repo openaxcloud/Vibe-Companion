@@ -115,6 +115,9 @@ import {
   type GitBackup, type InsertGitBackup,
   sshKeys,
   type SshKey, type InsertSshKey,
+  mergeStates,
+  type MergeState, type InsertMergeState,
+  type MergeConflictFile, type MergeResolution,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -555,6 +558,11 @@ export interface IStorage {
   listSshKeysByUser(userId: string): Promise<SshKey[]>;
   deleteSshKey(id: string, userId: string): Promise<boolean>;
   findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined>;
+
+  getMergeState(projectId: string): Promise<MergeState | undefined>;
+  saveMergeState(data: InsertMergeState): Promise<MergeState>;
+  updateMergeResolution(projectId: string, resolution: MergeResolution): Promise<MergeState | undefined>;
+  deleteMergeState(projectId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3262,6 +3270,39 @@ export class DatabaseStorage implements IStorage {
   async findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined> {
     const [key] = await db.select().from(sshKeys).where(eq(sshKeys.fingerprint, fingerprint)).limit(1);
     return key;
+  }
+
+  async getMergeState(projectId: string): Promise<MergeState | undefined> {
+    const [state] = await db.select().from(mergeStates).where(eq(mergeStates.projectId, projectId)).limit(1);
+    return state;
+  }
+
+  async saveMergeState(data: InsertMergeState): Promise<MergeState> {
+    await db.delete(mergeStates).where(eq(mergeStates.projectId, data.projectId));
+    const [state] = await db.insert(mergeStates).values(data).returning();
+    return state;
+  }
+
+  async updateMergeResolution(projectId: string, resolution: MergeResolution): Promise<MergeState | undefined> {
+    const existing = await this.getMergeState(projectId);
+    if (!existing) return undefined;
+    const resolutions = [...(existing.resolutions || [])];
+    const idx = resolutions.findIndex(r => r.filename === resolution.filename);
+    if (idx >= 0) {
+      resolutions[idx] = resolution;
+    } else {
+      resolutions.push(resolution);
+    }
+    const [updated] = await db.update(mergeStates)
+      .set({ resolutions })
+      .where(eq(mergeStates.projectId, projectId))
+      .returning();
+    return updated;
+  }
+
+  async deleteMergeState(projectId: string): Promise<boolean> {
+    const result = await db.delete(mergeStates).where(eq(mergeStates.projectId, projectId));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 
