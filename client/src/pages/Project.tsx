@@ -188,8 +188,10 @@ function _projectPage() {
   const queryClient = useQueryClient();
 
   const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__" } as const;
-  const isSpecialTab = (id: string) => id === SPECIAL_TABS.WEBVIEW || id === SPECIAL_TABS.SHELL || id === SPECIAL_TABS.CONSOLE;
-  const isFileTab = (id: string) => !isSpecialTab(id);
+  const CONFLICT_TAB_PREFIX = "__conflict__";
+  const isSpecialTab = (id: string) => id === SPECIAL_TABS.WEBVIEW || id === SPECIAL_TABS.SHELL || id === SPECIAL_TABS.CONSOLE || id.startsWith(CONFLICT_TAB_PREFIX);
+  const isFileTab = (id: string) => !isSpecialTab(id) && !id.startsWith(CONFLICT_TAB_PREFIX);
+  const isConflictTab = (id: string) => id.startsWith(CONFLICT_TAB_PREFIX);
 
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
@@ -473,6 +475,12 @@ function _projectPage() {
   const [connectGithubInput, setConnectGithubInput] = useState("");
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<Set<string>>(new Set());
+  const [mergeConflicts, setMergeConflicts] = useState<Array<{ filename: string; content: string }>>([]);
+  const [conflictResolutions, setConflictResolutions] = useState<Record<string, string>>({});
+  const [resolvingConflicts, setResolvingConflicts] = useState(false);
+  const gitStateHashRef = useRef<string>("");
+  const lastDiffChangesRef = useRef<string>("");
   const [editorFontSize, setEditorFontSizeLocal] = useState(14);
   const [editorTabSize, setEditorTabSizeLocal] = useState(2);
   const [editorWordWrap, setEditorWordWrapLocal] = useState(false);
@@ -629,6 +637,44 @@ function _projectPage() {
     },
     enabled: gitPanelOpen,
   });
+
+  useEffect(() => {
+    if (!gitPanelOpen || !projectId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/git/state-hash`, { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.hash && gitStateHashRef.current && data.hash !== gitStateHashRef.current) {
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/branches"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/blame"] });
+        }
+        if (data.hash) gitStateHashRef.current = data.hash;
+      } catch {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [gitPanelOpen, projectId, queryClient]);
+
+  useEffect(() => {
+    if (gitDiffQuery.data?.changes?.length) {
+      const changedFilenames = gitDiffQuery.data.changes.map((c: { filename: string }) => c.filename).sort().join("\n");
+      const allChanged = new Set(gitDiffQuery.data.changes.map((c: { filename: string }) => c.filename));
+      if (changedFilenames !== lastDiffChangesRef.current) {
+        lastDiffChangesRef.current = changedFilenames;
+        setStagedFiles(prev => {
+          const filtered = new Set<string>();
+          prev.forEach(f => { if (allChanged.has(f)) filtered.add(f); });
+          if (filtered.size === 0) return allChanged;
+          return filtered;
+        });
+      }
+    } else {
+      lastDiffChangesRef.current = "";
+      setStagedFiles(new Set());
+    }
+  }, [gitDiffQuery.data?.changes]);
 
   const blameFilename = useMemo(() => {
     if (!blameEnabled || !activeFileId || isSpecialTab(activeFileId)) return null;
@@ -1596,14 +1642,17 @@ function _projectPage() {
 
   const commitMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/git/commits`, {
+      const body: { message: string; branchName: string; files: string[] } = {
         message: commitMessage.trim(),
         branchName: currentBranch,
-      });
+        files: Array.from(stagedFiles),
+      };
+      const res = await apiRequest("POST", `/api/projects/${projectId}/git/commits`, body);
       return res.json();
     },
     onSuccess: (data: any) => {
       setCommitMessage("");
+      setStagedFiles(new Set());
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/branches"] });
@@ -2588,6 +2637,7 @@ function _projectPage() {
     if (tabId === SPECIAL_TABS.WEBVIEW) return { name: "Webview", icon: <Monitor className="w-3.5 h-3.5 shrink-0 text-[#0079F2]" /> };
     if (tabId === SPECIAL_TABS.SHELL) return { name: "Shell", icon: <Hash className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" /> };
     if (tabId === SPECIAL_TABS.CONSOLE) return { name: "Console", icon: <Terminal className="w-3.5 h-3.5 shrink-0 text-[#F5A623]" /> };
+    if (tabId.startsWith(CONFLICT_TAB_PREFIX)) return { name: `⚠ ${tabId.slice(CONFLICT_TAB_PREFIX.length)}`, icon: <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-400" /> };
     return null;
   };
 
@@ -2914,7 +2964,26 @@ function _projectPage() {
       {activeFileId === SPECIAL_TABS.WEBVIEW ? webviewTabContent
        : activeFileId === SPECIAL_TABS.SHELL ? shellTabContent
        : activeFileId === SPECIAL_TABS.CONSOLE ? consoleTabContent
-       : (
+       : activeFileId && isConflictTab(activeFileId) ? (
+        <div className="flex-1 overflow-auto bg-[var(--ide-bg)] p-0">
+          <div className="sticky top-0 z-10 bg-red-500/10 border-b border-red-500/30 px-4 py-2 flex items-center gap-2">
+            <span className="text-[11px] font-bold text-red-400">CONFLICT</span>
+            <span className="text-[11px] text-[var(--ide-text)] font-mono">{activeFileId.slice(CONFLICT_TAB_PREFIX.length)}</span>
+            <span className="text-[10px] text-[var(--ide-text-muted)]">Edit the content below to resolve the conflict, then use the Git panel to finalize.</span>
+          </div>
+          <textarea
+            className="w-full min-h-[calc(100vh-200px)] bg-[var(--ide-bg)] text-[var(--ide-text)] font-mono text-[13px] p-4 outline-none resize-none border-none leading-relaxed"
+            value={fileContents[activeFileId] ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFileContents(prev => ({ ...prev, [activeFileId!]: val }));
+              const conflictFilename = activeFileId!.slice(CONFLICT_TAB_PREFIX.length);
+              setConflictResolutions(prev => ({ ...prev, [conflictFilename]: val }));
+            }}
+            data-testid={`editor-conflict-${activeFileId.slice(CONFLICT_TAB_PREFIX.length)}`}
+          />
+        </div>
+       ) : (
         <>
           {breadcrumbBar}
           {activeFileId ? (
@@ -5221,11 +5290,11 @@ function _projectPage() {
                     <Button
                       className="w-full mt-1.5 h-7 text-[11px] bg-[#0079F2] hover:bg-[#0079F2]/90 text-white rounded font-medium gap-1.5"
                       onClick={() => commitMutation.mutate()}
-                      disabled={!commitMessage.trim() || commitMutation.isPending || commitMessage === "Generating..."}
+                      disabled={!commitMessage.trim() || commitMutation.isPending || commitMessage === "Generating..." || stagedFiles.size === 0}
                       data-testid="button-commit"
                     >
                       {commitMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                      Commit to {currentBranch}
+                      {stagedFiles.size > 0 ? `Commit ${stagedFiles.size} file${stagedFiles.size > 1 ? "s" : ""} to ${currentBranch}` : `No files staged`}
                     </Button>
                   </div>
 
@@ -5233,7 +5302,25 @@ function _projectPage() {
                   <div className="border-b border-[var(--ide-border)]">
                     <div className="flex items-center justify-between px-3 py-2">
                       <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">Changes</span>
-                      <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">{gitDiffQuery.data?.changes?.length || 0}</span>
+                      <div className="flex items-center gap-1.5">
+                        {(gitDiffQuery.data?.changes?.length || 0) > 0 && (
+                          <button
+                            className="text-[9px] px-1.5 py-0.5 rounded text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors"
+                            onClick={() => {
+                              const allFiles = gitDiffQuery.data?.changes?.map((c: any) => c.filename) || [];
+                              if (stagedFiles.size === allFiles.length) {
+                                setStagedFiles(new Set());
+                              } else {
+                                setStagedFiles(new Set(allFiles));
+                              }
+                            }}
+                            data-testid="button-toggle-stage-all"
+                          >
+                            {stagedFiles.size === (gitDiffQuery.data?.changes?.length || 0) && stagedFiles.size > 0 ? "Unstage All" : "Stage All"}
+                          </button>
+                        )}
+                        <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">{stagedFiles.size > 0 ? `${stagedFiles.size}/` : ""}{gitDiffQuery.data?.changes?.length || 0}</span>
+                      </div>
                     </div>
                     {gitDiffQuery.isLoading ? (
                       <div className="px-3 py-4 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" /></div>
@@ -5248,21 +5335,177 @@ function _projectPage() {
                     ) : (
                       <div className="pb-1">
                         {gitDiffQuery.data!.changes.map((change: any) => (
-                          <button
+                          <div
                             key={change.filename}
-                            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--ide-surface)]/50 text-left transition-colors group"
-                            onClick={() => { setDiffFile(change); setShowDiffModal(true); }}
+                            className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-[var(--ide-surface)]/50 text-left transition-colors group"
                             data-testid={`git-change-${change.filename}`}
                           >
+                            <input
+                              type="checkbox"
+                              checked={stagedFiles.has(change.filename)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setStagedFiles(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(change.filename)) {
+                                    next.delete(change.filename);
+                                  } else {
+                                    next.add(change.filename);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="w-3 h-3 rounded border-[var(--ide-border)] accent-[#0079F2] shrink-0 cursor-pointer"
+                              data-testid={`checkbox-stage-${change.filename}`}
+                            />
                             <span className={`text-[10px] font-bold w-4 text-center shrink-0 ${change.status === "added" ? "text-[#0CCE6B]" : change.status === "deleted" ? "text-red-400" : "text-[#F5A623]"}`}>
                               {change.status === "added" ? "A" : change.status === "deleted" ? "D" : "M"}
                             </span>
-                            <span className="text-[11px] text-[var(--ide-text-secondary)] truncate flex-1 group-hover:text-[var(--ide-text)]">{change.filename}</span>
-                          </button>
+                            <button
+                              className="text-[11px] text-[var(--ide-text-secondary)] truncate flex-1 group-hover:text-[var(--ide-text)] text-left"
+                              onClick={() => { setDiffFile(change); setShowDiffModal(true); }}
+                              data-testid={`button-diff-${change.filename}`}
+                            >
+                              {change.filename}
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
                   </div>
+
+                  {/* Merge Conflicts section */}
+                  {mergeConflicts.length > 0 && (
+                    <div className="border-b border-[var(--ide-border)]">
+                      <div className="flex items-center justify-between px-3 py-2">
+                        <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Merge Conflicts</span>
+                        <span className="text-[10px] text-red-400 font-mono">{mergeConflicts.length}</span>
+                      </div>
+                      <div className="pb-2 px-3 space-y-1.5">
+                        {mergeConflicts.map((conflict) => {
+                          const stripMarkers = (content: string, side: "ours" | "theirs") => {
+                            return content.replace(
+                              /<<<<<<< HEAD \(yours\)\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> remote \(theirs\)/g,
+                              (_, oursBlock, theirsBlock) => side === "ours" ? oursBlock : theirsBlock
+                            );
+                          };
+                          const ours = stripMarkers(conflict.content, "ours");
+                          const theirs = stripMarkers(conflict.content, "theirs");
+                          const isBinaryConflict = conflict.content.startsWith("[Binary file conflict");
+                          const isResolved = conflictResolutions[conflict.filename] !== undefined;
+
+                          return (
+                            <div key={conflict.filename} className="rounded border border-red-500/30 bg-red-500/5 p-2" data-testid={`conflict-${conflict.filename}`}>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className="text-[10px] font-bold text-red-400">!</span>
+                                <span className="text-[11px] text-[var(--ide-text)] font-mono truncate flex-1">{conflict.filename}</span>
+                                {isBinaryConflict && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">Binary</span>}
+                                {isResolved && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30">Resolved</span>}
+                              </div>
+                              <div className="flex gap-1 flex-wrap mb-1.5">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[9px] text-[#0079F2] hover:bg-[#0079F2]/10 rounded border border-[#0079F2]/30"
+                                  onClick={() => setConflictResolutions(prev => ({ ...prev, [conflict.filename]: ours }))}
+                                  data-testid={`button-accept-ours-${conflict.filename}`}
+                                >
+                                  Accept Ours
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[9px] text-[#F26522] hover:bg-[#F26522]/10 rounded border border-[#F26522]/30"
+                                  onClick={() => setConflictResolutions(prev => ({ ...prev, [conflict.filename]: theirs }))}
+                                  data-testid={`button-accept-theirs-${conflict.filename}`}
+                                >
+                                  Accept Theirs
+                                </Button>
+                                {!isBinaryConflict && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[9px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] rounded border border-[var(--ide-border)]"
+                                    onClick={() => {
+                                      setConflictResolutions(prev => ({ ...prev, [conflict.filename]: conflict.content }));
+                                    }}
+                                    data-testid={`button-manual-edit-${conflict.filename}`}
+                                  >
+                                    Manual Edit
+                                  </Button>
+                                )}
+                                {!isBinaryConflict && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[9px] text-[#7C65CB] hover:bg-[#7C65CB]/10 rounded border border-[#7C65CB]/30"
+                                    onClick={() => {
+                                      const tabId = `${CONFLICT_TAB_PREFIX}${conflict.filename}`;
+                                      const content = conflictResolutions[conflict.filename] || conflict.content;
+                                      if (!openTabs.includes(tabId)) {
+                                        setOpenTabs(prev => [...prev, tabId]);
+                                      }
+                                      setFileContents(prev => ({ ...prev, [tabId]: content }));
+                                      setActiveFileId(tabId);
+                                      if (!conflictResolutions[conflict.filename]) {
+                                        setConflictResolutions(prev => ({ ...prev, [conflict.filename]: content }));
+                                      }
+                                    }}
+                                    data-testid={`button-open-conflict-${conflict.filename}`}
+                                  >
+                                    Open in Editor
+                                  </Button>
+                                )}
+                              </div>
+                              {isResolved && conflictResolutions[conflict.filename] !== ours && conflictResolutions[conflict.filename] !== theirs && (
+                                <textarea
+                                  className="w-full text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1.5 text-[var(--ide-text)] font-mono resize-none min-h-[80px] outline-none focus:border-[#0079F2]"
+                                  value={conflictResolutions[conflict.filename]}
+                                  onChange={(e) => setConflictResolutions(prev => ({ ...prev, [conflict.filename]: e.target.value }))}
+                                  data-testid={`textarea-conflict-${conflict.filename}`}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                        <Button
+                          className="w-full h-7 text-[11px] bg-[#0CCE6B] hover:bg-[#0CCE6B]/90 text-white rounded font-medium gap-1.5 mt-1"
+                          disabled={Object.keys(conflictResolutions).length < mergeConflicts.length || resolvingConflicts}
+                          onClick={async () => {
+                            setResolvingConflicts(true);
+                            try {
+                              const resolvedFiles = mergeConflicts.map(c => ({
+                                filename: c.filename,
+                                content: conflictResolutions[c.filename] || c.content,
+                              }));
+                              await apiRequest("POST", `/api/projects/${projectId}/git/resolve-conflicts`, { resolvedFiles });
+                              setMergeConflicts([]);
+                              setConflictResolutions({});
+                              setOpenTabs(prev => prev.filter(t => !t.startsWith(CONFLICT_TAB_PREFIX)));
+                              setFileContents(prev => {
+                                const next = { ...prev };
+                                Object.keys(next).forEach(k => { if (k.startsWith(CONFLICT_TAB_PREFIX)) delete next[k]; });
+                                return next;
+                              });
+                              if (activeFileId?.startsWith(CONFLICT_TAB_PREFIX)) setActiveFileId(null);
+                              queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+                              queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+                              queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                              toast({ title: "Conflicts resolved", description: "Merge commit created successfully" });
+                            } catch (err: any) {
+                              toast({ title: "Resolution failed", description: err.message, variant: "destructive" });
+                            } finally {
+                              setResolvingConflicts(false);
+                            }
+                          }}
+                          data-testid="button-finalize-merge"
+                        >
+                          {resolvingConflicts ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          Finalize Merge ({Object.keys(conflictResolutions).length}/{mergeConflicts.length} resolved)
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Commit history */}
                   <div>
@@ -5400,16 +5643,31 @@ function _projectPage() {
                               onClick={async () => {
                                 setPulling(true);
                                 try {
-                                  const res = await apiRequest("POST", `/api/projects/${projectId}/git/pull`);
+                                  const pullHeaders: Record<string, string> = { "Content-Type": "application/json" };
+                                  const csrf = getCsrfToken();
+                                  if (csrf) pullHeaders["X-CSRF-Token"] = csrf;
+                                  const res = await fetch(`/api/projects/${projectId}/git/pull`, {
+                                    method: "POST",
+                                    headers: pullHeaders,
+                                    credentials: "include",
+                                  });
                                   const data = await res.json();
-                                  setFileContents({});
-                                  setOpenTabs([]);
-                                  setActiveFileId(null);
-                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
-                                  toast({ title: "Pulled from GitHub", description: `${data.filesPulled} files updated` });
+                                  if (res.status === 409 && data.conflicts) {
+                                    setMergeConflicts(data.conflicts);
+                                    setConflictResolutions({});
+                                    toast({ title: "Merge conflicts detected", description: `${data.conflicts.length} file(s) have conflicts that need resolution`, variant: "destructive" });
+                                  } else if (!res.ok) {
+                                    toast({ title: "Pull failed", description: data.message || "Pull failed", variant: "destructive" });
+                                  } else {
+                                    setFileContents({});
+                                    setOpenTabs([]);
+                                    setActiveFileId(null);
+                                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+                                    toast({ title: "Pulled from GitHub", description: `${data.filesPulled} files updated` });
+                                  }
                                 } catch (err: unknown) {
                                   const message = err instanceof Error ? err.message : "Pull failed";
                                   toast({ title: "Pull failed", description: message, variant: "destructive" });

@@ -3321,7 +3321,7 @@ export async function registerRoutes(
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const { message, branchName = "main" } = req.body;
+    const { message, branchName = "main", files: selectedFiles } = req.body;
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return res.status(400).json({ message: "Commit message is required" });
     }
@@ -3343,7 +3343,8 @@ export async function registerRoutes(
       const authorName = user?.displayName || user?.email || "User";
       const authorEmail = user?.email || "user@ide.local";
 
-      const result = await gitService.addAndCommit(req.params.projectId, message.trim(), authorName, authorEmail);
+      const validFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f: unknown) => typeof f === "string") : undefined;
+      const result = await gitService.addAndCommit(req.params.projectId, message.trim(), authorName, authorEmail, validFiles);
 
       const snapshot: Record<string, string> = {};
       for (const f of dbFiles) {
@@ -3684,12 +3685,19 @@ export async function registerRoutes(
       const authorEmail = user?.email || "user@ide.local";
 
       const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
-      const result = await gitService.pullFromRemote(req.params.projectId, url, {
+      const result = await gitService.pullFromRemoteWithConflicts(req.params.projectId, url, {
         httpTransport,
         authorName,
         authorEmail,
         branch: currentBranch,
       });
+
+      if (!result.ok && result.conflicts && result.conflicts.length > 0) {
+        return res.status(409).json({
+          message: "Merge conflicts detected",
+          conflicts: result.conflicts,
+        });
+      }
 
       if (!result.ok) {
         return res.status(500).json({ message: result.error || "Pull failed" });
@@ -3708,6 +3716,59 @@ export async function registerRoutes(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Pull failed";
       return res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/git/resolve-conflicts", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { resolvedFiles } = req.body;
+    if (!Array.isArray(resolvedFiles) || resolvedFiles.length === 0) {
+      return res.status(400).json({ message: "resolvedFiles array is required" });
+    }
+
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      const authorName = user?.displayName || user?.email || "User";
+      const authorEmail = user?.email || "user@ide.local";
+
+      const result = await gitService.resolveConflicts(
+        req.params.projectId,
+        resolvedFiles,
+        authorName,
+        authorEmail,
+      );
+
+      const updatedFiles = gitService.getWorkingTreeFiles(req.params.projectId);
+      const currentFiles = await storage.getFiles(req.params.projectId);
+      for (const f of currentFiles) {
+        await storage.deleteFile(f.id);
+      }
+      for (const { filename, content } of updatedFiles) {
+        await storage.createFile(req.params.projectId, { filename, content });
+      }
+
+      await persistRepoState(req.params.projectId);
+      return res.json({ success: true, sha: result.sha });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Conflict resolution failed";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/projects/:projectId/git/state-hash", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    try {
+      const hash = await gitService.getGitStateHash(req.params.projectId);
+      return res.json({ hash });
+    } catch {
+      return res.json({ hash: "unknown" });
     }
   });
 
