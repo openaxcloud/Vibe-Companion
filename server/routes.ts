@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, type AgentMode, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema } from "@shared/schema";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode } from "./executor";
@@ -633,6 +633,42 @@ function validateAIMessages(messages: any[]): string | null {
     }
   }
   return null;
+}
+
+function resolveTopAgentMode(body: any, userPlan: string): { modelId: string; maxTokens: number; effectiveAgentMode: AgentMode; systemPromptPrefix: string } {
+  const topMode: TopAgentMode = (body.topAgentMode && ["lite", "autonomous", "max"].includes(body.topAgentMode)) ? body.topAgentMode : "autonomous";
+  const tier: AutonomousTier = (body.autonomousTier && ["economy", "power"].includes(body.autonomousTier)) ? body.autonomousTier : "economy";
+  const turbo = body.turbo === true;
+  const selectedModel = body.model || "claude";
+
+  let effectiveAgentMode: AgentMode;
+  let modelId: string;
+  let maxTokens: number;
+  let systemPromptPrefix = "";
+
+  if (topMode === "lite") {
+    effectiveAgentMode = "economy";
+    modelId = TOP_AGENT_MODE_MODELS.lite[selectedModel] || TOP_AGENT_MODE_MODELS.lite.claude;
+    maxTokens = TOP_AGENT_MODE_CONFIG.lite.maxTokens;
+    systemPromptPrefix = "You are in Lite mode. Make quick, targeted changes only. Skip planning — go straight to implementation.\n\n";
+  } else if (topMode === "max") {
+    effectiveAgentMode = turbo ? "turbo" : "power";
+    modelId = TOP_AGENT_MODE_MODELS.max[selectedModel] || TOP_AGENT_MODE_MODELS.max.claude;
+    maxTokens = TOP_AGENT_MODE_CONFIG.max.maxTokens;
+    systemPromptPrefix = "You are in Max mode with extended context. Provide thorough, multi-step solutions with detailed explanations.\n\n";
+  } else {
+    effectiveAgentMode = turbo ? "turbo" : tier;
+    modelId = (turbo ? AGENT_MODE_MODELS.turbo : AGENT_MODE_MODELS[tier])?.[selectedModel] || AGENT_MODE_MODELS.economy[selectedModel] || "claude-sonnet-4-6";
+    maxTokens = turbo ? 32768 : (tier === "power" ? 16384 : 16384);
+  }
+
+  if (effectiveAgentMode === "turbo" && (userPlan === "free" || !userPlan)) {
+    effectiveAgentMode = "power";
+    modelId = AGENT_MODE_MODELS.power[selectedModel] || "claude-sonnet-4-6";
+    maxTokens = topMode === "max" ? TOP_AGENT_MODE_CONFIG.max.maxTokens : 16384;
+  }
+
+  return { modelId, maxTokens, effectiveAgentMode, systemPromptPrefix };
 }
 
 function sanitizeAIFileContent(content: string): string {
@@ -6625,15 +6661,11 @@ Any closing remarks...`;
         }
       }
 
-      let chatMode: AgentMode = (reqMode && ["economy", "power", "turbo"].includes(reqMode)) ? reqMode : "economy";
-      if (chatMode === "turbo") {
-        const userQuota = await storage.getUserQuota(req.session.userId!);
-        if (userQuota.plan === "free" || !userQuota.plan) {
-          chatMode = "power";
-        }
-      }
+      const chatQuota = await storage.getUserQuota(req.session.userId!);
+      const resolved = resolveTopAgentMode(req.body, chatQuota.plan || "free");
+      let chatMode = resolved.effectiveAgentMode;
       const selectedModel = model || "claude";
-      const modelId = AGENT_MODE_MODELS[chatMode]?.[selectedModel] || AGENT_MODE_MODELS.economy[selectedModel] || "claude-sonnet-4-6";
+      const modelId = resolved.modelId;
 
       let skillsContext = "";
       let chatMobileContext = "";
@@ -6667,7 +6699,7 @@ Any closing remarks...`;
         } catch {}
       }
 
-      const systemPrompt = `You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code.
+      const systemPrompt = `${resolved.systemPromptPrefix}You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code.
 
 Rules:
 - Always provide COMPLETE, WORKING code — never truncate, abbreviate, or use "..." to skip sections.
@@ -6685,7 +6717,7 @@ Rules:
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const turboMaxTokens = chatMode === "turbo" ? 32768 : 16384;
+      const turboMaxTokens = resolved.maxTokens;
 
       if (selectedModel === "gemini") {
         const geminiContents = [
@@ -7144,15 +7176,11 @@ Rules:
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      let agentModeVal: AgentMode = (agentReqMode && ["economy", "power", "turbo"].includes(agentReqMode)) ? agentReqMode : "economy";
-      if (agentModeVal === "turbo") {
-        const modeQuota = await storage.getUserQuota(req.session.userId!);
-        if (modeQuota.plan === "free" || !modeQuota.plan) {
-          agentModeVal = "power";
-        }
-      }
+      const agentQuota = await storage.getUserQuota(req.session.userId!);
+      const agentResolved = resolveTopAgentMode(req.body, agentQuota.plan || "free");
+      let agentModeVal = agentResolved.effectiveAgentMode;
       const agentSelectedModel = requestedModel || "claude";
-      const agentModelId = AGENT_MODE_MODELS[agentModeVal]?.[agentSelectedModel] || AGENT_MODE_MODELS.economy[agentSelectedModel] || "claude-sonnet-4-6";
+      const agentModelId = agentResolved.modelId;
 
       const agentCreditResult = await storage.deductCredits(req.session.userId!, agentModeVal, agentModelId, "agent");
       if (!agentCreditResult.allowed) {
@@ -7250,7 +7278,7 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         ? `\n\nThis is a VIDEO project. The user is creating a video composition. You have access to the create_video_scene and edit_video_scene tools to create/modify video scenes. Each scene has an id, order, duration (seconds), backgroundColor, elements array, and transition type. Element types: text, image, shape, overlay. Each element has position (x, y as %), size (width, height as %), startTime, endTime, style, and animation.`
         : "";
 
-      const agentSystemPrompt = `You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
+      const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
 
 Current project: "${project.name}" (${project.language}, type: ${project.projectType || "web-app"}${isMobileProject ? ", mobile-app" : ""})
 Existing files:
@@ -7291,7 +7319,7 @@ Always cite your sources in your response when using information from web search
         res.write(`data: ${JSON.stringify({ type: "file_created", file: { id: ecodeFile.id, filename: "ecode.md", content: ecodeFile.content } })}\n\n`);
       }
 
-      const agentTurboMaxTokens = agentModeVal === "turbo" ? 32768 : 16384;
+      const agentTurboMaxTokens = agentResolved.maxTokens;
 
       const userId = req.session.userId!;
       const approvedPlan = await storage.getLatestPlan(projectId, userId);

@@ -97,6 +97,8 @@ type AIModel = "claude" | "gpt" | "gemini";
 type AIMode = "chat" | "agent" | "plan";
 type TopMode = "plan" | "build";
 type AgentMode = "economy" | "power" | "turbo";
+type TopAgentMode = "lite" | "autonomous" | "max";
+type AutonomousTier = "economy" | "power";
 
 interface AgentToolsConfig {
   liteMode: boolean;
@@ -104,6 +106,7 @@ interface AgentToolsConfig {
   appTesting: boolean;
   codeOptimizations: boolean;
   architect: boolean;
+  turbo: boolean;
 }
 
 const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
@@ -112,10 +115,15 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   gemini: { name: "Gemini Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
 };
 
-const AGENT_MODE_LABELS: Record<AgentMode, { name: string; cost: number; color: string; description: string }> = {
-  economy: { name: "Economy", cost: 1, color: "text-[#0CCE6B]", description: "Lighter models, 1 credit/call" },
-  power: { name: "Power", cost: 3, color: "text-[#0079F2]", description: "Full models, 3 credits/call" },
-  turbo: { name: "Turbo", cost: 6, color: "text-[#F59E0B]", description: "Priority processing, 6 credits/call" },
+const TOP_AGENT_MODE_LABELS: Record<TopAgentMode, { name: string; icon: typeof Zap; color: string; bg: string; description: string }> = {
+  lite: { name: "Lite", icon: Zap, color: "#F5A623", bg: "bg-[#F5A623]", description: "Fast, focused single-file edits" },
+  autonomous: { name: "Autonomous", icon: Bot, color: "#7C65CB", bg: "bg-[#7C65CB]", description: "Full agent capabilities" },
+  max: { name: "Max", icon: Brain, color: "#0079F2", bg: "bg-[#0079F2]", description: "Extended context, multi-step planning" },
+};
+
+const AUTONOMOUS_TIER_LABELS: Record<AutonomousTier, { name: string; color: string; description: string }> = {
+  economy: { name: "Economy", color: "#0CCE6B", description: "Standard models, 1 credit/call" },
+  power: { name: "Power", color: "#0079F2", description: "Best models, 3 credits/call" },
 };
 
 const LANG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -434,6 +442,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [agentMode, setAgentMode] = useState<AgentMode>(() => {
     try { return (localStorage.getItem("ai-agent-mode") as AgentMode) || "economy"; } catch { return "economy"; }
   });
+  const [topAgentMode, setTopAgentMode] = useState<TopAgentMode>(() => {
+    try {
+      const stored = localStorage.getItem("ai-top-agent-mode");
+      if (stored && ["lite", "autonomous", "max"].includes(stored)) return stored as TopAgentMode;
+    } catch {}
+    return "autonomous";
+  });
+  const [autonomousTier, setAutonomousTier] = useState<AutonomousTier>(() => {
+    try {
+      const stored = localStorage.getItem("ai-autonomous-tier");
+      if (stored && ["economy", "power"].includes(stored)) return stored as AutonomousTier;
+    } catch {}
+    return "economy";
+  });
   const [topMode, setTopMode] = useState<TopMode>("build");
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const [conversationLoaded, setConversationLoaded] = useState(false);
@@ -445,7 +467,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   });
   const [liteMode, setLiteMode] = useState(false);
   const [agentToolsConfig, setAgentToolsConfig] = useState<AgentToolsConfig>({
-    liteMode: false, webSearch: true, appTesting: false, codeOptimizations: false, architect: false,
+    liteMode: false, webSearch: true, appTesting: false, codeOptimizations: false, architect: false, turbo: false,
   });
   const [showSettings, setShowSettings] = useState(false);
   const [userPlan, setUserPlan] = useState<string>("free");
@@ -1089,6 +1111,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         })),
         model,
         agentMode,
+        topAgentMode,
+        autonomousTier,
+        turbo: agentToolsConfig.turbo,
       };
 
       if (isAgent || isLite) {
@@ -1136,7 +1161,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       abortRef.current = null;
       onAgentComplete?.();
     }
-  }, [messages, model, mode, projectId, context, codeOptimizations, liteMode, agentMode, agentToolsConfig.webSearch, persistMessage, processSSEStream, onAgentComplete]);
+  }, [messages, model, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -1276,7 +1301,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
-      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode };
+      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo };
       if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
@@ -1437,6 +1462,46 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       method: "PUT", headers, credentials: "include",
       body: JSON.stringify({ agentMode: newMode }),
     }).catch(() => {});
+  };
+
+  const handleTopAgentModeChange = (newMode: TopAgentMode) => {
+    setTopAgentMode(newMode);
+    try { localStorage.setItem("ai-top-agent-mode", newMode); } catch {}
+    if (newMode === "lite") {
+      setLiteMode(true);
+      updateAgentToolsConfig({ liteMode: true });
+      handleAgentModeChange("economy");
+    } else if (newMode === "autonomous") {
+      setLiteMode(false);
+      updateAgentToolsConfig({ liteMode: false });
+      handleAgentModeChange(autonomousTier);
+    } else if (newMode === "max") {
+      setLiteMode(false);
+      updateAgentToolsConfig({ liteMode: false });
+      handleAgentModeChange("power");
+    }
+  };
+
+  const handleAutonomousTierChange = (tier: AutonomousTier) => {
+    setAutonomousTier(tier);
+    try { localStorage.setItem("ai-autonomous-tier", tier); } catch {}
+    handleAgentModeChange(tier);
+  };
+
+  const handleTurboToggle = () => {
+    const newTurbo = !agentToolsConfig.turbo;
+    updateAgentToolsConfig({ turbo: newTurbo });
+    if (newTurbo) {
+      handleAgentModeChange("turbo");
+    } else {
+      if (topAgentMode === "max") {
+        handleAgentModeChange("power");
+      } else if (topAgentMode === "autonomous") {
+        handleAgentModeChange(autonomousTier);
+      } else {
+        handleAgentModeChange("economy");
+      }
+    }
   };
 
   const generateImage = async (prompt: string, size: string = "1024x1024", filename?: string) => {
@@ -2194,48 +2259,120 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </button>
             )
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${AGENT_MODE_LABELS[agentMode].color} bg-current/10 hover:opacity-80 transition-opacity`} data-testid="button-agent-mode-select">
-                <Gauge className="w-2.5 h-2.5" />
-                {AGENT_MODE_LABELS[agentMode].name}
-                <span className="text-[9px] opacity-60">({AGENT_MODE_LABELS[agentMode].cost}x)</span>
-                <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
-              {(["economy", "power"] as AgentMode[]).map((m) => (
-                <DropdownMenuItem
-                  key={m}
-                  className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
-                  onClick={() => handleAgentModeChange(m)}
-                  data-testid={`agent-mode-${m}`}
+          {projectId && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium hover:opacity-80 transition-opacity"
+                  style={{ color: TOP_AGENT_MODE_LABELS[topAgentMode].color, backgroundColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}15` }}
+                  data-testid="button-agent-mode-select"
                 >
-                  <div className="flex flex-col flex-1">
-                    <span className={`font-medium ${AGENT_MODE_LABELS[m].color}`}>{AGENT_MODE_LABELS[m].name}</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]">{AGENT_MODE_LABELS[m].description}</span>
-                  </div>
-                  {agentMode === m && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem
-                className={`gap-2.5 text-xs rounded-md px-2 py-1.5 ${userPlan === "free" ? "opacity-50 cursor-not-allowed" : "text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer"}`}
-                onClick={() => userPlan !== "free" && handleAgentModeChange("turbo")}
-                data-testid="agent-mode-turbo"
-              >
-                <div className="flex flex-col flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`font-medium ${AGENT_MODE_LABELS.turbo.color}`}>Turbo</span>
-                    {userPlan === "free" && (
-                      <span className="text-[8px] px-1 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B] font-semibold" data-testid="badge-turbo-pro">PRO</span>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-[var(--ide-text-muted)]">{AGENT_MODE_LABELS.turbo.description}</span>
+                  {(() => { const ModeIcon = TOP_AGENT_MODE_LABELS[topAgentMode].icon; return <ModeIcon className="w-2.5 h-2.5" />; })()}
+                  {TOP_AGENT_MODE_LABELS[topAgentMode].name}
+                  {topAgentMode === "autonomous" && <span className="text-[9px] opacity-60">({AUTONOMOUS_TIER_LABELS[autonomousTier].name})</span>}
+                  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
+                <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+                  <span className="text-[11px] font-semibold text-[var(--ide-text)]">Agent Mode</span>
                 </div>
-                {agentMode === "turbo" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <div className="p-2 space-y-1">
+                  {(["lite", "autonomous", "max"] as TopAgentMode[]).map((m) => {
+                    const cfg = TOP_AGENT_MODE_LABELS[m];
+                    const MIcon = cfg.icon;
+                    const isActive = topAgentMode === m;
+                    return (
+                      <button
+                        key={m}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
+                          isActive ? "ring-1" : "hover:bg-[var(--ide-surface)]"
+                        }`}
+                        style={isActive ? { backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30`, ringColor: `${cfg.color}30` } : {}}
+                        onClick={() => handleTopAgentModeChange(m)}
+                        data-testid={`agent-mode-${m}`}
+                      >
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${cfg.color}15` }}>
+                          <MIcon className="w-3.5 h-3.5" style={{ color: cfg.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium text-[var(--ide-text)]">{cfg.name}</div>
+                          <div className="text-[9px] text-[var(--ide-text-muted)]">{cfg.description}</div>
+                        </div>
+                        {isActive && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: cfg.color }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {topAgentMode === "autonomous" && (
+                  <>
+                    <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Tier</span>
+                    </div>
+                    <div className="px-2 pb-2 flex gap-1">
+                      {(["economy", "power"] as AutonomousTier[]).map((tier) => {
+                        const tcfg = AUTONOMOUS_TIER_LABELS[tier];
+                        const isTierActive = autonomousTier === tier && !agentToolsConfig.turbo;
+                        return (
+                          <button
+                            key={tier}
+                            className={`flex-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all text-center ${
+                              isTierActive
+                                ? "bg-[var(--ide-surface)] text-[var(--ide-text)] ring-1 ring-[var(--ide-border)] shadow-sm"
+                                : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50"
+                            }`}
+                            onClick={() => handleAutonomousTierChange(tier)}
+                            data-testid={`tier-${tier}`}
+                          >
+                            <span style={isTierActive ? { color: tcfg.color } : {}}>{tcfg.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+                <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
+                  <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Switches</span>
+                </div>
+                <div className="px-2 pb-2 space-y-0.5">
+                  {[
+                    { key: "turbo" as const, label: "Turbo", desc: "Prioritize speed", icon: Zap, color: "#F59E0B", disabled: topAgentMode === "lite" },
+                    { key: "appTesting" as const, label: "App Testing", desc: "Validate after changes", icon: FlaskConical, color: "#0CCE6B", disabled: topAgentMode === "lite" },
+                    { key: "codeOptimizations" as const, label: "Code Optimizations", desc: "Auto-review code", icon: Gauge, color: "#0CCE6B", disabled: topAgentMode === "lite" },
+                  ].map((sw) => {
+                    const isOn = sw.key === "turbo" ? agentToolsConfig.turbo
+                      : sw.key === "codeOptimizations" ? codeOptimizations
+                      : agentToolsConfig[sw.key];
+                    return (
+                      <button
+                        key={sw.key}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all ${
+                          sw.disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--ide-surface)] cursor-pointer"
+                        }`}
+                        onClick={() => {
+                          if (sw.disabled) return;
+                          if (sw.key === "turbo") handleTurboToggle();
+                          else if (sw.key === "codeOptimizations") toggleCodeOptimizations();
+                          else updateAgentToolsConfig({ [sw.key]: !agentToolsConfig[sw.key] });
+                        }}
+                        data-testid={`toggle-switch-${sw.key}`}
+                      >
+                        <sw.icon className="w-3 h-3 shrink-0" style={{ color: sw.color }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-medium text-[var(--ide-text)]">{sw.label}</div>
+                        </div>
+                        <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
+                          isOn && !sw.disabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
+                        }`}>
+                          <div className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
 
           {projectId && (
             <Popover>
@@ -2254,16 +2391,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 </div>
                 <div className="p-2 space-y-1">
                   {[
-                    { key: "liteMode" as const, label: "Lite Mode", desc: "Fast, focused changes", icon: Zap, color: "#F5A623" },
                     { key: "webSearch" as const, label: "Web Search", desc: "Search-informed answers", icon: Globe, color: "#0079F2" },
-                    { key: "appTesting" as const, label: "App Testing", desc: "Automated testing", icon: FlaskConical, color: "#0CCE6B", disabledInLite: true },
-                    { key: "codeOptimizations" as const, label: "Code Optimizations", desc: "Auto code review", icon: Gauge, color: "#0CCE6B", disabledInLite: true },
                     { key: "architect" as const, label: "Architect", desc: "Architecture analysis", icon: Brain, color: "#7C65CB", disabledInLite: true },
                   ].map((tool) => {
-                    const isDisabledByLite = liteMode && tool.disabledInLite;
-                    const isActive = tool.key === "liteMode" ? liteMode
-                      : tool.key === "codeOptimizations" ? codeOptimizations
-                      : agentToolsConfig[tool.key];
+                    const isDisabledByLite = topAgentMode === "lite" && tool.disabledInLite;
+                    const isActive = agentToolsConfig[tool.key];
                     return (
                       <button
                         key={tool.key}
@@ -2274,17 +2406,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         }`}
                         onClick={() => {
                           if (isDisabledByLite) return;
-                          if (tool.key === "liteMode") {
-                            toggleLiteMode();
-                          } else if (tool.key === "codeOptimizations") {
-                            toggleCodeOptimizations();
-                          } else {
-                            updateAgentToolsConfig({ [tool.key]: !agentToolsConfig[tool.key] });
-                          }
+                          updateAgentToolsConfig({ [tool.key]: !agentToolsConfig[tool.key] });
                         }}
                         data-testid={`toggle-agent-tool-${tool.key}`}
                       >
-                        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0`} style={{ backgroundColor: `${tool.color}15` }}>
+                        <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: `${tool.color}15` }}>
                           <tool.icon className="w-3.5 h-3.5" style={{ color: tool.color }} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2296,7 +2422,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
                           isActive && !isDisabledByLite ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
                         }`}>
-                          <div className={`w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm transition-transform`} />
+                          <div className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
                         </div>
                       </button>
                     );
@@ -2369,17 +2495,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       {topMode === "build" && mode === "agent" && (
-        <div className={`flex items-center gap-2 px-3 py-2 border-b text-[10px] shrink-0 ${
-          liteMode
-            ? "border-[#F5A623]/15 bg-gradient-to-r from-[#F5A623]/10 to-[#F5A623]/5 text-[#F5A623]"
-            : "border-[#7C65CB]/15 bg-gradient-to-r from-[#7C65CB]/10 to-[#7C65CB]/5 text-[#7C65CB]"
-        }`}>
-          <div className={`w-4 h-4 rounded flex items-center justify-center ${liteMode ? "bg-[#F5A623]/20" : "bg-[#7C65CB]/20"}`}>
-            {liteMode ? <Zap className="w-2.5 h-2.5" /> : <Bot className="w-2.5 h-2.5" />}
+        <div className="flex items-center gap-2 px-3 py-2 border-b text-[10px] shrink-0"
+          style={{
+            borderColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}15`,
+            background: `linear-gradient(to right, ${TOP_AGENT_MODE_LABELS[topAgentMode].color}10, ${TOP_AGENT_MODE_LABELS[topAgentMode].color}05)`,
+            color: TOP_AGENT_MODE_LABELS[topAgentMode].color,
+          }}
+        >
+          <div className="w-4 h-4 rounded flex items-center justify-center" style={{ backgroundColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}20` }}>
+            {(() => { const MIcon = TOP_AGENT_MODE_LABELS[topAgentMode].icon; return <MIcon className="w-2.5 h-2.5" />; })()}
           </div>
-          <span className="font-medium">{liteMode ? "Lite mode" : "Agent mode"}</span>
+          <span className="font-medium">{TOP_AGENT_MODE_LABELS[topAgentMode].name} mode</span>
+          {topAgentMode === "autonomous" && (
+            <span className="text-[9px] px-1 py-0.5 rounded" style={{ backgroundColor: `${AUTONOMOUS_TIER_LABELS[autonomousTier].color}15` }}>
+              {AUTONOMOUS_TIER_LABELS[autonomousTier].name}
+            </span>
+          )}
+          {agentToolsConfig.turbo && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B]">Turbo</span>
+          )}
           <span style={{ opacity: 0.6 }}>—</span>
-          <span style={{ opacity: 0.7 }}>{liteMode ? "Quick, targeted changes only" : "AI can create and edit files in your project"}</span>
+          <span style={{ opacity: 0.7 }}>{TOP_AGENT_MODE_LABELS[topAgentMode].description}</span>
         </div>
       )}
 
@@ -2885,52 +3021,40 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         <div className="flex items-center justify-between mt-1.5 px-1.5">
           <div className="flex items-center gap-1">
             {projectId && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <div className="flex items-center gap-1">
+                <button
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                    topMode === "build"
+                      ? "bg-[#7C65CB]/15 text-[#7C65CB]"
+                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                  }`}
+                  onClick={() => setTopMode("build")}
+                  data-testid="mode-build"
+                >
+                  <Hammer className="w-3 h-3" />
+                  Build
+                </button>
+                <div className={`relative rounded-md ${topMode === "plan" ? "p-[1px]" : ""}`}
+                  style={topMode === "plan" ? {
+                    background: "linear-gradient(135deg, #F59E0B, #EF4444, #8B5CF6, #0079F2, #F59E0B)",
+                    backgroundSize: "300% 300%",
+                    animation: "gradient-spin 3s ease infinite",
+                  } : {}}
+                >
                   <button
                     className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                       topMode === "plan"
-                        ? "bg-[#F59E0B]/15 text-[#F59E0B] hover:bg-[#F59E0B]/25"
-                        : "bg-[#7C65CB]/15 text-[#7C65CB] hover:bg-[#7C65CB]/25"
+                        ? "bg-[var(--ide-panel)] text-[#F59E0B]"
+                        : "text-[var(--ide-text-muted)] hover:text-[#F59E0B] hover:bg-[#F59E0B]/10"
                     }`}
-                    data-testid="button-mode-selector"
-                  >
-                    {topMode === "plan" ? <Map className="w-3 h-3" /> : <Hammer className="w-3 h-3" />}
-                    {topMode === "plan" ? "Plan" : "Build"}
-                    <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
-                  <DropdownMenuItem
-                    className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                     onClick={() => setTopMode("plan")}
-                    data-testid="mode-plan"
+                    data-testid="mode-plan-button"
                   >
-                    <div className="w-5 h-5 rounded bg-[#F59E0B]/15 flex items-center justify-center">
-                      <Map className="w-3 h-3 text-[#F59E0B]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-medium">Plan</span>
-                      <span className="text-[10px] text-[var(--ide-text-muted)]">Brainstorm & plan tasks</span>
-                    </div>
-                    {topMode === "plan" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
-                    onClick={() => setTopMode("build")}
-                    data-testid="mode-build"
-                  >
-                    <div className="w-5 h-5 rounded bg-[#7C65CB]/15 flex items-center justify-center">
-                      <Hammer className="w-3 h-3 text-[#7C65CB]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-medium">Build</span>
-                      <span className="text-[10px] text-[var(--ide-text-muted)]">Chat & agent coding</span>
-                    </div>
-                    {topMode === "build" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <Map className="w-3 h-3" />
+                    Plan
+                  </button>
+                </div>
+              </div>
             )}
             {topMode === "build" && (
               <>

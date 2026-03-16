@@ -548,10 +548,30 @@ export const AGENT_MODE_COSTS = {
 
 export type AgentMode = "economy" | "power" | "turbo";
 
+export type TopAgentMode = "lite" | "autonomous" | "max";
+export type AutonomousTier = "economy" | "power";
+
+export const TOP_AGENT_MODE_CONFIG = {
+  lite: { label: "Lite", description: "Fast, focused single-file edits", cost: 1, color: "#F5A623", maxTokens: 4096 },
+  autonomous: { label: "Autonomous", description: "Full agent capabilities", cost: 1, color: "#7C65CB", maxTokens: 16384 },
+  max: { label: "Max", description: "Extended context, multi-step planning", cost: 6, color: "#0079F2", maxTokens: 32768 },
+} as const;
+
+export const AUTONOMOUS_TIER_CONFIG = {
+  economy: { label: "Economy", description: "Standard models, 1 credit/call", cost: 1, color: "#0CCE6B" },
+  power: { label: "Power", description: "Best models, 3 credits/call", cost: 3, color: "#0079F2" },
+} as const;
+
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
   economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash" },
   power: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
   turbo: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+};
+
+export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
+  lite: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash" },
+  autonomous: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+  max: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
 };
 
 export const customDomains = pgTable("custom_domains", {
