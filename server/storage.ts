@@ -88,6 +88,9 @@ import {
   themes, installedThemes,
   type Theme, type InsertTheme,
   type InstalledTheme,
+  projectGuests,
+  type ProjectGuest, type InsertProjectGuest,
+  type ProjectVisibility,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
 } from "@shared/schema";
@@ -111,8 +114,8 @@ export interface IStorage {
   createProject(userId: string, data: InsertProject): Promise<Project>;
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
-  createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined>;
+  createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
+  updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -134,6 +137,14 @@ export interface IStorage {
 
   publishProject(id: string, userId: string): Promise<Project | undefined>;
   getPublishedProject(id: string): Promise<{project: Project, files: File[]} | undefined>;
+
+  getProjectGuests(projectId: string): Promise<ProjectGuest[]>;
+  addProjectGuest(projectId: string, email: string, role: string, invitedBy: string): Promise<ProjectGuest>;
+  removeProjectGuest(guestId: string, projectId: string): Promise<boolean>;
+  acceptProjectGuestInvite(token: string, userId: string): Promise<ProjectGuest | undefined>;
+  getProjectGuestByEmail(projectId: string, email: string): Promise<ProjectGuest | undefined>;
+  getProjectGuestByUserId(projectId: string, userId: string): Promise<ProjectGuest | undefined>;
+  isProjectGuest(projectId: string, userId: string): Promise<boolean>;
 
   getWorkspaceByProject(projectId: string): Promise<Workspace | undefined>;
   getWorkspace(id: string): Promise<Workspace | undefined>;
@@ -600,12 +611,13 @@ export class DatabaseStorage implements IStorage {
     return newProject;
   }
 
-  async createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; files: { filename: string; content: string }[] }): Promise<Project> {
+  async createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project> {
     const [project] = await db.insert(projects).values({
       userId,
       name: data.name,
       language: data.language,
       projectType: data.projectType || "web",
+      visibility: data.visibility || "public",
     }).returning();
     const hasEcode = data.files.some(f => f.filename === "ecode.md");
     const filesToInsert = [...data.files];
@@ -646,7 +658,7 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.language !== undefined) updates.language = data.language;
@@ -656,6 +668,7 @@ export class DatabaseStorage implements IStorage {
     if (data.customDomain !== undefined) updates.customDomain = data.customDomain;
     if (data.teamId !== undefined) updates.teamId = data.teamId;
     if (data.githubRepo !== undefined) updates.githubRepo = data.githubRepo;
+    if (data.visibility !== undefined) updates.visibility = data.visibility;
     const [project] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
     return project;
   }
@@ -730,6 +743,48 @@ export class DatabaseStorage implements IStorage {
     if (!project) return undefined;
     const fileList = await db.select().from(files).where(eq(files.projectId, id));
     return { project, files: fileList };
+  }
+
+  async getProjectGuests(projectId: string): Promise<ProjectGuest[]> {
+    return db.select().from(projectGuests).where(eq(projectGuests.projectId, projectId)).orderBy(desc(projectGuests.createdAt));
+  }
+
+  async addProjectGuest(projectId: string, email: string, role: string, invitedBy: string): Promise<ProjectGuest> {
+    const token = crypto.randomUUID();
+    const [guest] = await db.insert(projectGuests).values({ projectId, email, role, invitedBy, token }).returning();
+    return guest;
+  }
+
+  async removeProjectGuest(guestId: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(projectGuests).where(and(eq(projectGuests.id, guestId), eq(projectGuests.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async acceptProjectGuestInvite(token: string, userId: string): Promise<ProjectGuest | undefined> {
+    const [guest] = await db.update(projectGuests).set({ userId, acceptedAt: new Date() }).where(eq(projectGuests.token, token)).returning();
+    return guest;
+  }
+
+  async getProjectGuestByEmail(projectId: string, email: string): Promise<ProjectGuest | undefined> {
+    const [guest] = await db.select().from(projectGuests).where(and(eq(projectGuests.projectId, projectId), eq(projectGuests.email, email))).limit(1);
+    return guest;
+  }
+
+  async getProjectGuestByUserId(projectId: string, userId: string): Promise<ProjectGuest | undefined> {
+    const [guest] = await db.select().from(projectGuests).where(and(eq(projectGuests.projectId, projectId), eq(projectGuests.userId, userId))).limit(1);
+    return guest;
+  }
+
+  async isProjectGuest(projectId: string, userId: string): Promise<boolean> {
+    const user = await this.getUser(userId);
+    if (!user) return false;
+    const [guest] = await db.select().from(projectGuests).where(
+      and(
+        eq(projectGuests.projectId, projectId),
+        sql`(${projectGuests.userId} = ${userId} OR ${projectGuests.email} = ${user.email})`
+      )
+    ).limit(1);
+    return !!guest;
   }
 
   async getWorkspaceByProject(projectId: string): Promise<Workspace | undefined> {

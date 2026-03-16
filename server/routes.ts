@@ -1859,7 +1859,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const files = await storage.getFiles(req.params.id);
       const pm = detectPackageManager(files);
       let packages: { name: string; version: string; dev?: boolean }[] = [];
@@ -1922,7 +1922,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/packages/add", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { name, dev } = z.object({ name: z.string().min(1).max(200), dev: z.boolean().optional() }).parse(req.body);
 
       const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
@@ -1959,7 +1959,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/packages/remove", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { name } = z.object({ name: z.string().min(1) }).parse(req.body);
 
       const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
@@ -1999,8 +1999,7 @@ export async function registerRoutes(
       const sourceProject = await storage.getProject(req.params.id);
       if (!sourceProject) return res.status(404).json({ message: "Project not found" });
       const isOwner = sourceProject.userId === req.session.userId;
-      const isPublished = sourceProject.isPublished;
-      if (!isOwner && !isPublished) return res.status(403).json({ message: "Cannot fork a private project" });
+      if (!isOwner && sourceProject.visibility !== "public") return res.status(403).json({ message: "Cannot fork a private project" });
       const sourceFiles = await storage.getFiles(sourceProject.id);
       const userProjects = await storage.getProjects(req.session.userId!);
       const forkQuota = await storage.getUserQuota(req.session.userId!);
@@ -2008,9 +2007,18 @@ export async function registerRoutes(
       if (userProjects.length >= forkLimits.maxProjects) return res.status(403).json({ message: "Project limit reached" });
       const rawName = req.body.name || `${sourceProject.name} (fork)`;
       const forkName = sanitizeInput(rawName, 100);
+      const validVisibilities = ["public", "private"];
+      const requestedVisibility = validVisibilities.includes(req.body.visibility) ? req.body.visibility : "public";
+      if (requestedVisibility === "private") {
+        const quota = await storage.getUserQuota(req.session.userId!);
+        if (!quota.plan || quota.plan === "free") {
+          return res.status(403).json({ message: "Private projects require a Pro or Team plan. Upgrade to unlock private projects." });
+        }
+      }
       const newProject = await storage.createProject(req.session.userId!, {
         name: forkName,
         language: sourceProject.language,
+        visibility: requestedVisibility,
       });
       for (const file of sourceFiles) {
         if (file.filename === "ecode.md") continue;
@@ -2030,6 +2038,83 @@ export async function registerRoutes(
       return res.json(newProject);
     } catch {
       return res.status(500).json({ message: "Failed to fork project" });
+    }
+  });
+
+  // --- VISIBILITY ---
+  app.patch("/api/projects/:id/visibility", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const { visibility } = z.object({ visibility: z.enum(["public", "private", "team"]) }).parse(req.body);
+      if (visibility === "private" || visibility === "team") {
+        const quota = await storage.getUserQuota(req.session.userId!);
+        if (!quota.plan || quota.plan === "free") {
+          return res.status(403).json({ message: "Private projects require a Pro or Team plan. Upgrade to unlock private projects." });
+        }
+      }
+      if (visibility === "team" && !project.teamId) {
+        return res.status(400).json({ message: "Project must be assigned to a team for team visibility" });
+      }
+      const updated = await storage.updateProject(project.id, { visibility });
+      return res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to update visibility" });
+    }
+  });
+
+  // --- PROJECT GUESTS ---
+  app.get("/api/projects/:id/guests", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const guests = await storage.getProjectGuests(project.id);
+      return res.json(guests);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch guests" });
+    }
+  });
+
+  app.post("/api/projects/:id/guests", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const { email, role } = z.object({ email: z.string().email(), role: z.enum(["viewer", "editor"]).default("viewer") }).parse(req.body);
+      const existing = await storage.getProjectGuestByEmail(project.id, email);
+      if (existing) return res.status(409).json({ message: "Guest already invited" });
+      const guest = await storage.addProjectGuest(project.id, email, role, req.session.userId!);
+      return res.status(201).json(guest);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to invite guest" });
+    }
+  });
+
+  app.delete("/api/projects/:id/guests/:guestId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const removed = await storage.removeProjectGuest(req.params.guestId, req.params.id);
+      if (!removed) return res.status(404).json({ message: "Guest not found" });
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to remove guest" });
+    }
+  });
+
+  app.post("/api/projects/:id/guests/accept", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { token } = z.object({ token: z.string() }).parse(req.body);
+      const guests = await storage.getProjectGuests(req.params.id);
+      const pendingGuest = guests.find(g => g.token === token && !g.acceptedAt);
+      if (!pendingGuest) return res.status(404).json({ message: "Invalid or expired invite for this project" });
+      const guest = await storage.acceptProjectGuestInvite(token, req.session.userId!);
+      if (!guest) return res.status(404).json({ message: "Failed to accept invite" });
+      return res.json(guest);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to accept invite" });
     }
   });
 
@@ -2057,7 +2142,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const projectFiles = await storage.getFiles(project.id);
       if (projectFiles.length === 0) return res.status(400).json({ message: "No files to deploy" });
       const existingDeps = await storage.getProjectDeployments(project.id);
@@ -2155,7 +2240,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/deploy/rollback", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { version } = z.object({ version: z.number().int().min(0) }).parse(req.body);
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
       const result = await rollbackDeployment(project.id, slug, version);
@@ -2169,7 +2254,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/deploy/versions", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
       const versions = await listDeploymentVersions(slug);
       return res.json({ versions, slug });
@@ -2181,7 +2266,7 @@ export async function registerRoutes(
   app.delete("/api/projects/:id/deploy", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
       await teardownDeployment(slug, project.id);
       await storage.updateProject(project.id, { isPublished: false, publishedSlug: null });
@@ -2194,7 +2279,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/deployments", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const deps = await storage.getProjectDeployments(req.params.id);
       return res.json(deps);
     } catch {
@@ -2205,7 +2290,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/deploy/analytics", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const days = parseInt(req.query.days as string) || 30;
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       const summary = await storage.getDeploymentAnalyticsSummary(project.id, since);
@@ -2267,7 +2352,7 @@ export async function registerRoutes(
   app.patch("/api/projects/:id/deploy/settings", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const deps = await storage.getProjectDeployments(project.id);
       const liveDep = deps.find(d => d.status === "live");
       if (!liveDep) return res.status(404).json({ message: "No active deployment" });
@@ -2296,7 +2381,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/deploy/health", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const health = await performHealthCheck(project.id);
       const deps = await storage.getProjectDeployments(project.id);
       const latestDep = deps[0];
@@ -2315,7 +2400,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/deploy/logs", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const logs = getProcessLogs(project.id);
       return res.json({ logs });
     } catch {
@@ -2326,7 +2411,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/deploy/process", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const status = getProcessStatus(project.id);
       return res.json({ process: status });
     } catch {
@@ -2337,7 +2422,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/deploy/stop", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       await stopManagedProcess(project.id);
       const deps = await storage.getProjectDeployments(project.id);
       if (deps[0]) {
@@ -2352,7 +2437,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/deploy/restart", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const managed = await restartManagedProcess(project.id);
       if (!managed) return res.status(400).json({ message: "No running process to restart" });
       return res.json({ success: true, port: managed.port });
@@ -2365,7 +2450,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/domains", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { domain } = z.object({ domain: z.string().min(3).max(253) }).parse(req.body);
       const result = await addDomain(domain, project.id, req.session.userId!);
       return res.json(result);
@@ -2378,7 +2463,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/domains/:domainId/verify", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const domainRecord = await getDomainById(req.params.domainId);
       if (!domainRecord || domainRecord.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
       const result = await verifyDomain(req.params.domainId);
@@ -2394,7 +2479,7 @@ export async function registerRoutes(
   app.delete("/api/projects/:id/domains/:domainId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const domainToDelete = await getDomainById(req.params.domainId);
       if (!domainToDelete || domainToDelete.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
       const success = await removeDomain(req.params.domainId, req.session.userId!);
@@ -2411,7 +2496,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/domains", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const domains = await getProjectDomains(project.id);
       return res.json(domains);
     } catch {
@@ -2435,7 +2520,7 @@ export async function registerRoutes(
     try {
       const { message } = z.object({ message: z.string().min(1).max(200) }).parse(req.body);
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const projectFiles = await storage.getFiles(project.id);
       const snapshot: Record<string, string> = {};
       projectFiles.forEach(f => { snapshot[f.filename] = f.content; });
@@ -2461,6 +2546,7 @@ export async function registerRoutes(
 
   app.get("/api/projects/:id/commits", requireAuth, async (req: Request, res: Response) => {
     try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const branch = (req.query.branch as string) || "main";
       const commitList = await storage.getCommits(req.params.id, branch);
       return res.json(commitList);
@@ -2482,7 +2568,7 @@ export async function registerRoutes(
   app.post("/api/projects/:id/restore/:commitId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const commit = await storage.getCommit(req.params.commitId);
       if (!commit || commit.projectId !== project.id) return res.status(404).json({ message: "Commit not found" });
       await createCheckpoint(project.id, req.session.userId!, "pre_risky_op", `Before restoring to commit ${commit.id.slice(0, 7)}`).catch(() => {});
@@ -2500,6 +2586,7 @@ export async function registerRoutes(
 
   app.get("/api/projects/:id/branches", requireAuth, async (req: Request, res: Response) => {
     try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const branchList = await storage.getBranches(req.params.id);
       return res.json(branchList);
     } catch {
@@ -2532,12 +2619,20 @@ export async function registerRoutes(
   });
 
   app.post("/api/github/import", requireAuth, async (req: Request, res: Response) => {
-    const { owner, repo, name } = req.body;
+    const { owner, repo, name, visibility } = req.body;
     if (!owner || !repo) return res.status(400).json({ message: "owner and repo required" });
     try {
       const projectCheck = await storage.checkProjectLimit(req.session.userId!);
       if (!projectCheck.allowed) {
         return res.status(429).json({ message: `Project limit reached` });
+      }
+      const validVis = ["public", "private"];
+      const requestedVis = validVis.includes(visibility) ? visibility : "public";
+      if (requestedVis === "private") {
+        const quota = await storage.getUserQuota(req.session.userId!);
+        if (!quota.plan || quota.plan === "free") {
+          return res.status(403).json({ message: "Private projects require a Pro or Team plan. Upgrade to unlock private projects." });
+        }
       }
       const contents = await github.getRepoContents(owner, repo);
       const repoInfo = await github.getRepo(owner, repo);
@@ -2545,6 +2640,7 @@ export async function registerRoutes(
       const project = await storage.createProject(req.session.userId!, {
         name: (name || repo).slice(0, 50),
         language: lang,
+        visibility: requestedVis,
       });
       const importFiles = contents.filter((c: any) => c.type === "file").slice(0, 20);
       let importedEcode = false;
@@ -2616,6 +2712,16 @@ export async function registerRoutes(
         }
         data.name = safeName;
       }
+      if (data.visibility === "team") {
+        return res.status(400).json({ message: "Team visibility requires creating a project within a team. Use team project creation instead." });
+      }
+      if (data.visibility === "private") {
+        const quota = await storage.getUserQuota(req.session.userId!);
+        if (!quota.plan || quota.plan === "free") {
+          return res.status(403).json({ message: "Private projects require a Pro or Team plan. Upgrade to unlock private projects." });
+        }
+      }
+      if (!data.visibility) data.visibility = "public";
       const project = await storage.createProject(req.session.userId!, data);
       return res.status(201).json(project);
     } catch (error: any) {
@@ -2720,8 +2826,18 @@ export async function registerRoutes(
       const schema = z.object({
         templateId: z.string(),
         name: z.string().optional(),
+        visibility: z.enum(["public", "private", "team"]).optional(),
       });
       const data = schema.parse(req.body);
+      if (data.visibility === "team") {
+        return res.status(400).json({ message: "Team visibility requires creating a project within a team." });
+      }
+      if (data.visibility === "private") {
+        const quota = await storage.getUserQuota(userId);
+        if (!quota.plan || quota.plan === "free") {
+          return res.status(403).json({ message: "Private projects require a Pro or Team plan. Upgrade to unlock private projects." });
+        }
+      }
       const template = getTemplateById(data.templateId);
       if (!template) {
         return res.status(404).json({ message: "Template not found" });
@@ -2732,6 +2848,7 @@ export async function registerRoutes(
         language: template.language,
         projectType: template.projectType,
         files: template.files,
+        visibility: data.visibility || "public",
       });
       return res.status(201).json(project);
     } catch (error: any) {
@@ -2747,7 +2864,7 @@ export async function registerRoutes(
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (project.userId !== req.session.userId && !project.isDemo) {
+    if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
     return res.json(project);
@@ -2766,7 +2883,7 @@ export async function registerRoutes(
     if (!sourceProject) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (sourceProject.userId !== req.session.userId && !sourceProject.isDemo) {
+    if (sourceProject.userId !== req.session.userId && !sourceProject.isDemo && !await verifyProjectAccess(sourceProject.id, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const projectLimit = await storage.checkProjectLimit(req.session.userId!);
@@ -2782,7 +2899,7 @@ export async function registerRoutes(
 
   app.get("/api/projects/:id/ecode", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const projectFiles = await storage.getFiles(project.id);
@@ -2792,7 +2909,7 @@ export async function registerRoutes(
 
   app.post("/api/projects/:id/ecode/generate", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const projectFiles = await storage.getFiles(project.id);
@@ -2811,7 +2928,7 @@ export async function registerRoutes(
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (project.userId !== req.session.userId && !project.isDemo) {
+    if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(req.params.projectId, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const fileList = await storage.getFiles(req.params.projectId);
@@ -2820,7 +2937,7 @@ export async function registerRoutes(
 
   app.post("/api/projects/:projectId/files", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     try {
@@ -2850,7 +2967,7 @@ export async function registerRoutes(
 
   app.post("/api/projects/:projectId/upload", requireAuth, upload.array("files", 10), async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const files = req.files as Express.Multer.File[];
@@ -2883,7 +3000,7 @@ export async function registerRoutes(
       return res.status(404).json({ message: "File not found" });
     }
     const project = await storage.getProject(existingFile.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(existingFile.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { content, filename } = req.body;
@@ -2910,7 +3027,7 @@ export async function registerRoutes(
       return res.status(404).json({ message: "File not found" });
     }
     const project = await storage.getProject(existingFile.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(existingFile.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     await storage.deleteFile(req.params.id);
@@ -2920,7 +3037,7 @@ export async function registerRoutes(
 
   app.patch("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { name, language } = req.body;
@@ -2954,7 +3071,7 @@ export async function registerRoutes(
         return "readonly";
       }
     }
-    if (project.isPublished) return "readonly";
+    if (project.visibility === "public") return "readonly";
     return "none";
   }
 
@@ -3438,7 +3555,7 @@ export async function registerRoutes(
   app.get("/api/projects/:projectId/console-runs", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    if (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const limit = parseInt(req.query.limit as string) || 50;
     const runs = await storage.getConsoleRunsByProject(project.id, limit);
     return res.json(runs);
@@ -3447,7 +3564,7 @@ export async function registerRoutes(
   app.post("/api/projects/:projectId/console-runs", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const { command } = req.body;
     if (!command) return res.status(400).json({ message: "command is required" });
     const run = await storage.createConsoleRun({ projectId: project.id, command });
@@ -3458,7 +3575,7 @@ export async function registerRoutes(
     const run = await storage.getConsoleRun(req.params.id);
     if (!run) return res.status(404).json({ message: "Console run not found" });
     const project = await storage.getProject(run.projectId);
-    if (!project || project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(403).json({ message: "Access denied" });
     const { status, logs, exitCode, finishedAt } = req.body;
     const validStatuses = ["running", "completed", "failed"];
     const updates: any = {};
@@ -3474,7 +3591,7 @@ export async function registerRoutes(
   app.post("/api/projects/:projectId/stop", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const cancelled = executionPool.cancelProjectExecution(project.id);
     return res.json({ stopped: cancelled });
   });
@@ -3482,7 +3599,7 @@ export async function registerRoutes(
   app.delete("/api/projects/:projectId/console-runs", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const excludeRunId = req.query.excludeRunId as string | undefined;
     await storage.clearConsoleRuns(project.id, excludeRunId);
     return res.json({ success: true });
@@ -3497,7 +3614,7 @@ export async function registerRoutes(
     const projectId = req.params.projectId;
     const project = await storage.getProject(projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId && !project.isDemo && !project.isPublished) {
+    if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(projectId, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const since = parseInt(req.query.since as string) || 0;
@@ -3594,11 +3711,42 @@ export async function registerRoutes(
   });
 
   app.get("/api/shared/:id", async (req: Request, res: Response) => {
-    const result = await storage.getPublishedProject(req.params.id);
-    if (!result) {
-      return res.status(404).json({ message: "Project not found or not published" });
+    const project = await storage.getProject(req.params.id);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
     }
-    return res.json(result);
+    if (project.visibility === "private") {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(403).json({ message: "This project is private" });
+      if (project.userId !== userId) {
+        const isGuest = await storage.isProjectGuest(project.id, userId);
+        if (!isGuest) {
+          if (project.teamId) {
+            const teams = await storage.getUserTeams(userId);
+            if (!teams.some(t => t.id === project.teamId)) {
+              return res.status(403).json({ message: "This project is private" });
+            }
+          } else {
+            return res.status(403).json({ message: "This project is private" });
+          }
+        }
+      }
+    } else if (project.visibility === "team") {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(403).json({ message: "This project is only visible to team members" });
+      if (project.userId !== userId && project.teamId) {
+        const teams = await storage.getUserTeams(userId);
+        if (!teams.some(t => t.id === project.teamId)) {
+          return res.status(403).json({ message: "This project is only visible to team members" });
+        }
+      } else if (project.userId !== userId) {
+        return res.status(403).json({ message: "This project is only visible to team members" });
+      }
+    } else if (project.visibility !== "public") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const fileList = await storage.getFiles(project.id);
+    return res.json({ project, files: fileList });
   });
 
   // --- DEVELOPER FRAMEWORKS ---
@@ -3801,7 +3949,7 @@ export async function registerRoutes(
 
   app.get("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -3844,7 +3992,7 @@ export async function registerRoutes(
 
   app.post("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { name, fromBranch = "main" } = req.body;
@@ -3876,7 +4024,7 @@ export async function registerRoutes(
 
   app.delete("/api/projects/:projectId/git/branches/:branchId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
 
@@ -7733,7 +7881,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const { sql } = req.body;
       if (!sql || typeof sql !== "string") return res.status(400).json({ error: "SQL query required" });
@@ -7762,7 +7910,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+      if (!project || (project.userId !== userId && !await verifyProjectAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const files = await storage.getFiles(req.params.id);
       const testPatterns = [
@@ -7805,7 +7953,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const files = await storage.getFiles(req.params.id);
       const { file } = req.body;
@@ -7948,7 +8096,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== userId) return res.status(404).json({ error: "Project not found" });
+      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const files = await storage.getFiles(req.params.id);
       const branch = req.body.branch || "main";
@@ -8009,10 +8157,29 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     const project = await storage.getProject(projectId);
     if (!project) return false;
     if (project.userId === userId) return true;
+    if (project.visibility === "public") return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
-      return teams.some(t => t.id === project.teamId);
+      if (teams.some(t => t.id === project.teamId)) return true;
     }
+    if (project.visibility === "private") {
+      const isGuest = await storage.isProjectGuest(projectId, userId);
+      if (isGuest) return true;
+    }
+    return false;
+  }
+
+  async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
+    const project = await storage.getProject(projectId);
+    if (!project) return false;
+    if (project.userId === userId) return true;
+    if (project.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      const teamMatch = teams.find(t => t.id === project.teamId);
+      if (teamMatch && (teamMatch.role === "owner" || teamMatch.role === "admin" || teamMatch.role === "editor")) return true;
+    }
+    const guest = await storage.getProjectGuestByUserId(projectId, userId);
+    if (guest && guest.role === "editor") return true;
     return false;
   }
 
@@ -8571,7 +8738,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/auth/config", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const config = await storage.getProjectAuthConfig(req.params.id);
       res.json(config || { enabled: false, providers: ["email"], requireEmailVerification: false, sessionDurationHours: 24, allowedDomains: [] });
     } catch (err: any) {
@@ -8582,7 +8749,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.put("/api/projects/:id/auth/config", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const schema = z.object({
         enabled: z.boolean().optional(),
         providers: z.array(z.string()).optional(),
@@ -8602,7 +8769,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/auth/users", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const users = await storage.getProjectAuthUsers(req.params.id);
       res.json(users);
     } catch (err: any) {
@@ -8613,7 +8780,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/auth/users", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const schema = z.object({
         email: z.string().email(),
         password: z.string().min(6),
@@ -8633,7 +8800,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.delete("/api/projects/:id/auth/users/:userId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const deleted = await storage.deleteProjectAuthUser(req.params.id, req.params.userId);
       if (!deleted) return res.status(404).json({ message: "User not found" });
       res.json({ message: "User deleted" });
@@ -8655,7 +8822,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/integrations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const integrations = await storage.getProjectIntegrations(req.params.id);
       res.json(integrations);
     } catch (err: any) {
@@ -8666,7 +8833,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/integrations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const schema = z.object({
         integrationId: z.string(),
         config: z.record(z.string()).default({}),
@@ -8703,7 +8870,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/integrations/:integrationId/test", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const integrations = await storage.getProjectIntegrations(req.params.id);
       const pi = integrations.find(i => i.id === req.params.integrationId);
       if (!pi) return res.status(404).json({ message: "Integration not found" });
@@ -8728,7 +8895,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.delete("/api/projects/:id/integrations/:integrationId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
 
       const integrations = await storage.getProjectIntegrations(req.params.id);
       const pi = integrations.find(i => i.id === req.params.integrationId);
@@ -8747,7 +8914,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/integrations/:integrationId/logs", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const logs = await storage.getIntegrationLogs(req.params.id, req.params.integrationId, 50);
       res.json(logs);
     } catch (err: any) {
@@ -8768,7 +8935,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/connectors/:connectorName/execute", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
 
       const connectorName = req.params.connectorName as string;
       const connectorKey = getConnectorKey(connectorName) || connectorName.toLowerCase();
@@ -9723,7 +9890,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/checkpoints", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cps = await storage.getCheckpoints(project.id);
       const position = await storage.getCheckpointPosition(project.id);
       const stripped = cps.map(({ stateSnapshot, ...rest }) => {
@@ -9747,7 +9914,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/checkpoints", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const description = typeof req.body?.description === "string" ? req.body.description.slice(0, 500) : undefined;
       const trigger = typeof req.body?.trigger === "string" && ["manual", "feature_complete", "deployment", "pre_risky_op"].includes(req.body.trigger) ? req.body.trigger : "manual";
       const cp = await createCheckpoint(project.id, req.session.userId!, trigger, description);
@@ -9762,7 +9929,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/checkpoints/:cpId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       return res.json(cp);
@@ -9774,7 +9941,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/checkpoints/:cpId/restore", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       const { includeDatabase } = req.body || {};
@@ -9789,7 +9956,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/projects/:id/checkpoints/:cpId/diff", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       const diff = await getCheckpointDiff(cp.id);
@@ -9803,7 +9970,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.delete("/api/projects/:id/checkpoints/:cpId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       await storage.deleteCheckpoint(cp.id);

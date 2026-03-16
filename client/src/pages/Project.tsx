@@ -62,7 +62,7 @@ import WorkspaceTerminal, { type WorkspaceTerminalHandle } from "@/components/Wo
 import CommandPalette from "@/components/CommandPalette";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
-import type { Project as ProjectType, File } from "@shared/schema";
+import type { Project as ProjectType, File, ProjectGuest } from "@shared/schema";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 function formatBytes(bytes: number): string {
@@ -233,6 +233,9 @@ function _projectPage() {
   const [frameworkCoverUrl, setFrameworkCoverUrl] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectLang, setProjectLang] = useState("");
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [infoInviteEmail, setInfoInviteEmail] = useState("");
+  const [deployInviteEmail, setDeployInviteEmail] = useState("");
   const [terminalHeight, setTerminalHeight] = useState(220);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [wsStatus, setWsStatus] = useState<"offline" | "starting" | "running" | "stopped" | "error" | "none">("none");
@@ -1633,6 +1636,51 @@ function _projectPage() {
     },
   });
 
+  const visibilityMutation = useMutation({
+    mutationFn: async (visibility: string) => {
+      const res = await apiRequest("PATCH", `/api/projects/${projectId}/visibility`, { visibility });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+    onError: (err: any) => { toast({ title: "Failed to update visibility", description: err.message, variant: "destructive" }); },
+  });
+
+  const guestsQuery = useQuery<ProjectGuest[]>({
+    queryKey: ["/api/projects", projectId, "guests"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/guests`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: project?.visibility === "private",
+  });
+
+  const inviteGuestMutation = useMutation({
+    mutationFn: async ({ email, role }: { email: string; role: string }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/guests`, { email, role });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "guests"] });
+      toast({ title: "Guest invited" });
+    },
+    onError: (err: any) => { toast({ title: "Failed to invite guest", description: err.message, variant: "destructive" }); },
+  });
+
+  const removeGuestMutation = useMutation({
+    mutationFn: async (guestId: string) => {
+      await apiRequest("DELETE", `/api/projects/${projectId}/guests/${guestId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "guests"] });
+      toast({ title: "Guest removed" });
+    },
+    onError: (err: any) => { toast({ title: "Failed to remove guest", description: err.message, variant: "destructive" }); },
+  });
+
   const deployAnalyticsQuery = useQuery<{ pageViews: number; uniqueVisitors: number; topReferrers: { referrer: string; count: number }[]; trafficByDay: { date: string; views: number }[] }>({
     queryKey: ["/api/projects", projectId, "deploy", "analytics"],
     queryFn: async () => {
@@ -1803,8 +1851,8 @@ function _projectPage() {
   });
 
   const forkMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`);
+    mutationFn: async (visibility?: string) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`, { visibility: visibility || "public" });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -3786,7 +3834,8 @@ function _projectPage() {
             </svg>
           </button>
           <ChevronRight className={`w-3 h-3 shrink-0 ${"text-[var(--ide-text-muted)]"}`} />
-          <span className={`text-[13px] font-medium truncate ${isMobile ? "text-[var(--ide-text)] max-w-[120px]" : "text-[var(--ide-text)] max-w-[180px]"}`} data-testid="text-project-name">{project?.name}</span>
+          <button className={`text-[13px] font-medium truncate hover:underline cursor-pointer ${isMobile ? "text-[var(--ide-text)] max-w-[120px]" : "text-[var(--ide-text)] max-w-[180px]"}`} onClick={() => setShowInfoPanel(!showInfoPanel)} data-testid="text-project-name">{project?.name}</button>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${project?.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project?.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} data-testid="navbar-badge-visibility">{project?.visibility === "private" ? "Private" : project?.visibility === "team" ? "Team" : "Public"}</span>
           {project?.isPublished && <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${"bg-green-500/10 text-green-400 border border-green-500/20"}`}>Live</span>}
         </div>
         <div className="flex items-center justify-center gap-1.5">
@@ -3891,7 +3940,49 @@ function _projectPage() {
         </div>
       </div>
 
-      {/* RUNNER OFFLINE BANNER - only show briefly, not blocking */}
+      {showInfoPanel && (
+        <div className="absolute top-10 left-0 z-50 w-80 bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded-lg shadow-2xl p-4 ml-2" data-testid="project-info-panel">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-[var(--ide-text)]">Project Info</h3>
+            <button onClick={() => setShowInfoPanel(false)} className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" data-testid="btn-close-info-panel"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[10px] text-[var(--ide-text-muted)] uppercase tracking-wider">Name</label>
+              <p className="text-sm text-[var(--ide-text)] font-medium">{project?.name}</p>
+            </div>
+            <div>
+              <label className="text-[10px] text-[var(--ide-text-muted)] uppercase tracking-wider mb-1 block">Visibility</label>
+              <div className="flex gap-1">
+                {project?.visibility === "team" ? (
+                  <div className="flex-1 px-2 py-1.5 rounded-md text-[10px] font-medium border bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/30 text-center" data-testid="info-btn-visibility-team">Team</div>
+                ) : (["public", "private"] as const).map(v => (
+                  <button key={v} onClick={() => visibilityMutation.mutate(v)} disabled={visibilityMutation.isPending} className={`flex-1 px-2 py-1.5 rounded-md text-[10px] font-medium border transition-all ${project?.visibility === v ? "bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/30" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] border-[var(--ide-border)] hover:border-[var(--ide-hover)]"}`} data-testid={`info-btn-visibility-${v}`}>{v === "public" ? "Public" : "Private"}</button>
+                ))}
+              </div>
+            </div>
+            {project?.visibility === "private" && (
+              <div>
+                <label className="text-[10px] text-[var(--ide-text-muted)] uppercase tracking-wider mb-1 block">Invited Guests</label>
+                <div className="flex gap-1 mb-2">
+                  <input type="email" placeholder="Email address" value={infoInviteEmail} onChange={(e) => setInfoInviteEmail(e.target.value)} className="flex-1 h-7 px-2 text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)]" onKeyDown={(e) => { if (e.key === "Enter" && infoInviteEmail.trim()) { inviteGuestMutation.mutate({ email: infoInviteEmail.trim(), role: "viewer" }); setInfoInviteEmail(""); } }} data-testid="info-input-invite-email" />
+                  <button onClick={() => { if (infoInviteEmail.trim()) { inviteGuestMutation.mutate({ email: infoInviteEmail.trim(), role: "viewer" }); setInfoInviteEmail(""); } }} className="h-7 px-2 bg-[#0079F2] text-white text-[10px] rounded hover:bg-[#0066CC]" data-testid="info-btn-invite-guest">Invite</button>
+                </div>
+                {(guestsQuery.data || []).length > 0 && (
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {(guestsQuery.data || []).map((guest: ProjectGuest) => (
+                      <div key={guest.id} className="flex items-center justify-between py-1 px-2 bg-[var(--ide-bg)] rounded text-[10px]">
+                        <span className="text-[var(--ide-text)] truncate">{guest.email}</span>
+                        <button onClick={() => removeGuestMutation.mutate(guest.id)} className="text-[var(--ide-text-muted)] hover:text-red-400 ml-1" data-testid={`info-btn-remove-guest-${guest.id}`}><X className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* === MOBILE LAYOUT === */}
       {isMobile ? (
@@ -4183,8 +4274,14 @@ function _projectPage() {
                   <div className="flex-1 overflow-y-auto">
                     <div className="px-3 py-3 border-b border-[var(--ide-border)]">
                       <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${project?.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project?.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} data-testid="mobile-badge-visibility">{project?.visibility === "private" ? "Private" : project?.visibility === "team" ? "Team" : "Public"}</span>
                         <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[var(--ide-text-muted)]"}`} />
                         <span className="text-xs font-medium text-[var(--ide-text)]">{project?.isPublished ? "Published" : "Not published"}</span>
+                      </div>
+                      <div className="flex gap-1.5 mb-3">
+                        {["public", "private"].map((v) => (
+                          <button key={v} onClick={() => visibilityMutation.mutate(v)} disabled={visibilityMutation.isPending} className={`flex-1 px-2 py-1.5 rounded-md text-[10px] font-medium border transition-all ${project?.visibility === v ? "bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/30" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] border-[var(--ide-border)]"}`} data-testid={`mobile-btn-visibility-${v}`}>{v === "public" ? "Public" : "Private"}</button>
+                        ))}
                       </div>
                       {project?.isPublished && (
                         <div className="mb-3">
@@ -5227,8 +5324,14 @@ function _projectPage() {
                   {deployPanelTab === "config" && (
                     <div className="px-3 py-3 space-y-3">
                       <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${project?.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project?.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} data-testid="desktop-badge-visibility">{project?.visibility === "private" ? "Private" : project?.visibility === "team" ? "Team" : "Public"}</span>
                         <span className={`w-2 h-2 rounded-full ${project?.isPublished ? "bg-[#0CCE6B]" : "bg-[var(--ide-text-muted)]"}`} />
                         <span className="text-xs font-medium text-[var(--ide-text)]">{project?.isPublished ? "Published" : "Not published"}</span>
+                      </div>
+                      <div className="flex gap-1.5 mb-2">
+                        {["public", "private"].map((v) => (
+                          <button key={v} onClick={() => visibilityMutation.mutate(v)} disabled={visibilityMutation.isPending} className={`flex-1 px-2 py-1.5 rounded-md text-[10px] font-medium border transition-all ${project?.visibility === v ? "bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/30" : "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] border-[var(--ide-border)]"}`} data-testid={`desktop-btn-visibility-${v}`}>{v === "public" ? "Public" : "Private"}</button>
+                        ))}
                       </div>
                       {project?.isPublished && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
@@ -6712,6 +6815,66 @@ function _projectPage() {
             <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Make your project publicly accessible via a shareable link</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div className="p-3 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)] space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--ide-text)]">Visibility</p>
+                  <p className="text-[11px] text-[var(--ide-text-secondary)] mt-0.5">Control who can access this project</p>
+                </div>
+                <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${project?.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project?.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} data-testid="badge-project-visibility">{project?.visibility === "private" ? "Private" : project?.visibility === "team" ? "Team" : "Public"}</span>
+              </div>
+              <div className="flex gap-2">
+                {["public", "private", "team"].map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => visibilityMutation.mutate(v)}
+                    disabled={visibilityMutation.isPending}
+                    className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium border transition-all ${project?.visibility === v ? "bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/30" : "bg-[var(--ide-panel)] text-[var(--ide-text-muted)] border-[var(--ide-border)] hover:text-[var(--ide-text-secondary)] hover:border-[var(--ide-border)]"}`}
+                    data-testid={`btn-visibility-${v}`}
+                  >
+                    {v === "public" ? "Public" : v === "private" ? "Private" : "Team"}
+                  </button>
+                ))}
+              </div>
+              {project?.visibility === "private" && (
+                <div className="space-y-2 border-t border-[var(--ide-border)] pt-3">
+                  <p className="text-[11px] text-[var(--ide-text-secondary)] font-medium">Invited Guests</p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Email address"
+                      value={deployInviteEmail}
+                      onChange={(e) => setDeployInviteEmail(e.target.value)}
+                      className="bg-[var(--ide-panel)] border-[var(--ide-border)] h-8 text-xs text-[var(--ide-text)] rounded-lg flex-1"
+                      data-testid="input-guest-email"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && deployInviteEmail.trim()) {
+                          inviteGuestMutation.mutate({ email: deployInviteEmail.trim(), role: "viewer" }); setDeployInviteEmail("");
+                        }
+                      }}
+                    />
+                    <Button size="sm" className="h-8 px-3 text-[11px] bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="btn-invite-guest" onClick={() => {
+                      if (deployInviteEmail.trim()) { inviteGuestMutation.mutate({ email: deployInviteEmail.trim(), role: "viewer" }); setDeployInviteEmail(""); }
+                    }}>Invite</Button>
+                  </div>
+                  {(guestsQuery.data || []).length > 0 && (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {(guestsQuery.data || []).map((guest: ProjectGuest) => (
+                        <div key={guest.id} className="flex items-center justify-between px-2 py-1.5 rounded-md bg-[var(--ide-panel)] border border-[var(--ide-border)]/50">
+                          <div>
+                            <span className="text-[11px] text-[var(--ide-text)]">{guest.email}</span>
+                            <span className="text-[9px] text-[var(--ide-text-muted)] ml-2">{guest.acceptedAt ? "Accepted" : "Pending"}</span>
+                          </div>
+                          <button onClick={() => removeGuestMutation.mutate(guest.id)} className="text-[var(--ide-text-muted)] hover:text-red-400 transition-colors" data-testid={`btn-remove-guest-${guest.id}`}>
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)]">
               <div>
                 <p className="text-sm font-medium text-[var(--ide-text)]">{project?.name}</p>

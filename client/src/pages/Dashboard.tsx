@@ -6,7 +6,7 @@ import {
   Loader2, Code2, Search, Eye, Zap, Sparkles, Send,
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
-  Bell, CreditCard, Menu, X, Terminal, FileText, User,
+  Bell, CreditCard, Menu, X, Terminal, FileText, User, Lock,
   Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw, LayoutGrid, List as ListIcon,
   Box
 } from "lucide-react";
@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project } from "@shared/schema";
 
@@ -187,6 +188,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectLang, setNewProjectLang] = useState("javascript");
+  const [newProjectPrivate, setNewProjectPrivate] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
@@ -301,7 +303,7 @@ export default function Dashboard() {
   }, [projectsQuery.data]);
 
   const createProject = useMutation({
-    mutationFn: async (data: { name: string; language: string }) => {
+    mutationFn: async (data: { name: string; language: string; visibility?: string }) => {
       const res = await apiRequest("POST", "/api/projects", data);
       return res.json();
     },
@@ -309,6 +311,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setDialogOpen(false);
       setNewProjectName("");
+      setNewProjectPrivate(false);
       setLocation(`/project/${project.id}`);
     },
     onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
@@ -345,9 +348,39 @@ export default function Dashboard() {
     onError: (err: any) => { toast({ title: "Failed to duplicate project", description: err.message || "Could not duplicate the project.", variant: "destructive" }); },
   });
 
+  const userPlan = usageQuery.data?.plan || "free";
+  const isFreePlan = userPlan === "free";
+
+  const toggleVisibility = useMutation({
+    mutationFn: async ({ id, visibility }: { id: string; visibility: string }) => {
+      const res = await apiRequest("PATCH", `/api/projects/${id}/visibility`, { visibility });
+      return res.json();
+    },
+    onSuccess: (project: Project) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: `Project is now ${project.visibility}` });
+    },
+    onError: (err: any) => { toast({ title: "Failed to update visibility", description: err.message, variant: "destructive" }); },
+  });
+
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+
+  const handleVisibilityToggle = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation();
+    if (project.visibility === "public") {
+      if (isFreePlan) {
+        toast({ title: "Upgrade required", description: "Private projects require a Core or Pro plan.", variant: "destructive" });
+        return;
+      }
+      toggleVisibility.mutate({ id: project.id, visibility: "private" });
+    } else {
+      toggleVisibility.mutate({ id: project.id, visibility: "public" });
+    }
+  };
+
   const createFromTemplate = useMutation({
-    mutationFn: async (templateId: string) => {
-      const res = await apiRequest("POST", "/api/projects/from-template", { templateId });
+    mutationFn: async ({ templateId, visibility }: { templateId: string; visibility?: string }) => {
+      const res = await apiRequest("POST", "/api/projects/from-template", { templateId, visibility: visibility || "public" });
       return res.json();
     },
     onSuccess: (project: Project) => {
@@ -557,7 +590,7 @@ export default function Dashboard() {
           <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2.5">Templates</h3>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4" ref={templatesRef}>
             {TEMPLATES.map((tmpl) => (
-              <button key={tmpl.name} className={`flex items-center gap-2.5 p-3 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] transition-all active:scale-[0.97] min-w-[160px] shrink-0`} onClick={() => createFromTemplate.mutate(tmpl.id)} disabled={createFromTemplate.isPending} data-testid={`template-${tmpl.id}-mobile`}>
+              <button key={tmpl.name} className={`flex items-center gap-2.5 p-3 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] transition-all active:scale-[0.97] min-w-[160px] shrink-0`} onClick={() => createFromTemplate.mutate({ templateId: tmpl.id })} disabled={createFromTemplate.isPending} data-testid={`template-${tmpl.id}-mobile`}>
                 <div className="w-9 h-9 rounded-lg bg-[var(--ide-surface)] flex items-center justify-center border border-[var(--ide-hover)] shrink-0">
                   <tmpl.icon className={`w-4 h-4 ${tmpl.iconColor}`} />
                 </div>
@@ -669,7 +702,8 @@ export default function Dashboard() {
                       <span className="text-[11px] text-[var(--ide-text-secondary)] capitalize">{project.language}</span>
                       <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
                       <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}</span>
-                      {project.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#059669] border border-[#0CCE6B]/20 font-medium ml-auto">Live</span>}
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ml-auto cursor-pointer transition-all ${project.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} onMouseEnter={() => setHoveredCardId(project.id)} onMouseLeave={() => setHoveredCardId(null)} onClick={(e) => handleVisibilityToggle(e, project)} data-testid={`badge-visibility-${project.id}`}>{hoveredCardId === project.id ? (project.visibility === "public" ? "Make private" : "Make public") : (project.visibility === "private" ? "Private" : project.visibility === "team" ? "Team" : "Public")}</span>
+                      {project.isPublished && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#059669] border border-[#0CCE6B]/20 font-medium">Live</span>}
                     </div>
                   </div>
                   <DropdownMenu>
@@ -966,7 +1000,7 @@ export default function Dashboard() {
                       <button
                         key={tmpl.name}
                         className={`relative flex flex-col items-start gap-2 p-3 rounded-lg border ${tmpl.borderColor} bg-[var(--ide-bg)] transition-all text-left group hover:border-[#0079F2]/40 hover:bg-[var(--ide-panel)]`}
-                        onClick={() => { createFromTemplate.mutate(tmpl.id); setDialogOpen(false); }}
+                        onClick={() => { createFromTemplate.mutate({ templateId: tmpl.id, visibility: newProjectPrivate ? "private" : "public" }); setDialogOpen(false); }}
                         disabled={createFromTemplate.isPending}
                         data-testid={`picker-template-${tmpl.id}`}
                       >
@@ -986,16 +1020,24 @@ export default function Dashboard() {
                 </div>
                 <div className="border-t border-[var(--ide-border)] pt-3 mt-1">
                   <p className="text-[10px] text-[var(--ide-text-muted)] mb-2">Or create an empty project</p>
-                  <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="flex items-center gap-2">
-                    <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 rounded-lg text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] flex-1" required data-testid="input-project-name" />
-                    <select value={newProjectLang} onChange={(e) => setNewProjectLang(e.target.value)} className="h-9 px-2 rounded-lg text-xs bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="select-project-lang">
-                      {(Object.keys(LANG_ICONS) as string[]).map((lang) => (
-                        <option key={lang} value={lang}>{LANG_ICONS[lang].label}</option>
-                      ))}
-                    </select>
-                    <Button type="submit" className="h-9 px-4 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-xs font-medium" disabled={createProject.isPending} data-testid="button-create-project">
-                      {createProject.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Create"}
-                    </Button>
+                  <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public" }); }} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 rounded-lg text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] flex-1" required data-testid="input-project-name" />
+                      <select value={newProjectLang} onChange={(e) => setNewProjectLang(e.target.value)} className="h-9 px-2 rounded-lg text-xs bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="select-project-lang">
+                        {(Object.keys(LANG_ICONS) as string[]).map((lang) => (
+                          <option key={lang} value={lang}>{LANG_ICONS[lang].label}</option>
+                        ))}
+                      </select>
+                      <Button type="submit" className="h-9 px-4 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-xs font-medium" disabled={createProject.isPending} data-testid="button-create-project">
+                        {createProject.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Create"}
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={newProjectPrivate} onCheckedChange={setNewProjectPrivate} disabled={isFreePlan} data-testid="switch-private-project" />
+                      <span className="text-[10px] text-[var(--ide-text-muted)]">Private project</span>
+                      <Lock className="w-3 h-3 text-[var(--ide-text-muted)]" />
+                      {isFreePlan && <span className="text-[9px] text-amber-500">Upgrade to Core/Pro</span>}
+                    </div>
                   </form>
                 </div>
               </DialogContent>
@@ -1332,7 +1374,7 @@ export default function Dashboard() {
                     <button
                       key={tmpl.name}
                       className={`relative flex flex-col items-start gap-2 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[var(--ide-panel)] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[180px] shrink-0`}
-                      onClick={() => createFromTemplate.mutate(tmpl.id)}
+                      onClick={() => createFromTemplate.mutate({ templateId: tmpl.id })}
                       disabled={createFromTemplate.isPending}
                       data-testid={`template-${tmpl.id}`}
                     >
@@ -1461,6 +1503,7 @@ export default function Dashboard() {
                               <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
                                 <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
                               </span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium cursor-pointer transition-all ${project.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} onMouseEnter={() => setHoveredCardId(`list-${project.id}`)} onMouseLeave={() => setHoveredCardId(null)} onClick={(e) => handleVisibilityToggle(e, project)} data-testid={`badge-visibility-list-${project.id}`}>{hoveredCardId === `list-${project.id}` ? (project.visibility === "public" ? "Make private" : "Make public") : (project.visibility === "private" ? "Private" : project.visibility === "team" ? "Team" : "Public")}</span>
                               {project.isPublished && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 shrink-0 font-medium">Live</span>
                               )}
@@ -1640,6 +1683,7 @@ export default function Dashboard() {
                           <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
                             <Clock className="w-2.5 h-2.5" /> {timeAgo(project.updatedAt)}
                           </span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium cursor-pointer transition-all ${project.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} onMouseEnter={() => setHoveredCardId(`grid-${project.id}`)} onMouseLeave={() => setHoveredCardId(null)} onClick={(e) => handleVisibilityToggle(e, project)} data-testid={`badge-visibility-grid-${project.id}`}>{hoveredCardId === `grid-${project.id}` ? (project.visibility === "public" ? "Make private" : "Make public") : (project.visibility === "private" ? "Private" : project.visibility === "team" ? "Team" : "Public")}</span>
                           {project.isPublished && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 shrink-0 font-medium ml-auto">Live</span>
                           )}
@@ -1671,6 +1715,7 @@ export default function Dashboard() {
                             <span className="text-[10px] text-[var(--ide-text-muted)]">{timeAgo(project.updatedAt)}</span>
                           </div>
                         </div>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium cursor-pointer transition-all ${project.visibility === "private" ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : project.visibility === "team" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} onMouseEnter={() => setHoveredCardId(`row-${project.id}`)} onMouseLeave={() => setHoveredCardId(null)} onClick={(e) => handleVisibilityToggle(e, project)} data-testid={`badge-visibility-row-${project.id}`}>{hoveredCardId === `row-${project.id}` ? (project.visibility === "public" ? "Make private" : "Make public") : (project.visibility === "private" ? "Private" : project.visibility === "team" ? "Team" : "Public")}</span>
                         {project.isPublished && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 font-medium">Live</span>
                         )}
@@ -1710,7 +1755,7 @@ export default function Dashboard() {
             <DrawerTitle className="text-[var(--ide-text)] text-base">Create Repl</DrawerTitle>
             <DrawerDescription className="text-[var(--ide-text-muted)] text-xs">Start with an empty project</DrawerDescription>
           </DrawerHeader>
-          <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang }); }} className="space-y-4 px-4 pb-8">
+          <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public" }); }} className="space-y-4 px-4 pb-8">
             <div className="space-y-1.5">
               <Label className="text-xs text-[var(--ide-text-muted)]">Title</Label>
               <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-12 rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-[#0079F2]/40 text-base" required data-testid="input-project-name-mobile" />
@@ -1727,6 +1772,14 @@ export default function Dashboard() {
                   );
                 })}
               </div>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+              <div className="flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                <span className="text-xs text-[var(--ide-text)]">Private project</span>
+                {isFreePlan && <span className="text-[9px] text-amber-500">(Upgrade to unlock)</span>}
+              </div>
+              <Switch checked={newProjectPrivate} onCheckedChange={setNewProjectPrivate} disabled={isFreePlan} data-testid="switch-private-project-mobile" />
             </div>
             <Button type="submit" className="w-full rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white h-12 text-base" disabled={createProject.isPending} data-testid="button-create-project-mobile">
               {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Repl"}

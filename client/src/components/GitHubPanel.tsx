@@ -78,7 +78,7 @@ export default function GitHubPanel({ projectId, projectName, onImported, onClon
   const handleImport = async (repo: GHRepo) => {
     setImporting(repo.full_name);
     try {
-      const res = await apiRequest("POST", "/api/github/import", { owner: repo.owner.login, repo: repo.name });
+      const res = await apiRequest("POST", "/api/github/import", { owner: repo.owner.login, repo: repo.name, visibility: "public" });
       const data = await res.json();
       toast({ title: `Imported ${repo.name}`, description: "Opening project..." });
       onImported?.(data.project?.id);

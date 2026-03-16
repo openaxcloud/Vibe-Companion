@@ -35,7 +35,10 @@ export default function SharedProject() {
     queryKey: ["/api/shared", projectId],
     queryFn: async () => {
       const res = await fetch(`/api/shared/${projectId}`);
-      if (!res.ok) throw new Error("Project not found or not published");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Project not found or not published");
+      }
       return res.json();
     },
   });
@@ -100,8 +103,8 @@ export default function SharedProject() {
   };
 
   const forkMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`);
+    mutationFn: async (visibility?: string) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`, { visibility: visibility || "public" });
       return res.json();
     },
     onSuccess: (newProject: any) => {
@@ -129,13 +132,27 @@ export default function SharedProject() {
   }
 
   if (error) {
+    const isPrivateError = (error as any)?.message?.includes("private") || (error as any)?.message?.includes("team");
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[var(--ide-panel)] gap-3">
+        {isPrivateError ? (
+          <>
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-2">
+              <Globe className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-private-project">This project is private</h2>
+            <p className="text-sm text-[var(--ide-text-secondary)] text-center max-w-xs">You don't have permission to view this project. Ask the owner to invite you as a guest.</p>
+            <Button variant="outline" onClick={() => setLocation("/")} className="mt-2 border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="btn-go-home">Go to Dashboard</Button>
+          </>
+        ) : (
+          <>
         <Share2 className="w-10 h-10 text-[var(--ide-border)]" />
         <p className="text-sm text-[var(--ide-text-secondary)]">This project is not available</p>
         <Button variant="ghost" className="text-[#0079F2] text-xs" onClick={() => setLocation("/")} data-testid="button-back-shared-error">
           Go to E-Code
         </Button>
+          </>
+        )}
       </div>
     );
   }
