@@ -109,20 +109,128 @@ export async function verifyDomain(domainId: string): Promise<{
   }
 }
 
-async function provisionSSL(record: CustomDomainRecord) {
-  log(`Provisioning SSL for ${record.domain}...`, "domain");
+export function generateSelfSignedCert(domain: string): { cert: string; key: string; expiresAt: Date } {
+  const crypto = require("crypto") as typeof import("crypto");
+  const { X509Certificate } = crypto;
 
-  setTimeout(async () => {
-    try {
-      await storage.updateCustomDomain(record.id, {
-        sslStatus: "active",
-        sslExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-      });
-      log(`SSL provisioned for ${record.domain}`, "domain");
-    } catch (err: any) {
-      log(`Failed to update SSL status for ${record.domain}: ${err.message}`, "domain");
+  const { privateKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+
+  const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  function encodeLength(length: number): Buffer {
+    if (length < 128) return Buffer.from([length]);
+    if (length < 256) return Buffer.from([0x81, length]);
+    return Buffer.from([0x82, (length >> 8) & 0xff, length & 0xff]);
+  }
+
+  function derSequence(...items: Buffer[]): Buffer {
+    const content = Buffer.concat(items);
+    return Buffer.concat([Buffer.from([0x30]), encodeLength(content.length), content]);
+  }
+
+  function derSet(...items: Buffer[]): Buffer {
+    const content = Buffer.concat(items);
+    return Buffer.concat([Buffer.from([0x31]), encodeLength(content.length), content]);
+  }
+
+  function derOid(oid: number[]): Buffer {
+    const encoded: number[] = [40 * oid[0] + oid[1]];
+    for (let i = 2; i < oid.length; i++) {
+      let val = oid[i];
+      if (val >= 128) {
+        const bytes: number[] = [];
+        bytes.unshift(val & 0x7f);
+        val >>= 7;
+        while (val > 0) { bytes.unshift(0x80 | (val & 0x7f)); val >>= 7; }
+        encoded.push(...bytes);
+      } else {
+        encoded.push(val);
+      }
     }
-  }, 3000);
+    const buf = Buffer.from(encoded);
+    return Buffer.concat([Buffer.from([0x06]), encodeLength(buf.length), buf]);
+  }
+
+  function derUtf8(str: string): Buffer {
+    const buf = Buffer.from(str, "utf-8");
+    return Buffer.concat([Buffer.from([0x0c]), encodeLength(buf.length), buf]);
+  }
+
+  function derInteger(val: Buffer): Buffer {
+    let v = val;
+    if (v[0] & 0x80) v = Buffer.concat([Buffer.from([0x00]), v]);
+    return Buffer.concat([Buffer.from([0x02]), encodeLength(v.length), v]);
+  }
+
+  function derBitString(data: Buffer): Buffer {
+    const content = Buffer.concat([Buffer.from([0x00]), data]);
+    return Buffer.concat([Buffer.from([0x03]), encodeLength(content.length), content]);
+  }
+
+  function derGeneralizedTime(date: Date): Buffer {
+    const str = date.toISOString().replace(/[-:T]/g, "").slice(0, 14) + "Z";
+    const buf = Buffer.from(str, "ascii");
+    return Buffer.concat([Buffer.from([0x18]), encodeLength(buf.length), buf]);
+  }
+
+  function derExplicit(tag: number, content: Buffer): Buffer {
+    return Buffer.concat([Buffer.from([0xa0 | tag]), encodeLength(content.length), content]);
+  }
+
+  const serialNumber = crypto.randomBytes(16);
+  serialNumber[0] &= 0x7f;
+  const serial = derInteger(serialNumber);
+
+  const sha256WithRSA = derSequence(derOid([1, 2, 840, 113549, 1, 1, 11]), Buffer.from([0x05, 0x00]));
+
+  const cnAttr = derSequence(derOid([2, 5, 4, 3]), derUtf8(domain));
+  const orgAttr = derSequence(derOid([2, 5, 4, 10]), derUtf8("eCode Self-Signed"));
+  const issuerName = derSequence(derSet(orgAttr), derSet(cnAttr));
+
+  const notBeforeTime = derGeneralizedTime(new Date());
+  const notAfterTime = derGeneralizedTime(expiresAt);
+  const validity = derSequence(notBeforeTime, notAfterTime);
+
+  const keyPem = privateKey as string;
+  const spkiDer = crypto.createPublicKey(keyPem).export({ type: "spki", format: "der" });
+
+  const version = derExplicit(0, derInteger(Buffer.from([0x02])));
+  const tbsCertificate = derSequence(version, serial, sha256WithRSA, issuerName, validity, issuerName, Buffer.from(spkiDer));
+
+  const signer = crypto.createSign("SHA256");
+  signer.update(tbsCertificate);
+  const signature = signer.sign(keyPem);
+
+  const certificate = derSequence(tbsCertificate, sha256WithRSA, derBitString(signature));
+
+  const certPem = `-----BEGIN CERTIFICATE-----\n${certificate.toString("base64").match(/.{1,64}/g)!.join("\n")}\n-----END CERTIFICATE-----\n`;
+
+  return { cert: certPem, key: keyPem, expiresAt };
+}
+
+async function provisionSSL(record: CustomDomainRecord) {
+  log(`Provisioning self-signed SSL for ${record.domain}...`, "domain");
+
+  try {
+    const { cert, key, expiresAt } = generateSelfSignedCert(record.domain);
+    log(`Generated self-signed X.509 certificate for ${record.domain} (expires ${expiresAt.toISOString()})`, "domain");
+    log(`Certificate PEM (${cert.length} bytes), Key PEM (${key.length} bytes) generated`, "domain");
+
+    await storage.updateCustomDomain(record.id, {
+      sslStatus: "self-signed",
+      sslExpiresAt: expiresAt,
+    });
+    log(`Self-signed SSL provisioned for ${record.domain}. Note: This certificate is for development verification only. Production HTTPS requires external TLS termination (e.g., Let's Encrypt/ACME, Cloudflare, or a load balancer with real certificates).`, "domain");
+  } catch (err: any) {
+    log(`Failed to provision SSL for ${record.domain}: ${err.message}`, "domain");
+    await storage.updateCustomDomain(record.id, {
+      sslStatus: "failed",
+    }).catch(() => {});
+  }
 }
 
 export async function removeDomain(domainId: string, userId: string): Promise<boolean> {

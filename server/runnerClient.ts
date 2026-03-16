@@ -126,3 +126,16 @@ export function generateToken(workspaceId: string, userId: string): string {
 export function getBaseUrl(): string {
   return RUNNER_BASE_URL;
 }
+
+export async function execInWorkspace(workspaceId: string, command: string, args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string } | null> {
+  try {
+    const res = await runnerFetch(`/api/workspaces/${workspaceId}/exec`, {
+      method: "POST",
+      body: JSON.stringify({ command, args }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}

@@ -1061,34 +1061,87 @@ export async function registerRoutes(
   });
 
   // --- PACKAGE MANAGEMENT ---
+  async function runProjectCommand(projectId: string, command: string, args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    const workspace = await storage.getWorkspaceByProject(projectId);
+    if (!workspace) {
+      throw new Error("No project workspace available. Open the project in the workspace first to manage packages.");
+    }
+    const result = await runnerClient.execInWorkspace(workspace.id, command, args);
+    if (!result) {
+      throw new Error("Workspace runner is not available. Please try again later.");
+    }
+    return result;
+  }
+
+  async function getProjectPackageManager(projectId: string): Promise<"npm" | "pip" | "none"> {
+    const files = await storage.getFiles(projectId);
+    return detectPackageManager(files);
+  }
+
+  function detectPackageManager(files: { filename: string; content: string | null }[]): "npm" | "pip" | "none" {
+    if (files.find(f => f.filename === "package.json")) return "npm";
+    if (files.find(f => f.filename === "requirements.txt") || files.find(f => f.filename === "pyproject.toml")) return "pip";
+    return "none";
+  }
+
   app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const files = await storage.getFiles(req.params.id);
-      const pkgFile = files.find(f => f.filename === "package.json");
-      const reqFile = files.find(f => f.filename === "requirements.txt");
-      const pyprojectFile = files.find(f => f.filename === "pyproject.toml");
+      const pm = detectPackageManager(files);
       let packages: { name: string; version: string; dev?: boolean }[] = [];
-      let packageManager: "npm" | "pip" | "none" = "none";
-      if (pkgFile) {
-        packageManager = "npm";
+
+      if (pm === "npm") {
+        let commandSucceeded = false;
         try {
-          const pkg = JSON.parse(pkgFile.content || "{}");
-          if (pkg.dependencies) Object.entries(pkg.dependencies).forEach(([name, version]) => packages.push({ name, version: String(version) }));
-          if (pkg.devDependencies) Object.entries(pkg.devDependencies).forEach(([name, version]) => packages.push({ name, version: String(version), dev: true }));
+          const result = await runProjectCommand(project.id, "npm", ["ls", "--json", "--depth=0"]);
+          if (result.stdout) {
+            const parsed = JSON.parse(result.stdout);
+            const deps = parsed.dependencies || {};
+            const pkgFile = files.find(f => f.filename === "package.json");
+            let devDeps: Record<string, string> = {};
+            if (pkgFile) {
+              try { devDeps = JSON.parse(pkgFile.content || "{}").devDependencies || {}; } catch {}
+            }
+            for (const [name, info] of Object.entries(deps) as [string, any][]) {
+              packages.push({ name, version: info.version || "unknown", dev: !!devDeps[name] });
+            }
+            commandSucceeded = true;
+          }
         } catch {}
-      } else if (reqFile) {
-        packageManager = "pip";
-        const lines = (reqFile.content || "").split("\n").filter(l => l.trim() && !l.startsWith("#"));
-        for (const line of lines) {
-          const match = line.match(/^([a-zA-Z0-9_-]+)(?:([=<>!~]+)(.+))?$/);
-          if (match) packages.push({ name: match[1], version: match[3] || "latest" });
+        if (!commandSucceeded) {
+          const pkgFile = files.find(f => f.filename === "package.json");
+          if (pkgFile) {
+            try {
+              const pkg = JSON.parse(pkgFile.content || "{}");
+              if (pkg.dependencies) Object.entries(pkg.dependencies).forEach(([name, version]) => packages.push({ name, version: String(version) }));
+              if (pkg.devDependencies) Object.entries(pkg.devDependencies).forEach(([name, version]) => packages.push({ name, version: String(version), dev: true }));
+            } catch {}
+          }
         }
-      } else if (pyprojectFile) {
-        packageManager = "pip";
+      } else if (pm === "pip") {
+        let commandSucceeded = false;
+        try {
+          const result = await runProjectCommand(project.id, "pip", ["list", "--format=json"]);
+          if (result.exitCode === 0 && result.stdout) {
+            const parsed = JSON.parse(result.stdout);
+            packages = parsed.map((p: { name: string; version: string }) => ({ name: p.name, version: p.version }));
+            commandSucceeded = true;
+          }
+        } catch {}
+        if (!commandSucceeded) {
+          const reqFile = files.find(f => f.filename === "requirements.txt");
+          if (reqFile) {
+            const lines = (reqFile.content || "").split("\n").filter(l => l.trim() && !l.startsWith("#"));
+            for (const line of lines) {
+              const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
+              if (match) packages.push({ name: match[1], version: match[2] || "latest" });
+            }
+          }
+        }
       }
-      return res.json({ packages, packageManager, language: project.language });
+      return res.json({ packages, packageManager: pm, language: project.language });
     } catch {
       return res.status(500).json({ message: "Failed to get packages" });
     }
@@ -1099,37 +1152,35 @@ export async function registerRoutes(
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const { name, dev } = z.object({ name: z.string().min(1).max(200), dev: z.boolean().optional() }).parse(req.body);
-      const files = await storage.getFiles(req.params.id);
-      if (project.language === "python" || project.language === "python3") {
-        let reqFile = files.find(f => f.filename === "requirements.txt");
-        if (!reqFile) {
-          reqFile = await storage.createFile(project.id, { projectId: project.id, filename: "requirements.txt", content: name + "\n" });
-        } else {
-          const lines = (reqFile.content || "").split("\n");
-          if (!lines.some(l => l.trim().startsWith(name))) {
-            await storage.updateFileContent(reqFile.id, (reqFile.content || "").trimEnd() + "\n" + name + "\n");
-          }
-        }
-        return res.json({ success: true, command: `pip install ${name}` });
-      } else {
-        let pkgFile = files.find(f => f.filename === "package.json");
-        if (!pkgFile) {
-          const pkg = { name: project.name, version: "1.0.0", dependencies: { [name]: "latest" } };
-          pkgFile = await storage.createFile(project.id, { projectId: project.id, filename: "package.json", content: JSON.stringify(pkg, null, 2) });
-        } else {
-          try {
-            const pkg = JSON.parse(pkgFile.content || "{}");
-            const section = dev ? "devDependencies" : "dependencies";
-            if (!pkg[section]) pkg[section] = {};
-            pkg[section][name] = "latest";
-            await storage.updateFileContent(pkgFile.id, JSON.stringify(pkg, null, 2));
-          } catch {}
-        }
-        return res.json({ success: true, command: `npm install ${dev ? "--save-dev " : ""}${name}` });
+
+      const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
+      if (!pkgNamePattern.test(name) || name.startsWith("-") || name.startsWith(".")) {
+        return res.status(400).json({ message: "Invalid package name" });
       }
+
+      const isPython = project.language === "python" || project.language === "python3";
+
+      let command: string;
+      let args: string[];
+      if (isPython) {
+        command = "pip";
+        args = ["install", name];
+      } else {
+        command = "npm";
+        args = dev ? ["install", "--save-dev", name] : ["install", name];
+      }
+
+      const result = await runProjectCommand(project.id, command, args);
+      const output = (result.stdout + "\n" + result.stderr).trim();
+
+      if (result.exitCode !== 0) {
+        return res.status(400).json({ success: false, message: `Installation failed`, output, command: `${command} ${args.join(" ")}` });
+      }
+
+      return res.json({ success: true, output, command: `${command} ${args.join(" ")}` });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      return res.status(500).json({ message: "Failed to add package" });
+      return res.status(500).json({ message: err.message || "Failed to add package" });
     }
   });
 
@@ -1138,29 +1189,35 @@ export async function registerRoutes(
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const { name } = z.object({ name: z.string().min(1) }).parse(req.body);
-      const files = await storage.getFiles(req.params.id);
-      if (project.language === "python" || project.language === "python3") {
-        const reqFile = files.find(f => f.filename === "requirements.txt");
-        if (reqFile) {
-          const lines = (reqFile.content || "").split("\n").filter(l => !l.trim().startsWith(name));
-          await storage.updateFileContent(reqFile.id, lines.join("\n"));
-        }
-        return res.json({ success: true, command: `pip uninstall -y ${name}` });
-      } else {
-        const pkgFile = files.find(f => f.filename === "package.json");
-        if (pkgFile) {
-          try {
-            const pkg = JSON.parse(pkgFile.content || "{}");
-            if (pkg.dependencies) delete pkg.dependencies[name];
-            if (pkg.devDependencies) delete pkg.devDependencies[name];
-            await storage.updateFileContent(pkgFile.id, JSON.stringify(pkg, null, 2));
-          } catch {}
-        }
-        return res.json({ success: true, command: `npm uninstall ${name}` });
+
+      const pkgNamePattern = /^(@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i;
+      if (!pkgNamePattern.test(name) || name.startsWith("-") || name.startsWith(".")) {
+        return res.status(400).json({ message: "Invalid package name" });
       }
+
+      const isPython = project.language === "python" || project.language === "python3";
+
+      let command: string;
+      let args: string[];
+      if (isPython) {
+        command = "pip";
+        args = ["uninstall", "-y", name];
+      } else {
+        command = "npm";
+        args = ["uninstall", name];
+      }
+
+      const result = await runProjectCommand(project.id, command, args);
+      const output = (result.stdout + "\n" + result.stderr).trim();
+
+      if (result.exitCode !== 0) {
+        return res.status(400).json({ success: false, message: `Removal failed`, output, command: `${command} ${args.join(" ")}` });
+      }
+
+      return res.json({ success: true, output, command: `${command} ${args.join(" ")}` });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      return res.status(500).json({ message: "Failed to remove package" });
+      return res.status(500).json({ message: err.message || "Failed to remove package" });
     }
   });
 
@@ -5188,7 +5245,28 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const ports = await storage.getPortConfigs(project.id);
-      res.json(ports);
+      const workspace = await storage.getWorkspaceByProject(project.id);
+      const portsWithStatus = await Promise.all(
+        ports.map(async (p) => {
+          let listening = false;
+          if (workspace) {
+            try {
+              const probeResult = await runnerClient.execInWorkspace(workspace.id, "node", [
+                "-e",
+                `const s=require("net").createConnection(${p.port},"127.0.0.1");s.on("connect",()=>{console.log("LISTENING");s.destroy();process.exit(0)});s.on("error",()=>{console.log("CLOSED");process.exit(0)});s.setTimeout(1500,()=>{console.log("CLOSED");s.destroy();process.exit(0)})`
+              ]);
+              if (probeResult && probeResult.stdout.trim() === "LISTENING") {
+                listening = true;
+              }
+            } catch {
+              listening = false;
+            }
+          }
+          const proxyUrl = (p.isPublic && workspace) ? `/proxy/${project.id}/${p.port}/` : null;
+          return { ...p, listening, proxyUrl };
+        })
+      );
+      res.json(portsWithStatus);
     } catch { res.status(500).json({ message: "Failed to load ports" }); }
   });
 
@@ -5263,10 +5341,13 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const domain = await storage.getCustomDomain(req.params.domainId);
-      if (!domain || domain.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
-      const updated = await storage.updateCustomDomain(req.params.domainId, { verified: true, verifiedAt: new Date(), sslStatus: "active" });
-      res.json(updated);
+      const domainRecord = await storage.getCustomDomain(req.params.domainId);
+      if (!domainRecord || domainRecord.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
+      const result = await verifyDomain(req.params.domainId);
+      if (result.verified) {
+        await storage.updateProject(project.id, { customDomain: domainRecord.domain });
+      }
+      res.json(result);
     } catch { res.status(500).json({ message: "Failed to verify domain" }); }
   });
 
@@ -5278,6 +5359,92 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       await storage.deleteCustomDomain(req.params.domainId, req.session.userId!);
       res.json({ deleted: true });
     } catch { res.status(500).json({ message: "Failed to delete domain" }); }
+  });
+
+  // --- REVERSE PROXY FOR PORT FORWARDING ---
+  const ALLOWED_PROXY_PORTS = { min: 1024, max: 65535 };
+  app.all("/proxy/:projectId/:port/{*path}", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { projectId, port: portStr } = req.params;
+      const targetPort = parseInt(portStr, 10);
+      if (isNaN(targetPort) || targetPort < ALLOWED_PROXY_PORTS.min || targetPort > ALLOWED_PROXY_PORTS.max) {
+        return res.status(400).json({ message: "Invalid port (must be 1024-65535)" });
+      }
+
+      if (!await verifyProjectAccess(projectId, req.session.userId!)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const portConfig = await storage.getPortConfigs(projectId);
+      const config = portConfig.find(p => p.port === targetPort);
+      if (!config || !config.isPublic) {
+        return res.status(403).json({ message: "Port not configured or not public" });
+      }
+
+      const workspace = await storage.getWorkspaceByProject(projectId);
+      if (!workspace) {
+        return res.status(502).json({ message: "No workspace running for this project" });
+      }
+
+      const previewBaseUrl = runnerClient.previewUrl(workspace.id, targetPort);
+      const rawPath = req.params.path;
+      const proxyPath = Array.isArray(rawPath) ? rawPath.join("/") : (rawPath || "");
+      const queryString = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+      const targetUrl = `${previewBaseUrl}/${proxyPath}${queryString}`;
+
+      const http = require("http") as typeof import("http");
+      const https = require("https") as typeof import("https");
+      const protocol = targetUrl.startsWith("https") ? https : http;
+
+      const HOP_BY_HOP_HEADERS = new Set([
+        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+        "te", "trailer", "transfer-encoding", "upgrade",
+        "cookie", "authorization", "host",
+      ]);
+      const forwardHeaders: Record<string, any> = {};
+      for (const [key, val] of Object.entries(req.headers)) {
+        if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
+          forwardHeaders[key] = val;
+        }
+      }
+      forwardHeaders["x-forwarded-for"] = req.ip || "unknown";
+      forwardHeaders["x-forwarded-proto"] = req.protocol;
+
+      const RESPONSE_HOP_HEADERS = new Set([
+        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+        "te", "trailer", "transfer-encoding", "upgrade",
+      ]);
+      const proxyReq = protocol.request(targetUrl, {
+        method: req.method,
+        headers: forwardHeaders,
+        timeout: 30000,
+      }, (proxyRes: any) => {
+        const cleanHeaders: Record<string, any> = {};
+        for (const [key, val] of Object.entries(proxyRes.headers)) {
+          if (!RESPONSE_HOP_HEADERS.has(key.toLowerCase())) {
+            cleanHeaders[key] = val;
+          }
+        }
+        res.writeHead(proxyRes.statusCode || 502, cleanHeaders);
+        proxyRes.pipe(res);
+      });
+
+      proxyReq.on("error", (err: Error) => {
+        if (!res.headersSent) {
+          res.status(502).json({ message: `Proxy error: ${err.message}` });
+        }
+      });
+
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        req.pipe(proxyReq);
+      } else {
+        proxyReq.end();
+      }
+    } catch (err: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Proxy error" });
+      }
+    }
   });
 
   await storage.seedDemoProject();

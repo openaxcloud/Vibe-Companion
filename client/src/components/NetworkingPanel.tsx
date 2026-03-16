@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   Network, Loader2, Plus, Trash2, X, Globe, Lock, Unlock, Copy, Check,
-  ExternalLink, ChevronDown, ChevronRight, Wifi,
+  ExternalLink, ChevronDown, ChevronRight, Wifi, AlertTriangle, Circle,
 } from "lucide-react";
 
 interface PortConfig {
@@ -18,6 +18,8 @@ interface PortConfig {
   protocol: string;
   isPublic: boolean;
   createdAt: string;
+  listening: boolean;
+  proxyUrl: string | null;
 }
 
 interface CustomDomain {
@@ -51,6 +53,7 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
       if (!res.ok) throw new Error("Failed to load ports");
       return res.json();
     },
+    refetchInterval: 10000,
   });
 
   const domainsQuery = useQuery<CustomDomain[]>({
@@ -115,11 +118,16 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
 
   const verifyDomainMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("POST", `/api/projects/${projectId}/networking/domains/${id}/verify`);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/networking/domains/${id}/verify`);
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "networking", "domains"] });
-      toast({ title: "Domain verified!" });
+      if (data.verified) {
+        toast({ title: "Domain verified!" });
+      } else {
+        toast({ title: "Verification pending", description: data.message || "DNS token not found. Check your DNS configuration.", variant: "destructive" });
+      }
     },
     onError: (err: any) => {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
@@ -144,6 +152,26 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
     setCopiedToken(id);
     setTimeout(() => setCopiedToken(null), 2000);
   };
+
+  function getSslBadge(status: string) {
+    if (status === "self-signed") {
+      return (
+        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 flex items-center gap-0.5">
+          <AlertTriangle className="w-2.5 h-2.5" /> Self-Signed
+        </span>
+      );
+    }
+    if (status === "active") {
+      return <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400">SSL Active</span>;
+    }
+    if (status === "provisioning") {
+      return <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Provisioning</span>;
+    }
+    if (status === "failed") {
+      return <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400">Failed</span>;
+    }
+    return <span className="text-[9px] text-[var(--ide-text-muted)]">SSL: {status}</span>;
+  }
 
   return (
     <div className="flex flex-col h-full" data-testid="networking-panel">
@@ -194,20 +222,45 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                 <p className="text-[11px] text-[var(--ide-text-muted)] text-center py-3">No ports configured</p>
               ) : (
                 ports.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 py-1.5 px-2.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)]" data-testid={`port-${p.id}`}>
-                    <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-blue-400">{p.port}</div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[11px] text-[var(--ide-text)] block truncate">{p.label || `Port ${p.port}`}</span>
-                      <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1">
-                        {p.protocol.toUpperCase()}
-                        {p.isPublic ? <Unlock className="w-2.5 h-2.5 text-green-400" /> : <Lock className="w-2.5 h-2.5" />}
-                        {p.isPublic ? "Public" : "Private"}
-                      </span>
+                  <div key={p.id} className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid={`port-${p.id}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-blue-400">{p.port}</div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[11px] text-[var(--ide-text)] block truncate">{p.label || `Port ${p.port}`}</span>
+                        <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1">
+                          {p.protocol.toUpperCase()}
+                          {p.isPublic ? <Unlock className="w-2.5 h-2.5 text-green-400" /> : <Lock className="w-2.5 h-2.5" />}
+                          {p.isPublic ? "Public" : "Private"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1" data-testid={`port-status-${p.id}`}>
+                        <Circle className={`w-2 h-2 ${p.listening ? "fill-green-400 text-green-400" : "fill-red-400 text-red-400"}`} />
+                        <span className={`text-[9px] ${p.listening ? "text-green-400" : "text-red-400"}`}>
+                          {p.listening ? "Listening" : "Inactive"}
+                        </span>
+                      </div>
+                      <Switch checked={p.isPublic} onCheckedChange={(checked) => togglePortMutation.mutate({ id: p.id, isPublic: checked })} className="scale-75" data-testid={`toggle-port-${p.id}`} />
+                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-red-400" onClick={() => deletePortMutation.mutate(p.id)} data-testid={`delete-port-${p.id}`}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
-                    <Switch checked={p.isPublic} onCheckedChange={(checked) => togglePortMutation.mutate({ id: p.id, isPublic: checked })} className="scale-75" data-testid={`toggle-port-${p.id}`} />
-                    <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-red-400" onClick={() => deletePortMutation.mutate(p.id)} data-testid={`delete-port-${p.id}`}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    {p.proxyUrl && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-blue-400 flex-1 truncate" data-testid={`proxy-url-${p.id}`}>
+                          {window.location.origin}{p.proxyUrl}
+                        </code>
+                        <Button
+                          variant="ghost" size="icon" className="w-4 h-4"
+                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${p.proxyUrl}`); toast({ title: "URL copied" }); }}
+                          data-testid={`copy-proxy-url-${p.id}`}
+                        >
+                          <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+                        </Button>
+                        <a href={p.proxyUrl} target="_blank" rel="noreferrer" className="shrink-0" data-testid={`open-proxy-${p.id}`}>
+                          <ExternalLink className="w-3 h-3 text-blue-400" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -271,11 +324,18 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                       </div>
                     )}
                     {d.verified && (
-                      <div className="mt-1.5 flex items-center gap-1.5">
-                        <span className="text-[9px] text-[var(--ide-text-muted)]">SSL: {d.sslStatus}</span>
-                        <a href={`https://${d.domain}`} target="_blank" rel="noreferrer" className="text-[9px] text-blue-400 hover:underline flex items-center gap-0.5 ml-auto">
-                          Visit <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
+                      <div className="mt-1.5">
+                        <div className="flex items-center gap-1.5">
+                          {getSslBadge(d.sslStatus)}
+                          <a href={`https://${d.domain}`} target="_blank" rel="noreferrer" className="text-[9px] text-blue-400 hover:underline flex items-center gap-0.5 ml-auto">
+                            Visit <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                        {d.sslStatus === "self-signed" && (
+                          <p className="text-[8px] text-yellow-400/70 mt-1" data-testid={`ssl-note-${d.id}`}>
+                            Development certificate only. Production SSL requires external infrastructure (Let's Encrypt).
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
