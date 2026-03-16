@@ -27,6 +27,12 @@ interface Attachment {
   size: number;
 }
 
+interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -35,6 +41,7 @@ interface ChatMessage {
   fileOps?: { type: "created" | "updated"; filename: string }[];
   attachments?: Attachment[];
   inlineImages?: { filename: string; dataUri: string }[];
+  webSearchResults?: WebSearchResult[];
 }
 
 interface QueuedMsg {
@@ -139,6 +146,61 @@ function FileOpProgress({ ops }: { ops: { type: "created" | "updated"; filename:
   );
 }
 
+function WebSearchCitations({ results }: { results: WebSearchResult[] }) {
+  if (!results || results.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-lg overflow-hidden border border-[#0079F2]/20" data-testid="web-search-citations">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0079F2]/5 border-b border-[#0079F2]/20">
+        <Globe className="w-3 h-3 text-[#0079F2]" />
+        <span className="text-[10px] font-semibold text-[#0079F2] uppercase tracking-wider">Sources</span>
+        <span className="text-[10px] text-[#0079F2]/60 ml-auto">{results.length} result{results.length > 1 ? "s" : ""}</span>
+      </div>
+      <div className="bg-[#0079F2]/5 p-2 space-y-1">
+        {results.map((r, i) => {
+          let hostname = "";
+          try { hostname = new URL(r.url).hostname.replace("www.", ""); } catch { hostname = r.url; }
+          return (
+            <a
+              key={i}
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-start gap-2.5 px-2.5 py-2 rounded-md hover:bg-[#0079F2]/10 transition-colors group"
+              data-testid={`link-citation-${i}`}
+            >
+              <div className="w-5 h-5 rounded flex items-center justify-center bg-[#0079F2]/10 shrink-0 mt-0.5">
+                <Globe className="w-3 h-3 text-[#0079F2]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-medium text-[var(--ide-text)] group-hover:text-[#0079F2] transition-colors truncate">
+                  {r.title}
+                </div>
+                <div className="text-[9px] text-[var(--ide-text-muted)] truncate">{hostname}</div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WebSearchIndicator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-2 px-1" data-testid="web-search-indicator">
+      <div className="w-5 h-5 rounded-full bg-[#0079F2]/15 flex items-center justify-center">
+        <Globe className="w-3 h-3 text-[#0079F2] animate-pulse" />
+      </div>
+      <span className="text-[11px] text-[#0079F2] font-medium">{label}</span>
+      <span className="flex items-center gap-[3px]">
+        <span className="w-[4px] h-[4px] rounded-full bg-[#0079F2] animate-[bounce-dot_1.4s_ease-in-out_infinite]" />
+        <span className="w-[4px] h-[4px] rounded-full bg-[#0079F2] animate-[bounce-dot_1.4s_ease-in-out_0.2s_infinite]" style={{ animationDelay: "0.2s" }} />
+        <span className="w-[4px] h-[4px] rounded-full bg-[#0079F2] animate-[bounce-dot_1.4s_ease-in-out_0.4s_infinite]" style={{ animationDelay: "0.4s" }} />
+      </span>
+    </div>
+  );
+}
+
 class AIPanelErrorBoundary extends React.Component<
   { children: React.ReactNode; onClose: () => void },
   { hasError: boolean; error: Error | null }
@@ -206,7 +268,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   });
   const [liteMode, setLiteMode] = useState(false);
   const [agentToolsConfig, setAgentToolsConfig] = useState<AgentToolsConfig>({
-    liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false,
+    liteMode: false, webSearch: true, appTesting: false, codeOptimizations: false, architect: false,
   });
   const [showSettings, setShowSettings] = useState(false);
   const [userPlan, setUserPlan] = useState<string>("free");
@@ -488,6 +550,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 toolMsg = `\n\n> Generating image \`${data.input.filename}\`...\n`;
               } else if (data.name === "edit_image") {
                 toolMsg = `\n\n> Editing image \`${data.input.filename}\`...\n`;
+              } else if (data.name === "web_search") {
+                toolMsg = `\n\n> 🔍 Searching the web...\n`;
+              } else if (data.name === "fetch_url") {
+                toolMsg = `\n\n> 🌐 Fetching content...\n`;
               } else if (data.name?.startsWith("mcp__")) {
                 toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
               } else {
@@ -500,6 +566,16 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   content: m.content + toolMsg
                 } : m)
               );
+            } else if (data.type === "web_search_results") {
+              if (data.results && data.results.length > 0) {
+                setMessages((prev) =>
+                  prev.map((m) => m.id === assistantId ? {
+                    ...m,
+                    webSearchResults: [...(m.webSearchResults || []), ...data.results],
+                  } : m)
+                );
+              }
+            } else if (data.type === "web_fetch_result") {
             } else if (data.type === "mcp_tool_use") {
               const toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
               setMessages((prev) =>
@@ -657,6 +733,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (isAgent || isLite) {
         body.projectId = projectId;
         if (codeOptimizations && !isLite) body.optimize = true;
+        if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true;
       } else {
         body.context = context;
         if (projectId) body.projectId = projectId;
@@ -697,7 +774,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [messages, model, mode, projectId, context, codeOptimizations, persistMessage, processSSEStream]);
+  }, [messages, model, mode, projectId, context, codeOptimizations, liteMode, agentMode, agentToolsConfig.webSearch, persistMessage, processSSEStream]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -838,7 +915,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
       const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode };
-      if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
+      if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
       if (retryToken && (isAgent || isLite)) retryHeaders["X-CSRF-Token"] = retryToken;
@@ -1317,6 +1394,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         return part.split("\n").map((line, j) => {
           if (line.startsWith("> ")) {
             const text = line.slice(2);
+            const isSearching = text.includes("Searching the web");
+            const isFetching = text.includes("Fetching content");
+            if (isSearching || isFetching) {
+              return <WebSearchIndicator key={`${i}-${j}`} label={text.replace(/^🔍\s*|^🌐\s*/, "")} />;
+            }
             const isCreating = text.includes("Creating");
             return (
               <div key={`${i}-${j}`} className="flex items-center gap-2 my-1.5 px-3 py-2 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[11px] animate-[slide-in_0.3s_ease-out]">
@@ -1803,6 +1885,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </div>
                 )}
                 {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages) : <TypingIndicator />}
+                {msg.role === "assistant" && msg.webSearchResults && msg.webSearchResults.length > 0 && (
+                  <WebSearchCitations results={msg.webSearchResults} />
+                )}
                 {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
                   <div className="mt-2 flex items-center gap-2">
                     <button
@@ -2118,6 +2203,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             >
               {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
             </button>
+            {mode === "agent" && projectId && !liteMode && (
+              <button
+                onClick={() => updateAgentToolsConfig({ webSearch: !agentToolsConfig.webSearch })}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  agentToolsConfig.webSearch
+                    ? "bg-[#0079F2] text-white shadow-sm shadow-[#0079F2]/30"
+                    : "text-[var(--ide-text-muted)] hover:text-[#0079F2] hover:bg-[#0079F2]/10"
+                }`}
+                title={agentToolsConfig.webSearch ? "Web Search enabled — click to disable" : "Enable Web Search for real-time information"}
+                data-testid="button-web-search-toggle"
+              >
+                <Globe className="w-3 h-3" />
+              </button>
+            )}
             <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
               {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isGeneratingImage ? "Generating image..." : agentToolsConfig.webSearch ? "Shift+Enter · /image · /search" : "Shift+Enter · /image for AI images"}
             </span>

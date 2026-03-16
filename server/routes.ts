@@ -4807,7 +4807,7 @@ Rules:
 
   const executeToolCall = async (
     toolName: string,
-    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string; [key: string]: any },
+    toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string; query?: string; url?: string; [key: string]: any },
     projectId: string,
     existingFiles: any[],
     res: Response,
@@ -4815,6 +4815,22 @@ Rules:
     mcpDefs?: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[]
   ): Promise<string> => {
     try {
+      if (toolName === "web_search") {
+        const query = toolInput.query || toolInput.content || "";
+        if (!query) return "Error: search query is required";
+        const results = await fetchSearchResults(query);
+        res.write(`data: ${JSON.stringify({ type: "web_search_results", results })}\n\n`);
+        if (results.length === 0) return "No search results found.";
+        return "Search results:\n" + results.map((r, i) => `${i + 1}. ${r.title} (${r.url}): ${r.snippet}`).join("\n");
+      }
+      if (toolName === "fetch_url") {
+        const url = toolInput.url || toolInput.content || "";
+        if (!url) return "Error: URL is required";
+        res.write(`data: ${JSON.stringify({ type: "web_fetch_result", url, status: "fetching" })}\n\n`);
+        const result = await fetchUrlContent(url);
+        res.write(`data: ${JSON.stringify({ type: "web_fetch_result", url: result.url, title: result.title, content: result.content.slice(0, 500), status: "done" })}\n\n`);
+        return `Content from ${result.title} (${result.url}):\n\n${result.content}`;
+      }
       if (toolName.startsWith("mcp__") && mcpDefs) {
         const mcpDef = mcpDefs.find(d => d.name === toolName);
         if (mcpDef) {
@@ -4961,7 +4977,7 @@ Rules:
 
   app.post("/api/ai/agent", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
-      const { messages, projectId, model: requestedModel, optimize, agentMode: agentReqMode } = req.body;
+      const { messages, projectId, model: requestedModel, optimize, agentMode: agentReqMode, webSearchEnabled } = req.body;
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -5063,7 +5079,16 @@ When the user asks you to generate an image, use the generate_image tool. Choose
 
 When the user asks you to modify or refine an existing generated image, use the edit_image tool with the existing filename and a description of the changes.
 
-Always write complete, working code. Never use placeholders or TODOs.${agentSkillsContext}${mcpToolsContext}`;
+Always write complete, working code. Never use placeholders or TODOs.${webSearchEnabled ? `
+
+## Web Search
+You have access to web search tools. Use them when:
+- The user asks about current information, latest versions, prices, or recent events
+- You need to look up API documentation, package info, or framework details
+- The user asks you to research something or find specific information online
+
+Use \`web_search\` to search for information. Use \`fetch_url\` to read the full content of a specific URL when you need more detail than the search snippet provides.
+Always cite your sources in your response when using information from web searches.` : ""}${agentSkillsContext}${mcpToolsContext}`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -5072,8 +5097,7 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
       const agentTurboMaxTokens = agentModeVal === "turbo" ? 32768 : 16384;
 
       if (agentSelectedModel === "gemini") {
-        const geminiTools = [{
-          functionDeclarations: [
+        const geminiToolDeclarations: any[] = [
             {
               name: "create_file",
               description: "Create a new file in the project with the given filename and content",
@@ -5136,13 +5160,41 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
                 required: ["filename", "modification_prompt"],
               },
             },
+        ];
+        if (webSearchEnabled) {
+          geminiToolDeclarations.push(
+            {
+              name: "web_search",
+              description: "Search the web for current information, documentation, package details, API references, prices, or any real-time data",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  query: { type: Type.STRING, description: "The search query" },
+                },
+                required: ["query"],
+              },
+            },
+            {
+              name: "fetch_url",
+              description: "Fetch and read the content of a specific web page URL. Use after web_search to get full details from a result, or when the user provides a specific URL.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  url: { type: Type.STRING, description: "The full URL to fetch (must start with http:// or https://)" },
+                },
+                required: ["url"],
+              },
+            },
+          );
+        }
+        geminiToolDeclarations.push(
             ...mcpToolDefinitions.map(t => ({
               name: t.name,
               description: t.description,
               parameters: convertJsonSchemaToGemini(t.inputSchema),
             })),
-          ],
-        }];
+        );
+        const geminiTools = [{ functionDeclarations: geminiToolDeclarations }];
 
         let geminiContents: any[] = [
           { role: "user", parts: [{ text: agentSystemPrompt }] },
@@ -5180,8 +5232,8 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               const fn = part.functionCall;
               const toolInput = fn.args as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : undefined;
-              res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
 
@@ -5292,6 +5344,38 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
           })),
         ];
+        if (webSearchEnabled) {
+          openaiTools.push(
+            {
+              type: "function",
+              function: {
+                name: "web_search",
+                description: "Search the web for current information, documentation, package details, API references, prices, or any real-time data",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    query: { type: "string", description: "The search query" },
+                  },
+                  required: ["query"],
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "fetch_url",
+                description: "Fetch and read the content of a specific web page URL. Use after web_search to get full details from a result, or when the user provides a specific URL.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    url: { type: "string", description: "The full URL to fetch (must start with http:// or https://)" },
+                  },
+                  required: ["url"],
+                },
+              },
+            },
+          );
+        }
 
         let gptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: "system", content: agentSystemPrompt },
@@ -5325,8 +5409,8 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : undefined;
-              res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
 
@@ -5422,6 +5506,32 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
             input_schema: { type: "object" as const, ...t.inputSchema },
           })),
         ];
+        if (webSearchEnabled) {
+          tools.push(
+            {
+              name: "web_search",
+              description: "Search the web for current information, documentation, package details, API references, prices, or any real-time data",
+              input_schema: {
+                type: "object" as const,
+                properties: {
+                  query: { type: "string", description: "The search query" },
+                },
+                required: ["query"],
+              },
+            },
+            {
+              name: "fetch_url",
+              description: "Fetch and read the content of a specific web page URL. Use after web_search to get full details from a result, or when the user provides a specific URL.",
+              input_schema: {
+                type: "object" as const,
+                properties: {
+                  url: { type: "string", description: "The full URL to fetch (must start with http:// or https://)" },
+                },
+                required: ["url"],
+              },
+            },
+          );
+        }
 
         let currentMessages = messages.map((m: any) => ({
           role: m.role as "user" | "assistant",
@@ -5448,8 +5558,8 @@ Always write complete, working code. Never use placeholders or TODOs.${agentSkil
             } else if (block.type === "tool_use") {
               const input = block.input as any;
 
-              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : undefined;
-              res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : undefined;
+              res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions);
               toolResultMap.set(block.id, result);
@@ -5824,6 +5934,153 @@ Rules:
     } catch (err: any) {
       log(`Search fetch error: ${err.message}`, "ai");
       return [];
+    }
+  }
+
+  function isPrivateIP(ip: string): boolean {
+    if (ip === "0.0.0.0" || ip === "::1" || ip === "::") return true;
+    const ipv4Match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      if (a === 127) return true;
+      if (a === 10) return true;
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 169 && b === 254) return true;
+      if (a === 0) return true;
+    }
+    if (ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80")) return true;
+    return false;
+  }
+
+  function validateExternalUrl(urlStr: string): { valid: boolean; error?: string } {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(urlStr);
+    } catch {
+      return { valid: false, error: "Invalid URL" };
+    }
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return { valid: false, error: "Only HTTP/HTTPS URLs are supported" };
+    }
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const blockedHostPatterns = [
+      /^localhost$/i,
+      /^127\.\d+\.\d+\.\d+$/,
+      /^10\.\d+\.\d+\.\d+$/,
+      /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
+      /^192\.168\.\d+\.\d+$/,
+      /^0\.0\.0\.0$/,
+      /^169\.254\.\d+\.\d+$/,
+      /^\[?::1?\]?$/,
+      /\.internal$/,
+      /\.local$/,
+      /^metadata\.google\.internal$/,
+    ];
+    if (blockedHostPatterns.some(p => p.test(hostname))) {
+      return { valid: false, error: "Access to internal/private URLs is not allowed" };
+    }
+    return { valid: true };
+  }
+
+  async function resolveAndValidateHost(hostname: string): Promise<{ valid: boolean; error?: string }> {
+    const dns = await import("dns");
+    return new Promise((resolve) => {
+      dns.lookup(hostname, { all: true }, (err, addresses) => {
+        if (err) {
+          resolve({ valid: false, error: `DNS resolution failed: ${err.message}` });
+          return;
+        }
+        for (const addr of addresses) {
+          if (isPrivateIP(addr.address)) {
+            resolve({ valid: false, error: "Access to internal/private IPs is not allowed" });
+            return;
+          }
+        }
+        resolve({ valid: true });
+      });
+    });
+  }
+
+  async function fetchUrlContent(url: string, redirectDepth: number = 0): Promise<{ url: string; content: string; title: string }> {
+    try {
+      const urlCheck = validateExternalUrl(url);
+      if (!urlCheck.valid) {
+        return { url, content: `Error: ${urlCheck.error}`, title: url };
+      }
+      const parsedUrl = new URL(url);
+      const dnsCheck = await resolveAndValidateHost(parsedUrl.hostname);
+      if (!dnsCheck.valid) {
+        return { url, content: `Error: ${dnsCheck.error}`, title: url };
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; ReplitIDE/1.0)",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+        },
+        signal: controller.signal,
+        redirect: "manual",
+      });
+      clearTimeout(timeout);
+      if (response.status >= 300 && response.status < 400) {
+        if (redirectDepth >= 5) {
+          return { url, content: "Error: Too many redirects (max 5)", title: url };
+        }
+        const redirectUrl = response.headers.get("location");
+        if (!redirectUrl) {
+          return { url, content: "Error: Redirect with no location header", title: url };
+        }
+        const absoluteRedirect = new URL(redirectUrl, url).toString();
+        const redirectCheck = validateExternalUrl(absoluteRedirect);
+        if (!redirectCheck.valid) {
+          return { url, content: `Error: Redirect blocked — ${redirectCheck.error}`, title: url };
+        }
+        const redirectParsed = new URL(absoluteRedirect);
+        const redirectDnsCheck = await resolveAndValidateHost(redirectParsed.hostname);
+        if (!redirectDnsCheck.valid) {
+          return { url, content: `Error: Redirect blocked — ${redirectDnsCheck.error}`, title: url };
+        }
+        return fetchUrlContent(absoluteRedirect, redirectDepth + 1);
+      }
+      if (!response.ok) {
+        return { url, content: `Error: HTTP ${response.status} ${response.statusText}`, title: url };
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/") && !contentType.includes("application/json") && !contentType.includes("application/xml")) {
+        return { url, content: `Error: Non-text content type (${contentType})`, title: url };
+      }
+      let text = await response.text();
+      if (text.length > 100000) {
+        text = text.slice(0, 100000) + "\n\n[Content truncated at 100KB]";
+      }
+      let title = url;
+      const titleMatch = text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (titleMatch) title = titleMatch[1].replace(/\s+/g, " ").trim();
+      text = text
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+        .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+        .replace(/<header[\s\S]*?<\/header>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (text.length > 50000) {
+        text = text.slice(0, 50000) + "\n\n[Content truncated]";
+      }
+      return { url, content: text, title };
+    } catch (err: any) {
+      const errMsg = err.name === "AbortError" ? "Request timed out (10s limit)" : err.message;
+      log(`Fetch URL error for ${url}: ${errMsg}`, "ai");
+      return { url, content: `Error fetching URL: ${errMsg}`, title: url };
     }
   }
 
