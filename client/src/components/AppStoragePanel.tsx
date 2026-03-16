@@ -4,6 +4,7 @@ import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, HardDrive, X, Plus, Trash2, Pencil, Upload, Download, File as FileIcon, Key, Database } from "lucide-react";
+import { UPLOAD_LIMITS } from "@shared/schema";
 
 interface AppStoragePanelProps {
   projectId: string;
@@ -119,7 +120,10 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
         headers,
         body: formData,
       });
-      if (!res.ok) throw new Error("Upload failed");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(err.message || "Upload failed");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -142,16 +146,28 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
     },
   });
 
+  const validateAndUpload = (file: globalThis.File) => {
+    if (file.size === 0) {
+      toast({ title: "Upload failed", description: "Empty file (0 bytes) cannot be uploaded", variant: "destructive" });
+      return;
+    }
+    if (file.size > UPLOAD_LIMITS.objectStorage) {
+      toast({ title: "Upload failed", description: `File exceeds ${formatBytes(UPLOAD_LIMITS.objectStorage)} limit`, variant: "destructive" });
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
+
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) uploadMutation.mutate(file);
+    if (file) validateAndUpload(file);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
+    if (file) validateAndUpload(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -321,6 +337,7 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
                   <p className="text-[10px] text-[var(--ide-text-muted)]">Drop file here or{" "}
                     <button className="text-[#7C65CB] hover:underline" onClick={() => fileInputRef.current?.click()} data-testid="button-browse-files">browse</button>
                   </p>
+                  <p className="text-[9px] text-[var(--ide-text-muted)] opacity-60 mt-0.5">Max {formatBytes(UPLOAD_LIMITS.objectStorage)} per file</p>
                 </>
               )}
             </div>
@@ -344,6 +361,7 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
                     <div className="flex-1 min-w-0">
                       <span className="text-[10px] text-[var(--ide-text)] font-mono truncate block">{obj.filename}</span>
                       <span className="text-[9px] text-[var(--ide-text-muted)]">{formatBytes(obj.sizeBytes)} · {obj.mimeType}</span>
+                      <span className="text-[9px] text-[var(--ide-text-muted)] block">{new Date(obj.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <a

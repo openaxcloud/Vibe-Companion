@@ -57,6 +57,14 @@ import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
 import type { Project as ProjectType, File } from "@shared/schema";
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
 function FileTypeIcon({ filename, className = "" }: { filename: string; className?: string }) {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   const iconMap: Record<string, { bg: string; text: string; label: string }> = {
@@ -1177,16 +1185,27 @@ function _projectPage() {
     setFileDragOver(false);
   }, []);
 
-  const handleDownloadFile = useCallback((filename: string, content: string) => {
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename.split("/").pop() || filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleDownloadFile = useCallback((filename: string, content: string, file?: { isBinary?: boolean; mimeType?: string | null }) => {
+    const safeName = filename.split("/").pop() || filename;
+    const isDataUri = content.startsWith("data:") && content.includes(";base64,");
+    if (isDataUri || file?.isBinary) {
+      const a = document.createElement("a");
+      a.href = content;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      const blob = new Blob([content], { type: file?.mimeType || "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   }, []);
 
   const createFolderMutation = useMutation({
@@ -1813,7 +1832,8 @@ function _projectPage() {
   const isRunnerTab = !activeIsSpecial && activeFileId?.startsWith("runner:");
   const activeFile = (isRunnerTab || activeIsSpecial) ? null : filesQuery.data?.find((f) => f.id === activeFileId);
   const activeFileName = activeIsSpecial ? "" : isRunnerTab ? (activeFileId!.slice(7).split("/").pop() || "") : (activeFile?.filename || "");
-  const currentCode = (activeFileId && !activeIsSpecial) ? fileContents[activeFileId] ?? "" : "";
+  const activeFileIsBinary = activeFile?.isBinary || (activeFile?.content?.startsWith("data:") && activeFile?.content?.includes(";base64,"));
+  const currentCode = (activeFileId && !activeIsSpecial && !activeFileIsBinary) ? fileContents[activeFileId] ?? "" : "";
   const editorLanguage = activeFileName ? detectLanguage(activeFileName) : "javascript";
 
   const generateHtmlPreview = useCallback(() => {
@@ -2237,7 +2257,7 @@ function _projectPage() {
                   </ContextMenuItem>
                   <ContextMenuItem
                     className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
-                    onClick={() => handleDownloadFile(file.filename, fileContents[file.id] ?? file.content)}
+                    onClick={() => handleDownloadFile(file.filename, fileContents[file.id] ?? file.content, file)}
                     data-testid={`ctx-download-${file.id}`}
                   >
                     <Save className="w-3 h-3" /> Download
@@ -2755,7 +2775,41 @@ function _projectPage() {
           {activeFileId ? (
             <div className="flex-1 overflow-hidden flex">
               <div className={splitEditorFileId ? "overflow-hidden" : "flex-1 overflow-hidden"} style={splitEditorFileId ? { width: `${splitEditorWidth}%` } : undefined}>
-                <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={true} />
+                {activeFileIsBinary ? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 h-full bg-[var(--ide-bg)]" data-testid="binary-file-preview">
+                    {activeFile?.mimeType?.startsWith("image/") || activeFile?.content?.startsWith("data:image/") ? (
+                      <img
+                        src={activeFile?.content || ""}
+                        alt={activeFileName}
+                        className="max-w-full max-h-[60vh] object-contain rounded border border-[var(--ide-border)]"
+                        data-testid="img-binary-preview"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <FileIcon className="w-16 h-16 text-[var(--ide-text-muted)] opacity-40" />
+                        <p className="text-sm text-[var(--ide-text-secondary)]">{activeFileName}</p>
+                        <p className="text-xs text-[var(--ide-text-muted)]">
+                          {activeFile?.mimeType || "Binary file"} — This file cannot be displayed in the editor
+                        </p>
+                        {activeFile?.content && (
+                          <a
+                            href={activeFile.content}
+                            download={activeFileName}
+                            className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded transition-colors"
+                            data-testid="link-download-binary"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Download File
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-[var(--ide-text-muted)] mt-2">
+                      {activeFile?.mimeType || "Binary file"} · {activeFile?.content ? formatBytes(Math.ceil((activeFile.content.length * 3) / 4)) : "Unknown size"}
+                    </p>
+                  </div>
+                ) : (
+                  <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={true} />
+                )}
               </div>
               {splitEditorFileId && (
                 <>

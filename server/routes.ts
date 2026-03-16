@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS } from "@shared/schema";
 import { z } from "zod";
 import { executeCode } from "./executor";
 import { executionPool } from "./executionPool";
@@ -35,7 +35,7 @@ import multer from "multer";
 import * as runnerClient from "./runnerClient";
 import * as github from "./github";
 import * as gitService from "./git";
-import { posix as pathPosix } from "path";
+import path, { posix as pathPosix } from "path";
 
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
@@ -299,6 +299,12 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const { mkdir } = await import("fs/promises");
+  const persistentStorageDir = path.join(process.cwd(), ".storage", "objects");
+  const persistentStorageTmp = path.join(process.cwd(), ".storage", "tmp");
+  await mkdir(persistentStorageDir, { recursive: true });
+  await mkdir(persistentStorageTmp, { recursive: true });
+
   const PgStore = connectPgSimple(session);
   const sessionMiddleware = session({
     store: new PgStore({
@@ -1821,7 +1827,7 @@ export async function registerRoutes(
 
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 2 * 1024 * 1024, files: 10 },
+    limits: { fileSize: UPLOAD_LIMITS.projectFiles, files: UPLOAD_LIMITS.maxProjectFiles },
   });
 
   app.post("/api/projects/:projectId/upload", requireAuth, upload.array("files", 10), async (req: Request, res: Response) => {
@@ -1845,7 +1851,7 @@ export async function registerRoutes(
         ? `data:${f.mimetype};base64,${f.buffer.toString("base64")}`
         : f.buffer.toString("utf-8");
       try {
-        const file = await storage.createFile(req.params.projectId, { filename: safeName, content });
+        const file = await storage.createFile(req.params.projectId, { filename: safeName, content, isBinary, mimeType: f.mimetype });
         created.push(file);
       } catch {}
     }
@@ -4690,9 +4696,11 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   });
 
   // --- APP STORAGE: OBJECTS ---
+  const PERSISTENT_STORAGE_DIR = path.join(process.cwd(), ".storage", "objects");
+  const STORAGE_UPLOAD_TEMP = path.join(process.cwd(), ".storage", "tmp");
   const storageUpload = multer({
-    dest: "/tmp/storage_uploads",
-    limits: { fileSize: 10 * 1024 * 1024 },
+    dest: STORAGE_UPLOAD_TEMP,
+    limits: { fileSize: UPLOAD_LIMITS.objectStorage },
   });
 
   app.get("/api/projects/:id/storage/objects", requireAuth, async (req: Request, res: Response) => {
@@ -4710,15 +4718,15 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const file = (req as any).file;
       if (!file) return res.status(400).json({ message: "No file uploaded" });
+      if (file.size === 0) return res.status(400).json({ message: "Empty file (0 bytes) cannot be uploaded" });
 
       const projectId = req.params.id;
       const { mkdir, rename } = await import("fs/promises");
-      const { join } = await import("path");
 
-      const storageDir = join("/tmp", "project_storage", projectId);
+      const storageDir = path.join(PERSISTENT_STORAGE_DIR, projectId);
       await mkdir(storageDir, { recursive: true });
       const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".");
-      const storagePath = join(storageDir, `${Date.now()}_${safeName}`);
+      const storagePath = path.join(storageDir, `${Date.now()}_${safeName}`);
       await rename(file.path, storagePath);
 
       const obj = await storage.createStorageObject({
@@ -4750,7 +4758,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       }
 
       res.setHeader("Content-Type", obj.mimeType);
-      res.setHeader("Content-Disposition", `attachment; filename="${obj.filename}"`);
+      const encodedFilename = encodeURIComponent(obj.filename).replace(/'/g, "%27");
+      res.setHeader("Content-Disposition", `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
       createReadStream(obj.storagePath).pipe(res);
     } catch {
       res.status(500).json({ message: "Download failed" });

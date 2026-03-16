@@ -52,6 +52,8 @@ export const files = pgTable("files", {
   projectId: varchar("project_id", { length: 36 }).notNull(),
   filename: text("filename").notNull(),
   content: text("content").notNull().default(""),
+  isBinary: boolean("is_binary").notNull().default(false),
+  mimeType: text("mime_type"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("files_project_id_idx").on(table.projectId),
@@ -60,6 +62,8 @@ export const files = pgTable("files", {
 export const insertFileSchema = createInsertSchema(files).pick({
   filename: true,
   content: true,
+  isBinary: true,
+  mimeType: true,
 });
 export type InsertFile = z.infer<typeof insertFileSchema>;
 export type File = typeof files.$inferSelect;
@@ -225,6 +229,12 @@ export const insertUserQuotaSchema = createInsertSchema(userQuotas).pick({
 });
 export type InsertUserQuota = z.infer<typeof insertUserQuotaSchema>;
 export type UserQuota = typeof userQuotas.$inferSelect;
+
+export const UPLOAD_LIMITS = {
+  objectStorage: 10 * 1024 * 1024,
+  projectFiles: 2 * 1024 * 1024,
+  maxProjectFiles: 10,
+} as const;
 
 export const PLAN_LIMITS = {
   free: { dailyExecutions: 50, dailyAiCalls: 20, storageMb: 50, maxProjects: 5, price: 0 },
