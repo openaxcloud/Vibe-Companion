@@ -84,7 +84,8 @@ import {
   type PaneNode, type PaneLayoutState, type FloatingPane, type PaneBroadcastMessage,
   getAllLeafPanes as getPaneLeaves, getAllLayoutTabs,
 } from "@/components/PaneManager";
-import type { Project as ProjectType, File, ProjectGuest } from "@shared/schema";
+import type { Project as ProjectType, File, ProjectGuest, Artifact } from "@shared/schema";
+import { ARTIFACT_TYPES } from "@shared/schema";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 function formatBytes(bytes: number): string {
@@ -869,6 +870,56 @@ function _projectPage() {
   const hiddenPatterns = useMemo(() => {
     return projectConfigQuery.data?.replit?.hidden || [];
   }, [projectConfigQuery.data?.replit?.hidden]);
+
+  const artifactsQuery = useQuery<Artifact[]>({
+    queryKey: ["/api/projects", projectId, "artifacts"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/artifacts`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
+  const projectArtifacts = artifactsQuery.data || [];
+  const activeArtifact = projectArtifacts.find(a => a.id === activeArtifactId) || projectArtifacts[0] || null;
+
+  useEffect(() => {
+    if (projectArtifacts.length > 0 && !activeArtifactId) {
+      setActiveArtifactId(projectArtifacts[0].id);
+    }
+  }, [projectArtifacts, activeArtifactId]);
+
+  const [addArtifactDialogOpen, setAddArtifactDialogOpen] = useState(false);
+  const [newArtifactName, setNewArtifactName] = useState("");
+  const [newArtifactType, setNewArtifactType] = useState("web-app");
+
+  const createArtifactMutation = useMutation({
+    mutationFn: async (data: { name: string; type: string }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/artifacts`, data);
+      return res.json();
+    },
+    onSuccess: (artifact: Artifact) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "artifacts"] });
+      setActiveArtifactId(artifact.id);
+      setAddArtifactDialogOpen(false);
+      setNewArtifactName("");
+      setNewArtifactType("web-app");
+      toast({ title: "Artifact created" });
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+  });
+
+  const deleteArtifactMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/projects/${projectId}/artifacts/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "artifacts"] });
+      setActiveArtifactId(null);
+      toast({ title: "Artifact deleted" });
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+  });
 
   const gitCommitsQuery = useQuery<any[]>({
     queryKey: ["/api/projects", projectId, "git/commits", currentBranch],
@@ -7622,6 +7673,29 @@ function _projectPage() {
                     <div className="w-[2px] h-8 rounded-full bg-[var(--ide-surface)]" />
                   </div>
                   <div className="overflow-hidden flex flex-col" style={{ width: `${previewPanelWidth}%` }}>
+                    {projectArtifacts.length > 0 && (
+                      <div className="flex items-center gap-1 px-1.5 h-7 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0 overflow-x-auto" data-testid="artifact-switcher">
+                        {projectArtifacts.map((art) => (
+                          <button
+                            key={art.id}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap transition-all ${activeArtifact?.id === art.id ? "bg-[#0079F2]/15 text-[#0079F2] border border-[#0079F2]/30" : "text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
+                            onClick={() => setActiveArtifactId(art.id)}
+                            data-testid={`artifact-tab-${art.id}`}
+                          >
+                            <Layers className="w-2.5 h-2.5" />
+                            {art.name}
+                            <span className="text-[8px] opacity-60">{art.type}</span>
+                          </button>
+                        ))}
+                        <button
+                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)] transition-all"
+                          onClick={() => setAddArtifactDialogOpen(true)}
+                          data-testid="button-add-artifact"
+                        >
+                          <Plus className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
                       <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
                         onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.back(); } }}
@@ -8390,6 +8464,52 @@ function _projectPage() {
               Enable
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addArtifactDialogOpen} onOpenChange={setAddArtifactDialogOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Add Artifact</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">
+              Add a new artifact to this project
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); if (newArtifactName.trim()) createArtifactMutation.mutate({ name: newArtifactName.trim(), type: newArtifactType }); }} className="space-y-3 mt-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Name</Label>
+              <Input
+                value={newArtifactName}
+                onChange={(e) => setNewArtifactName(e.target.value)}
+                placeholder="My Artifact"
+                className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]"
+                autoFocus
+                required
+                data-testid="input-artifact-name"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Type</Label>
+              <select
+                value={newArtifactType}
+                onChange={(e) => setNewArtifactType(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg text-sm bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)]"
+                data-testid="select-artifact-type"
+              >
+                {ARTIFACT_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-lg" onClick={() => setAddArtifactDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1 h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" disabled={!newArtifactName.trim() || createArtifactMutation.isPending} data-testid="button-confirm-add-artifact">
+                {createArtifactMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

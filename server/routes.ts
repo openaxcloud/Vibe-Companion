@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES } from "@shared/schema";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode, sendStdinToProcess, killInteractiveProcess, resolveRunCommand } from "./executor";
@@ -17,7 +17,7 @@ import { executionPool } from "./executionPool";
 import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity } from "./terminal";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
-import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess } from "./deploymentEngine";
+import { buildAndDeploy, buildAndDeployMultiArtifact, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess } from "./deploymentEngine";
 import type { DeploymentType } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
 import { DEFAULT_SHORTCUTS, isValidShortcutValue, findConflict, mergeWithDefaults } from "@shared/keyboardShortcuts";
@@ -4639,6 +4639,15 @@ export async function registerRoutes(
       }
       if (!data.visibility) data.visibility = "public";
       const project = await storage.createProject(req.session.userId!, data);
+      const validTypes = ARTIFACT_TYPES as readonly string[];
+      const artifactType = (req.body.artifactType && validTypes.includes(req.body.artifactType)) ? req.body.artifactType : "web-app";
+      await storage.createArtifact({
+        projectId: project.id,
+        name: data.name,
+        type: artifactType,
+        entryFile: null,
+        settings: {},
+      });
       return res.status(201).json(project);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -5029,6 +5038,95 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     return res.json(updated);
+  });
+
+  app.get("/api/projects/:id/artifacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const collab = await isProjectCollaborator(project.id, req.session.userId!);
+      if (!collab.allowed) return res.status(403).json({ message: "Access denied" });
+      const artifactList = await storage.getArtifacts(req.params.id);
+      return res.json(artifactList);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/projects/:id/artifacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { name, type, entryFile, settings } = req.body;
+      if (!name || typeof name !== "string") return res.status(400).json({ message: "name is required" });
+      const validTypes = ARTIFACT_TYPES as readonly string[];
+      const artifactType = (type && validTypes.includes(type)) ? type : "web-app";
+      const artifact = await storage.createArtifact({
+        projectId: req.params.id,
+        name: name.slice(0, 100),
+        type: artifactType,
+        entryFile: entryFile || null,
+        settings: settings || {},
+      });
+      return res.status(201).json(artifact);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/projects/:id/artifacts/:artifactId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const collab = await isProjectCollaborator(project.id, req.session.userId!);
+      if (!collab.allowed) return res.status(403).json({ message: "Access denied" });
+      const artifact = await storage.getArtifact(req.params.artifactId);
+      if (!artifact || artifact.projectId !== req.params.id) return res.status(404).json({ message: "Artifact not found" });
+      return res.json(artifact);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/projects/:id/artifacts/:artifactId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const existing = await storage.getArtifact(req.params.artifactId);
+      if (!existing || existing.projectId !== req.params.id) return res.status(404).json({ message: "Artifact not found" });
+      const { name, type, entryFile, settings } = req.body;
+      const updates: any = {};
+      if (typeof name === "string") updates.name = name.slice(0, 100);
+      if (typeof type === "string") {
+        const validTypes = ARTIFACT_TYPES as readonly string[];
+        if (validTypes.includes(type)) updates.type = type;
+      }
+      if (typeof entryFile === "string" || entryFile === null) updates.entryFile = entryFile;
+      if (settings && typeof settings === "object") updates.settings = settings;
+      const updated = await storage.updateArtifact(req.params.artifactId, updates);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/projects/:id/artifacts/:artifactId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const existing = await storage.getArtifact(req.params.artifactId);
+      if (!existing || existing.projectId !== req.params.id) return res.status(404).json({ message: "Artifact not found" });
+      await storage.deleteArtifact(req.params.artifactId);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
   });
 
   app.get("/api/projects/:id/spotlight", requireAuth, async (req: Request, res: Response) => {
@@ -7539,6 +7637,20 @@ ${formatInstruction}`;
         language: spec.language,
         projectType: detectedProjectType,
         outputType: outputType,
+      });
+
+      const categoryToArtifactType: Record<string, string> = {
+        web: "web-app", mobile: "mobile-app", slides: "slides", animation: "animation",
+        design: "design", "data-visualization": "data-viz", automation: "automation",
+        "3d-game": "3d-game", document: "document", spreadsheet: "spreadsheet",
+      };
+      const artifactType = categoryToArtifactType[outputType] || "web-app";
+      await storage.createArtifact({
+        projectId: project.id,
+        name: spec.name.slice(0, 50),
+        type: artifactType,
+        entryFile: null,
+        settings: {},
       });
 
       for (const file of spec.files.slice(0, 10)) {

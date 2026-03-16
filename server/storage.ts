@@ -121,6 +121,8 @@ import {
   type MergeConflictFile, type MergeResolution,
   accountWarnings,
   type AccountWarning, type InsertAccountWarning,
+  artifacts,
+  type Artifact, type InsertArtifact,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -591,6 +593,12 @@ export interface IStorage {
   searchTemplates(query: string): Promise<{ id: string; name: string; language: string }[]>;
   searchCodeAcrossProjects(userId: string, query: string): Promise<{ projectId: string; projectName: string; filename: string; line: string }[]>;
   searchUsers(query: string): Promise<Pick<User, 'id' | 'displayName' | 'username' | 'avatarUrl'>[]>;
+
+  getArtifacts(projectId: string): Promise<Artifact[]>;
+  getArtifact(id: string): Promise<Artifact | undefined>;
+  createArtifact(data: InsertArtifact): Promise<Artifact>;
+  updateArtifact(id: string, data: Partial<{ name: string; type: string; entryFile: string; settings: Record<string, unknown> }>): Promise<Artifact | undefined>;
+  deleteArtifact(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3580,6 +3588,30 @@ export class DatabaseStorage implements IStorage {
         sql`${users.username} ILIKE ${'%' + query + '%'}`
       ))
       .limit(20);
+  }
+
+  async getArtifacts(projectId: string): Promise<Artifact[]> {
+    return db.select().from(artifacts).where(eq(artifacts.projectId, projectId)).orderBy(artifacts.createdAt);
+  }
+
+  async getArtifact(id: string): Promise<Artifact | undefined> {
+    const [artifact] = await db.select().from(artifacts).where(eq(artifacts.id, id)).limit(1);
+    return artifact;
+  }
+
+  async createArtifact(data: InsertArtifact): Promise<Artifact> {
+    const [artifact] = await db.insert(artifacts).values(data).returning();
+    return artifact;
+  }
+
+  async updateArtifact(id: string, data: Partial<{ name: string; type: string; entryFile: string; settings: Record<string, unknown> }>): Promise<Artifact | undefined> {
+    const [artifact] = await db.update(artifacts).set(data).where(eq(artifacts.id, id)).returning();
+    return artifact;
+  }
+
+  async deleteArtifact(id: string): Promise<boolean> {
+    const result = await db.delete(artifacts).where(eq(artifacts.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

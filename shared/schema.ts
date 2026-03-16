@@ -167,6 +167,9 @@ export type ProjectVisibility = typeof projectVisibilityEnum[number];
 export const OUTPUT_TYPES = ["web", "mobile", "slides", "animation", "design", "data-visualization", "automation", "3d-game", "document", "spreadsheet"] as const;
 export type OutputType = typeof OUTPUT_TYPES[number];
 
+export const ARTIFACT_TYPES = ["web-app", "mobile-app", "slides", "animation", "data-viz", "3d-game", "document", "spreadsheet", "design", "automation"] as const;
+export type ArtifactType = typeof ARTIFACT_TYPES[number];
+
 export const projects = pgTable("projects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
@@ -218,6 +221,22 @@ export const insertProjectSchema = createInsertSchema(projects).pick({
 });
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Project = typeof projects.$inferSelect;
+
+export const artifacts = pgTable("artifacts", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  type: text("type").notNull().default("web-app"),
+  name: text("name").notNull(),
+  entryFile: text("entry_file"),
+  settings: json("settings").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("artifacts_project_id_idx").on(table.projectId),
+]);
+
+export const insertArtifactSchema = createInsertSchema(artifacts).omit({ id: true, createdAt: true });
+export type InsertArtifact = z.infer<typeof insertArtifactSchema>;
+export type Artifact = typeof artifacts.$inferSelect;
 
 export const projectGuests = pgTable("project_guests", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
@@ -381,6 +400,7 @@ export type FrameworkUpdate = typeof frameworkUpdates.$inferSelect;
 export const files = pgTable("files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
+  artifactId: varchar("artifact_id", { length: 36 }),
   filename: text("filename").notNull(),
   content: text("content").notNull().default(""),
   isBinary: boolean("is_binary").notNull().default(false),
@@ -388,6 +408,7 @@ export const files = pgTable("files", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("files_project_id_idx").on(table.projectId),
+  index("files_artifact_id_idx").on(table.artifactId),
 ]);
 
 export const insertFileSchema = createInsertSchema(files).pick({
@@ -395,6 +416,7 @@ export const insertFileSchema = createInsertSchema(files).pick({
   content: true,
   isBinary: true,
   mimeType: true,
+  artifactId: true,
 });
 export type InsertFile = z.infer<typeof insertFileSchema>;
 export type File = typeof files.$inferSelect;

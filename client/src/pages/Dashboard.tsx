@@ -445,8 +445,14 @@ export default function Dashboard() {
     onError: (err: any) => { toast({ title: "Failed to decline invite", description: err.message, variant: "destructive" }); },
   });
 
+  const categoryToArtifactType: Record<string, string> = {
+    web: "web-app", mobile: "mobile-app", slides: "slides", animation: "animation",
+    design: "design", "data-visualization": "data-viz", automation: "automation",
+    "3d-game": "3d-game", document: "document", spreadsheet: "spreadsheet",
+  };
+
   const createProject = useMutation({
-    mutationFn: async (data: { name: string; language: string; visibility?: string }) => {
+    mutationFn: async (data: { name: string; language: string; visibility?: string; artifactType?: string }) => {
       const res = await apiRequest("POST", "/api/projects", data);
       return res.json();
     },
@@ -1372,7 +1378,7 @@ export default function Dashboard() {
                 </div>
                 <div className="border-t border-[var(--ide-border)] pt-3 mt-1">
                   <p className="text-[10px] text-[var(--ide-text-muted)] mb-2">Or create an empty project</p>
-                  <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public" }); }} className="flex flex-col gap-2">
+                  <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public", artifactType: categoryToArtifactType[selectedCategory] || "web-app" }); }} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 rounded-lg text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] flex-1" required data-testid="input-project-name" />
                       <select value={newProjectLang} onChange={(e) => setNewProjectLang(e.target.value)} className="h-9 px-2 rounded-lg text-xs bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="select-project-lang">
@@ -2110,7 +2116,7 @@ export default function Dashboard() {
             <DrawerTitle className="text-[var(--ide-text)] text-base">Create Repl</DrawerTitle>
             <DrawerDescription className="text-[var(--ide-text-muted)] text-xs">Start with an empty project</DrawerDescription>
           </DrawerHeader>
-          <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public" }); }} className="space-y-4 px-4 pb-8">
+          <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public", artifactType: categoryToArtifactType[selectedCategory] || "web-app" }); }} className="space-y-4 px-4 pb-8">
             <div className="space-y-1.5">
               <Label className="text-xs text-[var(--ide-text-muted)]">Title</Label>
               <Input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="my-awesome-app" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-12 rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-[#0079F2]/40 text-base" required data-testid="input-project-name-mobile" />

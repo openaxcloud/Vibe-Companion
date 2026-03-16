@@ -1149,6 +1149,53 @@ export function createDeploymentRouter(): Router {
   return router;
 }
 
+export interface ArtifactDeployInfo {
+  artifactId: string;
+  name: string;
+  type: string;
+  subRoute: string;
+  entryFile?: string;
+}
+
+export async function buildAndDeployMultiArtifact(
+  projectId: string,
+  projectName: string,
+  language: string,
+  files: ProjectFile[],
+  userId: string,
+  deploymentId: string,
+  version: number,
+  artifacts: ArtifactDeployInfo[],
+  onLog?: (line: string) => void,
+  config?: DeploymentConfig,
+  deploymentType: DeploymentType = "static",
+): Promise<DeploymentBuild> {
+  const slug = generateSlug(projectName, projectId);
+  const outputDir = join(DEPLOYMENTS_DIR, slug, `v${version}`);
+  const startedAt = Date.now();
+  const addLog = (line: string) => { onLog?.(line); };
+
+  addLog(`[build] Multi-artifact deployment: ${artifacts.length} artifact(s)`);
+
+  for (const artifact of artifacts) {
+    const subDir = join(outputDir, artifact.subRoute);
+    await ensureDir(subDir);
+
+    const artifactFiles = files;
+
+    for (const file of artifactFiles) {
+      const filePath = join(subDir, file.filename);
+      const dir = join(subDir, file.filename.split("/").slice(0, -1).join("/"));
+      if (dir !== subDir) await ensureDir(dir);
+      await writeFile(filePath, file.content || "", "utf-8");
+    }
+
+    addLog(`[build] Artifact "${artifact.name}" (${artifact.type}) deployed to /${artifact.subRoute}/`);
+  }
+
+  return buildAndDeploy(projectId, projectName, language, files, userId, deploymentId, version, onLog, config, deploymentType);
+}
+
 export function getActiveDeployment(projectId: string): DeploymentBuild | undefined {
   return activeDeploys.get(projectId);
 }
