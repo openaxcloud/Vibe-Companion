@@ -12,7 +12,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   githubId: text("github_id"),
-  preferences: json("preferences").$type<{ fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string }>(),
+  preferences: json("preferences").$type<{ fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string; agentToolsConfig?: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean } }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -4,11 +4,15 @@ import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
   FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
   FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield,
-  Mic, MicOff, Paperclip, Image, FileText, XCircle, ImagePlus, Loader2, ToggleLeft, ToggleRight
+  Mic, MicOff, Paperclip, Image, FileText, XCircle, ImagePlus, Loader2, ToggleLeft, ToggleRight,
+  Settings2, Search, FlaskConical, Brain, Globe
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import { getCsrfToken } from "@/lib/queryClient";
 
 type FileInfo = { id: string; filename: string; content: string };
@@ -45,6 +49,14 @@ interface AIPanelProps {
 
 type AIModel = "claude" | "gpt" | "gemini";
 type AIMode = "chat" | "agent";
+
+interface AgentToolsConfig {
+  liteMode: boolean;
+  webSearch: boolean;
+  appTesting: boolean;
+  codeOptimizations: boolean;
+  architect: boolean;
+}
 
 const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
   claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
@@ -172,6 +184,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [codeOptimizations, setCodeOptimizations] = useState(() => {
     try { return localStorage.getItem("ai-code-optimizations") === "true"; } catch { return false; }
   });
+  const [liteMode, setLiteMode] = useState(false);
+  const [agentToolsConfig, setAgentToolsConfig] = useState<AgentToolsConfig>({
+    liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false,
+  });
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -179,6 +195,37 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/user/preferences", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(prefs => {
+        if (prefs?.agentToolsConfig) {
+          const cfg = prefs.agentToolsConfig;
+          setAgentToolsConfig(prev => ({ ...prev, ...cfg }));
+          setLiteMode(!!cfg.liteMode);
+          setCodeOptimizations(!!cfg.codeOptimizations);
+          try { localStorage.setItem("ai-code-optimizations", String(!!cfg.codeOptimizations)); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const updateAgentToolsConfig = useCallback((updates: Partial<AgentToolsConfig>) => {
+    setAgentToolsConfig(prev => {
+      const next = { ...prev, ...updates };
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      fetch("/api/user/preferences", {
+        method: "PUT",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ agentToolsConfig: next }),
+      }).catch(() => {});
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!projectId) { setConversationLoaded(true); return; }
@@ -333,6 +380,28 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       return;
     }
 
+    const searchMatch = input.trim().match(/^\/search\s+(.+)$/i);
+    if (searchMatch && agentToolsConfig.webSearch) {
+      setInput("");
+      await performWebSearch(searchMatch[1]);
+      return;
+    }
+
+    if (agentToolsConfig.webSearch && mode !== "chat") {
+      const q = input.trim().toLowerCase();
+      const searchPatterns = [
+        /^(what|who|when|where|how|why|which|is|are|was|were|do|does|did|can|could|should|will|would)\s.+\?$/i,
+        /\b(latest|recent|current|new|update|news|release|version|price|cost)\b/i,
+        /\b(search|look up|find out|google|find me)\b/i,
+      ];
+      const hasSearchIntent = searchPatterns.some(p => p.test(q));
+      if (hasSearchIntent && !q.includes("create") && !q.includes("build") && !q.includes("add") && !q.includes("edit") && !q.includes("fix") && !q.includes("implement")) {
+        setInput("");
+        await performWebSearch(input.trim());
+        return;
+      }
+    }
+
     let fullContent = input.trim();
     const currentAttachments = [...attachments];
 
@@ -364,16 +433,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
     try {
       const isAgent = mode === "agent" && !!projectId;
-      const endpoint = isAgent ? "/api/ai/agent" : "/api/ai/chat";
+      const isLite = isAgent && liteMode;
+      const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
 
       const body: any = {
         messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
         model,
       };
 
-      if (isAgent) {
+      if (isAgent || isLite) {
         body.projectId = projectId;
-        if (codeOptimizations) body.optimize = true;
+        if (codeOptimizations && !isLite) body.optimize = true;
       } else {
         body.context = context;
         if (projectId) body.projectId = projectId;
@@ -381,7 +451,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const csrfToken = getCsrfToken();
-      if (csrfToken && isAgent) fetchHeaders["X-CSRF-Token"] = csrfToken;
+      if (csrfToken && (isAgent || isLite)) fetchHeaders["X-CSRF-Token"] = csrfToken;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: fetchHeaders,
@@ -430,12 +500,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       setIsStreaming(true);
       abortRef.current = new AbortController();
       const isAgent = mode === "agent" && !!projectId;
-      const endpoint = isAgent ? "/api/ai/agent" : "/api/ai/chat";
+      const isLite = isAgent && liteMode;
+      const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
       const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model };
-      if (isAgent) { body.projectId = projectId; if (codeOptimizations) body.optimize = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
+      if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
-      if (retryToken && isAgent) retryHeaders["X-CSRF-Token"] = retryToken;
+      if (retryToken && (isAgent || isLite)) retryHeaders["X-CSRF-Token"] = retryToken;
       persistMessage("user", retryInput);
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
@@ -562,6 +633,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     setCodeOptimizations((prev) => {
       const next = !prev;
       try { localStorage.setItem("ai-code-optimizations", String(next)); } catch {}
+      updateAgentToolsConfig({ codeOptimizations: next });
+      return next;
+    });
+  };
+
+  const toggleLiteMode = () => {
+    setLiteMode((prev) => {
+      const next = !prev;
+      updateAgentToolsConfig({ liteMode: next });
       return next;
     });
   };
@@ -599,6 +679,48 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       );
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const performWebSearch = async (query: string) => {
+    if (!query.trim()) return;
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: `🔍 Search: ${query}` };
+    setMessages((prev) => [...prev, userMsg]);
+    persistMessage("user", userMsg.content);
+    setIsStreaming(true);
+
+    const assistantId = (Date.now() + 1).toString();
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
+
+    abortRef.current = new AbortController();
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      const res = await fetch("/api/ai/web-search", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ query: query.trim(), model }),
+        signal: abortRef.current.signal,
+      });
+      if (!res.ok) throw new Error("Search failed");
+      await processSSEStream(res, assistantId, true);
+      setMessages((prev) => {
+        const assistantMsg = prev.find((m) => m.id === assistantId);
+        if (assistantMsg?.content) persistMessage("assistant", assistantMsg.content, model);
+        return prev;
+      });
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Web search failed." } : m)
+        );
+      }
+    } finally {
+      setIsStreaming(false);
+      abortRef.current = null;
     }
   };
 
@@ -941,20 +1063,73 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {mode === "agent" && (
-            <button
-              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all mr-1 ${
-                codeOptimizations
-                  ? "bg-[#0CCE6B]/15 text-[#0CCE6B] ring-1 ring-[#0CCE6B]/20"
-                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]"
-              }`}
-              onClick={toggleCodeOptimizations}
-              title={codeOptimizations ? "Code Optimizations: ON — AI will auto-review code after changes" : "Code Optimizations: OFF — Enable for automatic code review"}
-              data-testid="toggle-code-optimizations"
-            >
-              {codeOptimizations ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
-              Code Optimizations
-            </button>
+          {projectId && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all mr-0.5"
+                  title="Agent Tools"
+                  data-testid="button-agent-tools"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
+                <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+                  <span className="text-[11px] font-semibold text-[var(--ide-text)]">Agent Tools</span>
+                </div>
+                <div className="p-2 space-y-1">
+                  {[
+                    { key: "liteMode" as const, label: "Lite Mode", desc: "Fast, focused changes", icon: Zap, color: "#F5A623" },
+                    { key: "webSearch" as const, label: "Web Search", desc: "Search-informed answers", icon: Globe, color: "#0079F2" },
+                    { key: "appTesting" as const, label: "App Testing", desc: "Automated testing", icon: FlaskConical, color: "#0CCE6B", disabledInLite: true },
+                    { key: "codeOptimizations" as const, label: "Code Optimizations", desc: "Auto code review", icon: Gauge, color: "#0CCE6B", disabledInLite: true },
+                    { key: "architect" as const, label: "Architect", desc: "Architecture analysis", icon: Brain, color: "#7C65CB", disabledInLite: true },
+                  ].map((tool) => {
+                    const isDisabledByLite = liteMode && tool.disabledInLite;
+                    const isActive = tool.key === "liteMode" ? liteMode
+                      : tool.key === "codeOptimizations" ? codeOptimizations
+                      : agentToolsConfig[tool.key];
+                    return (
+                      <button
+                        key={tool.key}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
+                          isDisabledByLite
+                            ? "opacity-40 cursor-not-allowed"
+                            : "hover:bg-[var(--ide-surface)] cursor-pointer"
+                        }`}
+                        onClick={() => {
+                          if (isDisabledByLite) return;
+                          if (tool.key === "liteMode") {
+                            toggleLiteMode();
+                          } else if (tool.key === "codeOptimizations") {
+                            toggleCodeOptimizations();
+                          } else {
+                            updateAgentToolsConfig({ [tool.key]: !agentToolsConfig[tool.key] });
+                          }
+                        }}
+                        data-testid={`toggle-agent-tool-${tool.key}`}
+                      >
+                        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0`} style={{ backgroundColor: `${tool.color}15` }}>
+                          <tool.icon className="w-3.5 h-3.5" style={{ color: tool.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium text-[var(--ide-text)]">{tool.label}</div>
+                          <div className="text-[9px] text-[var(--ide-text-muted)]">
+                            {isDisabledByLite ? "Disabled in Lite Mode" : tool.desc}
+                          </div>
+                        </div>
+                        <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
+                          isActive && !isDisabledByLite ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
+                        }`}>
+                          <div className={`w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm transition-transform`} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           {projectId && (
             <div className="flex items-center mr-1 bg-[var(--ide-surface)]/30 rounded-lg p-0.5 ring-1 ring-[var(--ide-border)]/50">
@@ -994,13 +1169,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       {mode === "agent" && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#7C65CB]/15 bg-gradient-to-r from-[#7C65CB]/10 to-[#7C65CB]/5 text-[10px] text-[#7C65CB] shrink-0">
-          <div className="w-4 h-4 rounded bg-[#7C65CB]/20 flex items-center justify-center">
-            <Bot className="w-2.5 h-2.5" />
+        <div className={`flex items-center gap-2 px-3 py-2 border-b text-[10px] shrink-0 ${
+          liteMode
+            ? "border-[#F5A623]/15 bg-gradient-to-r from-[#F5A623]/10 to-[#F5A623]/5 text-[#F5A623]"
+            : "border-[#7C65CB]/15 bg-gradient-to-r from-[#7C65CB]/10 to-[#7C65CB]/5 text-[#7C65CB]"
+        }`}>
+          <div className={`w-4 h-4 rounded flex items-center justify-center ${liteMode ? "bg-[#F5A623]/20" : "bg-[#7C65CB]/20"}`}>
+            {liteMode ? <Zap className="w-2.5 h-2.5" /> : <Bot className="w-2.5 h-2.5" />}
           </div>
-          <span className="font-medium">Agent mode</span>
-          <span className="text-[#7C65CB]/60">—</span>
-          <span className="text-[#7C65CB]/70">AI can create and edit files in your project</span>
+          <span className="font-medium">{liteMode ? "Lite mode" : "Agent mode"}</span>
+          <span style={{ opacity: 0.6 }}>—</span>
+          <span style={{ opacity: 0.7 }}>{liteMode ? "Quick, targeted changes only" : "AI can create and edit files in your project"}</span>
         </div>
       )}
 
@@ -1135,13 +1314,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : "Ask AI anything..."}
+            placeholder={isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."}
             rows={3}
             className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
             disabled={isStreaming || isTranscribing || isGeneratingImage}
             data-testid="input-ai-chat"
           />
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
+            {mode === "agent" && projectId && (
+              <button
+                onClick={toggleLiteMode}
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                  liteMode
+                    ? "bg-[#F5A623] text-white shadow-sm shadow-[#F5A623]/30"
+                    : "text-[var(--ide-text-muted)] hover:text-[#F5A623] hover:bg-[#F5A623]/10"
+                }`}
+                title={liteMode ? "Lite Mode active — click to switch to full Agent" : "Switch to Lite Mode for quick changes"}
+                data-testid="button-lite-mode"
+              >
+                <Zap className="w-3.5 h-3.5" />
+              </button>
+            )}
             {isStreaming ? (
               <Button
                 onClick={stopStreaming}
@@ -1207,7 +1400,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
             </button>
             <span className="text-[9px] text-[var(--ide-text-muted)] ml-1">
-              {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isGeneratingImage ? "Generating image..." : "Shift+Enter · /image for AI images"}
+              {isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isGeneratingImage ? "Generating image..." : agentToolsConfig.webSearch ? "Shift+Enter · /image · /search" : "Shift+Enter · /image for AI images"}
             </span>
           </div>
           <div className="flex items-center gap-2">

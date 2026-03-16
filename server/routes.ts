@@ -1239,6 +1239,13 @@ export async function registerRoutes(
         tabSize: z.number().int().min(1).max(8).optional(),
         wordWrap: z.boolean().optional(),
         theme: z.enum(["dark", "light"]).optional(),
+        agentToolsConfig: z.object({
+          liteMode: z.boolean().optional(),
+          webSearch: z.boolean().optional(),
+          appTesting: z.boolean().optional(),
+          codeOptimizations: z.boolean().optional(),
+          architect: z.boolean().optional(),
+        }).optional(),
       });
       const prefs = schema.parse(req.body);
       const updated = await storage.updateUserPreferences(req.session.userId!, prefs);
@@ -4979,6 +4986,353 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         res.end();
       } else {
         res.status(500).json({ message: "AI agent error" });
+      }
+    }
+  });
+
+  app.post("/api/ai/lite", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { messages, projectId, model: requestedModel } = req.body;
+      if (!messages || !Array.isArray(messages) || !projectId) {
+        return res.status(400).json({ message: "messages array and projectId required" });
+      }
+
+      const msgError = validateAIMessages(messages);
+      if (msgError) {
+        return res.status(400).json({ message: msgError });
+      }
+
+      if (typeof projectId !== "string" || projectId.length > 100) {
+        return res.status(400).json({ message: "Invalid projectId" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const liteAiQuota = await storage.incrementAiCall(req.session.userId!);
+      if (!liteAiQuota.allowed) {
+        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+      }
+
+      const existingFiles = await storage.getFiles(projectId);
+      const liteModifiedFiles = new Set<string>();
+      const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
+
+      const liteSystemPrompt = `You are a fast AI coding agent in Replit IDE. Make quick, targeted changes only.
+
+Project: "${project.name}" (${project.language})
+Files:
+${fileList || "(empty)"}
+
+Rules:
+- Analyze ONLY the files relevant to the user's request
+- Make targeted, minimal changes — no refactoring, no architecture review
+- Skip planning explanations — go straight to implementation
+- Write complete, working code for each file you touch
+- Be concise in your responses`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      if (requestedModel === "gemini") {
+        const geminiTools = [{
+          functionDeclarations: [
+            {
+              name: "create_file",
+              description: "Create a new file",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  filename: { type: Type.STRING, description: "The filename" },
+                  content: { type: Type.STRING, description: "The full file content" },
+                },
+                required: ["filename", "content"],
+              },
+            },
+            {
+              name: "edit_file",
+              description: "Replace file content",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  filename: { type: Type.STRING, description: "The filename" },
+                  content: { type: Type.STRING, description: "The new content" },
+                },
+                required: ["filename", "content"],
+              },
+            },
+          ],
+        }];
+
+        let geminiContents: any[] = [
+          { role: "user", parts: [{ text: liteSystemPrompt }] },
+          { role: "model", parts: [{ text: "Ready." }] },
+          ...messages.map((m: any) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }],
+          })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await gemini.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: geminiContents,
+            config: { maxOutputTokens: 8192, tools: geminiTools },
+          });
+
+          const candidate = response.candidates?.[0];
+          if (!candidate?.content?.parts) { continueLoop = false; break; }
+
+          const parts = candidate.content.parts;
+          let hasToolCall = false;
+          const toolResponseParts: any[] = [];
+
+          for (const part of parts) {
+            if (part.text) {
+              res.write(`data: ${JSON.stringify({ type: "text", content: part.text })}\n\n`);
+            }
+            if (part.functionCall) {
+              hasToolCall = true;
+              const fn = part.functionCall;
+              const toolInput = fn.args as { filename: string; content: string };
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              toolResponseParts.push({ functionResponse: { name: fn.name, response: { result: "Done" } } });
+            }
+          }
+
+          if (hasToolCall) {
+            geminiContents = [...geminiContents, { role: "model", parts }, { role: "user", parts: toolResponseParts }];
+          } else {
+            continueLoop = false;
+          }
+        }
+      } else if (requestedModel === "gpt") {
+        const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+          { type: "function", function: { name: "create_file", description: "Create a new file", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+          { type: "function", function: { name: "edit_file", description: "Replace file content", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+        ];
+
+        let gptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: liteSystemPrompt },
+          ...messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: gptMessages,
+            tools: openaiTools,
+            max_completion_tokens: 8192,
+          });
+
+          const choice = response.choices[0];
+          const message = choice.message;
+
+          if (message.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          }
+
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            for (const toolCall of message.tool_calls) {
+              if (toolCall.type !== "function") continue;
+              const fn = toolCall.function;
+              const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
+            }
+            gptMessages = [...gptMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
+          }
+
+          if (choice.finish_reason !== "tool_calls") {
+            continueLoop = false;
+          }
+        }
+      } else {
+        const tools: Anthropic.Messages.Tool[] = [
+          { name: "create_file", description: "Create a new file", input_schema: { type: "object" as const, properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } },
+          { name: "edit_file", description: "Replace file content", input_schema: { type: "object" as const, properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } },
+        ];
+
+        let currentMessages = messages.map((m: any) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        }));
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await anthropic.messages.create({
+            model: "claude-sonnet-4-6",
+            system: liteSystemPrompt,
+            messages: currentMessages,
+            max_tokens: 4096,
+            tools,
+          });
+
+          for (const block of response.content) {
+            if (block.type === "text") {
+              res.write(`data: ${JSON.stringify({ type: "text", content: block.text })}\n\n`);
+            } else if (block.type === "tool_use") {
+              const input = block.input as { filename: string; content: string };
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
+              await executeToolCall(block.name, input, projectId, existingFiles, res, liteModifiedFiles);
+            }
+          }
+
+          if (response.stop_reason === "tool_use") {
+            const toolResults: any[] = response.content
+              .filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use")
+              .map((b) => ({ type: "tool_result" as const, tool_use_id: b.id, content: "Done" }));
+            currentMessages = [...currentMessages, { role: "assistant" as const, content: response.content as any }, { role: "user" as const, content: toolResults as any }];
+          } else {
+            continueLoop = false;
+          }
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      log(`AI lite error: ${error.message}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "AI lite error" });
+      }
+    }
+  });
+
+  async function fetchSearchResults(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+    try {
+      const encoded = encodeURIComponent(query);
+      const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encoded}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; ReplitIDE/1.0)" },
+      });
+      if (!ddgRes.ok) return [];
+      const html = await ddgRes.text();
+      const results: { title: string; url: string; snippet: string }[] = [];
+      const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+      let match;
+      while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
+        const rawUrl = match[1];
+        let url = rawUrl;
+        const uddgMatch = rawUrl.match(/uddg=([^&]+)/);
+        if (uddgMatch) url = decodeURIComponent(uddgMatch[1]);
+        const title = match[2].replace(/<[^>]*>/g, "").trim();
+        const snippet = match[3].replace(/<[^>]*>/g, "").trim();
+        if (title && url) results.push({ title, url, snippet });
+      }
+      return results;
+    } catch (err: any) {
+      log(`Search fetch error: ${err.message}`, "ai");
+      return [];
+    }
+  }
+
+  app.post("/api/ai/web-search", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { query, model: requestedModel } = req.body;
+      if (!query || typeof query !== "string" || query.trim().length < 2) {
+        return res.status(400).json({ message: "Search query required (at least 2 characters)" });
+      }
+      if (query.length > 1000) {
+        return res.status(400).json({ message: "Query too long (max 1000 characters)" });
+      }
+
+      const searchQuota = await storage.incrementAiCall(req.session.userId!);
+      if (!searchQuota.allowed) {
+        return res.status(429).json({ message: "Daily AI call limit reached." });
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      res.write(`data: ${JSON.stringify({ type: "text", content: "🔍 **Searching the web...**\n\n" })}\n\n`);
+
+      const searchResults = await fetchSearchResults(query.trim());
+
+      let sourcesContext = "";
+      if (searchResults.length > 0) {
+        sourcesContext = "## Web Search Results\n\n" + searchResults.map((r, i) =>
+          `${i + 1}. **${r.title}**\n   URL: ${r.url}\n   ${r.snippet}`
+        ).join("\n\n");
+
+        res.write(`data: ${JSON.stringify({ type: "text", content: "Found " + searchResults.length + " results. Synthesizing...\n\n" })}\n\n`);
+      } else {
+        sourcesContext = "No web search results were found. Answer based on your knowledge.";
+        res.write(`data: ${JSON.stringify({ type: "text", content: "No results found. Answering from knowledge...\n\n" })}\n\n`);
+      }
+
+      const searchPrompt = `You are a web-search AI assistant. The user searched for: "${query.trim()}"
+
+${sourcesContext}
+
+Based on the search results above, provide a comprehensive answer to the user's query. Cite specific sources with their URLs when referencing information. Format your response with clear sections and include a "Sources" section at the end listing the relevant URLs used.`;
+
+      if (requestedModel === "gemini") {
+        const stream = await gemini.models.generateContentStream({
+          model: "gemini-2.5-flash",
+          contents: [{ role: "user", parts: [{ text: searchPrompt }] }],
+          config: { maxOutputTokens: 4096 },
+        });
+        for await (const chunk of stream) {
+          const content = chunk.text || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+          }
+        }
+      } else if (requestedModel === "gpt") {
+        const stream = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "system", content: "You are a helpful search assistant that synthesizes web search results into clear, cited answers." }, { role: "user", content: searchPrompt }],
+          stream: true,
+          max_completion_tokens: 4096,
+        });
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+          }
+        }
+      } else {
+        const stream = anthropic.messages.stream({
+          model: "claude-sonnet-4-6",
+          messages: [{ role: "user", content: searchPrompt }],
+          max_tokens: 4096,
+        });
+        stream.on("text", (text) => {
+          res.write(`data: ${JSON.stringify({ type: "text", content: text })}\n\n`);
+        });
+        await stream.finalMessage();
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      log(`AI web-search error: ${error.message}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "Web search error" });
       }
     }
   });

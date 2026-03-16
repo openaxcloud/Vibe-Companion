@@ -81,8 +81,8 @@ export interface IStorage {
   getUserByGithubId(githubId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
   updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined>;
-  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>;
-  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>;
+  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }>;
+  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean } }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(limit?: number, offset?: number): Promise<{ users: User[]; total: number }>;
 
@@ -371,16 +371,28 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }> {
-    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark" };
+  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }> {
+    const defaultAgentTools = { liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false };
+    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark", agentToolsConfig: defaultAgentTools };
     const user = await this.getUser(userId);
     if (!user || !user.preferences) return defaults;
-    return { ...defaults, ...user.preferences };
+    const prefs = user.preferences as any;
+    return {
+      ...defaults,
+      ...prefs,
+      agentToolsConfig: { ...defaultAgentTools, ...(prefs.agentToolsConfig || {}) },
+    };
   }
 
-  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string }> {
+  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean } }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean } }> {
     const current = await this.getUserPreferences(userId);
-    const merged = { ...current, ...prefs };
+    const merged = {
+      ...current,
+      ...prefs,
+      agentToolsConfig: prefs.agentToolsConfig
+        ? { ...current.agentToolsConfig, ...prefs.agentToolsConfig }
+        : current.agentToolsConfig,
+    };
     await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
     return merged;
   }
