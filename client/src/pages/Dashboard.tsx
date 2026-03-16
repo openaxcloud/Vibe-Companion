@@ -6,7 +6,8 @@ import {
   Loader2, Code2, Search, Eye, Zap, Sparkles, Send,
   Globe, Database, Gamepad2, LayoutDashboard, Clock, FileCode, ChevronRight, ChevronLeft, Star, ExternalLink,
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
-  Bell, CreditCard, Menu, X, Terminal, FileText, User
+  Bell, CreditCard, Menu, X, Terminal, FileText, User,
+  Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -51,6 +52,119 @@ const LANG_ICONS: Record<string, { color: string; bg: string; label: string; bor
   html: { color: "text-orange-500", bg: "bg-orange-500/10 border-orange-500/20", label: "HT", borderAccent: "border-l-orange-500" },
 };
 
+const APP_CATEGORIES = [
+  {
+    id: "website", label: "Website", icon: Globe,
+    prompts: [
+      "Portfolio website with 3D scroll animations and project showcase gallery",
+      "SaaS landing page with animated pricing tiers, testimonials carousel, and waitlist signup",
+      "Restaurant website with online menu, reservation system, and chef's blog",
+      "E-commerce storefront with product filtering, cart, and checkout flow",
+      "Personal blog with markdown support, syntax highlighting, and RSS feed",
+      "Community forum with threaded discussions, upvoting, and user profiles",
+    ],
+  },
+  {
+    id: "mobile", label: "Mobile", icon: Smartphone,
+    prompts: [
+      "Fitness tracker app with workout logging, progress charts, and streak system",
+      "Habit tracking app with daily streaks, push notifications, and analytics dashboard",
+      "Social recipe sharing app with ingredient scanner and meal planning calendar",
+      "Language flashcard app with spaced repetition algorithm and pronunciation guide",
+      "Expense splitting app for groups with receipt scanning and payment tracking",
+      "Meditation app with guided sessions, ambient sounds, and mood journaling",
+    ],
+  },
+  {
+    id: "design", label: "Design", icon: Palette,
+    prompts: [
+      "Collaborative whiteboard tool with real-time drawing and sticky notes",
+      "Color palette generator with accessibility contrast checker and export options",
+      "Mood board creator with drag-and-drop image arrangement and font pairing",
+      "Design system documentation site with live component previews",
+      "SVG icon editor with path manipulation and batch export tools",
+      "Brand identity kit generator with logo variations and style guide output",
+    ],
+  },
+  {
+    id: "slides", label: "Slides", icon: Presentation,
+    prompts: [
+      "Startup pitch deck builder with animated transitions and speaker notes",
+      "Interactive presentation tool with live audience polling and Q&A",
+      "Product launch slide deck with embedded demo videos and timeline",
+      "Educational slideshow maker with quiz slides and progress tracking",
+      "Conference talk builder with code syntax highlighting and live demos",
+      "Sales deck generator with dynamic charts and CRM data integration",
+    ],
+  },
+  {
+    id: "animation", label: "Animation", icon: Play,
+    prompts: [
+      "Interactive particle system playground with physics controls and presets",
+      "CSS animation showcase with timeline editor and code export",
+      "Animated infographic builder with data-driven motion graphics",
+      "Lottie animation preview tool with speed controls and layer inspection",
+      "Scroll-triggered animation demo with parallax effects and reveal transitions",
+      "Procedural generative art canvas with tweakable parameters and export",
+    ],
+  },
+  {
+    id: "data-viz", label: "Data Viz", icon: BarChart3,
+    prompts: [
+      "Real-time stock market dashboard with WebSocket feeds and candlestick charts",
+      "COVID-style epidemic tracker with interactive maps and trend analysis",
+      "Personal finance dashboard with spending categories and budget forecasting",
+      "GitHub contribution analytics tool with repository comparison charts",
+      "Weather data visualization with historical trends and interactive globe",
+      "Social media analytics dashboard with engagement metrics and growth charts",
+    ],
+  },
+  {
+    id: "game", label: "Game", icon: Gamepad2,
+    prompts: [
+      "3D racing game with physics engine, nitro boost, and procedural tracks",
+      "Multiplayer trivia game with real-time scoring and category selection",
+      "Roguelike dungeon crawler with procedural generation and inventory system",
+      "Tower defense game with upgrade paths, wave system, and leaderboard",
+      "2D platformer with level editor, collectibles, and speedrun timer",
+      "Card battle game with deck building, turn-based combat, and AI opponent",
+    ],
+  },
+  {
+    id: "api", label: "API", icon: Database,
+    prompts: [
+      "RESTful API with JWT authentication, rate limiting, and Swagger docs",
+      "GraphQL API gateway with schema stitching and real-time subscriptions",
+      "Webhook relay service with retry logic, payload transformation, and logs",
+      "API mocking server with dynamic response templates and latency simulation",
+      "OAuth2 provider with token management, scopes, and admin dashboard",
+      "Event-driven microservice with message queues and dead letter handling",
+    ],
+  },
+  {
+    id: "dashboard", label: "Dashboard", icon: LayoutDashboard,
+    prompts: [
+      "B2B project management app with Kanban board, Gantt chart, and team chat",
+      "Admin panel with role-based access, audit logs, and data table CRUD",
+      "IoT device monitoring dashboard with real-time sensor readings and alerts",
+      "Customer support ticketing system with SLA tracking and agent analytics",
+      "Inventory management system with barcode scanning and reorder automation",
+      "HR employee portal with time tracking, leave management, and org chart",
+    ],
+  },
+  {
+    id: "cli", label: "CLI Tool", icon: Terminal,
+    prompts: [
+      "Git workflow CLI with interactive branch management and commit templates",
+      "Database migration tool with rollback support and schema diff viewer",
+      "Log analyzer CLI with pattern matching, filtering, and export to CSV",
+      "Project scaffolding CLI with template system and plugin architecture",
+      "Server health monitoring CLI with dashboard view and alert notifications",
+      "File batch processor with glob patterns, transformations, and dry-run mode",
+    ],
+  },
+];
+
 function ECodeLogo({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
@@ -89,6 +203,30 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pullStartY = useRef(0);
   const projectListRef = useRef<HTMLDivElement>(null);
+  const [selectedCategory, setSelectedCategory] = useState(APP_CATEGORIES[0].id);
+  const [promptSeed, setPromptSeed] = useState(0);
+  const categoriesRef = useRef<HTMLDivElement>(null);
+
+  const getExamplePrompts = useCallback((categoryId: string, seed: number) => {
+    const cat = APP_CATEGORIES.find(c => c.id === categoryId);
+    if (!cat) return [];
+    const shuffled = [...cat.prompts];
+    let s = seed;
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      const j = s % (i + 1);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, 3);
+  }, []);
+
+  const examplePrompts = getExamplePrompts(selectedCategory, promptSeed);
+
+  const scrollCategories = (direction: "left" | "right") => {
+    if (categoriesRef.current) {
+      categoriesRef.current.scrollBy({ left: direction === "left" ? -200 : 200, behavior: "smooth" });
+    }
+  };
 
   const handlePullStart = useCallback((e: React.TouchEvent) => {
     const el = projectListRef.current;
@@ -329,6 +467,45 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+        <div className="mb-4" data-testid="section-categories-mobile">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
+            {APP_CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => { setSelectedCategory(cat.id); setPromptSeed(prev => prev + 1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all shrink-0 border ${selectedCategory === cat.id ? "bg-[#0079F2]/15 text-[#0079F2] border-[#0079F2]/30" : "text-[var(--ide-text-muted)] border-transparent hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
+                data-testid={`category-${cat.id}-mobile`}
+              >
+                <cat.icon className="w-3 h-3" />
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mb-6" data-testid="section-example-prompts-mobile">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-medium text-[var(--ide-text-muted)]" data-testid="text-example-prompts-label-mobile">Try an example prompt</span>
+            <button
+              onClick={() => setPromptSeed(prev => prev + 1)}
+              className="w-5 h-5 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors"
+              data-testid="button-refresh-prompts-mobile"
+            >
+              <RefreshCw className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {examplePrompts.map((prompt, idx) => (
+              <button
+                key={`${selectedCategory}-${promptSeed}-${idx}`}
+                onClick={() => setAiPrompt(prompt)}
+                className="text-[11px] px-3 py-1.5 rounded-lg border border-[var(--ide-border)] bg-[var(--ide-panel)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:border-[#0079F2]/30 hover:bg-[#0079F2]/5 transition-all text-left leading-relaxed"
+                data-testid={`prompt-pill-${idx}-mobile`}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="mb-6">
           <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2.5">Templates</h3>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4" ref={templatesRef}>
@@ -973,6 +1150,55 @@ export default function Dashboard() {
                   </div>
                 )}
               </form>
+
+              <div className="mb-6 relative" data-testid="section-categories">
+                <div className="flex items-center gap-1">
+                  <button onClick={() => scrollCategories("left")} className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 transition-colors shrink-0" data-testid="button-categories-left">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="flex gap-1.5 overflow-x-auto scrollbar-hide flex-1" ref={categoriesRef}>
+                    {APP_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => { setSelectedCategory(cat.id); setPromptSeed(prev => prev + 1); }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all shrink-0 border ${selectedCategory === cat.id ? "bg-[#0079F2]/15 text-[#0079F2] border-[#0079F2]/30" : "text-[var(--ide-text-muted)] border-transparent hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
+                        data-testid={`category-${cat.id}`}
+                      >
+                        <cat.icon className="w-3.5 h-3.5" />
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => scrollCategories("right")} className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 transition-colors shrink-0" data-testid="button-categories-right">
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-8" data-testid="section-example-prompts">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[11px] font-medium text-[var(--ide-text-muted)]" data-testid="text-example-prompts-label">Try an example prompt</span>
+                  <button
+                    onClick={() => setPromptSeed(prev => prev + 1)}
+                    className="w-5 h-5 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors"
+                    data-testid="button-refresh-prompts"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {examplePrompts.map((prompt, idx) => (
+                    <button
+                      key={`${selectedCategory}-${promptSeed}-${idx}`}
+                      onClick={() => setAiPrompt(prompt)}
+                      className="text-[11px] px-3.5 py-2 rounded-lg border border-[var(--ide-border)] bg-[var(--ide-panel)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:border-[#0079F2]/30 hover:bg-[#0079F2]/5 transition-all text-left leading-relaxed"
+                      data-testid={`prompt-pill-${idx}`}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-3">
