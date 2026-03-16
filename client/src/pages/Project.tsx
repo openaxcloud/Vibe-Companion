@@ -23,6 +23,7 @@ import AppStoragePanel from "@/components/AppStoragePanel";
 import AuthPanel from "@/components/AuthPanel";
 import IntegrationsPanel from "@/components/IntegrationsPanel";
 import AutomationsPanel from "@/components/AutomationsPanel";
+import AgentAutomationsPane from "@/components/AgentAutomationsPane";
 import WorkflowsPanel from "@/components/WorkflowsPanel";
 import MonitoringPanel from "@/components/MonitoringPanel";
 import ThreadsPanel from "@/components/ThreadsPanel";
@@ -350,7 +351,7 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "checkpoints" | "settings" | "envVars";
+  type ToolPanelId = "search" | "git" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "checkpoints" | "settings" | "envVars";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -363,6 +364,7 @@ function _projectPage() {
     { id: "auth", label: "Auth", icon: ShieldCheck, color: "#0CCE6B" },
     { id: "integrations", label: "Integrations", icon: Puzzle, color: "#0079F2" },
     { id: "automations", label: "Automations", icon: Zap, color: "#F5A623" },
+    { id: "agentAutomations", label: "Agents & Automations", icon: Zap, color: "#F5A623" },
     { id: "workflows", label: "Workflows", icon: GitMerge, color: "#0079F2" },
     { id: "monitoring", label: "Monitoring", icon: Activity, color: "#10B981" },
     { id: "threads", label: "Threads", icon: MessageSquare, color: "#8B5CF6" },
@@ -1537,7 +1539,11 @@ function _projectPage() {
         showBadge: deployShowBadge,
         enableFeedback: deployEnableFeedback,
       });
-      return res.json();
+      const deployData = await res.json();
+      if (deployData.deployment?.status === "failed") {
+        throw new Error(deployData.deployment?.buildLog || "Deployment build failed");
+      }
+      return deployData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
@@ -5865,6 +5871,12 @@ function _projectPage() {
             {activePanelTab === "automations" && (
               <div className="flex-1 flex flex-col" data-testid="automations-sidebar">
                 <AutomationsPanel projectId={projectId} onClose={() => closePanel("automations")} />
+              </div>
+            )}
+
+            {activePanelTab === "agentAutomations" && (
+              <div className="flex-1 flex flex-col" data-testid="agent-automations-sidebar">
+                <AgentAutomationsPane projectId={projectId} onClose={() => closePanel("agentAutomations")} />
               </div>
             )}
 

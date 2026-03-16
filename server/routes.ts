@@ -15,7 +15,8 @@ import { executionPool } from "./executionPool";
 import { getOrCreateTerminal, resizeTerminal } from "./terminal";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
-import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment } from "./deploymentEngine";
+import { buildAndDeploy, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess } from "./deploymentEngine";
+import type { DeploymentType } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
 import { createCheckpoint, restoreCheckpoint, getCheckpointDiff } from "./checkpointService";
 import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById } from "./domainManager";
@@ -1808,7 +1809,10 @@ export async function registerRoutes(
         req.session.userId!,
         deployment.id,
         version,
-        (line) => log(line, "deploy"),
+        (line) => {
+          log(line, "deploy");
+          broadcastToProject(project.id, { type: "deploy_log", line });
+        },
         {
           deploymentType,
           buildCommand: deployConfig.buildCommand,
@@ -1838,12 +1842,14 @@ export async function registerRoutes(
         buildLog: build.buildLog,
         url: deployUrl,
         finishedAt: new Date(),
+        deploymentType,
+        processPort: build.processPort || undefined,
       });
       await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version, deploymentType });
       if (build.status === "live") {
         createCheckpoint(project.id, req.session.userId!, "deployment", `Deployment v${version} successful`).catch(() => {});
       }
-      return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl, deploymentType }, slug, url: deployUrl, version });
+      return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl, deploymentType, processPort: build.processPort }, slug, url: deployUrl, version });
     } catch (err: any) {
       log(`Deploy error: ${err.message}`, "deploy");
       return res.status(500).json({ message: "Deployment failed" });
@@ -1881,7 +1887,7 @@ export async function registerRoutes(
       const project = await storage.getProject(req.params.id);
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
-      await teardownDeployment(slug);
+      await teardownDeployment(slug, project.id);
       await storage.updateProject(project.id, { isPublished: false, publishedSlug: null });
       return res.json({ success: true });
     } catch {
@@ -1988,6 +1994,74 @@ export async function registerRoutes(
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       return res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  app.get("/api/projects/:id/deploy/health", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const health = await performHealthCheck(project.id);
+      const deps = await storage.getProjectDeployments(project.id);
+      const latestDep = deps[0];
+      if (latestDep && health.lastCheck) {
+        await storage.updateDeployment(latestDep.id, {
+          lastHealthCheck: health.lastCheck,
+          healthStatus: health.status,
+        });
+      }
+      return res.json(health);
+    } catch {
+      return res.status(500).json({ message: "Health check failed" });
+    }
+  });
+
+  app.get("/api/projects/:id/deploy/logs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const logs = getProcessLogs(project.id);
+      return res.json({ logs });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch logs" });
+    }
+  });
+
+  app.get("/api/projects/:id/deploy/process", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const status = getProcessStatus(project.id);
+      return res.json({ process: status });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch process status" });
+    }
+  });
+
+  app.post("/api/projects/:id/deploy/stop", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      await stopManagedProcess(project.id);
+      const deps = await storage.getProjectDeployments(project.id);
+      if (deps[0]) {
+        await storage.updateDeployment(deps[0].id, { status: "stopped", healthStatus: "unknown" });
+      }
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Stop failed" });
+    }
+  });
+
+  app.post("/api/projects/:id/deploy/restart", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const managed = await restartManagedProcess(project.id);
+      if (!managed) return res.status(400).json({ message: "No running process to restart" });
+      return res.json({ success: true, port: managed.port });
+    } catch {
+      return res.status(500).json({ message: "Restart failed" });
     }
   });
 
@@ -6966,6 +7040,13 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!automation) return res.status(404).json({ message: "Not found" });
       if (!await verifyProjectAccess(automation.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
 
+      broadcastToProject(automation.projectId, {
+        type: "automation_started",
+        automationId: automation.id,
+        name: automation.name,
+        triggeredBy: "manual",
+      });
+
       const { executeAutomation } = await import("./automationScheduler");
       let triggeredBy = "manual";
       let eventPayload: string | undefined;
@@ -6993,6 +7074,30 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       }
 
       const result = await executeAutomation(req.params.automationId, triggeredBy, eventPayload);
+
+      broadcastToProject(automation.projectId, {
+        type: "automation_completed",
+        automationId: automation.id,
+        name: automation.name,
+        success: result.success,
+        runId: result.runId,
+      });
+
+      if (result.runId) {
+        const run = await storage.getAutomationRuns(automation.id, 1);
+        if (run[0]) {
+          broadcastToProject(automation.projectId, {
+            type: "automation_log",
+            automationId: automation.id,
+            runId: result.runId,
+            stdout: run[0].stdout || "",
+            stderr: run[0].stderr || "",
+            exitCode: run[0].exitCode,
+            durationMs: run[0].durationMs,
+          });
+        }
+      }
+
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to trigger automation" });

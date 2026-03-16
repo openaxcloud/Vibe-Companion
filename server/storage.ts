@@ -225,7 +225,7 @@ export interface IStorage {
   createDeployment(data: InsertDeployment): Promise<Deployment>;
   getDeployment(id: string): Promise<Deployment | undefined>;
   getProjectDeployments(projectId: string): Promise<Deployment[]>;
-  updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date; deploymentType: string; buildCommand: string; runCommand: string; machineConfig: { cpu: number; ram: number }; maxMachines: number; cronExpression: string; scheduleDescription: string; jobTimeout: number; publicDirectory: string; appType: string; deploymentSecrets: Record<string, string>; isPrivate: boolean; showBadge: boolean; enableFeedback: boolean }>): Promise<Deployment | undefined>;
+  updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date; deploymentType: string; buildCommand: string; runCommand: string; machineConfig: { cpu: number; ram: number }; maxMachines: number; cronExpression: string; scheduleDescription: string; jobTimeout: number; publicDirectory: string; appType: string; deploymentSecrets: Record<string, string>; isPrivate: boolean; showBadge: boolean; enableFeedback: boolean; processPort: number; lastHealthCheck: Date; healthStatus: string }>): Promise<Deployment | undefined>;
   demotePreviousLiveDeployments(projectId: string, excludeDeploymentId: string): Promise<void>;
 
   createDeploymentAnalytic(data: InsertDeploymentAnalytic): Promise<DeploymentAnalytic>;
@@ -1224,7 +1224,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(deployments).where(eq(deployments.projectId, projectId)).orderBy(desc(deployments.createdAt)).limit(20);
   }
 
-  async updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date; deploymentType: string; buildCommand: string; runCommand: string; machineConfig: { cpu: number; ram: number }; maxMachines: number; cronExpression: string; scheduleDescription: string; jobTimeout: number; publicDirectory: string; appType: string; deploymentSecrets: Record<string, string>; isPrivate: boolean; showBadge: boolean; enableFeedback: boolean }>): Promise<Deployment | undefined> {
+  async updateDeployment(id: string, data: Partial<{ status: string; buildLog: string; url: string; finishedAt: Date; deploymentType: string; buildCommand: string; runCommand: string; machineConfig: { cpu: number; ram: number }; maxMachines: number; cronExpression: string; scheduleDescription: string; jobTimeout: number; publicDirectory: string; appType: string; deploymentSecrets: Record<string, string>; isPrivate: boolean; showBadge: boolean; enableFeedback: boolean; processPort: number; lastHealthCheck: Date; healthStatus: string }>): Promise<Deployment | undefined> {
     const [dep] = await db.update(deployments).set(data).where(eq(deployments.id, id)).returning();
     return dep;
   }
