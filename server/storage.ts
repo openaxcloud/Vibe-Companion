@@ -4,7 +4,7 @@ import {
   users, projects, files, runs, workspaces, workspaceSessions,
   commits, branches, executionLogs, userQuotas, gitRepoState,
   projectEnvVars,
-  aiConversations, aiMessages,
+  aiConversations, aiMessages, queuedMessages,
   passwordResetTokens, emailVerifications,
   teams, teamMembers, teamInvites,
   analyticsEvents, deployments,
@@ -79,6 +79,7 @@ import {
   type TaskFileSnapshot, type InsertTaskFileSnapshot,
   type CreditUsage,
   type AgentMode,
+  type QueuedMessage, type InsertQueuedMessage,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
 } from "@shared/schema";
@@ -191,6 +192,14 @@ export interface IStorage {
   addMessage(data: InsertAiMessage): Promise<AiMessage>;
   addMessages(data: InsertAiMessage[]): Promise<AiMessage[]>;
   clearMessages(conversationId: string): Promise<void>;
+
+  getQueuedMessages(projectId: string, userId: string): Promise<QueuedMessage[]>;
+  createQueuedMessage(data: InsertQueuedMessage): Promise<QueuedMessage>;
+  updateQueuedMessage(id: string, projectId: string, userId: string, data: Partial<{ content: string; attachments: any; position: number; status: string }>): Promise<QueuedMessage | undefined>;
+  reorderQueuedMessages(updates: { id: string; position: number }[], projectId: string, userId: string): Promise<void>;
+  deleteQueuedMessage(id: string, projectId: string, userId: string): Promise<boolean>;
+  clearQueuedMessages(projectId: string, userId: string): Promise<void>;
+  dequeueNextMessage(projectId: string, userId: string): Promise<QueuedMessage | undefined>;
 
   createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken>;
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
@@ -1027,6 +1036,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteConversation(id: string): Promise<boolean> {
     await db.delete(aiMessages).where(eq(aiMessages.conversationId, id));
+    await db.delete(queuedMessages).where(eq(queuedMessages.conversationId, id));
     const result = await db.delete(aiConversations).where(eq(aiConversations.id, id)).returning();
     return result.length > 0;
   }
@@ -1047,6 +1057,62 @@ export class DatabaseStorage implements IStorage {
 
   async clearMessages(conversationId: string): Promise<void> {
     await db.delete(aiMessages).where(eq(aiMessages.conversationId, conversationId));
+  }
+
+  async getQueuedMessages(projectId: string, userId: string): Promise<QueuedMessage[]> {
+    return db.select().from(queuedMessages)
+      .where(and(eq(queuedMessages.projectId, projectId), eq(queuedMessages.userId, userId), eq(queuedMessages.status, "pending")))
+      .orderBy(queuedMessages.position);
+  }
+
+  async createQueuedMessage(data: InsertQueuedMessage): Promise<QueuedMessage> {
+    const [msg] = await db.insert(queuedMessages).values(data).returning();
+    return msg;
+  }
+
+  async updateQueuedMessage(id: string, projectId: string, userId: string, data: Partial<{ content: string; attachments: any; position: number; status: string }>): Promise<QueuedMessage | undefined> {
+    const updates: any = {};
+    if (data.content !== undefined) updates.content = data.content;
+    if (data.attachments !== undefined) updates.attachments = data.attachments;
+    if (data.position !== undefined) updates.position = data.position;
+    if (data.status !== undefined) updates.status = data.status;
+    const [msg] = await db.update(queuedMessages).set(updates)
+      .where(and(eq(queuedMessages.id, id), eq(queuedMessages.projectId, projectId), eq(queuedMessages.userId, userId)))
+      .returning();
+    return msg;
+  }
+
+  async reorderQueuedMessages(updates: { id: string; position: number }[], projectId: string, userId: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      for (const u of updates) {
+        await tx.update(queuedMessages).set({ position: u.position })
+          .where(and(eq(queuedMessages.id, u.id), eq(queuedMessages.projectId, projectId), eq(queuedMessages.userId, userId)));
+      }
+    });
+  }
+
+  async deleteQueuedMessage(id: string, projectId: string, userId: string): Promise<boolean> {
+    const result = await db.delete(queuedMessages)
+      .where(and(eq(queuedMessages.id, id), eq(queuedMessages.projectId, projectId), eq(queuedMessages.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async clearQueuedMessages(projectId: string, userId: string): Promise<void> {
+    await db.delete(queuedMessages).where(and(eq(queuedMessages.projectId, projectId), eq(queuedMessages.userId, userId)));
+  }
+
+  async dequeueNextMessage(projectId: string, userId: string): Promise<QueuedMessage | undefined> {
+    return await db.transaction(async (tx) => {
+      const [msg] = await tx.select().from(queuedMessages)
+        .where(and(eq(queuedMessages.projectId, projectId), eq(queuedMessages.userId, userId), eq(queuedMessages.status, "pending")))
+        .orderBy(queuedMessages.position)
+        .limit(1);
+      if (msg) {
+        await tx.update(queuedMessages).set({ status: "processing" }).where(eq(queuedMessages.id, msg.id));
+      }
+      return msg;
+    });
   }
 
   async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {

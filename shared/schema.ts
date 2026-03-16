@@ -1143,3 +1143,29 @@ export const insertTaskFileSnapshotSchema = createInsertSchema(taskFileSnapshots
 });
 export type InsertTaskFileSnapshot = z.infer<typeof insertTaskFileSnapshotSchema>;
 export type TaskFileSnapshot = typeof taskFileSnapshots.$inferSelect;
+
+export const queuedMessages = pgTable("queued_messages", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id", { length: 36 }).notNull(),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  content: text("content").notNull(),
+  attachments: json("attachments").$type<{ id: string; name: string; type: string; content: string; mimeType: string; size: number }[]>(),
+  position: integer("position").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("queued_msg_conv_idx").on(table.conversationId),
+  index("queued_msg_project_user_idx").on(table.projectId, table.userId),
+]);
+
+export const insertQueuedMessageSchema = createInsertSchema(queuedMessages).pick({
+  conversationId: true,
+  projectId: true,
+  userId: true,
+  content: true,
+  attachments: true,
+  position: true,
+});
+export type InsertQueuedMessage = z.infer<typeof insertQueuedMessageSchema>;
+export type QueuedMessage = typeof queuedMessages.$inferSelect;

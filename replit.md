@@ -23,7 +23,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
 - **Agent Modes**: Economy (1 credit, lighter models: gpt-4o-mini, gemini-2.0-flash), Power (3 credits, full models), Turbo (6 credits, Pro/Team only). Credit limits: Free=100/day, Pro=1000/day, Team=5000/day. Atomic credit deduction with SQL-level concurrency safety.
 - **Code Optimizations**: Post-processing review pass for AI-generated code. Toggle in AI panel settings popover, persisted per-user.
-- **AI Agent**: Tool-use endpoint that can create/edit files and create skills directly in the project
+- **AI Agent**: Tool-use endpoint that can create/edit files and create skills directly in the project. Message Queue system allows users to queue follow-up messages during streaming, with auto-processing loop, drag-and-drop reorder, inline edit, pause/resume, and DB persistence (`queued_messages` table).
 - **Agent Skills**: Per-project reusable skills (patterns, conventions, domain knowledge) that are automatically injected into AI context. CRUD via REST API + Skills panel in sidebar. AI agent has a `create_skill` tool. Skills stored in `skills` table.
 - **Console Panel**: `ConsolePanel.tsx` — structured run-based console with collapsible run entries, "Show Only Latest" toggle, "Clear past runs" with confirmation, "Ask AI" button per run entry, stop button for active runs. Run history persisted to `console_runs` table. Replaces old flat log list.
 - **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
@@ -53,6 +53,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `credit_usage`: id (uuid), user_id, mode, model, credit_cost, endpoint, created_at — tracks per-call credit costs
 - `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
 - `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
+- `queued_messages`: id (uuid), conversation_id (indexed), project_id, user_id (indexed with project_id), content, attachments (JSON, nullable), position (int), status (pending/processing), created_at — message queue for AI agent, supports drag-and-drop reorder
 - `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at
 - `account_env_vars`: id (uuid), user_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at — user-level secrets shared across projects
 - `account_env_var_links`: id (uuid), account_env_var_id, project_id (indexed) — links account secrets to specific projects

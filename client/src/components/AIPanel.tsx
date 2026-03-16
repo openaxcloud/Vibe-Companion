@@ -5,7 +5,8 @@ import {
   FileCode, FilePlus, FileEdit, ChevronDown, Zap, MessageSquare,
   FileDown, Code2, Bug, Lightbulb, Gauge, Wrench, Layout, Database, Shield,
   Mic, MicOff, Paperclip, Image, FileText, XCircle, ImagePlus, Loader2, ToggleLeft, ToggleRight,
-  Settings2, Search, FlaskConical, Brain, Globe
+  Settings2, Search, FlaskConical, Brain, Globe,
+  Pause, GripVertical, Pencil, ListOrdered, ChevronUp
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -34,6 +35,14 @@ interface ChatMessage {
   fileOps?: { type: "created" | "updated"; filename: string }[];
   attachments?: Attachment[];
   inlineImages?: { filename: string; dataUri: string }[];
+}
+
+interface QueuedMsg {
+  id: string;
+  content: string;
+  attachments?: Attachment[];
+  position: number;
+  status: string;
 }
 
 interface AIPanelProps {
@@ -227,12 +236,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [planLoading, setPlanLoading] = useState(false);
   const [proposedTasks, setProposedTasks] = useState<any[]>([]);
   const [showTaskBoard, setShowTaskBoard] = useState(false);
+  const [queuedMessages, setQueuedMessages] = useState<QueuedMsg[]>([]);
+  const [isQueueDrawerOpen, setIsQueueDrawerOpen] = useState(false);
+  const [editingQueueId, setEditingQueueId] = useState<string | null>(null);
+  const [editingQueueContent, setEditingQueueContent] = useState("");
+  const [isPaused, setIsPaused] = useState(false);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const processingQueueRef = useRef(false);
+  const pausedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragItemRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch("/api/user/preferences", { credentials: "include" })
@@ -290,6 +308,109 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       setConversationLoaded(true);
     })();
     return () => { cancelled = true; };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/ai/queue/${projectId}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setQueuedMessages(data.map((m: any) => ({ id: m.id, content: m.content, attachments: m.attachments, position: m.position, status: m.status })));
+            setIsQueueDrawerOpen(true);
+          }
+        }
+      } catch {}
+    })();
+  }, [projectId]);
+
+  const addToQueue = useCallback(async (content: string, msgAttachments?: Attachment[]) => {
+    if (!projectId || !content.trim()) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      const res = await fetch(`/api/ai/queue/${projectId}`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ content, attachments: msgAttachments || null }),
+      });
+      if (res.ok) {
+        const msg = await res.json();
+        setQueuedMessages(prev => [...prev, { id: msg.id, content: msg.content, attachments: msg.attachments, position: msg.position, status: msg.status }]);
+        setIsQueueDrawerOpen(true);
+      }
+    } catch {}
+  }, [projectId]);
+
+  const removeFromQueue = useCallback(async (id: string) => {
+    if (!projectId) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = {};
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      await fetch(`/api/ai/queue/${projectId}/${id}`, { method: "DELETE", headers, credentials: "include" });
+      setQueuedMessages(prev => {
+        const next = prev.filter(m => m.id !== id);
+        if (next.length === 0) setIsQueueDrawerOpen(false);
+        return next;
+      });
+    } catch {}
+  }, [projectId]);
+
+  const updateQueueItem = useCallback(async (id: string, content: string) => {
+    if (!projectId) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      const res = await fetch(`/api/ai/queue/${projectId}/${id}`, {
+        method: "PATCH",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setQueuedMessages(prev => prev.map(m => m.id === id ? { ...m, content: updated.content } : m));
+      }
+    } catch {}
+    setEditingQueueId(null);
+  }, [projectId]);
+
+  const reorderQueue = useCallback(async (fromIdx: number, toIdx: number) => {
+    if (!projectId || fromIdx === toIdx) return;
+    setQueuedMessages(prev => {
+      const items = [...prev];
+      const [moved] = items.splice(fromIdx, 1);
+      items.splice(toIdx, 0, moved);
+      const updated = items.map((m, i) => ({ ...m, position: i }));
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      fetch(`/api/ai/queue/${projectId}/reorder`, {
+        method: "PUT",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ updates: updated.map(m => ({ id: m.id, position: m.position })) }),
+      }).catch(() => {});
+      return updated;
+    });
+  }, [projectId]);
+
+  const clearQueue = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = {};
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      await fetch(`/api/ai/queue/${projectId}`, { method: "DELETE", headers, credentials: "include" });
+      setQueuedMessages([]);
+      setIsQueueDrawerOpen(false);
+    } catch {}
   }, [projectId]);
 
   const persistMessage = useCallback(async (role: string, content: string, msgModel?: string, fileOps?: any) => {
@@ -468,50 +589,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
   };
 
-  const sendMessage = async () => {
-    if ((!input.trim() && attachments.length === 0) || isStreaming) return;
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
 
-    if (mode === "plan") {
-      return submitPlanMode();
-    }
-
-    const imageMatch = input.trim().match(/^\/image\s+(.+)$/i);
-    if (imageMatch) {
-      setInput("");
-      const imgText = imageMatch[1];
-      const sizeMatch = imgText.match(/^(1024x1024|1024x1536|1536x1024|auto)\s+(.+)$/i);
-      if (sizeMatch) {
-        await generateImage(sizeMatch[2], sizeMatch[1]);
-      } else {
-        await generateImage(imgText);
-      }
-      return;
-    }
-
-    const searchMatch = input.trim().match(/^\/search\s+(.+)$/i);
-    if (searchMatch && agentToolsConfig.webSearch) {
-      setInput("");
-      await performWebSearch(searchMatch[1]);
-      return;
-    }
-
-    if (agentToolsConfig.webSearch && mode !== "chat") {
-      const q = input.trim().toLowerCase();
-      const searchPatterns = [
-        /^(what|who|when|where|how|why|which|is|are|was|were|do|does|did|can|could|should|will|would)\s.+\?$/i,
-        /\b(latest|recent|current|new|update|news|release|version|price|cost)\b/i,
-        /\b(search|look up|find out|google|find me)\b/i,
-      ];
-      const hasSearchIntent = searchPatterns.some(p => p.test(q));
-      if (hasSearchIntent && !q.includes("create") && !q.includes("build") && !q.includes("add") && !q.includes("edit") && !q.includes("fix") && !q.includes("implement")) {
-        setInput("");
-        await performWebSearch(input.trim());
-        return;
-      }
-    }
-
-    let fullContent = input.trim();
-    const currentAttachments = [...attachments];
+  const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
+    let fullContent = content;
 
     if (currentAttachments.length > 0) {
       const attachmentDescriptions = currentAttachments.map((a) => {
@@ -526,10 +611,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: fullContent, attachments: currentAttachments.length > 0 ? currentAttachments : undefined };
-    const allMessages = [...messages, userMsg];
-    setMessages(allMessages);
-    setInput("");
-    setAttachments([]);
+    let allMessages: ChatMessage[] = [];
+    setMessages((prev) => {
+      allMessages = [...prev, userMsg];
+      return allMessages;
+    });
     setIsStreaming(true);
 
     persistMessage("user", userMsg.content);
@@ -580,6 +666,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         }
         return prev;
       });
+      return true;
     } catch (err: any) {
       if (err.name !== "AbortError") {
         setLastFailedInput(userMsg.content);
@@ -587,15 +674,136 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m)
         );
       }
+      return false;
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
     }
+  }, [messages, model, mode, projectId, context, codeOptimizations, persistMessage, processSSEStream]);
+
+  const processQueue = useCallback(async () => {
+    if (processingQueueRef.current || pausedRef.current) return;
+    processingQueueRef.current = true;
+
+    while (!pausedRef.current) {
+      let nextMsg: QueuedMsg | null = null;
+      setQueuedMessages((prev) => {
+        if (prev.length === 0) return prev;
+        nextMsg = prev[0];
+        return prev;
+      });
+
+      if (!nextMsg) break;
+      const msgToProcess = nextMsg as QueuedMsg;
+
+      if (pausedRef.current) break;
+
+      const success = await sendMessageDirect(msgToProcess.content, msgToProcess.attachments);
+
+      if (success) {
+        if (projectId) {
+          try {
+            const csrfToken = getCsrfToken();
+            const headers: Record<string, string> = {};
+            if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+            await fetch(`/api/ai/queue/${projectId}/${msgToProcess.id}`, { method: "DELETE", headers, credentials: "include" });
+          } catch {}
+        }
+
+        setQueuedMessages((prev) => {
+          const next = prev.filter(m => m.id !== msgToProcess.id);
+          if (next.length === 0) setIsQueueDrawerOpen(false);
+          return next;
+        });
+      } else {
+        break;
+      }
+
+      if (pausedRef.current) break;
+
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    processingQueueRef.current = false;
+  }, [projectId, sendMessageDirect]);
+
+  const sendMessage = async () => {
+    if (!input.trim() && attachments.length === 0) return;
+
+    if (mode === "plan" && !isStreaming) {
+      return submitPlanMode();
+    }
+
+    const content = input.trim();
+    const currentAttachments = [...attachments];
+    setInput("");
+    setAttachments([]);
+
+    if (isStreaming) {
+      await addToQueue(content, currentAttachments);
+      return;
+    }
+
+    const imageMatch = content.match(/^\/image\s+(.+)$/i);
+    if (imageMatch) {
+      const imgText = imageMatch[1];
+      const sizeMatch = imgText.match(/^(1024x1024|1024x1536|1536x1024|auto)\s+(.+)$/i);
+      if (sizeMatch) {
+        await generateImage(sizeMatch[2], sizeMatch[1]);
+      } else {
+        await generateImage(imgText);
+      }
+      return;
+    }
+
+    const searchMatch = content.match(/^\/search\s+(.+)$/i);
+    if (searchMatch && agentToolsConfig.webSearch) {
+      await performWebSearch(searchMatch[1]);
+      return;
+    }
+
+    if (agentToolsConfig.webSearch && mode !== "chat") {
+      const q = content.toLowerCase();
+      const searchPatterns = [
+        /^(what|who|when|where|how|why|which|is|are|was|were|do|does|did|can|could|should|will|would)\s.+\?$/i,
+        /\b(latest|recent|current|new|update|news|release|version|price|cost)\b/i,
+        /\b(search|look up|find out|google|find me)\b/i,
+      ];
+      const hasSearchIntent = searchPatterns.some(p => p.test(q));
+      if (hasSearchIntent && !q.includes("create") && !q.includes("build") && !q.includes("add") && !q.includes("edit") && !q.includes("fix") && !q.includes("implement")) {
+        await performWebSearch(content);
+        return;
+      }
+    }
+
+    await sendMessageDirect(content, currentAttachments);
+    processQueue();
   };
+
+  useEffect(() => {
+    if (!isStreaming && queuedMessages.length > 0 && !processingQueueRef.current && !pausedRef.current) {
+      processQueue();
+    }
+  }, [isStreaming, queuedMessages.length, processQueue]);
 
   const stopStreaming = () => {
     abortRef.current?.abort();
   };
+
+  const pauseQueue = useCallback(() => {
+    pausedRef.current = true;
+    setIsPaused(true);
+    abortRef.current?.abort();
+    processingQueueRef.current = false;
+  }, []);
+
+  const resumeQueue = useCallback(() => {
+    pausedRef.current = false;
+    setIsPaused(false);
+    if (queuedMessages.length > 0) {
+      processQueue();
+    }
+  }, [queuedMessages.length, processQueue]);
 
   const retryLastMessage = () => {
     if (!lastFailedInput) return;
@@ -871,12 +1079,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       setIsStreaming(false);
       abortRef.current = null;
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
   const [appliedBlocks, setAppliedBlocks] = useState<Set<string>>(new Set());
@@ -1602,6 +1804,124 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       </div>
 
       <div className="p-2.5 border-t border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+        {queuedMessages.length > 0 && (
+          <div className="mb-2 rounded-lg border border-[#7C65CB]/20 bg-[#7C65CB]/5 overflow-hidden" data-testid="queue-drawer">
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-[#7C65CB] hover:bg-[#7C65CB]/10 transition-colors"
+              onClick={() => setIsQueueDrawerOpen(!isQueueDrawerOpen)}
+              data-testid="button-toggle-queue"
+            >
+              <span className="flex items-center gap-1.5">
+                <ListOrdered className="w-3.5 h-3.5" />
+                Queue ({queuedMessages.length} message{queuedMessages.length > 1 ? "s" : ""})
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  className="px-2 py-0.5 rounded text-[9px] bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); clearQueue(); }}
+                  data-testid="button-clear-queue"
+                >
+                  Clear all
+                </button>
+                <ChevronUp className={`w-3.5 h-3.5 transition-transform ${isQueueDrawerOpen ? "" : "rotate-180"}`} />
+              </div>
+            </button>
+            {isQueueDrawerOpen && (
+              <div className="max-h-[200px] overflow-y-auto border-t border-[#7C65CB]/10">
+                {queuedMessages.map((qMsg, idx) => (
+                  <div
+                    key={qMsg.id}
+                    className={`flex items-start gap-1.5 px-2 py-1.5 text-[11px] border-b border-[#7C65CB]/5 last:border-b-0 transition-colors ${dragOverIndex === idx ? "bg-[#7C65CB]/15" : "hover:bg-[#7C65CB]/5"}`}
+                    draggable
+                    onDragStart={() => { dragItemRef.current = idx; }}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
+                    onDragLeave={() => setDragOverIndex(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverIndex(null);
+                      if (dragItemRef.current !== null && dragItemRef.current !== idx) {
+                        reorderQueue(dragItemRef.current, idx);
+                      }
+                      dragItemRef.current = null;
+                    }}
+                    onDragEnd={() => { dragItemRef.current = null; setDragOverIndex(null); }}
+                    data-testid={`queue-item-${qMsg.id}`}
+                  >
+                    <div className="cursor-grab active:cursor-grabbing pt-0.5 text-[var(--ide-text-muted)] hover:text-[#7C65CB] touch-none" data-testid={`drag-handle-${qMsg.id}`}>
+                      <GripVertical className="w-3 h-3" />
+                    </div>
+                    <span className="text-[9px] font-mono text-[#7C65CB]/60 pt-0.5 shrink-0">{idx + 1}</span>
+                    {editingQueueId === qMsg.id ? (
+                      <div className="flex-1 flex gap-1">
+                        <textarea
+                          className="flex-1 bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-1.5 py-0.5 text-[11px] text-[var(--ide-text)] resize-none min-h-[28px] focus:outline-none focus:border-[#7C65CB]/40"
+                          value={editingQueueContent}
+                          onChange={(e) => setEditingQueueContent(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              updateQueueItem(qMsg.id, editingQueueContent);
+                            }
+                            if (e.key === "Escape") setEditingQueueId(null);
+                          }}
+                          autoFocus
+                          data-testid={`input-edit-queue-${qMsg.id}`}
+                        />
+                        <button
+                          className="px-1.5 py-0.5 rounded bg-[#7C65CB] text-white text-[9px] hover:bg-[#6B56B8] transition-colors shrink-0"
+                          onClick={() => updateQueueItem(qMsg.id, editingQueueContent)}
+                          data-testid={`button-save-queue-${qMsg.id}`}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="flex-1 text-[var(--ide-text-secondary)] truncate pt-0.5">{qMsg.content}</span>
+                    )}
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {idx > 0 && (
+                        <button
+                          className="w-5 h-5 rounded flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10 transition-colors"
+                          onClick={() => reorderQueue(idx, idx - 1)}
+                          title="Move up"
+                          data-testid={`button-moveup-queue-${qMsg.id}`}
+                        >
+                          <ChevronUp className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                      {idx < queuedMessages.length - 1 && (
+                        <button
+                          className="w-5 h-5 rounded flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10 transition-colors rotate-180"
+                          onClick={() => reorderQueue(idx, idx + 1)}
+                          title="Move down"
+                          data-testid={`button-movedown-queue-${qMsg.id}`}
+                        >
+                          <ChevronUp className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                      <button
+                        className="w-5 h-5 rounded flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10 transition-colors"
+                        onClick={() => { setEditingQueueId(qMsg.id); setEditingQueueContent(qMsg.content); }}
+                        title="Edit"
+                        data-testid={`button-edit-queue-${qMsg.id}`}
+                      >
+                        <Pencil className="w-2.5 h-2.5" />
+                      </button>
+                      <button
+                        className="w-5 h-5 rounded flex items-center justify-center text-[var(--ide-text-muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        onClick={() => removeFromQueue(qMsg.id)}
+                        title="Remove"
+                        data-testid={`button-delete-queue-${qMsg.id}`}
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2 px-1">
             {attachments.map((a) => (
@@ -1697,10 +2017,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === "plan" ? "Describe what to build in parallel..." : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."}
+            placeholder={mode === "plan" ? "Describe what to build in parallel..." : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : isStreaming ? "Type to queue a follow-up message..." : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."}
             rows={3}
             className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
-            disabled={isStreaming || isTranscribing || isGeneratingImage}
+            disabled={isTranscribing || isGeneratingImage}
             data-testid="input-ai-chat"
           />
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
@@ -1718,26 +2038,26 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 <Zap className="w-3.5 h-3.5" />
               </button>
             )}
-            {isStreaming ? (
+            {isStreaming && (
               <Button
-                onClick={stopStreaming}
+                onClick={queuedMessages.length > 0 ? pauseQueue : stopStreaming}
                 size="icon"
                 className="w-7 h-7 bg-red-500/90 hover:bg-red-600 rounded-full shadow-sm"
-                data-testid="button-ai-stop"
+                data-testid="button-ai-pause"
+                title={queuedMessages.length > 0 ? "Pause queue & stop" : "Stop"}
               >
-                <X className="w-3.5 h-3.5 text-white" />
-              </Button>
-            ) : (
-              <Button
-                onClick={sendMessage}
-                size="icon"
-                className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-full shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
-                disabled={!input.trim() && attachments.length === 0}
-                data-testid="button-ai-send"
-              >
-                <Send className="w-3.5 h-3.5 text-white" />
+                {queuedMessages.length > 0 ? <Pause className="w-3.5 h-3.5 text-white" /> : <X className="w-3.5 h-3.5 text-white" />}
               </Button>
             )}
+            <Button
+              onClick={sendMessage}
+              size="icon"
+              className="w-7 h-7 bg-[#7C65CB] hover:bg-[#6B56B8] rounded-full shadow-sm shadow-[#7C65CB]/20 disabled:opacity-30 disabled:shadow-none"
+              disabled={!input.trim() && attachments.length === 0}
+              data-testid="button-ai-send"
+            >
+              <Send className="w-3.5 h-3.5 text-white" />
+            </Button>
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1.5">
@@ -1751,7 +2071,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
               }`}
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isStreaming || isTranscribing}
+              disabled={isTranscribing}
               title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
               data-testid="button-ai-mic"
             >
@@ -1760,7 +2080,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             <button
               className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isStreaming}
               title="Attach files"
               data-testid="button-ai-attach"
             >
@@ -1786,10 +2105,19 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {isStreaming ? (
+            {isPaused && queuedMessages.length > 0 ? (
+              <button
+                onClick={resumeQueue}
+                className="flex items-center gap-1.5 text-[10px] text-amber-400 hover:text-amber-300 transition-colors"
+                data-testid="button-resume-queue"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Paused — click to resume ({queuedMessages.length} queued)
+              </button>
+            ) : isStreaming ? (
               <span className="flex items-center gap-1.5 text-[10px] text-[#7C65CB]">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#7C65CB] animate-pulse" />
-                Generating...
+                Generating{queuedMessages.length > 0 ? ` · ${queuedMessages.length} queued` : ""}...
               </span>
             ) : (
               <span className={`text-[9px] ${input.length > 3800 ? "text-red-400" : "text-[var(--ide-text-muted)]"}`} data-testid="text-char-count">

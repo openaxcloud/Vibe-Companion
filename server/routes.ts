@@ -4536,6 +4536,101 @@ Rules:
     return res.json({ message: "Conversation cleared" });
   });
 
+  app.get("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const messages = await storage.getQueuedMessages(req.params.projectId, req.session.userId!);
+    return res.json(messages);
+  });
+
+  app.post("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { content, attachments } = req.body;
+    if (!content || typeof content !== "string") {
+      return res.status(400).json({ message: "content required" });
+    }
+    let conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+    if (!conversation) {
+      conversation = await storage.createConversation({
+        projectId: req.params.projectId,
+        userId: req.session.userId!,
+        model: "gpt",
+      });
+    }
+    const existing = await storage.getQueuedMessages(req.params.projectId, req.session.userId!);
+    const position = existing.length;
+    const msg = await storage.createQueuedMessage({
+      conversationId: conversation.id,
+      projectId: req.params.projectId,
+      userId: req.session.userId!,
+      content: content.slice(0, 100000),
+      attachments: attachments || null,
+      position,
+    });
+    return res.status(201).json(msg);
+  });
+
+  app.patch("/api/ai/queue/:projectId/:messageId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { content, attachments } = req.body;
+    const updates: any = {};
+    if (content !== undefined) updates.content = content;
+    if (attachments !== undefined) updates.attachments = attachments;
+    const msg = await storage.updateQueuedMessage(req.params.messageId, req.params.projectId, req.session.userId!, updates);
+    if (!msg) return res.status(404).json({ message: "Message not found" });
+    return res.json(msg);
+  });
+
+  app.put("/api/ai/queue/:projectId/reorder", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { updates } = req.body;
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ message: "updates array required" });
+    }
+    await storage.reorderQueuedMessages(updates, req.params.projectId, req.session.userId!);
+    const messages = await storage.getQueuedMessages(req.params.projectId, req.session.userId!);
+    return res.json(messages);
+  });
+
+  app.delete("/api/ai/queue/:projectId/:messageId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    await storage.deleteQueuedMessage(req.params.messageId, req.params.projectId, req.session.userId!);
+    return res.json({ message: "Deleted" });
+  });
+
+  app.delete("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    await storage.clearQueuedMessages(req.params.projectId, req.session.userId!);
+    return res.json({ message: "Queue cleared" });
+  });
+
+  app.post("/api/ai/queue/:projectId/dequeue", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const msg = await storage.dequeueNextMessage(req.params.projectId, req.session.userId!);
+    if (!msg) return res.json({ message: null });
+    return res.json(msg);
+  });
+
   app.post("/api/ai/complete", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
       const { code, cursorOffset, language } = req.body;
