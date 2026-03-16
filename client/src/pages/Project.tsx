@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   ChevronLeft, Play, Square, Terminal, FileCode2, Plus, Loader2,
   X, Trash2, Pencil, FolderOpen, Settings, MoreHorizontal,
-  File as FileIcon, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
+  File as FileIcon, FilePlus, RefreshCw, Sparkles, Globe, Rocket, Copy, Check, ExternalLink,
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
@@ -2755,15 +2755,47 @@ function _projectPage() {
           );
         })}
       </div>
-      {isMobile && (
-        <button
-          className="h-full px-2.5 border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150 shrink-0"
-          onClick={() => setNewFileDialogOpen(true)}
-          data-testid="button-mobile-new-tab"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="h-full px-2 border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150 shrink-0"
+            data-testid="button-tab-bar-add-panel"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[160px]" align="end">
+          <DropdownMenuItem
+            className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer"
+            onClick={() => openSpecialTab(SPECIAL_TABS.CONSOLE)}
+            data-testid="menu-open-console-tab"
+          >
+            <Terminal className="w-3.5 h-3.5 text-[#F5A623]" /> Console
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer"
+            onClick={() => openSpecialTab(SPECIAL_TABS.SHELL)}
+            data-testid="menu-open-shell-tab"
+          >
+            <Hash className="w-3.5 h-3.5 text-[#0CCE6B]" /> Shell
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer"
+            onClick={() => openSpecialTab(SPECIAL_TABS.WEBVIEW)}
+            data-testid="menu-open-webview-tab"
+          >
+            <Monitor className="w-3.5 h-3.5 text-[#0079F2]" /> Webview
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="bg-[var(--ide-border)]" />
+          <DropdownMenuItem
+            className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer"
+            onClick={() => setNewFileDialogOpen(true)}
+            data-testid="menu-new-file-tab"
+          >
+            <FilePlus className="w-3.5 h-3.5" /> New File
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {tabBarOverflow && !isMobile && (
         <button
           className="absolute right-0 z-10 h-full px-1.5 bg-[var(--ide-bg)] border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150"
@@ -2780,13 +2812,31 @@ function _projectPage() {
         <Code2 className="w-3.5 h-3.5" />
         <span className="text-[11px]">No files open</span>
       </div>
-      <button
-        className="h-full px-2.5 border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150 shrink-0"
-        onClick={() => setNewFileDialogOpen(true)}
-        data-testid="button-mobile-new-tab-empty"
-      >
-        <Plus className="w-3.5 h-3.5" />
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="h-full px-2.5 border-l border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors duration-150 shrink-0"
+            data-testid="button-mobile-new-tab-empty"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[160px]" align="end">
+          <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => openSpecialTab(SPECIAL_TABS.CONSOLE)} data-testid="menu-empty-open-console">
+            <Terminal className="w-3.5 h-3.5 text-[#F5A623]" /> Console
+          </DropdownMenuItem>
+          <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => openSpecialTab(SPECIAL_TABS.SHELL)} data-testid="menu-empty-open-shell">
+            <Hash className="w-3.5 h-3.5 text-[#0CCE6B]" /> Shell
+          </DropdownMenuItem>
+          <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => openSpecialTab(SPECIAL_TABS.WEBVIEW)} data-testid="menu-empty-open-webview">
+            <Monitor className="w-3.5 h-3.5 text-[#0079F2]" /> Webview
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="bg-[var(--ide-border)]" />
+          <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setNewFileDialogOpen(true)} data-testid="menu-empty-new-file">
+            <FilePlus className="w-3.5 h-3.5" /> New File
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   ) : null;
 
