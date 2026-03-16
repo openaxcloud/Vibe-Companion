@@ -20,6 +20,8 @@ import { StateField, StateEffect, RangeSetBuilder, RangeSet } from "@codemirror/
 import { autocompletion, type CompletionContext, type Completion } from "@codemirror/autocomplete";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { inlineAICompletion } from "./AICompletions";
+import { useTheme, type ThemeData } from "./ThemeProvider";
+import type { SyntaxColors, GlobalColors } from "@shared/schema";
 
 export interface BlameEntry {
   line: number;
@@ -42,208 +44,243 @@ interface CodeEditorProps {
   aiCompletions?: boolean;
 }
 
-const replitHighlight = HighlightStyle.define([
-  { tag: t.keyword, color: "#FF6166" },
-  { tag: [t.name, t.deleted, t.character, t.macroName], color: "#F5F9FC" },
-  { tag: [t.propertyName], color: "#56B6C2" },
-  { tag: [t.function(t.variableName), t.labelName], color: "#56B6C2" },
-  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: "#FF9940" },
-  { tag: [t.definition(t.name), t.separator], color: "#CFD7E6" },
-  { tag: [t.typeName, t.className, t.changed, t.annotation, t.modifier, t.self, t.namespace], color: "#FFCB6B" },
-  { tag: [t.number], color: "#FF9940" },
-  { tag: [t.operator, t.operatorKeyword], color: "#FF6166" },
-  { tag: [t.url, t.escape, t.regexp, t.link, t.special(t.string)], color: "#56B6C2" },
-  { tag: [t.meta, t.comment], color: "#676D7E", fontStyle: "italic" },
-  { tag: t.strong, fontWeight: "bold" },
-  { tag: t.emphasis, fontStyle: "italic" },
-  { tag: t.strikethrough, textDecoration: "line-through" },
-  { tag: t.link, color: "#56B6C2", textDecoration: "underline" },
-  { tag: t.heading, fontWeight: "bold", color: "#FF6166" },
-  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#FF9940" },
-  { tag: [t.processingInstruction, t.string, t.inserted], color: "#0CCE6B" },
-  { tag: t.invalid, color: "#F44747" },
-  { tag: [t.tagName], color: "#FF6166" },
-  { tag: [t.attributeName], color: "#FFCB6B" },
-]);
+function buildHighlightStyle(sc: SyntaxColors): HighlightStyle {
+  return HighlightStyle.define([
+    { tag: t.keyword, color: sc.keywords },
+    { tag: [t.name, t.deleted, t.character, t.macroName], color: sc.variableNames },
+    { tag: t.propertyName, color: sc.propertyNames },
+    { tag: t.definition(t.propertyName), color: sc.propertyDefinitions },
+    { tag: [t.function(t.variableName), t.labelName], color: sc.functionReferences },
+    { tag: t.definition(t.function(t.variableName)), color: sc.functionDefinitions },
+    { tag: t.function(t.propertyName), color: sc.functionProperties },
+    { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: sc.numbers },
+    { tag: [t.definition(t.name), t.separator], color: sc.variableDefinitions },
+    { tag: [t.typeName, t.changed, t.annotation, t.modifier, t.self, t.namespace], color: sc.typeNames },
+    { tag: t.className, color: sc.classNames },
+    { tag: [t.number], color: sc.numbers },
+    { tag: [t.operator, t.operatorKeyword], color: sc.operators },
+    { tag: [t.bracket, t.paren, t.squareBracket, t.brace, t.angleBracket], color: sc.brackets },
+    { tag: [t.url, t.escape, t.regexp, t.link, t.special(t.string)], color: sc.regularExpressions },
+    { tag: [t.meta, t.comment], color: sc.comments, fontStyle: "italic" },
+    { tag: t.strong, fontWeight: "bold" },
+    { tag: t.emphasis, fontStyle: "italic" },
+    { tag: t.strikethrough, textDecoration: "line-through" },
+    { tag: t.link, color: sc.regularExpressions, textDecoration: "underline" },
+    { tag: t.heading, fontWeight: "bold", color: sc.keywords },
+    { tag: [t.atom, t.bool, t.special(t.variableName)], color: sc.booleans },
+    { tag: [t.processingInstruction, t.string, t.inserted], color: sc.strings },
+    { tag: t.invalid, color: "#F44747" },
+    { tag: [t.tagName], color: sc.tagNames },
+    { tag: [t.attributeName], color: sc.attributeNames },
+  ]);
+}
 
-const replitTheme = EditorView.theme({
-  "&": {
-    height: "100%",
-    background: "#1C2333",
-    color: "#CFD7E6",
-  },
-  ".cm-scroller": {
-    overflow: "auto",
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: "13px",
-    lineHeight: "1.65",
-  },
-  ".cm-gutters": {
-    background: "#0E1525",
-    borderRight: "1px solid #2B3245",
-    color: "#676D7E",
-    minWidth: "52px",
-  },
-  ".cm-lineNumbers .cm-gutterElement": {
-    fontFamily: "'IBM Plex Mono', 'JetBrains Mono', monospace",
-    fontSize: "12px",
-    padding: "0 12px 0 8px",
-    minWidth: "32px",
-    textAlign: "right",
-  },
-  ".cm-activeLineGutter": {
-    background: "#1C2333",
-    color: "#9DA2B0",
-  },
-  ".cm-activeLine": {
-    background: "rgba(43, 50, 69, 0.4)",
-  },
-  ".cm-cursor, .cm-dropCursor": {
-    borderLeftColor: "#0079F2",
-    borderLeftWidth: "2px",
-  },
-  ".cm-selectionBackground": {
-    background: "rgba(0, 121, 242, 0.25) !important",
-  },
-  "&.cm-focused .cm-selectionBackground": {
-    background: "rgba(0, 121, 242, 0.28) !important",
-  },
-  ".cm-content": {
-    caretColor: "#0079F2",
-    padding: "4px 0",
-  },
-  ".cm-matchingBracket, .cm-nonmatchingBracket": {
-    background: "rgba(0, 121, 242, 0.15)",
-    outline: "1px solid rgba(0, 121, 242, 0.3)",
-  },
-  ".cm-foldGutter": {
-    width: "14px",
-  },
-  ".cm-tooltip": {
-    background: "#1C2333",
-    border: "1px solid #2B3245",
-    borderRadius: "8px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-  },
-  ".cm-tooltip-autocomplete > ul > li": {
-    padding: "4px 8px",
-  },
-  ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
-    background: "rgba(0, 121, 242, 0.15)",
-  },
-  ".cm-panels": {
-    background: "#0E1525",
-    color: "#F5F9FC",
-  },
-  ".cm-panels.cm-panels-top": {
-    borderBottom: "1px solid #2B3245",
-  },
-  ".cm-search": {
-    padding: "8px 12px",
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "6px",
-    alignItems: "center",
-    background: "#0E1525",
-    fontSize: "12px",
-  },
-  ".cm-search input, .cm-search select": {
-    background: "#1C2333",
-    border: "1px solid #2B3245",
-    color: "#F5F9FC",
-    borderRadius: "6px",
-    padding: "4px 8px",
-    fontSize: "12px",
-    outline: "none",
-  },
-  ".cm-search input:focus": {
-    borderColor: "#0079F2",
-    boxShadow: "0 0 0 2px rgba(0,121,242,0.15)",
-  },
-  ".cm-search button": {
-    background: "#1C2333",
-    border: "1px solid #2B3245",
-    color: "#9DA2B0",
-    borderRadius: "6px",
-    padding: "4px 10px",
-    cursor: "pointer",
-    fontSize: "11px",
-  },
-  ".cm-search button:hover": {
-    background: "#2B3245",
-    color: "#F5F9FC",
-  },
-  ".cm-search label": {
-    color: "#9DA2B0",
-    fontSize: "11px",
-    display: "flex",
-    alignItems: "center",
-    gap: "4px",
-  },
-  ".cm-searchMatch": {
-    background: "rgba(255,200,0,0.2)",
-    outline: "1px solid rgba(255,200,0,0.4)",
-  },
-  ".cm-searchMatch-selected": {
-    background: "rgba(0,121,242,0.3)",
-    outline: "1px solid rgba(0,121,242,0.6)",
-  },
-  ".cm-panels.cm-panels-bottom": {
-    borderTop: "1px solid #2B3245",
-  },
-  ".cm-foldPlaceholder": {
-    background: "#2B3245",
-    border: "none",
-    color: "#9DA2B0",
-    padding: "0 6px",
-    borderRadius: "3px",
-  },
-  ".cm-diagnostic": {
-    padding: "4px 8px",
-    fontSize: "12px",
-    fontFamily: "'JetBrains Mono', monospace",
-  },
-  ".cm-diagnostic-error": {
-    borderLeft: "3px solid #F44747",
-  },
-  ".cm-diagnostic-warning": {
-    borderLeft: "3px solid #FF9940",
-  },
-  ".cm-lintRange-error": {
-    backgroundImage: "none",
-    textDecoration: "wavy underline #F44747",
-    textUnderlineOffset: "3px",
-  },
-  ".cm-lintRange-warning": {
-    backgroundImage: "none",
-    textDecoration: "wavy underline #FF9940",
-    textUnderlineOffset: "3px",
-  },
-  ".cm-lint-marker-error": {
-    content: "'●'",
-    color: "#F44747",
-  },
-  ".cm-lint-marker-warning": {
-    content: "'●'",
-    color: "#FF9940",
-  },
-  ".cm-blame-gutter": {
-    width: "220px",
-    background: "#0E1525",
-    borderRight: "1px solid #2B3245",
-  },
-  ".cm-blame-gutter .cm-gutterElement": {
-    fontFamily: "'IBM Plex Mono', 'JetBrains Mono', monospace",
-    fontSize: "11px",
-    padding: "0 8px",
-    display: "flex",
-    alignItems: "center",
-    cursor: "default",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-}, { dark: true });
+function buildEditorTheme(gc: GlobalColors, isDark: boolean): ReturnType<typeof EditorView.theme> {
+  const bg = gc.background;
+  const fg = gc.foreground;
+  const outline = gc.outline;
+  const primary = gc.primary;
+  const negative = gc.negative;
+
+  const panelBg = bg;
+  const surfaceBg = blendHex(bg, fg, 0.06);
+  const mutedText = blendHex(fg, bg, 0.55);
+  const secondaryText = blendHex(fg, bg, 0.35);
+
+  return EditorView.theme({
+    "&": {
+      height: "100%",
+      background: surfaceBg,
+      color: blendHex(fg, bg, 0.1),
+    },
+    ".cm-scroller": {
+      overflow: "auto",
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: "13px",
+      lineHeight: "1.65",
+    },
+    ".cm-gutters": {
+      background: panelBg,
+      borderRight: `1px solid ${outline}`,
+      color: mutedText,
+      minWidth: "52px",
+    },
+    ".cm-lineNumbers .cm-gutterElement": {
+      fontFamily: "'IBM Plex Mono', 'JetBrains Mono', monospace",
+      fontSize: "12px",
+      padding: "0 12px 0 8px",
+      minWidth: "32px",
+      textAlign: "right",
+    },
+    ".cm-activeLineGutter": {
+      background: surfaceBg,
+      color: secondaryText,
+    },
+    ".cm-activeLine": {
+      background: `${outline}40`,
+    },
+    ".cm-cursor, .cm-dropCursor": {
+      borderLeftColor: primary,
+      borderLeftWidth: "2px",
+    },
+    ".cm-selectionBackground": {
+      background: `${primary}40 !important`,
+    },
+    "&.cm-focused .cm-selectionBackground": {
+      background: `${primary}47 !important`,
+    },
+    ".cm-content": {
+      caretColor: primary,
+      padding: "4px 0",
+    },
+    ".cm-matchingBracket, .cm-nonmatchingBracket": {
+      background: `${primary}26`,
+      outline: `1px solid ${primary}4D`,
+    },
+    ".cm-foldGutter": {
+      width: "14px",
+    },
+    ".cm-tooltip": {
+      background: surfaceBg,
+      border: `1px solid ${outline}`,
+      borderRadius: "8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+    },
+    ".cm-tooltip-autocomplete > ul > li": {
+      padding: "4px 8px",
+    },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+      background: `${primary}26`,
+    },
+    ".cm-panels": {
+      background: panelBg,
+      color: fg,
+    },
+    ".cm-panels.cm-panels-top": {
+      borderBottom: `1px solid ${outline}`,
+    },
+    ".cm-search": {
+      padding: "8px 12px",
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "6px",
+      alignItems: "center",
+      background: panelBg,
+      fontSize: "12px",
+    },
+    ".cm-search input, .cm-search select": {
+      background: surfaceBg,
+      border: `1px solid ${outline}`,
+      color: fg,
+      borderRadius: "6px",
+      padding: "4px 8px",
+      fontSize: "12px",
+      outline: "none",
+    },
+    ".cm-search input:focus": {
+      borderColor: primary,
+      boxShadow: `0 0 0 2px ${primary}26`,
+    },
+    ".cm-search button": {
+      background: surfaceBg,
+      border: `1px solid ${outline}`,
+      color: secondaryText,
+      borderRadius: "6px",
+      padding: "4px 10px",
+      cursor: "pointer",
+      fontSize: "11px",
+    },
+    ".cm-search button:hover": {
+      background: outline,
+      color: fg,
+    },
+    ".cm-search label": {
+      color: secondaryText,
+      fontSize: "11px",
+      display: "flex",
+      alignItems: "center",
+      gap: "4px",
+    },
+    ".cm-searchMatch": {
+      background: "rgba(255,200,0,0.2)",
+      outline: "1px solid rgba(255,200,0,0.4)",
+    },
+    ".cm-searchMatch-selected": {
+      background: `${primary}4D`,
+      outline: `1px solid ${primary}99`,
+    },
+    ".cm-panels.cm-panels-bottom": {
+      borderTop: `1px solid ${outline}`,
+    },
+    ".cm-foldPlaceholder": {
+      background: outline,
+      border: "none",
+      color: secondaryText,
+      padding: "0 6px",
+      borderRadius: "3px",
+    },
+    ".cm-diagnostic": {
+      padding: "4px 8px",
+      fontSize: "12px",
+      fontFamily: "'JetBrains Mono', monospace",
+    },
+    ".cm-diagnostic-error": {
+      borderLeft: `3px solid ${negative}`,
+    },
+    ".cm-diagnostic-warning": {
+      borderLeft: "3px solid #FF9940",
+    },
+    ".cm-lintRange-error": {
+      backgroundImage: "none",
+      textDecoration: `wavy underline ${negative}`,
+      textUnderlineOffset: "3px",
+    },
+    ".cm-lintRange-warning": {
+      backgroundImage: "none",
+      textDecoration: "wavy underline #FF9940",
+      textUnderlineOffset: "3px",
+    },
+    ".cm-lint-marker-error": {
+      content: "'●'",
+      color: negative,
+    },
+    ".cm-lint-marker-warning": {
+      content: "'●'",
+      color: "#FF9940",
+    },
+    ".cm-blame-gutter": {
+      width: "220px",
+      background: panelBg,
+      borderRight: `1px solid ${outline}`,
+    },
+    ".cm-blame-gutter .cm-gutterElement": {
+      fontFamily: "'IBM Plex Mono', 'JetBrains Mono', monospace",
+      fontSize: "11px",
+      padding: "0 8px",
+      display: "flex",
+      alignItems: "center",
+      cursor: "default",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    },
+  }, { dark: isDark });
+}
+
+function blendHex(base: string, blend: string, amount: number): string {
+  const parseHex = (h: string) => {
+    const c = h.replace("#", "");
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+  };
+  const [r1, g1, b1] = parseHex(base);
+  const [r2, g2, b2] = parseHex(blend);
+  const r = Math.round(r1 + (r2 - r1) * amount);
+  const g = Math.round(g1 + (g2 - g1) * amount);
+  const b = Math.round(b1 + (b2 - b1) * amount);
+  return "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+}
+
+export { buildHighlightStyle, buildEditorTheme };
 
 const BLAME_COLORS = [
   "#7C65CB",
@@ -958,12 +995,24 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
 
   const showBlame = blameData && blameData.length > 0;
 
+  const { activeTheme } = useTheme();
+
+  const editorTheme = useMemo(() =>
+    buildEditorTheme(activeTheme.globalColors, activeTheme.baseScheme === "dark"),
+    [activeTheme.globalColors, activeTheme.baseScheme]
+  );
+
+  const highlightStyle = useMemo(() =>
+    buildHighlightStyle(activeTheme.syntaxColors),
+    [activeTheme.syntaxColors]
+  );
+
   const extensions = useMemo(() => {
     const ext = [
       getLanguageExtension(language),
       ...getAutocompleteExtension(language),
-      replitTheme,
-      syntaxHighlighting(replitHighlight),
+      editorTheme,
+      syntaxHighlighting(highlightStyle),
       indentUnit.of(" ".repeat(tabSize)),
       cursorTracker,
       blameField,
@@ -975,7 +1024,7 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     if (readOnly) ext.push(EditorView.editable.of(false));
     if (aiCompletions && !readOnly) ext.push(...inlineAICompletion(language));
     return ext;
-  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, editorTheme, highlightStyle]);
 
   useEffect(() => {
     const view = editorRef.current?.view;

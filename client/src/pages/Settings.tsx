@@ -3,14 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge, Keyboard } from "lucide-react";
+import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge, Keyboard, Palette, Plus, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { useTheme } from "@/components/ThemeProvider";
+import { useTheme, BUILTIN_DARK, BUILTIN_LIGHT } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
 import KeyboardShortcutsSettings from "@/components/KeyboardShortcutsSettings";
+import { DEFAULT_DARK_GLOBAL_COLORS, DEFAULT_LIGHT_GLOBAL_COLORS, DEFAULT_DARK_SYNTAX_COLORS, DEFAULT_LIGHT_SYNTAX_COLORS } from "@shared/schema";
 
 function UserAvatar({ initials, size = "lg" }: { initials: string; size?: "sm" | "md" | "lg" }) {
   const sizes = {
@@ -25,11 +26,55 @@ function UserAvatar({ initials, size = "lg" }: { initials: string; size?: "sm" |
   );
 }
 
+function ThemeCard({ name, scheme, isActive, colors, onClick, onEdit, onDelete }: {
+  name: string;
+  scheme: "dark" | "light";
+  isActive: boolean;
+  colors: string[];
+  onClick: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  return (
+    <div
+      className={`relative rounded-lg border p-2.5 cursor-pointer transition-all ${isActive ? "border-[#0079F2] bg-[#0079F2]/5" : "border-[var(--ide-border)] hover:border-[var(--ide-text-muted)]"}`}
+      onClick={onClick}
+      data-testid={`card-theme-${name.toLowerCase().replace(/\s/g, "-")}`}
+    >
+      <div className="flex items-center gap-1.5 mb-1.5">
+        {colors.slice(0, 6).map((c, i) => (
+          <div key={i} className="w-3.5 h-3.5 rounded-full border border-black/10" style={{ background: c }} />
+        ))}
+      </div>
+      <p className="text-[11px] font-medium text-[var(--ide-text)] truncate">{name}</p>
+      <div className="flex items-center gap-1 mt-0.5">
+        {scheme === "dark" ? <Moon className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" /> : <Sun className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />}
+        <span className="text-[9px] text-[var(--ide-text-muted)]">{scheme}</span>
+        {isActive && <span className="text-[9px] text-[#0079F2] ml-auto font-medium">Active</span>}
+      </div>
+      {(onEdit || onDelete) && (
+        <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 hover:opacity-100" style={{ opacity: 1 }}>
+          {onEdit && (
+            <button onClick={e => { e.stopPropagation(); onEdit(); }} className="w-5 h-5 rounded bg-[var(--ide-surface)] flex items-center justify-center hover:bg-[var(--ide-hover)]" data-testid={`button-edit-theme-${name}`}>
+              <Pencil className="w-2.5 h-2.5 text-[var(--ide-text-secondary)]" />
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={e => { e.stopPropagation(); onDelete(); }} className="w-5 h-5 rounded bg-[var(--ide-surface)] flex items-center justify-center hover:bg-red-500/20" data-testid={`button-delete-theme-${name}`}>
+              <Trash2 className="w-2.5 h-2.5 text-red-400" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, activeTheme, setActiveTheme, toggleTheme, installedThemes, userThemes, refreshThemes } = useTheme();
   const isDark = theme === "dark";
   const setIsDark = (v: boolean) => setTheme(v ? "dark" : "light");
 
@@ -230,19 +275,83 @@ export default function Settings() {
           <div className="h-px bg-[var(--ide-surface)]/60" />
 
           <div className="space-y-3" data-testid="section-appearance">
-            <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider px-1">Appearance</h2>
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Appearance</h2>
+              <div className="flex items-center gap-2">
+                <Link href="/themes">
+                  <button className="flex items-center gap-1 text-[11px] text-[#0079F2] hover:underline" data-testid="link-explore-themes">
+                    <ExternalLink className="w-3 h-3" /> Explore
+                  </button>
+                </Link>
+                <Link href="/themes/editor">
+                  <button className="flex items-center gap-1 text-[11px] text-[#0079F2] hover:underline" data-testid="link-create-theme">
+                    <Plus className="w-3 h-3" /> Create
+                  </button>
+                </Link>
+              </div>
+            </div>
             <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)]">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[var(--ide-surface)] flex items-center justify-center">
-                    {isDark ? <Moon className="w-4 h-4 text-[#0079F2]" /> : <Sun className="w-4 h-4 text-orange-400" />}
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[var(--ide-surface)] flex items-center justify-center">
+                      <Palette className="w-4 h-4 text-[#0079F2]" />
+                    </div>
+                    <div>
+                      <span className="text-sm text-[var(--ide-text)] font-medium">Active Theme</span>
+                      <p className="text-[11px] text-[var(--ide-text-muted)]">{activeTheme.title}</p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-sm text-[var(--ide-text)] font-medium">Dark Mode</span>
-                    <p className="text-[11px] text-[var(--ide-text-muted)]">Toggle between light and dark theme</p>
-                  </div>
+                  <Switch checked={isDark} onCheckedChange={setIsDark} data-testid="switch-dark-mode" />
                 </div>
-                <Switch checked={isDark} onCheckedChange={setIsDark} data-testid="switch-dark-mode" />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <ThemeCard
+                    name="Replit Dark"
+                    scheme="dark"
+                    isActive={!activeTheme.id && activeTheme.baseScheme === "dark"}
+                    colors={["#0E1525", "#F5F9FC", "#0079F2", "#0CCE6B", "#F44747", "#2B3245"]}
+                    onClick={() => setActiveTheme(BUILTIN_DARK)}
+                  />
+                  <ThemeCard
+                    name="Replit Light"
+                    scheme="light"
+                    isActive={!activeTheme.id && activeTheme.baseScheme === "light"}
+                    colors={["#FFFFFF", "#0F172A", "#0079F2", "#16A34A", "#DC2626", "#D1D5DB"]}
+                    onClick={() => setActiveTheme(BUILTIN_LIGHT)}
+                  />
+                </div>
+
+                {(userThemes.length > 0 || installedThemes.length > 0) && (
+                  <div className="border-t border-[var(--ide-border)] pt-3 space-y-2">
+                    <p className="text-[11px] text-[var(--ide-text-muted)] font-medium">Your Themes</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[...userThemes, ...installedThemes.filter(it => !userThemes.find(ut => ut.id === it.id))].map(t => (
+                        <ThemeCard
+                          key={t.id}
+                          name={t.title}
+                          scheme={t.baseScheme as "dark" | "light"}
+                          isActive={activeTheme.id === t.id}
+                          colors={[t.globalColors.background, t.globalColors.foreground, t.globalColors.primary, t.globalColors.positive, t.globalColors.negative, t.globalColors.outline]}
+                          onClick={() => setActiveTheme({ id: t.id, title: t.title, baseScheme: t.baseScheme as "dark" | "light", globalColors: t.globalColors, syntaxColors: t.syntaxColors })}
+                          onEdit={t.userId === user?.id ? () => setLocation(`/themes/editor/${t.id}`) : undefined}
+                          onDelete={t.userId === user?.id ? async () => {
+                            try {
+                              await apiRequest("DELETE", `/api/themes/${t.id}`);
+                              refreshThemes();
+                              if (activeTheme.id === t.id) {
+                                setActiveTheme(BUILTIN_DARK);
+                              }
+                              toast({ title: "Theme deleted" });
+                            } catch (err: any) {
+                              toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+                            }
+                          } : undefined}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

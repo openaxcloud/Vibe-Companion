@@ -12,7 +12,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   githubId: text("github_id"),
-  preferences: json("preferences").$type<{ fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string; agentToolsConfig?: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts?: Record<string, string | null> }>(),
+  preferences: json("preferences").$type<{ fontSize?: number; tabSize?: number; wordWrap?: boolean; theme?: string; activeThemeId?: string | null; agentToolsConfig?: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts?: Record<string, string | null> }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -1264,3 +1264,139 @@ export const insertMcpToolSchema = createInsertSchema(mcpTools).pick({
 });
 export type InsertMcpTool = z.infer<typeof insertMcpToolSchema>;
 export type McpTool = typeof mcpTools.$inferSelect;
+
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+export const globalColorsSchema = z.object({
+  background: hexColor.default("#0E1525"),
+  outline: hexColor.default("#2B3245"),
+  foreground: hexColor.default("#F5F9FC"),
+  primary: hexColor.default("#0079F2"),
+  positive: hexColor.default("#0CCE6B"),
+  negative: hexColor.default("#F44747"),
+});
+export type GlobalColors = z.infer<typeof globalColorsSchema>;
+
+export const syntaxColorsSchema = z.object({
+  variableNames: hexColor.default("#F5F9FC"),
+  variableDefinitions: hexColor.default("#CFD7E6"),
+  functionReferences: hexColor.default("#56B6C2"),
+  functionDefinitions: hexColor.default("#56B6C2"),
+  keywords: hexColor.default("#FF6166"),
+  propertyNames: hexColor.default("#56B6C2"),
+  propertyDefinitions: hexColor.default("#CFD7E6"),
+  functionProperties: hexColor.default("#56B6C2"),
+  tagNames: hexColor.default("#FF6166"),
+  typeNames: hexColor.default("#FFCB6B"),
+  classNames: hexColor.default("#FFCB6B"),
+  attributeNames: hexColor.default("#FFCB6B"),
+  comments: hexColor.default("#676D7E"),
+  strings: hexColor.default("#0CCE6B"),
+  numbers: hexColor.default("#FF9940"),
+  booleans: hexColor.default("#FF9940"),
+  regularExpressions: hexColor.default("#56B6C2"),
+  operators: hexColor.default("#FF6166"),
+  brackets: hexColor.default("#CFD7E6"),
+});
+export type SyntaxColors = z.infer<typeof syntaxColorsSchema>;
+
+export const themes = pgTable("themes", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  baseScheme: text("base_scheme").notNull().default("dark"),
+  globalColors: json("global_colors").$type<GlobalColors>().notNull(),
+  syntaxColors: json("syntax_colors").$type<SyntaxColors>().notNull(),
+  isPublished: boolean("is_published").notNull().default(false),
+  installCount: integer("install_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("themes_user_idx").on(table.userId),
+  index("themes_published_idx").on(table.isPublished),
+]);
+
+export const insertThemeSchema = createInsertSchema(themes).pick({
+  title: true,
+  description: true,
+  baseScheme: true,
+}).extend({
+  globalColors: globalColorsSchema,
+  syntaxColors: syntaxColorsSchema,
+});
+export type InsertTheme = z.infer<typeof insertThemeSchema>;
+export type Theme = typeof themes.$inferSelect;
+
+export const installedThemes = pgTable("installed_themes", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  themeId: varchar("theme_id", { length: 36 }).notNull(),
+  installedAt: timestamp("installed_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("installed_themes_user_theme_idx").on(table.userId, table.themeId),
+  index("installed_themes_user_idx").on(table.userId),
+]);
+export type InstalledTheme = typeof installedThemes.$inferSelect;
+
+export const DEFAULT_DARK_GLOBAL_COLORS: GlobalColors = {
+  background: "#0E1525",
+  outline: "#2B3245",
+  foreground: "#F5F9FC",
+  primary: "#0079F2",
+  positive: "#0CCE6B",
+  negative: "#F44747",
+};
+
+export const DEFAULT_LIGHT_GLOBAL_COLORS: GlobalColors = {
+  background: "#FFFFFF",
+  outline: "#D1D5DB",
+  foreground: "#0F172A",
+  primary: "#0079F2",
+  positive: "#16A34A",
+  negative: "#DC2626",
+};
+
+export const DEFAULT_DARK_SYNTAX_COLORS: SyntaxColors = {
+  variableNames: "#F5F9FC",
+  variableDefinitions: "#CFD7E6",
+  functionReferences: "#56B6C2",
+  functionDefinitions: "#56B6C2",
+  keywords: "#FF6166",
+  propertyNames: "#56B6C2",
+  propertyDefinitions: "#CFD7E6",
+  functionProperties: "#56B6C2",
+  tagNames: "#FF6166",
+  typeNames: "#FFCB6B",
+  classNames: "#FFCB6B",
+  attributeNames: "#FFCB6B",
+  comments: "#676D7E",
+  strings: "#0CCE6B",
+  numbers: "#FF9940",
+  booleans: "#FF9940",
+  regularExpressions: "#56B6C2",
+  operators: "#FF6166",
+  brackets: "#CFD7E6",
+};
+
+export const DEFAULT_LIGHT_SYNTAX_COLORS: SyntaxColors = {
+  variableNames: "#0F172A",
+  variableDefinitions: "#334155",
+  functionReferences: "#0891B2",
+  functionDefinitions: "#0891B2",
+  keywords: "#DC2626",
+  propertyNames: "#0891B2",
+  propertyDefinitions: "#334155",
+  functionProperties: "#0891B2",
+  tagNames: "#DC2626",
+  typeNames: "#B45309",
+  classNames: "#B45309",
+  attributeNames: "#B45309",
+  comments: "#94A3B8",
+  strings: "#16A34A",
+  numbers: "#D97706",
+  booleans: "#D97706",
+  regularExpressions: "#0891B2",
+  operators: "#DC2626",
+  brackets: "#475569",
+};

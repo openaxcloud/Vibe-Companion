@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, type AgentMode, type InsertDeployment, type CheckpointStateSnapshot } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, type AgentMode, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema } from "@shared/schema";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode } from "./executor";
@@ -1519,6 +1519,7 @@ export async function registerRoutes(
         tabSize: z.number().int().min(1).max(8).optional(),
         wordWrap: z.boolean().optional(),
         theme: z.enum(["dark", "light"]).optional(),
+        activeThemeId: z.string().nullable().optional(),
         agentToolsConfig: z.object({
           liteMode: z.boolean().optional(),
           webSearch: z.boolean().optional(),
@@ -10365,6 +10366,155 @@ Respond ONLY with the JSON array, no other text.`;
       return res.json({ created: created.length, servers: created });
     } catch (err: any) {
       return res.status(500).json({ message: `Failed to initialize built-in servers: ${err.message}` });
+    }
+  });
+
+  app.post("/api/themes", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const data = insertThemeSchema.parse(req.body);
+      const theme = await storage.createTheme(req.session.userId!, data);
+      return res.status(201).json(theme);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/themes", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userThemes = await storage.getUserThemes(req.session.userId!);
+      return res.json(userThemes);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/themes/installed", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const installed = await storage.getInstalledThemes(req.session.userId!);
+      return res.json(installed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/themes/explore", async (req: Request, res: Response) => {
+    try {
+      const { search, baseScheme, authorId, color } = req.query;
+      const results = await storage.exploreThemes({
+        search: search as string,
+        baseScheme: baseScheme as string,
+        authorId: authorId as string,
+        color: color as string,
+      });
+      return res.json(results);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/themes/:id", async (req: Request, res: Response) => {
+    try {
+      const theme = await storage.getTheme(req.params.id);
+      if (!theme) return res.status(404).json({ message: "Theme not found" });
+      if (!theme.isPublished && theme.userId !== req.session?.userId) {
+        return res.status(404).json({ message: "Theme not found" });
+      }
+      return res.json(theme);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/themes/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const data = insertThemeSchema.partial().parse(req.body);
+      const theme = await storage.updateTheme(req.params.id, req.session.userId!, data);
+      if (!theme) return res.status(404).json({ message: "Theme not found or not owned by you" });
+      return res.json(theme);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/themes/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.deleteTheme(req.params.id, req.session.userId!);
+      if (!deleted) return res.status(404).json({ message: "Theme not found or not owned by you" });
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/themes/:id/publish", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const existing = await storage.getTheme(req.params.id);
+      if (!existing || existing.userId !== req.session.userId!) {
+        return res.status(404).json({ message: "Theme not found or not owned by you" });
+      }
+      if (!existing.title.trim() || !existing.description.trim()) {
+        return res.status(400).json({ message: "Title and description are required to publish a theme" });
+      }
+      const theme = await storage.publishTheme(req.params.id, req.session.userId!);
+      if (!theme) return res.status(404).json({ message: "Theme not found or not owned by you" });
+      return res.json(theme);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/themes/:id/unpublish", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const theme = await storage.unpublishTheme(req.params.id, req.session.userId!);
+      if (!theme) return res.status(404).json({ message: "Theme not found or not owned by you" });
+      return res.json(theme);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/themes/:id/preview", async (req: Request, res: Response) => {
+    try {
+      const theme = await storage.getTheme(req.params.id);
+      if (!theme) return res.status(404).json({ message: "Theme not found" });
+      if (!theme.isPublished && theme.userId !== req.session?.userId) {
+        return res.status(404).json({ message: "Theme not found" });
+      }
+      return res.json({
+        id: theme.id,
+        title: theme.title,
+        description: theme.description,
+        baseScheme: theme.baseScheme,
+        globalColors: theme.globalColors,
+        syntaxColors: theme.syntaxColors,
+        installCount: theme.installCount,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/themes/:id/install", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const theme = await storage.getTheme(req.params.id);
+      if (!theme) return res.status(404).json({ message: "Theme not found" });
+      if (!theme.isPublished && theme.userId !== req.session.userId!) {
+        return res.status(403).json({ message: "Cannot install an unpublished theme" });
+      }
+      const installed = await storage.installTheme(req.session.userId!, req.params.id);
+      return res.json(installed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/themes/:id/uninstall", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const removed = await storage.uninstallTheme(req.session.userId!, req.params.id);
+      if (!removed) return res.status(404).json({ message: "Theme not installed" });
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
     }
   });
 

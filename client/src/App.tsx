@@ -22,6 +22,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Component, type ReactNode } from "react";
 import Project from "@/pages/Project";
 import Frameworks from "@/pages/Frameworks";
+import ThemeEditor from "@/pages/ThemeEditor";
+import ThemesExplore from "@/pages/ThemesExplore";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -94,35 +96,38 @@ function ProjectRoute() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <div className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]">
-            <Switch>
-              <Route path="/" component={Landing} />
-              <Route path="/login" component={Auth} />
-              <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
-              <Route path="/project/:id">{() => <ProtectedRoute component={ProjectRoute} />}</Route>
-              <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
-              <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
-              <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
-              <Route path="/frameworks">{() => <ProtectedRoute component={Frameworks} />}</Route>
-              <Route path="/frameworks/:id">{() => <ProtectedRoute component={Frameworks} />}</Route>
-              <Route path="/pricing" component={Pricing} />
-              <Route path="/demo" component={DemoProject} />
-              <Route path="/shared/:id" component={SharedProject} />
-              <Route path="/forgot-password" component={ForgotPassword} />
-              <Route path="/reset-password" component={ResetPassword} />
-              <Route path="/terms" component={Terms} />
-              <Route path="/privacy" component={Privacy} />
-              <Route path="/verify-email" component={VerifyEmail} />
-              <Route component={NotFound} />
-            </Switch>
-          </div>
-          <Toaster />
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <div className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]">
+              <Switch>
+                <Route path="/" component={Landing} />
+                <Route path="/login" component={Auth} />
+                <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
+                <Route path="/project/:id">{() => <ProtectedRoute component={ProjectRoute} />}</Route>
+                <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+                <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
+                <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
+                <Route path="/frameworks">{() => <ProtectedRoute component={Frameworks} />}</Route>
+                <Route path="/frameworks/:id">{() => <ProtectedRoute component={Frameworks} />}</Route>
+                <Route path="/themes">{() => <ProtectedRoute component={ThemesExplore} />}</Route>
+                <Route path="/themes/editor">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
+                <Route path="/themes/editor/:id">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
+                <Route path="/pricing" component={Pricing} />
+                <Route path="/demo" component={DemoProject} />
+                <Route path="/shared/:id" component={SharedProject} />
+                <Route path="/forgot-password" component={ForgotPassword} />
+                <Route path="/reset-password" component={ResetPassword} />
+                <Route path="/terms" component={Terms} />
+                <Route path="/privacy" component={Privacy} />
+                <Route path="/verify-email" component={VerifyEmail} />
+                <Route component={NotFound} />
+              </Switch>
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </ThemeProvider>
       </QueryClientProvider>
-      </ThemeProvider>
     </ErrorBoundary>
   );
 }

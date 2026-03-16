@@ -85,6 +85,9 @@ import {
   type McpServer, type InsertMcpServer,
   type McpTool, type InsertMcpTool,
   mcpServers, mcpTools,
+  themes, installedThemes,
+  type Theme, type InsertTheme,
+  type InstalledTheme,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
 } from "@shared/schema";
@@ -96,8 +99,8 @@ export interface IStorage {
   getUserByGithubId(githubId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { githubId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
   updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string }>): Promise<User | undefined>;
-  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }>;
-  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts: Record<string, string | null> }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }>;
+  getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; activeThemeId: string | null; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }>;
+  updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; activeThemeId: string | null; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts: Record<string, string | null> }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; activeThemeId: string | null; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }>;
   getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>>;
   updateKeyboardShortcuts(userId: string, shortcuts: Record<string, string | null>): Promise<Record<string, string | null>>;
   deleteUser(id: string): Promise<boolean>;
@@ -415,6 +418,18 @@ export interface IStorage {
     userMessage: string;
     assistantMessage: string;
   }): Promise<{ plan: AiPlan; createdTasks: AiPlanTask[] }>;
+
+  createTheme(userId: string, data: InsertTheme): Promise<Theme>;
+  getTheme(id: string): Promise<Theme | undefined>;
+  getUserThemes(userId: string): Promise<Theme[]>;
+  updateTheme(id: string, userId: string, data: Partial<InsertTheme>): Promise<Theme | undefined>;
+  deleteTheme(id: string, userId: string): Promise<boolean>;
+  publishTheme(id: string, userId: string): Promise<Theme | undefined>;
+  unpublishTheme(id: string, userId: string): Promise<Theme | undefined>;
+  installTheme(userId: string, themeId: string): Promise<InstalledTheme>;
+  uninstallTheme(userId: string, themeId: string): Promise<boolean>;
+  getInstalledThemes(userId: string): Promise<Theme[]>;
+  exploreThemes(filters?: { search?: string; baseScheme?: string; authorId?: string; color?: string }): Promise<(Theme & { authorName?: string })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -450,21 +465,22 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }> {
+  async getUserPreferences(userId: string): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; activeThemeId: string | null; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }> {
     const defaultAgentTools = { liteMode: false, webSearch: false, appTesting: false, codeOptimizations: false, architect: false };
-    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark", agentToolsConfig: defaultAgentTools, keyboardShortcuts: {} as Record<string, string | null> };
+    const defaults = { fontSize: 14, tabSize: 2, wordWrap: false, theme: "dark", activeThemeId: null as string | null, agentToolsConfig: defaultAgentTools, keyboardShortcuts: {} as Record<string, string | null> };
     const user = await this.getUser(userId);
     if (!user || !user.preferences) return defaults;
     const prefs = user.preferences as any;
     return {
       ...defaults,
       ...prefs,
+      activeThemeId: prefs.activeThemeId ?? null,
       agentToolsConfig: { ...defaultAgentTools, ...(prefs.agentToolsConfig || {}) },
       keyboardShortcuts: prefs.keyboardShortcuts || {},
     };
   }
 
-  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts: Record<string, string | null> }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }> {
+  async updateUserPreferences(userId: string, prefs: Partial<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; activeThemeId: string | null; agentToolsConfig: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean }; keyboardShortcuts: Record<string, string | null> }>): Promise<{ fontSize: number; tabSize: number; wordWrap: boolean; theme: string; activeThemeId: string | null; agentToolsConfig: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean }; keyboardShortcuts: Record<string, string | null> }> {
     const current = await this.getUserPreferences(userId);
     const merged = {
       ...current,
@@ -2453,6 +2469,129 @@ export class DatabaseStorage implements IStorage {
 
       return { plan, createdTasks };
     });
+  }
+
+  async createTheme(userId: string, data: InsertTheme): Promise<Theme> {
+    const [theme] = await db.insert(themes).values({
+      userId,
+      title: data.title,
+      description: data.description || "",
+      baseScheme: data.baseScheme || "dark",
+      globalColors: data.globalColors,
+      syntaxColors: data.syntaxColors,
+    }).returning();
+    return theme;
+  }
+
+  async getTheme(id: string): Promise<Theme | undefined> {
+    const [theme] = await db.select().from(themes).where(eq(themes.id, id)).limit(1);
+    return theme;
+  }
+
+  async getUserThemes(userId: string): Promise<Theme[]> {
+    return db.select().from(themes).where(eq(themes.userId, userId)).orderBy(desc(themes.createdAt));
+  }
+
+  async updateTheme(id: string, userId: string, data: Partial<InsertTheme>): Promise<Theme | undefined> {
+    const updateData: Partial<typeof themes.$inferInsert> = { updatedAt: new Date() };
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.baseScheme !== undefined) updateData.baseScheme = data.baseScheme;
+    if (data.globalColors !== undefined) updateData.globalColors = data.globalColors;
+    if (data.syntaxColors !== undefined) updateData.syntaxColors = data.syntaxColors;
+    const [theme] = await db.update(themes).set(updateData)
+      .where(and(eq(themes.id, id), eq(themes.userId, userId))).returning();
+    return theme;
+  }
+
+  async deleteTheme(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(themes).where(and(eq(themes.id, id), eq(themes.userId, userId))).returning();
+    if (result.length > 0) {
+      await db.delete(installedThemes).where(eq(installedThemes.themeId, id));
+      return true;
+    }
+    return false;
+  }
+
+  async publishTheme(id: string, userId: string): Promise<Theme | undefined> {
+    const [theme] = await db.update(themes).set({ isPublished: true, updatedAt: new Date() })
+      .where(and(eq(themes.id, id), eq(themes.userId, userId))).returning();
+    return theme;
+  }
+
+  async unpublishTheme(id: string, userId: string): Promise<Theme | undefined> {
+    const [theme] = await db.update(themes).set({ isPublished: false, updatedAt: new Date() })
+      .where(and(eq(themes.id, id), eq(themes.userId, userId))).returning();
+    return theme;
+  }
+
+  async installTheme(userId: string, themeId: string): Promise<InstalledTheme> {
+    const [existing] = await db.select().from(installedThemes)
+      .where(and(eq(installedThemes.userId, userId), eq(installedThemes.themeId, themeId))).limit(1);
+    if (existing) return existing;
+    const [installed] = await db.insert(installedThemes).values({ userId, themeId }).returning();
+    await db.update(themes).set({ installCount: sql`${themes.installCount} + 1` }).where(eq(themes.id, themeId));
+    return installed;
+  }
+
+  async uninstallTheme(userId: string, themeId: string): Promise<boolean> {
+    const result = await db.delete(installedThemes)
+      .where(and(eq(installedThemes.userId, userId), eq(installedThemes.themeId, themeId))).returning();
+    if (result.length > 0) {
+      await db.update(themes).set({ installCount: sql`GREATEST(${themes.installCount} - 1, 0)` }).where(eq(themes.id, themeId));
+    }
+    return result.length > 0;
+  }
+
+  async getInstalledThemes(userId: string): Promise<Theme[]> {
+    const installed = await db.select({ themeId: installedThemes.themeId })
+      .from(installedThemes).where(eq(installedThemes.userId, userId));
+    if (installed.length === 0) return [];
+    const themeIds = installed.map(i => i.themeId);
+    return db.select().from(themes).where(inArray(themes.id, themeIds));
+  }
+
+  async exploreThemes(filters?: { search?: string; baseScheme?: string; authorId?: string; color?: string }): Promise<(Theme & { authorName?: string })[]> {
+    const conditions = [eq(themes.isPublished, true)];
+    if (filters?.baseScheme) conditions.push(eq(themes.baseScheme, filters.baseScheme));
+    if (filters?.authorId) conditions.push(eq(themes.userId, filters.authorId));
+
+    const results = await db.select({
+      theme: themes,
+      authorName: users.displayName,
+    }).from(themes)
+      .leftJoin(users, eq(themes.userId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(themes.installCount));
+
+    let mapped = results.map(r => ({ ...r.theme, authorName: r.authorName || "Anonymous" }));
+    if (filters?.search) {
+      const s = filters.search.toLowerCase();
+      mapped = mapped.filter(t => t.title.toLowerCase().includes(s) || t.description.toLowerCase().includes(s) || (t.authorName || "").toLowerCase().includes(s));
+    }
+    if (filters?.color) {
+      const target = filters.color.toLowerCase();
+      mapped = mapped.filter(t => {
+        const gc = t.globalColors;
+        const allColors = [gc.background, gc.outline, gc.foreground, gc.primary, gc.positive, gc.negative].map(c => c.toLowerCase());
+        return allColors.some(c => c === target || colorDistance(c, target) < 60);
+      });
+    }
+    return mapped;
+  }
+}
+
+function colorDistance(hex1: string, hex2: string): number {
+  const parse = (h: string) => {
+    const c = h.replace("#", "");
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+  };
+  try {
+    const [r1, g1, b1] = parse(hex1);
+    const [r2, g2, b2] = parse(hex2);
+    return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+  } catch {
+    return Infinity;
   }
 }
 

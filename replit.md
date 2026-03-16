@@ -4,13 +4,18 @@
 A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with light/dark themed interface, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect design language.
 
 ## Theme System
-- **CSS Variables**: All IDE colors use `--ide-*` CSS custom properties defined in `:root` (light) and `.dark` (dark) blocks in `client/src/index.css`
-- **ThemeProvider**: React context in `client/src/components/ThemeProvider.tsx` manages theme state, persists to localStorage
-- **Toggle**: Settings page uses `useTheme()` hook for dark/light toggle
+- **Custom Themes**: Full theme customization with 6 global color channels (Background, Outline, Foreground, Primary, Positive, Negative) and 19 syntax token colors. Themes stored in `themes` DB table, tied to user accounts.
+- **CSS Variables**: All IDE colors use `--ide-*` CSS custom properties. ThemeProvider dynamically applies custom theme global colors as CSS vars on `:root`, with derived colors (panel, surface, hover, text variants) auto-computed via color blending.
+- **ThemeProvider**: React context in `client/src/components/ThemeProvider.tsx` manages full theme state (built-in dark/light + custom themes), persists to localStorage, fetches user/installed themes via API. Exposes `activeTheme`, `setActiveTheme`, `activateThemeById`, theme lists, and refresh functions.
+- **CodeMirror Dynamic Theming**: `CodeEditor.tsx` uses `buildEditorTheme()` and `buildHighlightStyle()` functions to generate CodeMirror themes dynamically from the active theme's colors. No more hardcoded `replitTheme`/`replitHighlight`.
+- **Theme Editor**: `/themes/editor` — Visual editor with color pickers for all 6 global + 19 syntax colors, live CodeMirror preview, save/publish/apply buttons. Edit existing themes at `/themes/editor/:id`.
+- **Themes Explore**: `/themes` — Community catalog with search, dark/light filter, theme cards with color previews, install/uninstall/preview functionality.
+- **Settings Integration**: Settings page has full theme switcher with built-in themes, user's custom themes, installed community themes. Create/edit/delete custom themes. Links to Explore and Create pages.
+- **Backend API**: Full REST: POST/GET/PUT/DELETE `/api/themes`, GET `/api/themes/installed`, GET `/api/themes/explore`, POST `/:id/publish`, POST `/:id/install`, DELETE `/:id/uninstall`. Access control: unpublished themes only visible to owner.
+- **DB Tables**: `themes` (id, user_id, title, description, base_scheme, global_colors JSON, syntax_colors JSON, is_published, install_count, created_at, updated_at), `installed_themes` (id, user_id, theme_id, installed_at)
+- **Hex Validation**: All color fields validated with `#RRGGBB` regex in Zod schemas.
 - **Flash prevention**: Inline script in `<head>` of `index.html` applies saved theme before first paint
 - **Color tokens**: `--ide-bg`, `--ide-panel`, `--ide-surface`, `--ide-hover`, `--ide-border`, `--ide-separator`, `--ide-input`, `--ide-text`, `--ide-text-secondary`, `--ide-text-muted`
-- **Accent colors**: Fixed across themes: `#0079F2` (blue), `#0CCE6B` (green), `#7C65CB` (purple), `#F26522` (orange)
-- **Usage**: All pages use `bg-[var(--ide-bg)]`, `text-[var(--ide-text)]`, etc. instead of hardcoded hex values
 
 ## Architecture
 - **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
