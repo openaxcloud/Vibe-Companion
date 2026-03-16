@@ -87,6 +87,7 @@ async function persistRepoState(projectId: string) {
   }
 }
 import { getTemplateById, getAllTemplates } from "./templates";
+import { generateEcodeContent, getEcodeFilename } from "./ecodeTemplates";
 
 function validateExternalUrl(urlStr: string, allowedDomainSuffixes?: string[]): { valid: boolean; url?: URL; error?: string } {
   let url: URL;
@@ -1761,10 +1762,18 @@ export async function registerRoutes(
         language: sourceProject.language,
       });
       for (const file of sourceFiles) {
+        if (file.filename === "ecode.md") continue;
         await storage.createFile(newProject.id, {
           filename: file.filename,
           content: file.content,
         });
+      }
+      const sourceEcode = sourceFiles.find(f => f.filename === "ecode.md");
+      if (sourceEcode) {
+        const existingEcode = (await storage.getFiles(newProject.id)).find(f => f.filename === "ecode.md");
+        if (existingEcode) {
+          await storage.updateFileContent(existingEcode.id, sourceEcode.content);
+        }
       }
       await storage.trackEvent(req.session.userId!, "project_forked", { sourceProjectId: sourceProject.id, newProjectId: newProject.id });
       return res.json(newProject);
@@ -2287,10 +2296,21 @@ export async function registerRoutes(
         language: lang,
       });
       const importFiles = contents.filter((c: any) => c.type === "file").slice(0, 20);
+      let importedEcode = false;
       for (const item of importFiles) {
+        if (item.path === "ecode.md") { importedEcode = true; continue; }
         try {
           const content = await github.getFileContent(owner, repo, item.path);
           await storage.createFile(project.id, { filename: item.path, content: content.slice(0, 500000) });
+        } catch {}
+      }
+      if (importedEcode) {
+        try {
+          const ecodeContent = await github.getFileContent(owner, repo, "ecode.md");
+          const existingEcode = (await storage.getFiles(project.id)).find(f => f.filename === "ecode.md");
+          if (existingEcode) {
+            await storage.updateFileContent(existingEcode.id, ecodeContent.slice(0, 500000));
+          }
         } catch {}
       }
       const files = await storage.getFiles(project.id);
@@ -2507,6 +2527,31 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     return res.status(201).json(project);
+  });
+
+  app.get("/api/projects/:id/ecode", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const projectFiles = await storage.getFiles(project.id);
+    const ecodeFile = projectFiles.find(f => f.filename === "ecode.md");
+    return res.json({ exists: !!ecodeFile, fileId: ecodeFile?.id || null });
+  });
+
+  app.post("/api/projects/:id/ecode/generate", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const projectFiles = await storage.getFiles(project.id);
+    const existing = projectFiles.find(f => f.filename === "ecode.md");
+    if (existing) {
+      return res.json({ file: existing, regenerated: false });
+    }
+    const content = generateEcodeContent(project.name, project.language);
+    const file = await storage.createFile(project.id, { filename: "ecode.md", content });
+    return res.status(201).json({ file, regenerated: true });
   });
 
   // --- FILES ---
@@ -4486,7 +4531,7 @@ Rules:
 
       for (const file of spec.files.slice(0, 10)) {
         const safeFilename = sanitizeAIFilename(file.filename);
-        if (!safeFilename) continue;
+        if (!safeFilename || safeFilename === "ecode.md") continue;
         const safeContent = sanitizeAIFileContent(file.content || "");
         await storage.createFile(project.id, {
           filename: safeFilename,
@@ -4803,6 +4848,7 @@ Rules:
 
       let skillsContext = "";
       let chatMobileContext = "";
+      let ecodeContext = "";
       if (req.body.projectId && typeof req.body.projectId === "string") {
         try {
           const chatProject = await storage.getProject(req.body.projectId);
@@ -4819,6 +4865,15 @@ Rules:
 - Import from "react-native" and "expo-*" packages, not web libraries
 - Use "react-native-web" compatible APIs so the app runs via Expo Web preview`;
             }
+            const chatFiles = await storage.getFiles(chatProject.id);
+            let ecodeFile = chatFiles.find(f => f.filename === "ecode.md");
+            if (!ecodeFile) {
+              const ecodeContent = generateEcodeContent(chatProject.name, chatProject.language);
+              ecodeFile = await storage.createFile(chatProject.id, { filename: "ecode.md", content: ecodeContent });
+            }
+            if (ecodeFile && ecodeFile.content) {
+              ecodeContext = `\n\n## Project Guidelines (ecode.md)\n${ecodeFile.content}`;
+            }
           }
         } catch {}
       }
@@ -4830,7 +4885,7 @@ Rules:
 - When showing code, use markdown code blocks with the language tag and filename as a comment on the first line.
 - If the user asks to build or create something, provide the full implementation, not just snippets.
 - Include all imports, all functions, and all necessary code for the file to work standalone.
-- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${skillsContext}`;
+- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${ecodeContext}${skillsContext}`;
 
       const chatCreditResult = await storage.deductCredits(req.session.userId!, chatMode, modelId, "chat");
       if (!chatCreditResult.allowed) {
@@ -5168,7 +5223,17 @@ Rules:
 
       const existingFiles = await storage.getFiles(projectId);
       const agentModifiedFiles = new Set<string>();
-      const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
+
+      let ecodeFile = existingFiles.find(f => f.filename === "ecode.md");
+      let ecodeRegenerated = false;
+      if (!ecodeFile) {
+        const ecodeContent = generateEcodeContent(project.name, project.language);
+        ecodeFile = await storage.createFile(projectId, { filename: "ecode.md", content: ecodeContent });
+        ecodeRegenerated = true;
+      }
+
+      const fileList = existingFiles.filter(f => f.filename !== "ecode.md").map(f => `- ${f.filename}`).join("\n");
+      const ecodeGuidelines = ecodeFile && ecodeFile.content ? `\n\n## Project Guidelines (ecode.md)\n${ecodeFile.content}` : "";
 
       let agentSkillsContext = "";
       try {
@@ -5249,7 +5314,7 @@ When the user asks you to modify or refine an existing generated image, use the 
 When the user asks about data from connected services (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex), use the query_connector tool to read data or write_connector to create/update data. Available connectors and operations:
 ${getConnectorDescription()}
 
-Always write complete, working code. Never use placeholders or TODOs.${webSearchEnabled ? `
+Always write complete, working code. Never use placeholders or TODOs.${ecodeGuidelines}${webSearchEnabled ? `
 
 ## Web Search
 You have access to web search tools. Use them when:
@@ -5263,6 +5328,10 @@ Always cite your sources in your response when using information from web search
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+
+      if (ecodeRegenerated && ecodeFile) {
+        res.write(`data: ${JSON.stringify({ type: "file_created", file: { id: ecodeFile.id, filename: "ecode.md", content: ecodeFile.content } })}\n\n`);
+      }
 
       const agentTurboMaxTokens = agentModeVal === "turbo" ? 32768 : 16384;
 

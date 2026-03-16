@@ -73,6 +73,13 @@ function formatBytes(bytes: number): string {
 }
 
 function FileTypeIcon({ filename, className = "" }: { filename: string; className?: string }) {
+  if (filename === "ecode.md" || filename.endsWith("/ecode.md")) {
+    return (
+      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-[3px] shrink-0 bg-[#7C65CB] ${className}`}>
+        <span className="text-[7px] font-bold leading-none text-white">EC</span>
+      </span>
+    );
+  }
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   const iconMap: Record<string, { bg: string; text: string; label: string }> = {
     js: { bg: "bg-yellow-500", text: "text-black", label: "JS" },
@@ -2636,6 +2643,7 @@ function _projectPage() {
                       >
                         <FileTypeIcon filename={node.name} />
                         <span className="flex-1 text-[12px] truncate">{node.name}</span>
+                        {file.filename === "ecode.md" && <span className="text-[8px] px-1 py-0.5 rounded bg-[#7C65CB]/15 text-[#7C65CB] font-semibold shrink-0" data-testid="badge-ecode-file">Config</span>}
                         {dirtyFiles.has(file.id) && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

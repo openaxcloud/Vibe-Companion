@@ -306,6 +306,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const processingQueueRef = useRef(false);
   const pausedRef = useRef(false);
+  const [ecodeStatus, setEcodeStatus] = useState<{ exists: boolean; fileId: string | null }>({ exists: false, fileId: null });
+  const [ecodeGenerating, setEcodeGenerating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -596,6 +598,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               fileOps.push({ type: "created", filename: data.file.filename });
               if (data.imageData) {
                 inlineImages.push({ filename: data.file.filename, dataUri: data.imageData });
+              }
+              if (data.file.filename === "ecode.md") {
+                setEcodeStatus({ exists: true, fileId: data.file.id || null });
               }
               onFileCreated?.(data.file);
             } else if (data.type === "file_updated") {
@@ -1464,6 +1469,33 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [personalizedSuggestions, setPersonalizedSuggestions] = useState<{ chat: { label: string; category: string }[]; agent: { label: string; category: string }[] } | null>(null);
 
   useEffect(() => {
+    if (!projectId) return;
+    fetch(`/api/projects/${projectId}/ecode`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setEcodeStatus(data); })
+      .catch(() => {});
+  }, [projectId]);
+
+  const handleGenerateEcode = useCallback(async () => {
+    if (!projectId || ecodeGenerating) return;
+    setEcodeGenerating(true);
+    try {
+      const ct = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ct) headers["X-CSRF-Token"] = ct;
+      const res = await fetch(`/api/projects/${projectId}/ecode/generate`, {
+        method: "POST", credentials: "include", headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEcodeStatus({ exists: true, fileId: data.file?.id || null });
+        if (data.file) onFileCreated?.(data.file);
+      }
+    } catch {}
+    setEcodeGenerating(false);
+  }, [projectId, ecodeGenerating, onFileCreated]);
+
+  useEffect(() => {
     fetch("/api/ai-suggestions", { credentials: "include" })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -1535,6 +1567,35 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {projectId && (
+            ecodeStatus.exists ? (
+              <button
+                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  if (ecodeStatus.fileId && files) {
+                    const f = files.find(f => f.filename === "ecode.md");
+                    if (f) onApplyCode?.("ecode.md", f.content);
+                  }
+                }}
+                title="ecode.md is active — click to open"
+                data-testid="badge-ecode-active"
+              >
+                <FileText className="w-2.5 h-2.5" />
+                ecode.md
+              </button>
+            ) : (
+              <button
+                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 hover:opacity-80 transition-opacity"
+                onClick={handleGenerateEcode}
+                disabled={ecodeGenerating}
+                title="Generate ecode.md project guidelines"
+                data-testid="button-ecode-generate"
+              >
+                {ecodeGenerating ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <FilePlus className="w-2.5 h-2.5" />}
+                {ecodeGenerating ? "Generating..." : "Generate ecode.md"}
+              </button>
+            )
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${AGENT_MODE_LABELS[agentMode].color} bg-current/10 hover:opacity-80 transition-opacity`} data-testid="button-agent-mode-select">

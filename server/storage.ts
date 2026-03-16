@@ -493,6 +493,8 @@ export class DatabaseStorage implements IStorage {
     };
     const defaults = langDefaults[data.language || "javascript"] || langDefaults.javascript;
     await db.insert(files).values({ projectId: project.id, filename: defaults.filename, content: defaults.content });
+    const { generateEcodeContent, getEcodeFilename } = await import("./ecodeTemplates");
+    await db.insert(files).values({ projectId: project.id, filename: getEcodeFilename(), content: generateEcodeContent(data.name, data.language || "javascript") });
     return project;
   }
 
@@ -528,8 +530,14 @@ export class DatabaseStorage implements IStorage {
       userId, name: `${original.name} (copy)`, language: original.language, projectType: original.projectType,
     }).returning();
     const originalFiles = await this.getFiles(id);
+    let hasEcode = false;
     for (const file of originalFiles) {
+      if (file.filename === "ecode.md") hasEcode = true;
       await db.insert(files).values({ projectId: newProject.id, filename: file.filename, content: file.content });
+    }
+    if (!hasEcode) {
+      const { generateEcodeContent } = await import("./ecodeTemplates");
+      await db.insert(files).values({ projectId: newProject.id, filename: "ecode.md", content: generateEcodeContent(newProject.name, original.language) });
     }
     return newProject;
   }
@@ -541,8 +549,14 @@ export class DatabaseStorage implements IStorage {
       language: data.language,
       projectType: data.projectType || "web",
     }).returning();
-    if (data.files.length > 0) {
-      await db.insert(files).values(data.files.map(f => ({ projectId: project.id, filename: f.filename, content: f.content })));
+    const hasEcode = data.files.some(f => f.filename === "ecode.md");
+    const filesToInsert = [...data.files];
+    if (!hasEcode) {
+      const { generateEcodeContent } = await import("./ecodeTemplates");
+      filesToInsert.push({ filename: "ecode.md", content: generateEcodeContent(data.name, data.language) });
+    }
+    if (filesToInsert.length > 0) {
+      await db.insert(files).values(filesToInsert.map(f => ({ projectId: project.id, filename: f.filename, content: f.content })));
     }
     return project;
   }
