@@ -9,6 +9,7 @@ interface GitHubPanelProps {
   projectId: string;
   projectName: string;
   onImported?: (newProjectId?: string) => void;
+  onCloned?: () => void;
 }
 
 interface GHRepo {
@@ -23,7 +24,7 @@ interface GHRepo {
   owner: { login: string };
 }
 
-export default function GitHubPanel({ projectId, projectName, onImported }: GitHubPanelProps) {
+export default function GitHubPanel({ projectId, projectName, onImported, onCloned }: GitHubPanelProps) {
   const { toast } = useToast();
   const [connected, setConnected] = useState<boolean | null>(null);
   const [ghUser, setGhUser] = useState<any>(null);
@@ -31,6 +32,7 @@ export default function GitHubPanel({ projectId, projectName, onImported }: GitH
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
+  const [cloning, setCloning] = useState<string | null>(null);
   const [exportName, setExportName] = useState(projectName.replace(/\s+/g, "-").toLowerCase());
   const [exportPrivate, setExportPrivate] = useState(true);
   const [tab, setTab] = useState<"import" | "export">("export");
@@ -84,6 +86,20 @@ export default function GitHubPanel({ projectId, projectName, onImported }: GitH
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     } finally {
       setImporting(null);
+    }
+  };
+
+  const handleClone = async (repo: GHRepo) => {
+    setCloning(repo.full_name);
+    try {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/git/clone`, { owner: repo.owner.login, repo: repo.name });
+      const data = await res.json();
+      toast({ title: `Cloned ${repo.name}`, description: `${data.filesCloned} files cloned` });
+      onCloned?.();
+    } catch (err: any) {
+      toast({ title: "Clone failed", description: err.message, variant: "destructive" });
+    } finally {
+      setCloning(null);
     }
   };
 
@@ -208,9 +224,21 @@ export default function GitHubPanel({ projectId, projectName, onImported }: GitH
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="w-6 h-6 text-[#0CCE6B] hover:bg-[#0CCE6B]/10"
+                      onClick={() => handleClone(repo)}
+                      disabled={cloning === repo.full_name}
+                      title="Clone into this project"
+                      data-testid={`button-clone-${repo.name}`}
+                    >
+                      {cloning === repo.full_name ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitBranch className="w-3 h-3" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="w-6 h-6 text-[#0079F2] hover:bg-[#0079F2]/10"
                       onClick={() => handleImport(repo)}
                       disabled={importing === repo.full_name}
+                      title="Import as new project"
                       data-testid={`button-import-${repo.name}`}
                     >
                       {importing === repo.full_name ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}

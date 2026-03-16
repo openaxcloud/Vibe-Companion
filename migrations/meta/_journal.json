@@ -8,6 +8,20 @@
       "when": 1773343504969,
       "tag": "0000_fearless_xavin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773630965940,
+      "tag": "0001_yielding_viper",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773633207676,
+      "tag": "0002_tiny_warstar",
+      "breakpoints": true
     }
   ]
 }

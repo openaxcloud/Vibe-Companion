@@ -33,6 +33,7 @@ export const projects = pgTable("projects", {
   isPublished: boolean("is_published").notNull().default(false),
   publishedSlug: text("published_slug"),
   customDomain: text("custom_domain"),
+  githubRepo: text("github_repo"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("projects_user_id_idx").on(table.userId),
@@ -120,6 +121,13 @@ export const insertWorkspaceSessionSchema = createInsertSchema(workspaceSessions
 });
 export type InsertWorkspaceSession = z.infer<typeof insertWorkspaceSessionSchema>;
 export type WorkspaceSession = typeof workspaceSessions.$inferSelect;
+
+export const gitRepoState = pgTable("git_repo_state", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull().unique(),
+  packData: text("pack_data").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 export const commits = pgTable("commits", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

@@ -33,7 +33,52 @@ import { diffArrays } from "diff";
 import multer from "multer";
 import * as runnerClient from "./runnerClient";
 import * as github from "./github";
+import * as gitService from "./git";
 import { posix as pathPosix } from "path";
+
+async function loadCommitHistoryForRepo(projectId: string) {
+  const dbCommits = await storage.getCommits(projectId);
+  if (dbCommits.length === 0) return undefined;
+
+  const authorCache = new Map<string, { name: string; email: string }>();
+  const results = [];
+  for (const c of dbCommits) {
+    let authorInfo = authorCache.get(c.authorId);
+    if (!authorInfo) {
+      const user = await storage.getUser(c.authorId);
+      authorInfo = {
+        name: user?.displayName || user?.email || "User",
+        email: user?.email || "user@ide.local",
+      };
+      authorCache.set(c.authorId, authorInfo);
+    }
+    results.push({
+      message: c.message,
+      authorName: authorInfo.name,
+      authorEmail: authorInfo.email,
+      snapshot: c.snapshot as Record<string, string>,
+      branchName: c.branchName,
+      createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : String(c.createdAt),
+    });
+  }
+  return results;
+}
+
+async function ensureRepoWithPersistence(
+  projectId: string,
+  files: Array<{ filename: string; content: string }>
+) {
+  const dbPackedState = await storage.getGitRepoState(projectId);
+  const commitHistory = dbPackedState ? undefined : await loadCommitHistoryForRepo(projectId);
+  await gitService.ensureRepo(projectId, files, { commitHistory, dbPackedState });
+}
+
+async function persistRepoState(projectId: string) {
+  const packed = gitService.getSerializedGitState(projectId);
+  if (packed) {
+    await storage.saveGitRepoState(projectId, packed);
+  }
+}
 import { getTemplateById, getAllTemplates } from "./templates";
 
 function sanitizePath(p: string): string | null {
@@ -2101,15 +2146,31 @@ export async function registerRoutes(
     return res.json(result);
   });
 
-  // --- GIT VERSION CONTROL ---
+  // --- GIT VERSION CONTROL (Real Git via isomorphic-git) ---
+
   app.get("/api/projects/:projectId/git/commits", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const branchName = req.query.branch as string | undefined;
-    const commitList = await storage.getCommits(req.params.projectId, branchName);
-    return res.json(commitList);
+    try {
+      const branchName = req.query.branch as string | undefined;
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      const logs = await gitService.getLog(req.params.projectId, branchName);
+      const commitList = logs.map(entry => ({
+        id: entry.sha,
+        projectId: req.params.projectId,
+        branchName: branchName || "main",
+        message: entry.message,
+        authorId: entry.author,
+        parentCommitId: entry.parentSha,
+        createdAt: entry.date,
+      }));
+      return res.json(commitList);
+    } catch (err: any) {
+      return res.json([]);
+    }
   });
 
   app.get("/api/projects/:projectId/git/commits/:commitId", requireAuth, async (req: Request, res: Response) => {
@@ -2117,11 +2178,26 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const commit = await storage.getCommit(req.params.commitId);
-    if (!commit || commit.projectId !== req.params.projectId) {
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      const logs = await gitService.getLog(req.params.projectId, undefined, 200);
+      const entry = logs.find(l => l.sha === req.params.commitId);
+      if (!entry) {
+        return res.status(404).json({ message: "Commit not found" });
+      }
+      return res.json({
+        id: entry.sha,
+        projectId: req.params.projectId,
+        branchName: "main",
+        message: entry.message,
+        authorId: entry.author,
+        parentCommitId: entry.parentSha,
+        createdAt: entry.date,
+      });
+    } catch {
       return res.status(404).json({ message: "Commit not found" });
     }
-    return res.json(commit);
   });
 
   app.post("/api/projects/:projectId/git/commits", requireAuth, async (req: Request, res: Response) => {
@@ -2134,32 +2210,62 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Commit message is required" });
     }
 
-    let branch = await storage.getBranch(req.params.projectId, branchName);
-    if (!branch) {
-      branch = await storage.createBranch({
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+
+      if (branchName && branchName !== "main") {
+        try {
+          await gitService.checkoutBranch(req.params.projectId, branchName);
+        } catch {
+          await gitService.createBranch(req.params.projectId, branchName);
+          await gitService.checkoutBranch(req.params.projectId, branchName);
+        }
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      const authorName = user?.displayName || user?.email || "User";
+      const authorEmail = user?.email || "user@ide.local";
+
+      const result = await gitService.addAndCommit(req.params.projectId, message.trim(), authorName, authorEmail);
+
+      const snapshot: Record<string, string> = {};
+      for (const f of dbFiles) {
+        snapshot[f.filename] = f.content;
+      }
+      let branch = await storage.getBranch(req.params.projectId, branchName);
+      if (!branch) {
+        branch = await storage.createBranch({
+          projectId: req.params.projectId,
+          name: branchName,
+          isDefault: branchName === "main",
+        });
+      }
+      const dbCommit = await storage.createCommit({
         projectId: req.params.projectId,
-        name: branchName,
-        isDefault: branchName === "main",
+        branchName,
+        message: message.trim(),
+        authorId: req.session.userId!,
+        parentCommitId: branch.headCommitId || undefined,
+        snapshot,
       });
+      await storage.updateBranchHead(branch.id, dbCommit.id);
+      await persistRepoState(req.params.projectId);
+
+      return res.status(201).json({
+        id: result.sha,
+        dbId: dbCommit.id,
+        projectId: req.params.projectId,
+        branchName,
+        message: message.trim(),
+        authorId: req.session.userId!,
+        sha: result.sha,
+        createdAt: result.date,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Commit failed";
+      return res.status(500).json({ message });
     }
-
-    const projectFiles = await storage.getFiles(req.params.projectId);
-    const snapshot: Record<string, string> = {};
-    for (const f of projectFiles) {
-      snapshot[f.filename] = f.content;
-    }
-
-    const commit = await storage.createCommit({
-      projectId: req.params.projectId,
-      branchName,
-      message: message.trim(),
-      authorId: req.session.userId!,
-      parentCommitId: branch.headCommitId || undefined,
-      snapshot,
-    });
-
-    await storage.updateBranchHead(branch.id, commit.id);
-    return res.status(201).json(commit);
   });
 
   app.get("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
@@ -2167,8 +2273,42 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const branchList = await storage.getBranches(req.params.projectId);
-    return res.json(branchList);
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      const gitBranches = await gitService.listBranches(req.params.projectId);
+      const branchList: Array<Record<string, unknown>> = [];
+      for (const b of gitBranches) {
+        let headCommitId: string | null = null;
+        try {
+          const commits = await gitService.getLog(req.params.projectId, b.name, 1);
+          if (commits.length > 0) headCommitId = commits[0].sha;
+        } catch {}
+        branchList.push({
+          id: `git-branch-${b.name}`,
+          projectId: req.params.projectId,
+          name: b.name,
+          headCommitId,
+          isDefault: b.name === "main",
+          current: b.current,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      if (branchList.length === 0) {
+        branchList.push({
+          id: "git-branch-main",
+          projectId: req.params.projectId,
+          name: "main",
+          headCommitId: null,
+          isDefault: true,
+          current: true,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return res.json(branchList);
+    } catch {
+      return res.json([{ id: "git-branch-main", projectId: req.params.projectId, name: "main", headCommitId: null, isDefault: true, current: true, createdAt: new Date().toISOString() }]);
+    }
   });
 
   app.post("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
@@ -2181,19 +2321,26 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Branch name is required" });
     }
 
-    const existing = await storage.getBranch(req.params.projectId, name.trim());
-    if (existing) {
-      return res.status(409).json({ message: "Branch already exists" });
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      await gitService.createBranch(req.params.projectId, name.trim(), fromBranch);
+      await persistRepoState(req.params.projectId);
+      return res.status(201).json({
+        id: `git-branch-${name.trim()}`,
+        projectId: req.params.projectId,
+        name: name.trim(),
+        headCommitId: null,
+        isDefault: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to create branch";
+      if (errMsg.includes("already exists")) {
+        return res.status(409).json({ message: "Branch already exists" });
+      }
+      return res.status(500).json({ message: errMsg });
     }
-
-    const sourceBranch = await storage.getBranch(req.params.projectId, fromBranch);
-    const branch = await storage.createBranch({
-      projectId: req.params.projectId,
-      name: name.trim(),
-      headCommitId: sourceBranch?.headCommitId || undefined,
-      isDefault: false,
-    });
-    return res.status(201).json(branch);
   });
 
   app.delete("/api/projects/:projectId/git/branches/:branchId", requireAuth, async (req: Request, res: Response) => {
@@ -2201,16 +2348,22 @@ export async function registerRoutes(
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const branchList = await storage.getBranches(req.params.projectId);
-    const branch = branchList.find(b => b.id === req.params.branchId);
-    if (!branch) {
-      return res.status(404).json({ message: "Branch not found" });
-    }
-    if (branch.isDefault) {
+
+    const branchName = req.params.branchId.replace(/^git-branch-/, "");
+    if (branchName === "main") {
       return res.status(400).json({ message: "Cannot delete the default branch" });
     }
-    await storage.deleteBranch(branch.id);
-    return res.json({ success: true });
+
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      await gitService.deleteBranch(req.params.projectId, branchName);
+      await persistRepoState(req.params.projectId);
+      return res.json({ success: true });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to delete branch";
+      return res.status(500).json({ message: errMsg });
+    }
   });
 
   app.post("/api/projects/:projectId/git/checkout", requireAuth, async (req: Request, res: Response) => {
@@ -2220,39 +2373,36 @@ export async function registerRoutes(
     }
     const { commitId, branchName } = req.body;
 
-    let snapshot: Record<string, string> | null = null;
-
-    if (commitId) {
-      const commit = await storage.getCommit(commitId);
-      if (!commit || commit.projectId !== req.params.projectId) {
-        return res.status(404).json({ message: "Commit not found" });
-      }
-      snapshot = commit.snapshot as Record<string, string>;
-    } else if (branchName) {
-      const branch = await storage.getBranch(req.params.projectId, branchName);
-      if (!branch || !branch.headCommitId) {
-        return res.status(404).json({ message: "Branch not found or has no commits" });
-      }
-      const commit = await storage.getCommit(branch.headCommitId);
-      if (!commit) {
-        return res.status(404).json({ message: "Head commit not found" });
-      }
-      snapshot = commit.snapshot as Record<string, string>;
-    }
-
-    if (!snapshot) {
+    if (!commitId && !branchName) {
       return res.status(400).json({ message: "commitId or branchName is required" });
     }
 
-    const currentFiles = await storage.getFiles(req.params.projectId);
-    for (const f of currentFiles) {
-      await storage.deleteFile(f.id);
-    }
-    for (const [filename, content] of Object.entries(snapshot)) {
-      await storage.createFile(req.params.projectId, { filename, content });
-    }
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
 
-    return res.json({ success: true, filesRestored: Object.keys(snapshot).length });
+      if (commitId) {
+        await gitService.checkoutCommit(req.params.projectId, commitId);
+      } else if (branchName) {
+        await gitService.checkoutBranch(req.params.projectId, branchName);
+      }
+
+      const workingFiles = gitService.getWorkingTreeFiles(req.params.projectId);
+
+      const currentFiles = await storage.getFiles(req.params.projectId);
+      for (const f of currentFiles) {
+        await storage.deleteFile(f.id);
+      }
+      for (const { filename, content } of workingFiles) {
+        await storage.createFile(req.params.projectId, { filename, content });
+      }
+
+      await persistRepoState(req.params.projectId);
+      return res.json({ success: true, filesRestored: workingFiles.length });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Checkout failed";
+      return res.status(500).json({ message: errMsg });
+    }
   });
 
   app.get("/api/projects/:projectId/git/diff", requireAuth, async (req: Request, res: Response) => {
@@ -2261,38 +2411,15 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     const branchName = (req.query.branch as string) || "main";
-    const branch = await storage.getBranch(req.params.projectId, branchName);
 
-    const currentFiles = await storage.getFiles(req.params.projectId);
-    const currentSnapshot: Record<string, string> = {};
-    for (const f of currentFiles) {
-      currentSnapshot[f.filename] = f.content;
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      const diff = await gitService.getDiff(req.params.projectId, branchName);
+      return res.json(diff);
+    } catch {
+      return res.json({ branch: branchName, changes: [], hasCommits: false });
     }
-
-    let lastSnapshot: Record<string, string> = {};
-    if (branch?.headCommitId) {
-      const lastCommit = await storage.getCommit(branch.headCommitId);
-      if (lastCommit) {
-        lastSnapshot = lastCommit.snapshot as Record<string, string>;
-      }
-    }
-
-    const changes: Array<{ filename: string; status: "added" | "modified" | "deleted"; oldContent?: string; newContent?: string }> = [];
-
-    for (const [filename, content] of Object.entries(currentSnapshot)) {
-      if (!(filename in lastSnapshot)) {
-        changes.push({ filename, status: "added", newContent: content });
-      } else if (lastSnapshot[filename] !== content) {
-        changes.push({ filename, status: "modified", oldContent: lastSnapshot[filename], newContent: content });
-      }
-    }
-    for (const filename of Object.keys(lastSnapshot)) {
-      if (!(filename in currentSnapshot)) {
-        changes.push({ filename, status: "deleted", oldContent: lastSnapshot[filename] });
-      }
-    }
-
-    return res.json({ branch: branchName, changes, hasCommits: !!branch?.headCommitId });
   });
 
   app.get("/api/projects/:projectId/git/blame/:filename", requireAuth, async (req: Request, res: Response) => {
@@ -2303,114 +2430,205 @@ export async function registerRoutes(
     const branchName = (req.query.branch as string) || "main";
     const filename = decodeURIComponent(req.params.filename);
 
-    const currentFile = (await storage.getFiles(req.params.projectId)).find(f => f.filename === filename);
-    if (!currentFile) {
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      const blame = await gitService.getBlame(req.params.projectId, filename, branchName);
+      if (blame.length === 0) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      return res.json({ filename, blame });
+    } catch {
       return res.status(404).json({ message: "File not found" });
     }
+  });
 
-    const currentLines = currentFile.content.split("\n");
-    const numLines = currentLines.length;
-    const uncommittedInfo = { commitId: null as string | null, message: "Uncommitted", author: "You", date: new Date().toISOString() };
+  // --- GitHub Sync Routes ---
 
-    const allCommits = await storage.getCommits(req.params.projectId, branchName);
-    const commitsSorted = [...allCommits].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    const relevantCommits = commitsSorted.filter(c => filename in (c.snapshot as Record<string, string>));
-
-    if (relevantCommits.length === 0) {
-      return res.json({ filename, blame: currentLines.map((_, i) => ({ line: i + 1, ...uncommittedInfo })) });
+  app.post("/api/projects/:projectId/git/connect-github", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { repoFullName } = req.body;
+    if (!repoFullName || typeof repoFullName !== "string" || !repoFullName.includes("/")) {
+      return res.status(400).json({ message: "Valid repository name (owner/repo) is required" });
     }
 
-    type LineInfo = { commitId: string | null; message: string; author: string; date: string };
-    const attribution: LineInfo[] = new Array(numLines).fill(null).map(() => ({ ...uncommittedInfo }));
+    try {
+      const [owner, repo] = repoFullName.split("/");
+      await github.getRepo(owner, repo);
+      await storage.updateProject(req.params.projectId, { githubRepo: repoFullName });
+      return res.json({ success: true, githubRepo: repoFullName });
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Failed to connect repository" });
+    }
+  });
 
-    function mapLinesToPrev(newerLines: string[], olderLines: string[]): Map<number, number> {
-      const diff = diffArrays(olderLines, newerLines);
-      const mapping = new Map<number, number>();
-      let oldIdx = 0;
-      let newIdx = 0;
-      for (const part of diff) {
-        const count = part.count || part.value.length;
-        if (part.removed) {
-          oldIdx += count;
-        } else if (part.added) {
-          newIdx += count;
-        } else {
-          for (let j = 0; j < count; j++) {
-            mapping.set(newIdx + j, oldIdx + j);
-          }
-          oldIdx += count;
-          newIdx += count;
-        }
-      }
-      return mapping;
+  app.delete("/api/projects/:projectId/git/connect-github", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    await storage.updateProject(req.params.projectId, { githubRepo: "" });
+    return res.json({ success: true });
+  });
+
+  app.get("/api/projects/:projectId/git/github-status", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const githubRepo = project.githubRepo;
+    if (!githubRepo) {
+      return res.json({ connected: false, githubRepo: null, ahead: 0, behind: 0 });
     }
 
-    const latestSnap = (relevantCommits[0].snapshot as Record<string, string>)[filename] || "";
-    const latestCommitLines = latestSnap.split("\n");
-    const currentToLatest = mapLinesToPrev(currentLines, latestCommitLines);
-
-    let lineOrigin: Array<{ lineIdx: number; origIdx: number }> = [];
-    for (let i = 0; i < numLines; i++) {
-      const mappedIdx = currentToLatest.get(i);
-      if (mappedIdx !== undefined) {
-        lineOrigin.push({ lineIdx: mappedIdx, origIdx: i });
-      }
+    let ahead = 0;
+    let behind = 0;
+    try {
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+      const url = `https://github.com/${githubRepo}.git`;
+      const httpTransport = github.createGitHttpTransport();
+      const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+      const status = await gitService.getRemoteStatus(req.params.projectId, url, { httpTransport, branch: currentBranch });
+      ahead = status.ahead;
+      behind = status.behind;
+    } catch {
     }
 
-    const chronological = [...relevantCommits].reverse();
-    const versionLines: string[][] = chronological.map(c => {
-      const snap = c.snapshot as Record<string, string>;
-      return (snap[filename] || "").split("\n");
-    });
+    return res.json({ connected: true, githubRepo, ahead, behind });
+  });
 
-    const lastVersionIdx = versionLines.length - 1;
-    const lineCommitIdx: number[] = new Array(latestCommitLines.length).fill(lastVersionIdx);
-
-    let linePositions: number[] = Array.from({ length: latestCommitLines.length }, (_, i) => i);
-
-    for (let vi = lastVersionIdx; vi >= 1; vi--) {
-      const newerLines = versionLines[vi];
-      const olderLines = versionLines[vi - 1];
-      const mapping = mapLinesToPrev(newerLines, olderLines);
-
-      const newPositions: number[] = new Array(linePositions.length).fill(-1);
-
-      for (let li = 0; li < linePositions.length; li++) {
-        if (lineCommitIdx[li] !== vi) continue;
-        const posInNewer = linePositions[li];
-        if (posInNewer === -1) continue;
-        const olderIdx = mapping.get(posInNewer);
-        if (olderIdx !== undefined) {
-          lineCommitIdx[li] = vi - 1;
-          newPositions[li] = olderIdx;
-        }
-      }
-
-      for (let li = 0; li < linePositions.length; li++) {
-        if (newPositions[li] !== -1) {
-          linePositions[li] = newPositions[li];
-        }
-      }
+  app.post("/api/projects/:projectId/git/push", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const githubRepo = project.githubRepo;
+    if (!githubRepo) {
+      return res.status(400).json({ message: "No GitHub repository connected" });
     }
 
-    for (const { lineIdx, origIdx } of lineOrigin) {
-      if (lineIdx < lineCommitIdx.length) {
-        const ci = lineCommitIdx[lineIdx];
-        const commit = chronological[ci];
-        attribution[origIdx] = {
-          commitId: commit.id,
-          message: commit.message,
-          author: commit.authorId,
-          date: new Date(commit.createdAt).toISOString(),
-        };
+    try {
+      const ghUser = await github.getAuthenticatedUser();
+      if (!ghUser) return res.status(401).json({ message: "GitHub not connected" });
+
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+
+      const url = `https://github.com/${githubRepo}.git`;
+      const httpTransport = github.createGitHttpTransport();
+
+      const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+      const result = await gitService.pushToRemote(req.params.projectId, url, {
+        httpTransport,
+        branch: currentBranch,
+      });
+
+      if (!result.ok) {
+        return res.status(500).json({ message: result.error || "Push failed" });
       }
+
+      await persistRepoState(req.params.projectId);
+      return res.json({ success: true, filesPushed: dbFiles.length, filesDeleted: 0 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Push failed";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/git/pull", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const githubRepo = project.githubRepo;
+    if (!githubRepo) {
+      return res.status(400).json({ message: "No GitHub repository connected" });
     }
 
-    return res.json({
-      filename,
-      blame: attribution.map((info, i) => ({ line: i + 1, ...info })),
-    });
+    try {
+      const ghUser = await github.getAuthenticatedUser();
+      if (!ghUser) return res.status(401).json({ message: "GitHub not connected" });
+
+      const dbFiles = await storage.getFiles(req.params.projectId);
+      await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
+
+      const url = `https://github.com/${githubRepo}.git`;
+      const httpTransport = github.createGitHttpTransport();
+
+      const user = await storage.getUser(req.session.userId!);
+      const authorName = user?.displayName || user?.email || "User";
+      const authorEmail = user?.email || "user@ide.local";
+
+      const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+      const result = await gitService.pullFromRemote(req.params.projectId, url, {
+        httpTransport,
+        authorName,
+        authorEmail,
+        branch: currentBranch,
+      });
+
+      if (!result.ok) {
+        return res.status(500).json({ message: result.error || "Pull failed" });
+      }
+
+      const currentFiles = await storage.getFiles(req.params.projectId);
+      for (const f of currentFiles) {
+        await storage.deleteFile(f.id);
+      }
+      for (const { filename, content } of result.files) {
+        await storage.createFile(req.params.projectId, { filename, content });
+      }
+
+      await persistRepoState(req.params.projectId);
+      return res.json({ success: true, filesPulled: result.files.length, skipped: 0 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Pull failed";
+      return res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/git/clone", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { owner, repo } = req.body;
+    if (!owner || !repo) {
+      return res.status(400).json({ message: "owner and repo are required" });
+    }
+
+    try {
+      const ghUser = await github.getAuthenticatedUser();
+      if (!ghUser) return res.status(401).json({ message: "GitHub not connected" });
+
+      const url = `https://github.com/${owner}/${repo}.git`;
+      const httpTransport = github.createGitHttpTransport();
+
+      const clonedFiles = await gitService.cloneRepo(req.params.projectId, url, {
+        httpTransport,
+      });
+
+      const currentFiles = await storage.getFiles(req.params.projectId);
+      for (const f of currentFiles) {
+        await storage.deleteFile(f.id);
+      }
+      for (const { filename, content } of clonedFiles) {
+        await storage.createFile(req.params.projectId, { filename, content });
+      }
+
+      const repoFullName = `${owner}/${repo}`;
+      await storage.updateProject(req.params.projectId, { githubRepo: repoFullName });
+      await persistRepoState(req.params.projectId);
+
+      return res.json({ success: true, filesCloned: clonedFiles.length, githubRepo: repoFullName });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Clone failed";
+      return res.status(500).json({ message });
+    }
   });
 
   // --- WORKSPACE / RUNNER ---
@@ -3817,37 +4035,33 @@ print(json.dumps({"results":tests,"duration":dur}))`;
 
       const files = await storage.getFiles(req.params.id);
       const branch = req.body.branch || "main";
-      const commits = await storage.getCommits(req.params.id, branch);
+
+      await ensureRepoWithPersistence(req.params.id, files.map(f => ({ filename: f.filename, content: f.content })));
+      const diff = await gitService.getDiff(req.params.id, branch);
 
       let changesSummary = "";
-      if (commits.length > 0) {
-        const lastSnapshot = commits[0].snapshot as Record<string, string> || {};
-        const currentFiles: Record<string, string> = {};
-        files.forEach((f) => { currentFiles[f.filename] = f.content || ""; });
-
-        const added = Object.keys(currentFiles).filter((k) => !(k in lastSnapshot));
-        const deleted = Object.keys(lastSnapshot).filter((k) => !(k in currentFiles));
-        const modified = Object.keys(currentFiles).filter((k) => k in lastSnapshot && currentFiles[k] !== lastSnapshot[k]);
+      if (diff.hasCommits && diff.changes.length > 0) {
+        const added = diff.changes.filter(c => c.status === "added").map(c => c.filename);
+        const deleted = diff.changes.filter(c => c.status === "deleted").map(c => c.filename);
+        const modified = diff.changes.filter(c => c.status === "modified").map(c => c.filename);
 
         if (added.length) changesSummary += `Added: ${added.join(", ")}\n`;
         if (deleted.length) changesSummary += `Deleted: ${deleted.join(", ")}\n`;
         if (modified.length) {
           changesSummary += `Modified: ${modified.join(", ")}\n`;
-          for (const f of modified.slice(0, 5)) {
-            const oldContent = lastSnapshot[f] || "";
-            const newContent = currentFiles[f] || "";
-            const oldLines = oldContent.split("\n");
-            const newLines = newContent.split("\n");
+          for (const change of diff.changes.filter(c => c.status === "modified").slice(0, 5)) {
+            const oldLines = (change.oldContent || "").split("\n");
+            const newLines = (change.newContent || "").split("\n");
             const addedLines = newLines.filter((l) => !oldLines.includes(l)).slice(0, 5);
             const removedLines = oldLines.filter((l) => !newLines.includes(l)).slice(0, 5);
             if (addedLines.length || removedLines.length) {
-              changesSummary += `\n${f}:\n`;
+              changesSummary += `\n${change.filename}:\n`;
               removedLines.forEach((l) => { changesSummary += `- ${l.trim().slice(0, 100)}\n`; });
               addedLines.forEach((l) => { changesSummary += `+ ${l.trim().slice(0, 100)}\n`; });
             }
           }
         }
-      } else {
+      } else if (!diff.hasCommits) {
         changesSummary = `Initial commit with files: ${files.map((f) => f.filename).join(", ")}`;
       }
 

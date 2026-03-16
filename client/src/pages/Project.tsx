@@ -11,7 +11,7 @@ import {
   Server, AlertTriangle, Power, CircleStop, Wifi, WifiOff,
   Folder, FolderPlus, ChevronRight, ChevronDown, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
-  ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge,
+  ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
   Activity, MessageSquare, Network,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -325,6 +325,10 @@ function _projectPage() {
   const [diffFile, setDiffFile] = useState<{ filename: string; oldContent?: string; newContent?: string; status: string } | null>(null);
   const [showBranchDialog, setShowBranchDialog] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [showConnectGithubDialog, setShowConnectGithubDialog] = useState(false);
+  const [connectGithubInput, setConnectGithubInput] = useState("");
+  const [pushing, setPushing] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [editorTabSize, setEditorTabSize] = useState(2);
   const [editorWordWrap, setEditorWordWrap] = useState(false);
@@ -405,6 +409,16 @@ function _projectPage() {
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/git/diff?branch=${currentBranch}`, { credentials: "include" });
       if (!res.ok) return { branch: currentBranch, changes: [], hasCommits: false };
+      return res.json();
+    },
+    enabled: gitPanelOpen,
+  });
+
+  const githubStatusQuery = useQuery<{ connected: boolean; githubRepo: string | null; ahead: number; behind: number }>({
+    queryKey: ["/api/projects", projectId, "git/github-status"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/github-status`, { credentials: "include" });
+      if (!res.ok) return { connected: false, githubRepo: null, ahead: 0, behind: 0 };
       return res.json();
     },
     enabled: gitPanelOpen,
@@ -4247,10 +4261,7 @@ function _projectPage() {
                         onChange={(e) => {
                           const newBranch = e.target.value;
                           setCurrentBranch(newBranch);
-                          const branch = gitBranchesQuery.data?.find((b: any) => b.name === newBranch);
-                          if (branch?.headCommitId) {
-                            checkoutMutation.mutate({ branchName: newBranch });
-                          }
+                          checkoutMutation.mutate({ branchName: newBranch });
                         }}
                         className="flex-1 text-[11px] text-[var(--ide-text)] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2 py-1 outline-none focus:border-[#0079F2] cursor-pointer"
                         data-testid="select-git-branch"
@@ -4439,9 +4450,175 @@ function _projectPage() {
 
                   <div className="border-t border-[var(--ide-border)]">
                     <div className="px-3 py-2">
+                      <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">GitHub Sync</span>
+                    </div>
+                    <div className="px-3 pb-3 space-y-2">
+                      {githubStatusQuery.data?.connected && githubStatusQuery.data?.githubRepo ? (
+                        <>
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <GitBranch className="w-3 h-3 text-[#0CCE6B] shrink-0" />
+                            <a href={`https://github.com/${githubStatusQuery.data.githubRepo}`} target="_blank" rel="noopener noreferrer" className="text-[#0079F2] hover:underline truncate" data-testid="link-github-repo">
+                              {githubStatusQuery.data.githubRepo}
+                            </a>
+                            <button
+                              className="text-[var(--ide-text-muted)] hover:text-red-400 shrink-0"
+                              onClick={async () => {
+                                try {
+                                  await apiRequest("DELETE", `/api/projects/${projectId}/git/connect-github`);
+                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+                                  toast({ title: "Disconnected from GitHub" });
+                                } catch {}
+                              }}
+                              data-testid="button-disconnect-github"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                          {((githubStatusQuery.data?.ahead || 0) > 0 || (githubStatusQuery.data?.behind || 0) > 0) && (
+                            <div className="flex items-center gap-2 text-[10px] text-[var(--ide-text-muted)]" data-testid="sync-status">
+                              {(githubStatusQuery.data?.ahead || 0) > 0 && (
+                                <span className="text-[#F5A623]">↑ {githubStatusQuery.data?.ahead} ahead</span>
+                              )}
+                              {(githubStatusQuery.data?.behind || 0) > 0 && (
+                                <span className="text-[#0079F2]">↓ {githubStatusQuery.data?.behind} behind</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex gap-1.5">
+                            <Button
+                              className="flex-1 h-7 text-[10px] bg-[#0079F2] hover:bg-[#0079F2]/90 text-white rounded font-medium gap-1"
+                              onClick={async () => {
+                                setPushing(true);
+                                try {
+                                  const res = await apiRequest("POST", `/api/projects/${projectId}/git/push`);
+                                  const data = await res.json();
+                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+                                  toast({ title: "Pushed to GitHub", description: `${data.filesPushed} files pushed` });
+                                } catch (err: unknown) {
+                                  const message = err instanceof Error ? err.message : "Push failed";
+                                  toast({ title: "Push failed", description: message, variant: "destructive" });
+                                } finally {
+                                  setPushing(false);
+                                }
+                              }}
+                              disabled={pushing}
+                              data-testid="button-git-push"
+                            >
+                              {pushing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                              Push
+                            </Button>
+                            <Button
+                              className="flex-1 h-7 text-[10px] bg-[var(--ide-surface)] hover:bg-[var(--ide-surface)]/80 text-[var(--ide-text)] rounded font-medium gap-1 border border-[var(--ide-border)]"
+                              onClick={async () => {
+                                setPulling(true);
+                                try {
+                                  const res = await apiRequest("POST", `/api/projects/${projectId}/git/pull`);
+                                  const data = await res.json();
+                                  setFileContents({});
+                                  setOpenTabs([]);
+                                  setActiveFileId(null);
+                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] });
+                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] });
+                                  queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+                                  toast({ title: "Pulled from GitHub", description: `${data.filesPulled} files updated` });
+                                } catch (err: unknown) {
+                                  const message = err instanceof Error ? err.message : "Pull failed";
+                                  toast({ title: "Pull failed", description: message, variant: "destructive" });
+                                } finally {
+                                  setPulling(false);
+                                }
+                              }}
+                              disabled={pulling}
+                              data-testid="button-git-pull"
+                            >
+                              {pulling ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                              Pull
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {showConnectGithubDialog ? (
+                            <div className="space-y-1.5">
+                              <input
+                                type="text"
+                                value={connectGithubInput}
+                                onChange={(e) => setConnectGithubInput(e.target.value)}
+                                placeholder="owner/repo"
+                                className="w-full text-[11px] bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-2.5 py-1.5 text-[var(--ide-text)] placeholder-[#4A5068] outline-none focus:border-[#0079F2]"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && connectGithubInput.trim().includes("/")) {
+                                    (async () => {
+                                      try {
+                                        await apiRequest("POST", `/api/projects/${projectId}/git/connect-github`, { repoFullName: connectGithubInput.trim() });
+                                        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+                                        setShowConnectGithubDialog(false);
+                                        setConnectGithubInput("");
+                                        toast({ title: "Connected to GitHub", description: connectGithubInput.trim() });
+                                      } catch (err: unknown) {
+                                        const message = err instanceof Error ? err.message : "Connection failed";
+                                        toast({ title: "Connection failed", description: message, variant: "destructive" });
+                                      }
+                                    })();
+                                  }
+                                  if (e.key === "Escape") { setShowConnectGithubDialog(false); setConnectGithubInput(""); }
+                                }}
+                                autoFocus
+                                data-testid="input-connect-github"
+                              />
+                              <div className="flex gap-1">
+                                <Button
+                                  className="flex-1 h-6 text-[10px] bg-[#0079F2] hover:bg-[#0079F2]/90 text-white rounded"
+                                  onClick={async () => {
+                                    if (!connectGithubInput.trim().includes("/")) return;
+                                    try {
+                                      await apiRequest("POST", `/api/projects/${projectId}/git/connect-github`, { repoFullName: connectGithubInput.trim() });
+                                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] });
+                                      setShowConnectGithubDialog(false);
+                                      setConnectGithubInput("");
+                                      toast({ title: "Connected to GitHub", description: connectGithubInput.trim() });
+                                    } catch (err: unknown) {
+                                      const message = err instanceof Error ? err.message : "Connection failed";
+                                      toast({ title: "Connection failed", description: message, variant: "destructive" });
+                                    }
+                                  }}
+                                  disabled={!connectGithubInput.trim().includes("/")}
+                                  data-testid="button-confirm-connect-github"
+                                >
+                                  Connect
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  className="h-6 text-[10px] text-[var(--ide-text-muted)]"
+                                  onClick={() => { setShowConnectGithubDialog(false); setConnectGithubInput(""); }}
+                                  data-testid="button-cancel-connect-github"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              className="w-full h-7 text-[10px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] border border-dashed border-[var(--ide-border)] rounded gap-1.5"
+                              onClick={() => setShowConnectGithubDialog(true)}
+                              data-testid="button-connect-github"
+                            >
+                              <GitBranch className="w-3 h-3" />
+                              Connect GitHub Repository
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-[var(--ide-border)]">
+                    <div className="px-3 py-2">
                       <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">GitHub</span>
                     </div>
-                    <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={(newProjectId) => { if (newProjectId) { setLocation(`/project/${newProjectId}`); } else { filesQuery.refetch(); } }} />
+                    <GitHubPanel projectId={projectId} projectName={project?.name || "project"} onImported={(newProjectId) => { if (newProjectId) { setLocation(`/project/${newProjectId}`); } else { filesQuery.refetch(); } }} onCloned={() => { setFileContents({}); setOpenTabs([]); setActiveFileId(null); filesQuery.refetch(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/commits"] }); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/diff"] }); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "git/github-status"] }); }} />
                   </div>
                 </div>
               </div>

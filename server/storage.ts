@@ -2,7 +2,7 @@ import { eq, desc, and, sql, inArray, count, gte } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
-  commits, branches, executionLogs, userQuotas,
+  commits, branches, executionLogs, userQuotas, gitRepoState,
   projectEnvVars,
   aiConversations, aiMessages,
   passwordResetTokens, emailVerifications,
@@ -77,7 +77,7 @@ export interface IStorage {
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
   createProjectFromTemplate(userId: string, data: { name: string; language: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; language: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string }>): Promise<Project | undefined>;
+  updateProject(id: string, data: Partial<{ name: string; language: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -109,6 +109,9 @@ export interface IStorage {
 
   createExecutionLog(data: InsertExecutionLog): Promise<ExecutionLog>;
   getExecutionLogs(filters?: { userId?: string; securityViolation?: boolean; limit?: number }): Promise<ExecutionLog[]>;
+
+  getGitRepoState(projectId: string): Promise<string | null>;
+  saveGitRepoState(projectId: string, packData: string): Promise<void>;
 
   getCommits(projectId: string, branchName?: string): Promise<Commit[]>;
   getCommit(id: string): Promise<Commit | undefined>;
@@ -424,7 +427,7 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; language: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; language: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.language !== undefined) updates.language = data.language;
@@ -432,6 +435,7 @@ export class DatabaseStorage implements IStorage {
     if (data.publishedSlug !== undefined) updates.publishedSlug = data.publishedSlug;
     if (data.customDomain !== undefined) updates.customDomain = data.customDomain;
     if (data.teamId !== undefined) updates.teamId = data.teamId;
+    if (data.githubRepo !== undefined) updates.githubRepo = data.githubRepo;
     const [project] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
     return project;
   }
@@ -534,6 +538,27 @@ export class DatabaseStorage implements IStorage {
       { projectId: demoProject.id, filename: "index.js", content: `// Welcome to Replit!\n// This is a read-only demo project.\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nfor (let i = 0; i < 10; i++) {\n  console.log(\`fib(\${i}) = \${fibonacci(i)}\`);\n}\n\nconsole.log("\\nHello from Replit!");\n` },
       { projectId: demoProject.id, filename: "utils.js", content: `// Utility functions\n\nfunction formatDate(date) {\n  return new Intl.DateTimeFormat('en-US', {\n    year: 'numeric',\n    month: 'long',\n    day: 'numeric'\n  }).format(date);\n}\n\nconsole.log("Today is:", formatDate(new Date()));\n` },
     ]);
+  }
+
+  async getGitRepoState(projectId: string): Promise<string | null> {
+    try {
+      const [row] = await db.select().from(gitRepoState).where(eq(gitRepoState.projectId, projectId)).limit(1);
+      return row ? row.packData : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveGitRepoState(projectId: string, packData: string): Promise<void> {
+    try {
+      const [existing] = await db.select({ id: gitRepoState.id }).from(gitRepoState).where(eq(gitRepoState.projectId, projectId)).limit(1);
+      if (existing) {
+        await db.update(gitRepoState).set({ packData, updatedAt: new Date() }).where(eq(gitRepoState.id, existing.id));
+      } else {
+        await db.insert(gitRepoState).values({ projectId, packData });
+      }
+    } catch {
+    }
   }
 
   async getCommits(projectId: string, branchName?: string): Promise<Commit[]> {
