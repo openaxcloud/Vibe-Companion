@@ -259,7 +259,6 @@ function _projectPage() {
   const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
     { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
     { id: "search", icon: Search, label: "Search", color: "#0079F2" },
-    { id: "git", icon: GitBranch, label: "Source Control", color: "#F26522" },
     { id: "deployments", icon: Rocket, label: "Deployments", color: "#0079F2" },
     { id: "packages", icon: Package, label: "Packages", color: "#0CCE6B" },
     { id: "database", icon: Database, label: "Database", color: "#F26522" },
@@ -3740,6 +3739,7 @@ function _projectPage() {
             {([
               { id: "files" as const, icon: FolderOpen, label: "Files", color: "#6B7280" },
               { id: "editor" as const, icon: Code2, label: "Code", color: "#0079F2" },
+              { id: "git" as const, icon: GitBranch, label: "Git", color: "#F26522" },
               { id: "terminal" as const, icon: Terminal, label: "Shell", color: "#0CCE6B" },
               { id: "preview" as const, icon: Globe, label: "Webview", color: "#F5A623" },
             ]).map(({ id, icon: Icon, label, color }) => {
