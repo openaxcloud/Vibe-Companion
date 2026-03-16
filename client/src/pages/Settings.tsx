@@ -226,14 +226,67 @@ export default function Settings() {
       currentPeriodEnd?: string;
       cancelAtPeriodEnd?: boolean;
     } | null;
+    credits?: {
+      monthlyIncluded: number;
+      monthlyUsed: number;
+      remaining: number;
+      overageEnabled: boolean;
+      overageUsed: number;
+      billingCycleStart: string;
+    } | null;
   } | null>(null);
+
+  const [billingUsage, setBillingUsage] = useState<{
+    breakdown: Record<string, number>;
+    monthlyCreditsIncluded: number;
+    monthlyCreditsUsed: number;
+    remaining: number;
+    percentUsed: number;
+    overageEnabled: boolean;
+    overageCreditsUsed: number;
+  } | null>(null);
+
+  const [billingHistory, setBillingHistory] = useState<{
+    cycleStart: string;
+    cycleEnd: string;
+    totalCredits: number;
+    breakdown: Record<string, number>;
+  }[]>([]);
+
+  const [addingPaymentMethod, setAddingPaymentMethod] = useState(false);
 
   useEffect(() => {
     fetch("/api/billing/status", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setBillingStatus(data); })
       .catch(() => {});
+    fetch("/api/billing/usage", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setBillingUsage(data); })
+      .catch(() => {});
+    fetch("/api/billing/history", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.history) setBillingHistory(data.history); })
+      .catch(() => {});
   }, []);
+
+  const handleAddPaymentMethod = async () => {
+    setAddingPaymentMethod(true);
+    try {
+      const res = await apiRequest("POST", "/api/billing/add-payment-method");
+      const data = await res.json();
+      if (data.clientSecret) {
+        toast({ title: "Payment method setup initiated. Overage billing is now enabled." });
+        setBillingStatus(prev => prev ? { ...prev, credits: prev.credits ? { ...prev.credits, overageEnabled: true } : prev.credits } : prev);
+      } else {
+        toast({ title: data.message || "Unable to set up payment method", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to add payment method", variant: "destructive" });
+    } finally {
+      setAddingPaymentMethod(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -722,6 +775,89 @@ export default function Settings() {
                   {billingStatus?.status === "active" ? "Change Plan" : "Upgrade"}
                 </Link>
               </div>
+
+              {billingStatus?.credits && billingStatus.credits.monthlyIncluded > 0 && (
+                <div className="p-4" data-testid="section-monthly-credits">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-[var(--ide-text)] font-medium">Monthly Credits</span>
+                    <span className="text-sm font-semibold text-[#0079F2]" data-testid="text-monthly-credits-balance">
+                      {billingStatus.credits.remaining} / {billingStatus.credits.monthlyIncluded}
+                    </span>
+                  </div>
+                  <div className="relative w-full h-3 rounded-full bg-[var(--ide-surface)] overflow-hidden mb-2">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        billingStatus.credits.remaining <= billingStatus.credits.monthlyIncluded * 0.2
+                          ? "bg-gradient-to-r from-red-500 to-orange-500"
+                          : "bg-gradient-to-r from-[#0CCE6B] via-[#0079F2] to-[#7C65CB]"
+                      }`}
+                      style={{ width: `${Math.min(100, (billingStatus.credits.monthlyUsed / billingStatus.credits.monthlyIncluded) * 100)}%` }}
+                      data-testid="progress-monthly-credits"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-[var(--ide-text-muted)]">
+                    <span>Cycle started {new Date(billingStatus.credits.billingCycleStart).toLocaleDateString()}</span>
+                    {billingStatus.credits.overageEnabled && (
+                      <span className="text-[#0CCE6B]">Overage enabled</span>
+                    )}
+                  </div>
+                  {billingStatus.credits.overageUsed > 0 && (
+                    <div className="mt-2 text-[10px] text-orange-400">
+                      Overage: {billingStatus.credits.overageUsed} credits used beyond included allowance
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {billingUsage && (
+                <div className="p-4" data-testid="section-usage-breakdown">
+                  <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-3 block">Usage Breakdown (This Cycle)</span>
+                  <div className="space-y-2">
+                    {Object.entries(billingUsage.breakdown).length > 0 ? (
+                      Object.entries(billingUsage.breakdown).map(([type, amount]) => (
+                        <div key={type} className="flex items-center justify-between text-[11px]">
+                          <span className="text-[var(--ide-text-secondary)] capitalize flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${
+                              type === "ai_call" ? "bg-[#7C65CB]" :
+                              type === "code_execution" ? "bg-[#0079F2]" :
+                              type === "deployment" ? "bg-[#0CCE6B]" :
+                              "bg-[var(--ide-text-muted)]"
+                            }`} />
+                            {type.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-[var(--ide-text-muted)] font-medium">{amount} credits</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[10px] text-[var(--ide-text-muted)]">No usage recorded this cycle</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between p-4">
+                <div>
+                  <span className="text-sm text-[var(--ide-text)] font-medium">Overage Billing</span>
+                  <p className="text-[11px] text-[var(--ide-text-muted)]">
+                    {billingStatus?.credits?.overageEnabled
+                      ? "Payment method on file — overage charges apply"
+                      : "Add a payment method to continue using credits beyond your allowance"}
+                  </p>
+                </div>
+                {!billingStatus?.credits?.overageEnabled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-4 border-[var(--ide-border)] text-[#0079F2] hover:text-[#0079F2]/80 text-[12px] rounded-lg"
+                    onClick={handleAddPaymentMethod}
+                    disabled={addingPaymentMethod}
+                    data-testid="button-add-payment-method"
+                  >
+                    {addingPaymentMethod ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add Payment Method"}
+                  </Button>
+                )}
+              </div>
+
               <div className="flex items-center justify-between p-4">
                 <div>
                   <span className="text-sm text-[var(--ide-text)] font-medium">Manage Billing</span>
@@ -741,6 +877,31 @@ export default function Settings() {
                   Open Portal
                 </Button>
               </div>
+
+              {billingHistory.length > 0 && (
+                <div className="p-4" data-testid="section-billing-history">
+                  <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-3 block">Billing History</span>
+                  <div className="space-y-2">
+                    {billingHistory.map((cycle, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] py-1.5 border-b border-[var(--ide-border)]/40 last:border-0">
+                        <div>
+                          <span className="text-[var(--ide-text-secondary)]">
+                            {new Date(cycle.cycleStart).toLocaleDateString()} — {new Date(cycle.cycleEnd).toLocaleDateString()}
+                          </span>
+                          <div className="flex gap-2 mt-0.5">
+                            {Object.entries(cycle.breakdown).map(([type, amount]) => (
+                              <span key={type} className="text-[9px] text-[var(--ide-text-muted)] capitalize">
+                                {type.replace(/_/g, " ")}: {amount}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-[var(--ide-text)] font-medium">{cycle.totalCredits} credits</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

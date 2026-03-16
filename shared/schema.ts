@@ -596,6 +596,11 @@ export const userQuotas = pgTable("user_quotas", {
   agentMode: text("agent_mode").notNull().default("economy"),
   codeOptimizationsEnabled: boolean("code_optimizations_enabled").notNull().default(false),
   creditAlertThreshold: integer("credit_alert_threshold").notNull().default(80),
+  monthlyCreditsIncluded: integer("monthly_credits_included").notNull().default(0),
+  monthlyCreditsUsed: integer("monthly_credits_used").notNull().default(0),
+  overageEnabled: boolean("overage_enabled").notNull().default(false),
+  overageCreditsUsed: integer("overage_credits_used").notNull().default(0),
+  billingCycleStart: timestamp("billing_cycle_start").notNull().defaultNow(),
   lastResetAt: timestamp("last_reset_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -614,6 +619,37 @@ export const insertCreditUsageSchema = createInsertSchema(creditUsage).omit({ id
 export type InsertCreditUsage = z.infer<typeof insertCreditUsageSchema>;
 export type CreditUsage = typeof creditUsage.$inferSelect;
 
+export const usageRecords = pgTable("usage_records", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  actionType: text("action_type").notNull(),
+  creditCost: integer("credit_cost").notNull(),
+  description: text("description"),
+  billingCycleStart: timestamp("billing_cycle_start").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("usage_records_user_idx").on(table.userId),
+  index("usage_records_cycle_idx").on(table.userId, table.billingCycleStart),
+]);
+export const insertUsageRecordSchema = createInsertSchema(usageRecords).omit({ id: true, createdAt: true });
+export type InsertUsageRecord = z.infer<typeof insertUsageRecordSchema>;
+export type UsageRecord = typeof usageRecords.$inferSelect;
+
+export const USAGE_ACTION_TYPES = {
+  AI_CALL: "ai_call",
+  CODE_EXECUTION: "code_execution",
+  DEPLOYMENT: "deployment",
+  STORAGE: "storage",
+} as const;
+export type UsageActionType = typeof USAGE_ACTION_TYPES[keyof typeof USAGE_ACTION_TYPES];
+
+export const USAGE_COSTS = {
+  [USAGE_ACTION_TYPES.AI_CALL]: { economy: 1, power: 3, turbo: 6 },
+  [USAGE_ACTION_TYPES.CODE_EXECUTION]: 2,
+  [USAGE_ACTION_TYPES.DEPLOYMENT]: 5,
+  [USAGE_ACTION_TYPES.STORAGE]: 0,
+} as const;
+
 export const insertUserQuotaSchema = createInsertSchema(userQuotas).pick({
   userId: true,
   plan: true,
@@ -628,9 +664,9 @@ export const UPLOAD_LIMITS = {
 } as const;
 
 export const PLAN_LIMITS = {
-  free: { dailyExecutions: 50, dailyAiCalls: 20, dailyCredits: 100, storageMb: 50, maxProjects: 5, price: 0 },
-  pro: { dailyExecutions: 500, dailyAiCalls: 200, dailyCredits: 1000, storageMb: 5000, maxProjects: 50, price: 1200 },
-  team: { dailyExecutions: 2000, dailyAiCalls: 1000, dailyCredits: 5000, storageMb: 50000, maxProjects: 200, price: 2500 },
+  free: { dailyExecutions: 50, dailyAiCalls: 20, dailyCredits: 100, storageMb: 50, maxProjects: 5, price: 0, monthlyCredits: 0 },
+  pro: { dailyExecutions: 500, dailyAiCalls: 200, dailyCredits: 1000, storageMb: 5000, maxProjects: 50, price: 1200, monthlyCredits: 2000 },
+  team: { dailyExecutions: 2000, dailyAiCalls: 1000, dailyCredits: 5000, storageMb: 50000, maxProjects: 200, price: 2500, monthlyCredits: 5000 },
 } as const;
 
 export const AGENT_MODE_COSTS = {

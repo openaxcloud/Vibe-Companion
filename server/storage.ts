@@ -25,7 +25,7 @@ import {
   checkpoints, checkpointPositions,
   accountEnvVars, accountEnvVarLinks,
   tasks, taskSteps, taskMessages, taskFileSnapshots,
-  creditUsage,
+  creditUsage, usageRecords,
   slidesData, videoData,
   projectInvites,
   fileVersions,
@@ -88,6 +88,7 @@ import {
   type TaskMessage, type InsertTaskMessage,
   type TaskFileSnapshot, type InsertTaskFileSnapshot,
   type CreditUsage,
+  type UsageRecord,
   type AgentMode,
   type ProjectInvite, type InsertProjectInvite,
   type QueuedMessage, type InsertQueuedMessage,
@@ -226,6 +227,14 @@ export interface IStorage {
   updateStorageUsage(userId: string): Promise<number>;
   updateUserPlan(userId: string, plan: string, stripeCustomerId?: string | null, stripeSubscriptionId?: string | null): Promise<UserQuota | undefined>;
 
+  recordUsage(userId: string, actionType: string, creditCost: number, description?: string): Promise<UsageRecord>;
+  getUsageForCycle(userId: string, cycleStart?: Date): Promise<UsageRecord[]>;
+  getUsageBreakdown(userId: string, cycleStart?: Date): Promise<Record<string, number>>;
+  getBillingHistory(userId: string, months?: number): Promise<{ cycleStart: Date; cycleEnd: Date; totalCredits: number; breakdown: Record<string, number> }[]>;
+  deductMonthlyCredits(userId: string, creditCost: number, actionType: string, description?: string): Promise<{ allowed: boolean; quota: UserQuota; isOverage: boolean }>;
+  resetBillingCycle(userId: string): Promise<UserQuota>;
+  setOverageEnabled(userId: string, enabled: boolean): Promise<UserQuota>;
+
   getProjectEnvVars(projectId: string): Promise<ProjectEnvVar[]>;
   getProjectEnvVar(id: string): Promise<ProjectEnvVar | undefined>;
   createProjectEnvVar(projectId: string, key: string, value: string): Promise<ProjectEnvVar>;
@@ -316,7 +325,7 @@ export interface IStorage {
   getAllPlanConfigs(): Promise<PlanConfig[]>;
   seedPlanConfigs(): Promise<void>;
 
-  getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; dailyCredits: number; storageMb: number; maxProjects: number; price: number }>;
+  getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; dailyCredits: number; storageMb: number; maxProjects: number; price: number; monthlyCredits: number }>;
   getLandingStats(): Promise<{ label: string; value: string }[]>;
   getUserRecentLanguages(userId: string): Promise<string[]>;
 
@@ -716,6 +725,7 @@ export class DatabaseStorage implements IStorage {
     for (const p of userProjects) {
       await this.deleteProject(p.id, id);
     }
+    await db.delete(usageRecords).where(eq(usageRecords.userId, id));
     await db.delete(userQuotas).where(eq(userQuotas.userId, id));
     await db.delete(analyticsEvents).where(eq(analyticsEvents.userId, id));
     const result = await db.delete(users).where(eq(users.id, id)).returning();
@@ -1256,11 +1266,146 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUserPlan(userId: string, plan: string, stripeCustomerId?: string | null, stripeSubscriptionId?: string | null): Promise<UserQuota | undefined> {
-    const updates: Record<string, unknown> = { plan, updatedAt: new Date() };
+    const planKey = plan as keyof typeof PLAN_LIMITS;
+    const monthlyCredits = PLAN_LIMITS[planKey]?.monthlyCredits || 0;
+    const updates: Record<string, unknown> = { plan, updatedAt: new Date(), monthlyCreditsIncluded: monthlyCredits };
     if (stripeCustomerId !== undefined) updates.stripeCustomerId = stripeCustomerId;
     if (stripeSubscriptionId !== undefined) updates.stripeSubscriptionId = stripeSubscriptionId;
     await this.getUserQuota(userId);
     const [updated] = await db.update(userQuotas).set(updates).where(eq(userQuotas.userId, userId)).returning();
+    return updated;
+  }
+
+  async recordUsage(userId: string, actionType: string, creditCost: number, description?: string): Promise<UsageRecord> {
+    const quota = await this.getUserQuota(userId);
+    const [record] = await db.insert(usageRecords).values({
+      userId,
+      actionType,
+      creditCost,
+      description: description || null,
+      billingCycleStart: quota.billingCycleStart,
+    }).returning();
+    return record;
+  }
+
+  async getUsageForCycle(userId: string, cycleStart?: Date): Promise<UsageRecord[]> {
+    const quota = await this.getUserQuota(userId);
+    const start = cycleStart || quota.billingCycleStart;
+    return db.select().from(usageRecords)
+      .where(and(eq(usageRecords.userId, userId), gte(usageRecords.createdAt, start)))
+      .orderBy(desc(usageRecords.createdAt));
+  }
+
+  async getUsageBreakdown(userId: string, cycleStart?: Date): Promise<Record<string, number>> {
+    const records = await this.getUsageForCycle(userId, cycleStart);
+    const breakdown: Record<string, number> = {};
+    for (const r of records) {
+      breakdown[r.actionType] = (breakdown[r.actionType] || 0) + r.creditCost;
+    }
+    return breakdown;
+  }
+
+  async getBillingHistory(userId: string, months: number = 6): Promise<{ cycleStart: Date; cycleEnd: Date; totalCredits: number; breakdown: Record<string, number> }[]> {
+    const since = new Date();
+    since.setMonth(since.getMonth() - months);
+    const records = await db.select().from(usageRecords)
+      .where(and(eq(usageRecords.userId, userId), gte(usageRecords.createdAt, since)))
+      .orderBy(desc(usageRecords.createdAt));
+
+    const cycleMap = new Map<string, { cycleStart: Date; records: UsageRecord[] }>();
+    for (const r of records) {
+      const key = r.billingCycleStart.toISOString();
+      if (!cycleMap.has(key)) {
+        cycleMap.set(key, { cycleStart: r.billingCycleStart, records: [] });
+      }
+      cycleMap.get(key)!.records.push(r);
+    }
+
+    return Array.from(cycleMap.values()).map(({ cycleStart, records: recs }) => {
+      const cycleEnd = new Date(cycleStart);
+      cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+      const breakdown: Record<string, number> = {};
+      let totalCredits = 0;
+      for (const r of recs) {
+        breakdown[r.actionType] = (breakdown[r.actionType] || 0) + r.creditCost;
+        totalCredits += r.creditCost;
+      }
+      return { cycleStart, cycleEnd, totalCredits, breakdown };
+    });
+  }
+
+  async deductMonthlyCredits(userId: string, creditCost: number, actionType: string, description?: string): Promise<{ allowed: boolean; quota: UserQuota; isOverage: boolean }> {
+    const quota = await this.getUserQuota(userId);
+
+    if (this.shouldResetBillingCycle(quota)) {
+      await this.resetBillingCycle(userId);
+      return this.deductMonthlyCredits(userId, creditCost, actionType, description);
+    }
+
+    const remaining = quota.monthlyCreditsIncluded - quota.monthlyCreditsUsed;
+
+    if (remaining >= creditCost) {
+      const [updated] = await db.update(userQuotas)
+        .set({
+          monthlyCreditsUsed: sql`${userQuotas.monthlyCreditsUsed} + ${creditCost}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userQuotas.userId, userId)).returning();
+      await this.recordUsage(userId, actionType, creditCost, description);
+      return { allowed: true, quota: updated, isOverage: false };
+    }
+
+    if (remaining > 0 && quota.overageEnabled) {
+      const overagePortion = creditCost - remaining;
+      const [updated] = await db.update(userQuotas)
+        .set({
+          monthlyCreditsUsed: sql`${userQuotas.monthlyCreditsIncluded}`,
+          overageCreditsUsed: sql`${userQuotas.overageCreditsUsed} + ${overagePortion}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userQuotas.userId, userId)).returning();
+      await this.recordUsage(userId, actionType, creditCost, description);
+      return { allowed: true, quota: updated, isOverage: true };
+    }
+
+    if (remaining <= 0 && quota.overageEnabled) {
+      const [updated] = await db.update(userQuotas)
+        .set({
+          overageCreditsUsed: sql`${userQuotas.overageCreditsUsed} + ${creditCost}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userQuotas.userId, userId)).returning();
+      await this.recordUsage(userId, actionType, creditCost, description);
+      return { allowed: true, quota: updated, isOverage: true };
+    }
+
+    return { allowed: false, quota, isOverage: false };
+  }
+
+  private shouldResetBillingCycle(quota: UserQuota): boolean {
+    const now = new Date();
+    const cycleStart = new Date(quota.billingCycleStart);
+    const nextCycle = new Date(cycleStart);
+    nextCycle.setMonth(nextCycle.getMonth() + 1);
+    return now >= nextCycle;
+  }
+
+  async resetBillingCycle(userId: string): Promise<UserQuota> {
+    const [updated] = await db.update(userQuotas)
+      .set({
+        monthlyCreditsUsed: 0,
+        overageCreditsUsed: 0,
+        billingCycleStart: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(userQuotas.userId, userId)).returning();
+    return updated;
+  }
+
+  async setOverageEnabled(userId: string, enabled: boolean): Promise<UserQuota> {
+    const [updated] = await db.update(userQuotas)
+      .set({ overageEnabled: enabled, updatedAt: new Date() })
+      .where(eq(userQuotas.userId, userId)).returning();
     return updated;
   }
 
@@ -1801,14 +1946,15 @@ export class DatabaseStorage implements IStorage {
     ]);
   }
 
-  async getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; dailyCredits: number; storageMb: number; maxProjects: number; price: number }> {
+  async getPlanLimits(plan: string): Promise<{ dailyExecutions: number; dailyAiCalls: number; dailyCredits: number; storageMb: number; maxProjects: number; price: number; monthlyCredits: number }> {
     const config = await this.getPlanConfig(plan);
+    const planKey = plan as keyof typeof PLAN_LIMITS;
     if (config) {
-      const planKey = plan as keyof typeof PLAN_LIMITS;
       const credits = PLAN_LIMITS[planKey]?.dailyCredits || PLAN_LIMITS.free.dailyCredits;
-      return { dailyExecutions: config.dailyExecutions, dailyAiCalls: config.dailyAiCalls, dailyCredits: credits, storageMb: config.storageMb, maxProjects: config.maxProjects, price: config.price };
+      const monthly = PLAN_LIMITS[planKey]?.monthlyCredits || 0;
+      return { dailyExecutions: config.dailyExecutions, dailyAiCalls: config.dailyAiCalls, dailyCredits: credits, storageMb: config.storageMb, maxProjects: config.maxProjects, price: config.price, monthlyCredits: monthly };
     }
-    const fallback = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free;
+    const fallback = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
     return { ...fallback };
   }
 

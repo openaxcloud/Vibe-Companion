@@ -756,6 +756,49 @@ function _projectPage() {
     },
   });
 
+  const creditBalanceQuery = useQuery<{
+    monthlyCreditsIncluded: number;
+    monthlyCreditsUsed: number;
+    remaining: number;
+    percentUsed: number;
+    overageEnabled: boolean;
+    overageCreditsUsed: number;
+    lowCredits: boolean;
+    exhausted: boolean;
+    plan: string;
+  }>({
+    queryKey: ["/api/billing/credits"],
+    queryFn: async () => {
+      const res = await fetch("/api/billing/credits", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+
+  const [creditNotificationShown, setCreditNotificationShown] = useState<string | null>(null);
+  useEffect(() => {
+    const data = creditBalanceQuery.data;
+    if (!data || data.monthlyCreditsIncluded <= 0) return;
+    if (data.exhausted && creditNotificationShown !== "exhausted") {
+      setCreditNotificationShown("exhausted");
+      toast({
+        title: "Credits Exhausted",
+        description: data.overageEnabled
+          ? "Your monthly credits are used up. Additional usage will be billed as overage."
+          : "Your monthly credits are used up. Add a payment method or upgrade your plan to continue.",
+        variant: "destructive",
+      });
+    } else if (data.lowCredits && !data.exhausted && creditNotificationShown !== "low") {
+      setCreditNotificationShown("low");
+      toast({
+        title: "Credits Running Low",
+        description: `You have ${data.remaining} credits remaining this month (${100 - data.percentUsed}% left).`,
+      });
+    }
+  }, [creditBalanceQuery.data]);
+
   const runButtonWorkflowsQuery = useQuery<{ id: string; name: string; steps: any[] }[]>({
     queryKey: ["/api/projects", projectId, "workflows"],
     queryFn: async () => {
@@ -7640,6 +7683,36 @@ function _projectPage() {
                   <Users className="w-2.5 h-2.5" />
                   {remoteUsers.length + 1}
                 </span>
+              )}
+
+              {creditBalanceQuery.data && creditBalanceQuery.data.monthlyCreditsIncluded > 0 && (
+                <>
+                  <span className="w-px h-3 bg-[var(--ide-surface)]" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className={`flex items-center gap-1 px-1.5 h-5 rounded text-[10px] transition-colors ${
+                          creditBalanceQuery.data.exhausted
+                            ? "text-red-400 bg-red-400/10 hover:bg-red-400/20"
+                            : creditBalanceQuery.data.lowCredits
+                            ? "text-orange-400 bg-orange-400/10 hover:bg-orange-400/20"
+                            : "text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)]"
+                        }`}
+                        onClick={() => setLocation("/settings")}
+                        data-testid="status-credit-balance"
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span className="font-medium">
+                          {creditBalanceQuery.data.remaining} credits
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                      {creditBalanceQuery.data.remaining} / {creditBalanceQuery.data.monthlyCreditsIncluded} monthly credits remaining
+                      {creditBalanceQuery.data.overageEnabled && " (overage enabled)"}
+                    </TooltipContent>
+                  </Tooltip>
+                </>
               )}
             </div>
             <div className="flex items-center gap-2">

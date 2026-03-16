@@ -25,11 +25,17 @@ const FREE_PLAN = {
   price: "$0",
   period: "forever",
   description: "Perfect for learning and personal projects",
-  features: ["5 projects", "50 code executions / day", "20 AI calls / day", "50 MB storage", "JavaScript & Python", "Community support"],
+  features: ["5 projects", "50 code executions / day", "20 AI calls / day", "No monthly credits", "50 MB storage", "JavaScript & Python", "Community support"],
   cta: "Current Plan",
   popular: false,
   color: "var(--ide-text-muted)",
   priceId: null as string | null,
+};
+
+const PLAN_CREDIT_INFO: Record<string, { monthlyCredits: number; overageRate: string }> = {
+  free: { monthlyCredits: 0, overageRate: "N/A" },
+  pro: { monthlyCredits: 2000, overageRate: "$0.01 / credit" },
+  team: { monthlyCredits: 5000, overageRate: "$0.008 / credit" },
 };
 
 
@@ -331,7 +337,20 @@ export default function Pricing() {
                   })}
                 </div>
               )}
-              <p className="text-[var(--ide-text-secondary)] text-sm mb-6">{plan.description}</p>
+              <p className="text-[var(--ide-text-secondary)] text-sm mb-4">{plan.description}</p>
+              {PLAN_CREDIT_INFO[plan.id] && PLAN_CREDIT_INFO[plan.id].monthlyCredits > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-[var(--ide-surface)]/50 border border-[var(--ide-border)]/50" data-testid={`credits-info-${plan.id}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-medium text-[var(--ide-text)]">Monthly Credits</span>
+                    <span className="text-[11px] font-semibold" style={{ color: plan.color }}>
+                      {PLAN_CREDIT_INFO[plan.id].monthlyCredits.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-[var(--ide-text-muted)]">
+                    Overage: {PLAN_CREDIT_INFO[plan.id].overageRate} with payment method on file
+                  </p>
+                </div>
+              )}
               <ul className="space-y-3 mb-8 flex-1">
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm">
@@ -364,7 +383,9 @@ export default function Pricing() {
           <div className="max-w-2xl mx-auto space-y-4 text-left">
             {[
               { q: "Can I switch plans anytime?", a: "Yes, you can upgrade or downgrade at any time. Changes take effect immediately." },
-              { q: "What happens when I hit my daily limit?", a: "You'll need to wait until the next day or upgrade your plan for higher limits." },
+              { q: "What are monthly credits?", a: "Monthly credits are included with Pro and Team plans. They're consumed by AI calls, code executions, and deployments. Credits refresh each billing cycle." },
+              { q: "What happens when I run out of credits?", a: "If you have a payment method on file, you can continue with overage billing. Otherwise, you'll see a prompt to add a payment method or upgrade your plan." },
+              { q: "How does overage billing work?", a: "Add a payment method to enable overage billing. Usage beyond your included credits is metered and billed at the end of your billing cycle." },
               { q: "Is there a student discount?", a: "Yes! Students get 50% off Pro with a valid .edu email. Contact support to apply." },
               { q: "Can I cancel my subscription?", a: "Absolutely. Cancel anytime from your account settings. No questions asked." },
             ].map((faq, i) => (

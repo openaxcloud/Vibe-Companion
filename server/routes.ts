@@ -1581,7 +1581,122 @@ export async function registerRoutes(
       stripeCustomerId: quota.stripeCustomerId || null,
       subscriptionId: quota.stripeSubscriptionId || null,
       subscription: subscriptionDetails,
+      credits: {
+        monthlyIncluded: quota.monthlyCreditsIncluded,
+        monthlyUsed: quota.monthlyCreditsUsed,
+        remaining: Math.max(0, quota.monthlyCreditsIncluded - quota.monthlyCreditsUsed),
+        overageEnabled: quota.overageEnabled,
+        overageUsed: quota.overageCreditsUsed,
+        billingCycleStart: quota.billingCycleStart,
+      },
     });
+  });
+
+  app.get("/api/billing/usage", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const quota = await storage.getUserQuota(req.session.userId!);
+      const breakdown = await storage.getUsageBreakdown(req.session.userId!);
+      const limits = await storage.getPlanLimits(quota.plan || "free");
+
+      const remaining = Math.max(0, quota.monthlyCreditsIncluded - quota.monthlyCreditsUsed);
+      const percentUsed = quota.monthlyCreditsIncluded > 0
+        ? Math.round((quota.monthlyCreditsUsed / quota.monthlyCreditsIncluded) * 100)
+        : 0;
+
+      return res.json({
+        plan: quota.plan,
+        monthlyCreditsIncluded: quota.monthlyCreditsIncluded,
+        monthlyCreditsUsed: quota.monthlyCreditsUsed,
+        remaining,
+        percentUsed,
+        overageEnabled: quota.overageEnabled,
+        overageCreditsUsed: quota.overageCreditsUsed,
+        billingCycleStart: quota.billingCycleStart,
+        breakdown,
+        daily: {
+          credits: { used: quota.dailyCreditsUsed, limit: limits.dailyCredits },
+          executions: { used: quota.dailyExecutionsUsed, limit: limits.dailyExecutions },
+          aiCalls: { used: quota.dailyAiCallsUsed, limit: limits.dailyAiCalls },
+        },
+      });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch usage data" });
+    }
+  });
+
+  app.post("/api/billing/add-payment-method", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const configured = await isStripeConfigured();
+      if (!configured) {
+        return res.json({ clientSecret: null, message: "Stripe is not configured yet." });
+      }
+      const stripeClient = await getUncachableStripeClient();
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ message: "Not authenticated" });
+      const quota = await storage.getUserQuota(user.id);
+
+      let customerId = quota.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripeClient.customers.create({
+          email: user.email,
+          metadata: { userId: user.id },
+        });
+        customerId = customer.id;
+        await storage.updateUserPlan(user.id, quota.plan, customerId);
+      }
+
+      const setupIntent = await stripeClient.setupIntents.create({
+        customer: customerId,
+        usage: "off_session",
+        metadata: { userId: user.id },
+      });
+
+      await storage.setOverageEnabled(user.id, true);
+
+      return res.json({
+        clientSecret: setupIntent.client_secret,
+        customerId,
+      });
+    } catch (err) {
+      log(`Add payment method error: ${err instanceof Error ? err.message : err}`);
+      return res.status(500).json({ message: "Failed to create setup intent" });
+    }
+  });
+
+  app.get("/api/billing/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const months = Math.min(parseInt(req.query.months as string) || 6, 12);
+      const history = await storage.getBillingHistory(req.session.userId!, months);
+      return res.json({ history });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch billing history" });
+    }
+  });
+
+  app.get("/api/billing/credits", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const quota = await storage.getUserQuota(req.session.userId!);
+      const remaining = Math.max(0, quota.monthlyCreditsIncluded - quota.monthlyCreditsUsed);
+      const percentUsed = quota.monthlyCreditsIncluded > 0
+        ? Math.round((quota.monthlyCreditsUsed / quota.monthlyCreditsIncluded) * 100)
+        : 0;
+      const lowCredits = percentUsed >= 80;
+      const exhausted = remaining <= 0 && quota.monthlyCreditsIncluded > 0;
+      return res.json({
+        monthlyCreditsIncluded: quota.monthlyCreditsIncluded,
+        monthlyCreditsUsed: quota.monthlyCreditsUsed,
+        remaining,
+        percentUsed,
+        overageEnabled: quota.overageEnabled,
+        overageCreditsUsed: quota.overageCreditsUsed,
+        lowCredits,
+        exhausted,
+        plan: quota.plan,
+      });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch credits" });
+    }
   });
 
   app.get("/api/stripe/products", async (_req: Request, res: Response) => {
