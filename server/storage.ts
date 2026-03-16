@@ -1622,7 +1622,7 @@ export class DatabaseStorage implements IStorage {
       { name: "Perplexity AI", category: "AI & ML", description: "AI-powered search and answer engine", icon: "sparkles", envVarKeys: ["PERPLEXITY_API_KEY"] },
       { name: "Stripe", category: "Payments", description: "Payment processing and subscriptions", icon: "credit-card", envVarKeys: ["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY"] },
       { name: "GitHub", category: "Developer Tools", description: "Source control and CI/CD integration", icon: "github", envVarKeys: ["GITHUB_TOKEN"] },
-      { name: "Linear", category: "Developer Tools", description: "Issue tracking and project management", icon: "layout", envVarKeys: ["LINEAR_API_KEY"] },
+      { name: "Linear", category: "Project Management", description: "Issue tracking and project management", icon: "layout", envVarKeys: ["LINEAR_API_KEY"] },
       { name: "Jira", category: "Developer Tools", description: "Agile project management and issue tracking", icon: "clipboard", envVarKeys: ["JIRA_API_TOKEN", "JIRA_BASE_URL", "JIRA_EMAIL"] },
       { name: "AWS S3", category: "Cloud Storage", description: "Object storage for files and assets", icon: "cloud", envVarKeys: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_BUCKET"] },
       { name: "SendGrid", category: "Communication", description: "Email delivery service", icon: "mail", envVarKeys: ["SENDGRID_API_KEY"] },
@@ -1639,6 +1639,10 @@ export class DatabaseStorage implements IStorage {
       { name: "Google Calendar", category: "Productivity", description: "Calendar scheduling and event management", icon: "calendar", envVarKeys: ["GOOGLE_SERVICE_ACCOUNT_KEY"] },
       { name: "HubSpot", category: "CRM & Marketing", description: "CRM, marketing, and sales automation platform", icon: "users", envVarKeys: ["HUBSPOT_ACCESS_TOKEN"] },
       { name: "Spotify", category: "Media", description: "Music streaming API for playlists and playback", icon: "music", envVarKeys: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"] },
+      { name: "BigQuery", category: "Data Warehouse", description: "Google Cloud data warehouse for large-scale SQL analytics", icon: "warehouse", envVarKeys: ["BIGQUERY_ACCESS_TOKEN", "BIGQUERY_PROJECT_ID"] },
+      { name: "Amplitude", category: "Analytics", description: "Product analytics and user behavior tracking", icon: "bar-chart", envVarKeys: ["AMPLITUDE_API_KEY", "AMPLITUDE_SECRET_KEY"] },
+      { name: "Segment", category: "Analytics", description: "Customer data platform for event tracking and routing", icon: "git-branch", envVarKeys: ["SEGMENT_WRITE_KEY"] },
+      { name: "Hex", category: "Data", description: "Collaborative data workspace for notebooks and queries", icon: "hexagon", envVarKeys: ["HEX_API_TOKEN"] },
     ];
     for (const entry of entries) {
       await db.insert(integrationCatalog).values(entry).onConflictDoUpdate({

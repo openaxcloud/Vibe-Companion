@@ -9,6 +9,7 @@ import {
   Database, Sparkles, CreditCard, Cloud, Mail, Phone, Flame, Zap, Github, Plug,
   MessageSquare, MessageCircle, Send, Smartphone, BookOpen, Table2, Calendar,
   Users, Music, Layout, ClipboardList, RefreshCw, CheckCircle2, XCircle, AlertCircle,
+  Warehouse, BarChart, GitBranch, Hexagon,
 } from "lucide-react";
 
 interface CatalogEntry {
@@ -59,6 +60,10 @@ const iconMap: Record<string, typeof Plug> = {
   music: Music,
   layout: Layout,
   clipboard: ClipboardList,
+  warehouse: Warehouse,
+  "bar-chart": BarChart,
+  "git-branch": GitBranch,
+  hexagon: Hexagon,
 };
 
 function IntegrationIcon({ icon, className, style }: { icon: string; className?: string; style?: React.CSSProperties }) {
@@ -77,6 +82,10 @@ const categoryColors: Record<string, string> = {
   "Productivity": "#10B981",
   "CRM & Marketing": "#EC4899",
   "Media": "#8B5CF6",
+  "Data Warehouse": "#3B82F6",
+  "Project Management": "#F97316",
+  "Analytics": "#06B6D4",
+  "Data": "#6366F1",
 };
 
 export default function IntegrationsPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {

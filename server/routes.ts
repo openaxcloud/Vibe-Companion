@@ -32,12 +32,13 @@ import {
 } from "./rateLimiter";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, type FunctionDeclaration, type Tool, type Content } from "@google/genai";
 import { diffArrays } from "diff";
 import multer from "multer";
 import * as runnerClient from "./runnerClient";
 import * as github from "./github";
 import * as gitService from "./git";
+import { getConnectorKey, getSupportedConnectors, getConnectorOperations, executeConnectorOperation, getConnectorDescription } from "./connectors";
 import path, { posix as pathPosix } from "path";
 import { generateImageBuffer, editImages } from "./replit_integrations/image/client";
 import { registerImageRoutes } from "./replit_integrations/image";
@@ -437,6 +438,41 @@ async function testIntegrationConnection(
           signal: AbortSignal.timeout(timeout),
         });
         return sbRes.ok ? { success: true, message: "Supabase connection verified" } : { success: false, message: `HTTP ${sbRes.status}` };
+      }
+      case "BigQuery": {
+        if (!config.BIGQUERY_ACCESS_TOKEN) {
+          return { success: false, message: "Missing BIGQUERY_ACCESS_TOKEN" };
+        }
+        const bqProjectId = config.BIGQUERY_PROJECT_ID || "default";
+        const res = await fetch(`https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(bqProjectId)}/datasets?maxResults=1`, {
+          headers: { Authorization: `Bearer ${config.BIGQUERY_ACCESS_TOKEN}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: `Connected to BigQuery project: ${bqProjectId}` } : { success: false, message: `HTTP ${res.status}` };
+      }
+      case "Amplitude": {
+        if (!config.AMPLITUDE_API_KEY || !config.AMPLITUDE_SECRET_KEY) {
+          return { success: false, message: "Missing AMPLITUDE_API_KEY or AMPLITUDE_SECRET_KEY" };
+        }
+        if (config.AMPLITUDE_API_KEY.length < 10) return { success: false, message: "API key appears too short" };
+        return { success: false, noLiveTest: true, message: `API key format valid (${config.AMPLITUDE_API_KEY.slice(0, 4)}...) — live verification requires event data` };
+      }
+      case "Segment": {
+        if (!config.SEGMENT_WRITE_KEY) {
+          return { success: false, message: "Missing SEGMENT_WRITE_KEY" };
+        }
+        if (config.SEGMENT_WRITE_KEY.length < 10) return { success: false, message: "Write key appears too short" };
+        return { success: false, noLiveTest: true, message: `Write key format valid (${config.SEGMENT_WRITE_KEY.slice(0, 4)}...) — live verification requires sending events` };
+      }
+      case "Hex": {
+        if (!config.HEX_API_TOKEN) {
+          return { success: false, message: "Missing HEX_API_TOKEN" };
+        }
+        const hexRes = await fetch("https://app.hex.tech/api/v1/projects?limit=1", {
+          headers: { Authorization: `Bearer ${config.HEX_API_TOKEN}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return hexRes.ok ? { success: true, message: "Connected to Hex" } : { success: false, message: `HTTP ${hexRes.status}` };
       }
       default: {
         const hasValues = Object.values(config).some(v => v && v.trim().length > 0);
@@ -5012,6 +5048,38 @@ Rules:
           try { fs.unlinkSync(tmpPath); } catch {}
         }
       }
+      if (toolName === "query_connector" || toolName === "write_connector") {
+        const connectorName = (toolInput as any).connector;
+        const operation = (toolInput as any).operation;
+        const params = (toolInput as any).params || {};
+        if (!connectorName || !operation) {
+          res.write(`data: ${JSON.stringify({ type: "error", message: "connector and operation are required" })}\n\n`);
+          return "Error: connector and operation are required";
+        }
+        const connectorKey = getConnectorKey(connectorName) || connectorName.toLowerCase();
+        const integrations = await storage.getProjectIntegrations(projectId);
+        const matchedIntegration = integrations.find(i => {
+          const key = getConnectorKey(i.integration.name);
+          return key === connectorKey && (i.status === "connected" || i.status === "unverified");
+        });
+        if (!matchedIntegration) {
+          return `Error: No connected ${connectorName} integration found. The user needs to connect it from the Integrations panel first.`;
+        }
+        const allowedType = toolName === "query_connector" ? "read" as const : "write" as const;
+        const result = await executeConnectorOperation(connectorKey, operation, params, matchedIntegration.config || {}, allowedType);
+        await storage.addIntegrationLog(
+          matchedIntegration.id,
+          result.success ? "info" : "error",
+          `Agent ${toolName}: ${operation} — ${result.success ? "Success" : result.error || "Failed"}`
+        );
+        if (result.success) {
+          res.write(`data: ${JSON.stringify({ type: "connector_result", connector: connectorName, operation, success: true })}\n\n`);
+          return JSON.stringify(result.data).slice(0, 8000);
+        } else {
+          res.write(`data: ${JSON.stringify({ type: "connector_result", connector: connectorName, operation, success: false, error: result.error })}\n\n`);
+          return `Error: ${result.error}`;
+        }
+      }
       if (toolName === "create_file" || toolName === "edit_file") {
         agentFileOpsCount.value++;
         const safeName = sanitizeAIFilename(toolInput.filename);
@@ -5144,6 +5212,9 @@ When the user asks you to generate an image, use the generate_image tool. Choose
 
 When the user asks you to modify or refine an existing generated image, use the edit_image tool with the existing filename and a description of the changes.
 
+When the user asks about data from connected services (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex), use the query_connector tool to read data or write_connector to create/update data. Available connectors and operations:
+${getConnectorDescription()}
+
 Always write complete, working code. Never use placeholders or TODOs.${webSearchEnabled ? `
 
 ## Web Search
@@ -5162,7 +5233,7 @@ Always cite your sources in your response when using information from web search
       const agentTurboMaxTokens = agentModeVal === "turbo" ? 32768 : 16384;
 
       if (agentSelectedModel === "gemini") {
-        const geminiToolDeclarations: any[] = [
+        const geminiToolDeclarations: FunctionDeclaration[] = [
             {
               name: "create_file",
               description: "Create a new file in the project with the given filename and content",
@@ -5225,6 +5296,32 @@ Always cite your sources in your response when using information from web search
                 required: ["filename", "modification_prompt"],
               },
             },
+            {
+              name: "query_connector",
+              description: "Read data from a connected external service (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex)",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  connector: { type: Type.STRING, description: "The connector name (e.g. 'Linear', 'Slack', 'Notion', 'BigQuery')" },
+                  operation: { type: Type.STRING, description: "The read operation to perform (e.g. 'list_issues', 'list_channels', 'list_pages')" },
+                  params: { type: Type.OBJECT, description: "Operation-specific parameters as key-value pairs", properties: {} },
+                },
+                required: ["connector", "operation"],
+              },
+            },
+            {
+              name: "write_connector",
+              description: "Write data to a connected external service (create issues, send messages, add pages, track events)",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  connector: { type: Type.STRING, description: "The connector name (e.g. 'Linear', 'Slack', 'Notion', 'Segment')" },
+                  operation: { type: Type.STRING, description: "The write operation to perform (e.g. 'create_issue', 'send_message', 'create_page')" },
+                  params: { type: Type.OBJECT, description: "Operation-specific parameters as key-value pairs", properties: {} },
+                },
+                required: ["connector", "operation"],
+              },
+            },
         ];
         if (webSearchEnabled) {
           geminiToolDeclarations.push(
@@ -5261,11 +5358,11 @@ Always cite your sources in your response when using information from web search
         );
         const geminiTools = [{ functionDeclarations: geminiToolDeclarations }];
 
-        let geminiContents: any[] = [
+        let geminiContents: Content[] = [
           { role: "user", parts: [{ text: agentSystemPrompt }] },
           { role: "model", parts: [{ text: "I understand. I'm ready to help with your project." }] },
-          ...messages.map((m: any) => ({
-            role: m.role === "assistant" ? "model" : "user",
+          ...messages.map((m: { role: string; content: string }) => ({
+            role: (m.role === "assistant" ? "model" : "user") as "user" | "model",
             parts: [{ text: m.content }],
           })),
         ];
@@ -5401,6 +5498,38 @@ Always cite your sources in your response when using information from web search
                   modification_prompt: { type: "string", description: "Description of the changes to make to the image" },
                 },
                 required: ["filename", "modification_prompt"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "query_connector",
+              description: "Read data from a connected external service (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex)",
+              parameters: {
+                type: "object",
+                properties: {
+                  connector: { type: "string", description: "The connector name (e.g. 'Linear', 'Slack', 'Notion', 'BigQuery')" },
+                  operation: { type: "string", description: "The read operation to perform (e.g. 'list_issues', 'list_channels', 'list_pages')" },
+                  params: { type: "object", description: "Operation-specific parameters as key-value pairs" },
+                },
+                required: ["connector", "operation"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "write_connector",
+              description: "Write data to a connected external service (create issues, send messages, add pages, track events)",
+              parameters: {
+                type: "object",
+                properties: {
+                  connector: { type: "string", description: "The connector name (e.g. 'Linear', 'Slack', 'Notion', 'Segment')" },
+                  operation: { type: "string", description: "The write operation to perform (e.g. 'create_issue', 'send_message', 'create_page')" },
+                  params: { type: "object", description: "Operation-specific parameters as key-value pairs" },
+                },
+                required: ["connector", "operation"],
               },
             },
           },
@@ -5563,6 +5692,32 @@ Always cite your sources in your response when using information from web search
                 modification_prompt: { type: "string", description: "Description of the changes to make to the image" },
               },
               required: ["filename", "modification_prompt"],
+            },
+          },
+          {
+            name: "query_connector",
+            description: "Read data from a connected external service (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex)",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                connector: { type: "string", description: "The connector name (e.g. 'Linear', 'Slack', 'Notion', 'BigQuery')" },
+                operation: { type: "string", description: "The read operation to perform (e.g. 'list_issues', 'list_channels', 'list_pages')" },
+                params: { type: "object", description: "Operation-specific parameters as key-value pairs" },
+              },
+              required: ["connector", "operation"],
+            },
+          },
+          {
+            name: "write_connector",
+            description: "Write data to a connected external service (create issues, send messages, add pages, track events)",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                connector: { type: "string", description: "The connector name (e.g. 'Linear', 'Slack', 'Notion', 'Segment')" },
+                operation: { type: "string", description: "The write operation to perform (e.g. 'create_issue', 'send_message', 'create_page')" },
+                params: { type: "object", description: "Operation-specific parameters as key-value pairs" },
+              },
+              required: ["connector", "operation"],
             },
           },
           ...mcpToolDefinitions.map(t => ({
@@ -5794,7 +5949,7 @@ Rules:
       res.setHeader("Connection", "keep-alive");
 
       if (requestedModel === "gemini") {
-        const geminiTools = [{
+        const geminiTools: Tool[] = [{
           functionDeclarations: [
             {
               name: "create_file",
@@ -5823,10 +5978,10 @@ Rules:
           ],
         }];
 
-        let geminiContents: any[] = [
+        let geminiContents: Content[] = [
           { role: "user", parts: [{ text: liteSystemPrompt }] },
           { role: "model", parts: [{ text: "Ready." }] },
-          ...messages.map((m: any) => ({
+          ...messages.map((m: { role: string; content: string }) => ({
             role: m.role === "assistant" ? "model" : "user",
             parts: [{ text: m.content }],
           })),
@@ -7518,6 +7673,52 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.json(logs);
     } catch (err: any) {
       res.status(500).json({ message: "Failed to get integration logs" });
+    }
+  });
+
+  // --- CONNECTOR PROXY ROUTES ---
+
+  app.get("/api/connectors/supported", requireAuth, async (_req: Request, res: Response) => {
+    const connectors = getSupportedConnectors().map(name => {
+      const key = getConnectorKey(name);
+      return { name, key, operations: key ? getConnectorOperations(key) : [] };
+    });
+    res.json(connectors);
+  });
+
+  app.post("/api/projects/:id/connectors/:connectorName/execute", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const connectorName = req.params.connectorName as string;
+      const connectorKey = getConnectorKey(connectorName) || connectorName.toLowerCase();
+      const { operation, params } = req.body;
+      if (!operation) return res.status(400).json({ message: "operation is required" });
+
+      const integrations = await storage.getProjectIntegrations(req.params.id);
+      const matchedIntegration = integrations.find(i => {
+        const key = getConnectorKey(i.integration.name);
+        return key === connectorKey && (i.status === "connected" || i.status === "unverified");
+      });
+
+      if (!matchedIntegration) {
+        return res.status(400).json({ message: `No connected ${req.params.connectorName} integration found. Connect it first from the Integrations panel.` });
+      }
+
+      const result = await executeConnectorOperation(connectorKey, operation, params || {}, matchedIntegration.config || {});
+
+      if (matchedIntegration) {
+        await storage.addIntegrationLog(
+          matchedIntegration.id,
+          result.success ? "info" : "error",
+          `${operation}: ${result.success ? "Success" : result.error || "Failed"}`
+        );
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Connector operation failed" });
     }
   });
 
