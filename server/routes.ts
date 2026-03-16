@@ -6165,8 +6165,17 @@ Rules:
   });
 
   async function fetchSearchResults(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
-    const engines = [fetchGoogleResults, fetchBingResults];
-    for (const engine of engines) {
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    if (tavilyKey) {
+      try {
+        const results = await fetchTavilyResults(query, tavilyKey);
+        if (results.length > 0) return results;
+      } catch (err: any) {
+        log(`Tavily search error, falling back: ${err.message}`, "ai");
+      }
+    }
+    const fallbacks = [fetchGoogleResults, fetchBingResults];
+    for (const engine of fallbacks) {
       try {
         const results = await engine(query);
         if (results.length > 0) return results;
@@ -6175,6 +6184,31 @@ Rules:
       }
     }
     return [];
+  }
+
+  async function fetchTavilyResults(query: string, apiKey: string): Promise<{ title: string; url: string; snippet: string }[]> {
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: 8,
+        include_answer: false,
+        search_depth: "basic",
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Tavily API ${res.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await res.json() as { results?: { title: string; url: string; content: string }[] };
+    return (data.results || []).map(r => ({
+      title: r.title || "",
+      url: r.url || "",
+      snippet: (r.content || "").slice(0, 300),
+    }));
   }
 
   async function fetchGoogleResults(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
