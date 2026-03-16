@@ -938,6 +938,9 @@ function _projectPage() {
           setIsRunning(false);
         }
       }
+      if (msg.type === "notification") {
+        queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      }
     }
   }, [messages]);
 

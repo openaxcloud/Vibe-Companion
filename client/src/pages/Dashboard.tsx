@@ -30,7 +30,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import type { Project } from "@shared/schema";
+import type { Project, Notification } from "@shared/schema";
+import { Check, CheckCheck, Trash2 } from "lucide-react";
 
 interface UsageData {
   plan: string;
@@ -351,6 +352,65 @@ export default function Dashboard() {
     },
     staleTime: 30000,
   });
+
+  const notificationsQuery = useQuery<{ notifications: Notification[]; unreadCount: number }>({
+    queryKey: ["/api/notifications"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/notifications?limit=50");
+      return res.json();
+    },
+    staleTime: 15000,
+    refetchInterval: 30000,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("PATCH", `/api/notifications/${id}/read`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/notifications/mark-all-read");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/notifications/${id}`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
+  const allNotifications = notificationsQuery.data?.notifications ?? [];
+
+  const notifCategoryIcon = (category: string) => {
+    switch (category) {
+      case "agent": return <Sparkles className="w-3.5 h-3.5 text-purple-400" />;
+      case "billing": return <CreditCard className="w-3.5 h-3.5 text-amber-400" />;
+      case "deployment": return <Globe className="w-3.5 h-3.5 text-green-400" />;
+      case "security": return <Lock className="w-3.5 h-3.5 text-red-400" />;
+      case "team": return <Users className="w-3.5 h-3.5 text-[#0079F2]" />;
+      default: return <Bell className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />;
+    }
+  };
+
+  const formatNotifTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDays = Math.floor(diffHr / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString();
+  };
 
   useEffect(() => {
     if (projectsQuery.data && projectsQuery.data.length === 0) {
@@ -828,9 +888,23 @@ export default function Dashboard() {
 
   const mobileNotificationsContent = (
     <div className="flex-1 overflow-y-auto bg-[var(--ide-bg)] px-4 py-4">
-      <h2 className="text-lg font-semibold text-[var(--ide-text)] mb-4">Notifications</h2>
-      {(pendingInvitesQuery.data?.length || 0) > 0 ? (
-        <div className="space-y-3">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-[var(--ide-text)]">Notifications</h2>
+        {unreadCount > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-3 text-[11px] text-[#0079F2] hover:text-[#0068D6] rounded-lg"
+            onClick={() => markAllReadMutation.mutate()}
+            disabled={markAllReadMutation.isPending}
+            data-testid="mobile-button-mark-all-read"
+          >
+            <CheckCheck className="w-3.5 h-3.5 mr-1" /> Mark all read
+          </Button>
+        )}
+      </div>
+      {(pendingInvitesQuery.data?.length || 0) > 0 && (
+        <div className="space-y-3 mb-4">
           {pendingInvitesQuery.data!.map((invite) => (
             <div key={invite.id} className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-4" data-testid={`mobile-notification-invite-${invite.id}`}>
               <div className="flex items-start gap-3">
@@ -868,13 +942,60 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
-      ) : (
+      )}
+      {allNotifications.length > 0 ? (
+        <div className="space-y-2">
+          {allNotifications.map((notif) => (
+            <div
+              key={notif.id}
+              className={`rounded-xl border bg-[var(--ide-panel)] p-4 transition-all ${notif.isRead ? "border-[var(--ide-border)] opacity-70" : "border-[#0079F2]/30 bg-[#0079F2]/5"}`}
+              data-testid={`mobile-notification-${notif.id}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${notif.isRead ? "bg-[var(--ide-surface)]" : "bg-[#0079F2]/15"}`}>
+                  {notifCategoryIcon(notif.category)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-[var(--ide-text)]">{notif.title}</p>
+                  <p className="text-[12px] text-[var(--ide-text-secondary)] mt-0.5">{notif.message}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] text-[var(--ide-text-muted)]">{formatNotifTime(notif.createdAt as unknown as string)}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{notif.category}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    {!notif.isRead && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-3 text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] rounded-md"
+                        onClick={() => markReadMutation.mutate(notif.id)}
+                        data-testid={`mobile-button-mark-read-${notif.id}`}
+                      >
+                        <Check className="w-3 h-3 mr-1" /> Mark read
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-3 text-[10px] text-red-400 hover:text-red-300 rounded-md"
+                      onClick={() => deleteNotificationMutation.mutate(notif.id)}
+                      data-testid={`mobile-button-delete-notification-${notif.id}`}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (pendingInvitesQuery.data?.length || 0) === 0 ? (
         <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
           <Bell className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
           <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium" data-testid="text-no-notifications-mobile">No notifications</p>
           <p className="text-[12px] text-[var(--ide-text-secondary)]">You're all caught up</p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 
@@ -1010,7 +1131,7 @@ export default function Dashboard() {
                   {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2.5px] rounded-full bg-[#0079F2]" />}
                   <Icon className={`w-5 h-5 transition-all ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`}>{label}</span>
-                  {id === "notifications" && (pendingInvitesQuery.data?.length || 0) > 0 && <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2.5 h-2.5 rounded-full bg-[#0079F2] ring-2 ring-[var(--ide-bg)]" />}
+                  {id === "notifications" && (unreadCount + (pendingInvitesQuery.data?.length || 0)) > 0 && <span className="absolute top-1.5 right-[calc(50%-2px)] translate-x-3 w-2.5 h-2.5 rounded-full bg-[#0079F2] ring-2 ring-[var(--ide-bg)]" />}
                 </button>
               );
             })}
@@ -1057,8 +1178,8 @@ export default function Dashboard() {
             <DropdownMenuTrigger asChild>
               <button className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="button-notifications">
                 <Bell className="w-4 h-4" />
-                {(pendingInvitesQuery.data?.length || 0) > 0 ? (
-                  <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[#0079F2] text-[8px] font-bold text-white flex items-center justify-center animate-pulse" data-testid="badge-notification-count">{pendingInvitesQuery.data!.length}</span>
+                {(unreadCount + (pendingInvitesQuery.data?.length || 0)) > 0 ? (
+                  <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[#0079F2] text-[8px] font-bold text-white flex items-center justify-center animate-pulse" data-testid="badge-notification-count">{unreadCount + (pendingInvitesQuery.data?.length || 0)}</span>
                 ) : (
                   <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[var(--ide-surface)] text-[7px] font-bold text-[var(--ide-text-muted)] flex items-center justify-center" data-testid="badge-notification-count">0</span>
                 )}
@@ -1067,13 +1188,24 @@ export default function Dashboard() {
             <DropdownMenuContent align="end" className="w-80 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30 p-0">
               <div className="px-3 py-2.5 border-b border-[var(--ide-border)] flex items-center justify-between">
                 <p className="text-xs font-medium text-[var(--ide-text)]">Notifications</p>
-                {(pendingInvitesQuery.data?.length || 0) > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] font-semibold">{pendingInvitesQuery.data!.length} new</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {(unreadCount + (pendingInvitesQuery.data?.length || 0)) > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/15 text-[#0079F2] font-semibold">{unreadCount + (pendingInvitesQuery.data?.length || 0)} new</span>
+                  )}
+                  {unreadCount > 0 && (
+                    <button
+                      className="text-[9px] text-[#0079F2] hover:underline"
+                      onClick={(e) => { e.stopPropagation(); markAllReadMutation.mutate(); }}
+                      data-testid="button-mark-all-read"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
               </div>
-              {(pendingInvitesQuery.data?.length || 0) > 0 ? (
-                <div className="max-h-64 overflow-y-auto">
-                  {pendingInvitesQuery.data!.map((invite) => (
+              {((pendingInvitesQuery.data?.length || 0) > 0 || allNotifications.length > 0) ? (
+                <div className="max-h-80 overflow-y-auto">
+                  {pendingInvitesQuery.data?.map((invite) => (
                     <div key={invite.id} className="px-3 py-2.5 border-b border-[var(--ide-border)] last:border-0 hover:bg-[var(--ide-surface)]/50" data-testid={`notification-invite-${invite.id}`}>
                       <div className="flex items-start gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-[#0079F2]/15 flex items-center justify-center shrink-0 mt-0.5">
@@ -1104,6 +1236,42 @@ export default function Dashboard() {
                             >
                               Decline
                             </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {allNotifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`px-3 py-2.5 border-b border-[var(--ide-border)] last:border-0 transition-all ${notif.isRead ? "opacity-60" : "bg-[#0079F2]/5"}`}
+                      data-testid={`notification-item-${notif.id}`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${notif.isRead ? "bg-[var(--ide-surface)]" : "bg-[#0079F2]/15"}`}>
+                          {notifCategoryIcon(notif.category)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-medium text-[var(--ide-text)]">{notif.title}</p>
+                          <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5">{notif.message}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[9px] text-[var(--ide-text-muted)]">{formatNotifTime(notif.createdAt as unknown as string)}</span>
+                            {!notif.isRead && (
+                              <button
+                                className="text-[9px] text-[#0079F2] hover:underline"
+                                onClick={(e) => { e.stopPropagation(); markReadMutation.mutate(notif.id); }}
+                                data-testid={`button-mark-read-${notif.id}`}
+                              >
+                                Mark read
+                              </button>
+                            )}
+                            <button
+                              className="text-[9px] text-red-400 hover:underline"
+                              onClick={(e) => { e.stopPropagation(); deleteNotificationMutation.mutate(notif.id); }}
+                              data-testid={`button-delete-notification-${notif.id}`}
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
                       </div>

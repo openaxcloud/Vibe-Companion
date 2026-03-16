@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge, Keyboard, Palette, Plus, ExternalLink } from "lucide-react";
+import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2, Eye, EyeOff, Github, Download, CheckCircle, Loader2, Shield, Sparkles, Zap, Gauge, Keyboard, Palette, Plus, ExternalLink, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useTheme, BUILTIN_DARK, BUILTIN_LIGHT } from "@/components/ThemeProvider";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import KeyboardShortcutsSettings from "@/components/KeyboardShortcutsSettings";
 import { DEFAULT_DARK_GLOBAL_COLORS, DEFAULT_LIGHT_GLOBAL_COLORS, DEFAULT_DARK_SYNTAX_COLORS, DEFAULT_LIGHT_SYNTAX_COLORS } from "@shared/schema";
 
@@ -70,10 +70,22 @@ function ThemeCard({ name, scheme, isActive, colors, onClick, onEdit, onDelete }
   );
 }
 
+interface NotificationPrefs {
+  id: string;
+  userId: string;
+  agent: boolean;
+  billing: boolean;
+  deployment: boolean;
+  security: boolean;
+  team: boolean;
+  system: boolean;
+}
+
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { theme, setTheme, activeTheme, setActiveTheme, toggleTheme, installedThemes, userThemes, refreshThemes } = useTheme();
   const isDark = theme === "dark";
   const setIsDark = (v: boolean) => setTheme(v ? "dark" : "light");
@@ -102,6 +114,22 @@ export default function Settings() {
 
   const usageQuery = useQuery<any>({ queryKey: ["/api/user/usage"], staleTime: 60000 });
   const creditHistoryQuery = useQuery<any>({ queryKey: ["/api/user/credits/history"], staleTime: 60000 });
+
+  const notifPrefsQuery = useQuery<NotificationPrefs>({
+    queryKey: ["/api/notification-preferences"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/notification-preferences");
+      return res.json();
+    },
+    staleTime: 60000,
+  });
+
+  const updateNotifPrefsMutation = useMutation({
+    mutationFn: async (data: Partial<NotificationPrefs>) => {
+      await apiRequest("PUT", "/api/notification-preferences", data);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notification-preferences"] }),
+  });
 
   useEffect(() => {
     if (usageQuery.data?.creditAlertThreshold) {
@@ -665,6 +693,36 @@ export default function Settings() {
           <div className="h-px bg-[var(--ide-surface)]/60" />
 
           <KeyboardShortcutsSettings />
+
+          <div className="h-px bg-[var(--ide-surface)]/60" />
+
+          <div className="space-y-3" data-testid="section-notifications">
+            <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider px-1 flex items-center gap-1.5">
+              <Bell className="w-3 h-3" /> Notification Preferences
+            </h2>
+            <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] divide-y divide-[var(--ide-border)]">
+              {([
+                { key: "agent" as const, label: "Agent", desc: "Agent needs help or finished working" },
+                { key: "billing" as const, label: "Billing", desc: "Plan changes, quota warnings, payment updates" },
+                { key: "deployment" as const, label: "Deployments", desc: "Deployment status changes" },
+                { key: "security" as const, label: "Security", desc: "Security scan results and alerts" },
+                { key: "team" as const, label: "Team", desc: "Team invitations and member changes" },
+                { key: "system" as const, label: "System", desc: "System updates and maintenance notices" },
+              ]).map(({ key, label, desc }) => (
+                <div key={key} className="flex items-center justify-between p-4">
+                  <div>
+                    <span className="text-sm text-[var(--ide-text)] font-medium">{label}</span>
+                    <p className="text-[11px] text-[var(--ide-text-muted)]">{desc}</p>
+                  </div>
+                  <Switch
+                    checked={notifPrefsQuery.data?.[key] ?? true}
+                    onCheckedChange={(checked) => updateNotifPrefsMutation.mutate({ [key]: checked })}
+                    data-testid={`switch-notif-${key}`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="h-px bg-[var(--ide-surface)]/60" />
 

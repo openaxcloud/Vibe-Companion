@@ -1824,6 +1824,46 @@ export const DEFAULT_LIGHT_SYNTAX_COLORS: SyntaxColors = {
   brackets: "#475569",
 };
 
+export const notificationCategoryEnum = ["agent", "billing", "deployment", "security", "team", "system"] as const;
+export type NotificationCategory = typeof notificationCategoryEnum[number];
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  category: text("category").notNull().default("system"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  actionUrl: text("action_url"),
+  metadata: json("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("notifications_user_id_idx").on(table.userId),
+  index("notifications_user_read_idx").on(table.userId, table.isRead),
+  index("notifications_created_idx").on(table.createdAt),
+]);
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  agent: boolean("agent").notNull().default(true),
+  billing: boolean("billing").notNull().default(true),
+  deployment: boolean("deployment").notNull().default(true),
+  security: boolean("security").notNull().default(true),
+  team: boolean("team").notNull().default(true),
+  system: boolean("system").notNull().default(true),
+}, (table) => [
+  uniqueIndex("notification_prefs_user_unique").on(table.userId),
+]);
+
+export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({ id: true });
+export type InsertNotificationPreferences = z.infer<typeof insertNotificationPreferencesSchema>;
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+
 export const systemModules = pgTable("system_modules", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

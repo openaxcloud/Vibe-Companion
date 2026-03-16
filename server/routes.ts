@@ -875,6 +875,7 @@ function csrfProtection(req: Request, res: Response, next: NextFunction) {
 }
 
 const wsClients = new Map<string, Set<WebSocket>>();
+const wsUserClients = new Map<string, Set<WebSocket>>();
 const wsConnectionsByIp = new Map<string, Set<WebSocket>>();
 const WS_MAX_CONNECTIONS_PER_IP = 5;
 const WS_MESSAGE_RATE_LIMIT = 30;
@@ -902,6 +903,17 @@ function checkWsMessageRate(ws: WebSocket): boolean {
 
 const recentBroadcasts = new Map<string, { data: any; timestamp: number }[]>();
 const MAX_RECENT_BROADCASTS = 50;
+
+function broadcastToUser(userId: string, data: any) {
+  const clients = wsUserClients.get(userId);
+  if (!clients) return;
+  const message = JSON.stringify(data);
+  for (const ws of clients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(message);
+    }
+  }
+}
 
 function broadcastToProject(projectId: string, data: any) {
   if (!recentBroadcasts.has(projectId)) {
@@ -2241,6 +2253,16 @@ export async function registerRoutes(
       const inviter = await storage.getUser(req.session.userId!);
       await sendTeamInviteEmail(email, team.name, inviter?.displayName || inviter?.email || "Someone", token);
       log(`[teams] Invite for ${email} to team ${team.name}: /invite/${token}`, "info");
+      const invitedUser = await storage.getUserByEmail(email);
+      if (invitedUser) {
+        createAndBroadcastNotification(invitedUser.id, {
+          category: "team",
+          title: "Team invitation",
+          message: `${inviter?.displayName || inviter?.email || "Someone"} invited you to join ${team.name}`,
+          actionUrl: `/invite/${token}`,
+          metadata: { teamId: team.id, teamName: team.name },
+        }).catch(() => {});
+      }
       return res.status(201).json(invite);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -3627,6 +3649,21 @@ export async function registerRoutes(
       await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version, deploymentType });
       if (build.status === "live") {
         createCheckpoint(project.id, req.session.userId!, "deployment", `Deployment v${version} successful`).catch(() => {});
+        createAndBroadcastNotification(req.session.userId!, {
+          category: "deployment",
+          title: "Deployment successful",
+          message: `${project.name} v${version} is now live`,
+          actionUrl: `/project/${project.id}`,
+          metadata: { projectId: project.id, version, url: deployUrl },
+        }).catch(() => {});
+      } else if (build.status === "failed") {
+        createAndBroadcastNotification(req.session.userId!, {
+          category: "deployment",
+          title: "Deployment failed",
+          message: `${project.name} v${version} deployment failed`,
+          actionUrl: `/project/${project.id}`,
+          metadata: { projectId: project.id, version },
+        }).catch(() => {});
       }
       return res.json({ deployment: { ...deployment, version, status: build.status, buildLog: build.buildLog, url: deployUrl, deploymentType, processPort: build.processPort }, slug, url: deployUrl, version });
     } catch (err: any) {
@@ -4894,6 +4931,89 @@ export async function registerRoutes(
     const deleted = await storage.deleteProjectInvite(req.params.inviteId, project.id);
     if (!deleted) return res.status(404).json({ message: "Invite not found" });
     return res.json({ success: true });
+  });
+
+  // --- NOTIFICATIONS ---
+  async function createAndBroadcastNotification(userId: string, data: { category: string; title: string; message: string; actionUrl?: string; metadata?: Record<string, any> }) {
+    try {
+      const prefs = await storage.getNotificationPreferences(userId);
+      const category = data.category as keyof typeof prefs;
+      if (category in prefs && prefs[category] === false) return null;
+      const notification = await storage.createNotification({ userId, ...data, isRead: false });
+      const unreadCount = await storage.getUnreadNotificationCount(userId);
+      broadcastToUser(userId, { type: "notification", notification, unreadCount });
+      return notification;
+    } catch (err) {
+      log(`Failed to create notification for user ${userId}: ${err}`, "notifications");
+      return null;
+    }
+  }
+
+  app.get("/api/notifications", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const notifs = await storage.getNotifications(userId, limit, offset);
+      const unreadCount = await storage.getUnreadNotificationCount(userId);
+      return res.json({ notifications: notifs, unreadCount });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.markNotificationRead(req.params.id, req.session.userId!);
+      if (!updated) return res.status(404).json({ message: "Notification not found" });
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const count = await storage.markAllNotificationsRead(req.session.userId!);
+      return res.json({ success: true, count });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/notifications/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.deleteNotification(req.params.id, req.session.userId!);
+      if (!deleted) return res.status(404).json({ message: "Notification not found" });
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/notification-preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const prefs = await storage.getNotificationPreferences(req.session.userId!);
+      return res.json(prefs);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/notification-preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const allowedKeys = ["agent", "billing", "deployment", "security", "team", "system"] as const;
+      const data: Record<string, boolean> = {};
+      for (const key of allowedKeys) {
+        if (typeof req.body[key] === "boolean") {
+          data[key] = req.body[key];
+        }
+      }
+      const updated = await storage.updateNotificationPreferences(req.session.userId!, data);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
   });
 
   // --- ENV VARS ---
@@ -9811,7 +9931,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     }
   });
 
-  wss.on("connection", (ws: WebSocket & { isAlive?: boolean }, req) => {
+  wss.on("connection", (ws: WebSocket & { isAlive?: boolean; __userId?: string }, req) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
     const projectId = url.searchParams.get("projectId");
 
@@ -9820,6 +9940,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       return;
     }
 
+    const userId = req.session?.userId;
     const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
       req.socket.remoteAddress || "unknown";
 
@@ -9843,6 +9964,15 @@ Based on the search results above, provide a comprehensive answer to the user's 
       wsClients.set(projectId, new Set());
     }
     wsClients.get(projectId)!.add(ws);
+
+    if (userId) {
+      ws.__userId = userId;
+      if (!wsUserClients.has(userId)) {
+        wsUserClients.set(userId, new Set());
+      }
+      wsUserClients.get(userId)!.add(ws);
+    }
+
     ws.isAlive = true;
 
     ws.send(JSON.stringify({ type: "connected", timestamp: Date.now() }));
@@ -9871,6 +10001,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
       if (wsClients.get(projectId)?.size === 0) {
         wsClients.delete(projectId);
       }
+      if (ws.__userId) {
+        wsUserClients.get(ws.__userId)?.delete(ws);
+        if (wsUserClients.get(ws.__userId)?.size === 0) {
+          wsUserClients.delete(ws.__userId);
+        }
+      }
       wsConnectionsByIp.get(clientIp)?.delete(ws);
       if (wsConnectionsByIp.get(clientIp)?.size === 0) {
         wsConnectionsByIp.delete(clientIp);
@@ -9879,6 +10015,9 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
     ws.on("error", () => {
       wsClients.get(projectId)?.delete(ws);
+      if (ws.__userId) {
+        wsUserClients.get(ws.__userId)?.delete(ws);
+      }
       wsConnectionsByIp.get(clientIp)?.delete(ws);
     });
   });

@@ -107,6 +107,9 @@ import {
   systemModules, systemDeps,
   type SystemModule, type InsertSystemModule,
   type SystemDep, type InsertSystemDep,
+  notifications, notificationPreferences,
+  type Notification, type InsertNotification,
+  type NotificationPreferences, type InsertNotificationPreferences,
   type FileVersion, type InsertFileVersion,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
@@ -510,6 +513,16 @@ export interface IStorage {
   createVideoData(data: InsertVideoData): Promise<VideoDataRecord>;
   updateVideoData(projectId: string, data: Partial<{ scenes: VideoScene[]; audioTracks: VideoAudioTrack[]; resolution: { width: number; height: number }; fps: number }>): Promise<VideoDataRecord | undefined>;
   deleteVideoData(projectId: string): Promise<boolean>;
+
+  getNotifications(userId: string, limit?: number, offset?: number): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createNotification(data: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string, userId: string): Promise<Notification | undefined>;
+  markAllNotificationsRead(userId: string): Promise<number>;
+  deleteNotification(id: string, userId: string): Promise<boolean>;
+
+  getNotificationPreferences(userId: string): Promise<NotificationPreferences>;
+  updateNotificationPreferences(userId: string, data: Partial<{ agent: boolean; billing: boolean; deployment: boolean; security: boolean; team: boolean; system: boolean }>): Promise<NotificationPreferences>;
 
   getSystemModules(projectId: string): Promise<SystemModule[]>;
   createSystemModule(data: InsertSystemModule): Promise<SystemModule>;
@@ -3057,6 +3070,69 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${fileVersions.createdAt} < ${cutoff}`)
       .returning({ id: fileVersions.id });
     return result.length;
+  }
+
+  async getNotifications(userId: string, limit = 50, offset = 0): Promise<Notification[]> {
+    return db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const result = await db.select({ count: count() }).from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return result[0]?.count ?? 0;
+  }
+
+  async createNotification(data: InsertNotification): Promise<Notification> {
+    const [n] = await db.insert(notifications).values(data).returning();
+    return n;
+  }
+
+  async markNotificationRead(id: string, userId: string): Promise<Notification | undefined> {
+    const [n] = await db.update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)))
+      .returning();
+    return n;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<number> {
+    const result = await db.update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return result.rowCount ?? 0;
+  }
+
+  async deleteNotification(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(notifications)
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
+    const [existing] = await db.select().from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, userId));
+    if (existing) return existing;
+    const [created] = await db.insert(notificationPreferences)
+      .values({ userId })
+      .onConflictDoNothing()
+      .returning();
+    if (created) return created;
+    const [refetch] = await db.select().from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, userId));
+    return refetch;
+  }
+
+  async updateNotificationPreferences(userId: string, data: Partial<{ agent: boolean; billing: boolean; deployment: boolean; security: boolean; team: boolean; system: boolean }>): Promise<NotificationPreferences> {
+    const existing = await this.getNotificationPreferences(userId);
+    const [updated] = await db.update(notificationPreferences)
+      .set(data)
+      .where(eq(notificationPreferences.userId, userId))
+      .returning();
+    return updated || existing;
   }
 
   async getSystemModules(projectId: string): Promise<SystemModule[]> {
