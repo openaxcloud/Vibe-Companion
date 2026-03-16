@@ -123,6 +123,8 @@ import {
   type AccountWarning, type InsertAccountWarning,
   artifacts,
   type Artifact, type InsertArtifact,
+  desktopReleases, desktopDownloads,
+  type DesktopRelease, type InsertDesktopRelease,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -599,6 +601,11 @@ export interface IStorage {
   createArtifact(data: InsertArtifact): Promise<Artifact>;
   updateArtifact(id: string, data: Partial<{ name: string; type: string; entryFile: string; settings: Record<string, unknown> }>): Promise<Artifact | undefined>;
   deleteArtifact(id: string): Promise<boolean>;
+
+  getLatestDesktopReleases(): Promise<DesktopRelease[]>;
+  getDesktopReleasesByVersion(version: string): Promise<DesktopRelease[]>;
+  createDesktopRelease(data: InsertDesktopRelease): Promise<DesktopRelease>;
+  trackDesktopDownload(platform: string, version: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3612,6 +3619,31 @@ export class DatabaseStorage implements IStorage {
   async deleteArtifact(id: string): Promise<boolean> {
     const result = await db.delete(artifacts).where(eq(artifacts.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getLatestDesktopReleases(): Promise<DesktopRelease[]> {
+    return db.select().from(desktopReleases).where(eq(desktopReleases.isLatest, true));
+  }
+
+  async getDesktopReleasesByVersion(version: string): Promise<DesktopRelease[]> {
+    return db.select().from(desktopReleases).where(eq(desktopReleases.version, version));
+  }
+
+  async createDesktopRelease(data: InsertDesktopRelease): Promise<DesktopRelease> {
+    if (data.isLatest) {
+      await db.update(desktopReleases)
+        .set({ isLatest: false })
+        .where(and(
+          eq(desktopReleases.platform, data.platform),
+          eq(desktopReleases.isLatest, true)
+        ));
+    }
+    const [release] = await db.insert(desktopReleases).values(data).returning();
+    return release;
+  }
+
+  async trackDesktopDownload(platform: string, version: string): Promise<void> {
+    await db.insert(desktopDownloads).values({ platform, version });
   }
 }
 

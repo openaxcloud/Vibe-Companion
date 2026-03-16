@@ -2018,6 +2018,34 @@ export const insertAccountWarningSchema = createInsertSchema(accountWarnings).om
 export type InsertAccountWarning = z.infer<typeof insertAccountWarningSchema>;
 export type AccountWarning = typeof accountWarnings.$inferSelect;
 
+export const desktopReleases = pgTable("desktop_releases", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  version: text("version").notNull(),
+  platform: text("platform").notNull(),
+  downloadUrl: text("download_url").notNull(),
+  changelog: text("changelog"),
+  fileSize: integer("file_size"),
+  sha512: text("sha512"),
+  isLatest: boolean("is_latest").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("desktop_releases_version_idx").on(table.version),
+  index("desktop_releases_platform_idx").on(table.platform),
+  index("desktop_releases_latest_idx").on(table.isLatest),
+]);
+
+export const insertDesktopReleaseSchema = createInsertSchema(desktopReleases).omit({ id: true, createdAt: true });
+export type InsertDesktopRelease = z.infer<typeof insertDesktopReleaseSchema>;
+export type DesktopRelease = typeof desktopReleases.$inferSelect;
+
+export const desktopDownloads = pgTable("desktop_downloads", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  platform: text("platform").notNull(),
+  version: text("version").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("desktop_downloads_platform_idx").on(table.platform),
+]);
 export const systemModules = pgTable("system_modules", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

@@ -15390,8 +15390,172 @@ Respond ONLY with the JSON array, no other text.`;
     }
   });
 
-  // --- FORK TO TEAM (extension) ---
-  // The existing fork endpoint at /api/projects/:id/fork is extended inline above to accept teamId
+  app.get("/api/desktop/releases/latest", async (_req: Request, res: Response) => {
+    try {
+      const releases = await storage.getLatestDesktopReleases();
+      if (releases.length === 0) {
+        return res.json({ version: null, platforms: {} });
+      }
+      const sorted = [...releases].sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+        const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+      const version = sorted[0].version;
+      const changelog = sorted[0].changelog;
+      const platforms: Record<string, { downloadUrl: string; fileSize: number | null; sha512: string | null }> = {};
+      for (const r of sorted) {
+        if (!platforms[r.platform]) {
+          platforms[r.platform] = { downloadUrl: r.downloadUrl, fileSize: r.fileSize, sha512: r.sha512 };
+        }
+      }
+      return res.json({ version, changelog, platforms });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/desktop/releases/:version", async (req: Request, res: Response) => {
+    try {
+      const releases = await storage.getDesktopReleasesByVersion(req.params.version);
+      if (releases.length === 0) {
+        return res.status(404).json({ message: "Version not found" });
+      }
+      const platforms: Record<string, { downloadUrl: string; fileSize: number | null; sha512: string | null }> = {};
+      for (const r of releases) {
+        platforms[r.platform] = { downloadUrl: r.downloadUrl, fileSize: r.fileSize, sha512: r.sha512 };
+      }
+      return res.json({ version: req.params.version, changelog: releases[0].changelog, platforms });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/desktop/releases", async (req: Request, res: Response) => {
+    if (!req.session?.userId) return res.status(401).json({ message: "Not authenticated" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    try {
+      const { version, changelog, isLatest, platforms } = req.body;
+      if (!version || !platforms || typeof platforms !== "object" || Object.keys(platforms).length === 0) {
+        return res.status(400).json({ message: "version and platforms (object with mac/win/linux keys) are required" });
+      }
+      const validPlatforms = ["mac", "win", "linux"];
+      const results = [];
+      for (const [platform, details] of Object.entries(platforms)) {
+        if (!validPlatforms.includes(platform)) {
+          return res.status(400).json({ message: `Invalid platform: ${platform}. Must be mac, win, or linux` });
+        }
+        const platformData = details as { downloadUrl: string; fileSize?: number; sha512?: string };
+        if (!platformData.downloadUrl) {
+          return res.status(400).json({ message: `downloadUrl is required for platform ${platform}` });
+        }
+        const release = await storage.createDesktopRelease({
+          version,
+          platform,
+          downloadUrl: platformData.downloadUrl,
+          changelog: changelog || null,
+          fileSize: platformData.fileSize || null,
+          sha512: platformData.sha512 || null,
+          isLatest: isLatest !== false,
+        });
+        results.push(release);
+      }
+      return res.status(201).json({ version, releases: results });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/desktop/update/:platform/:version", async (req: Request, res: Response) => {
+    try {
+      const { platform, version } = req.params;
+      if (!["mac", "win", "linux"].includes(platform)) {
+        return res.status(400).json({ message: "Invalid platform" });
+      }
+      const latest = await storage.getLatestDesktopReleases();
+      const platformRelease = latest.find(r => r.platform === platform);
+      if (!platformRelease || platformRelease.version === version) {
+        return res.status(204).end();
+      }
+      const pubDate = platformRelease.createdAt instanceof Date
+        ? platformRelease.createdAt.toISOString()
+        : String(platformRelease.createdAt);
+      return res.json({
+        url: platformRelease.downloadUrl,
+        name: platformRelease.version,
+        version: platformRelease.version,
+        notes: platformRelease.changelog || "",
+        pub_date: pubDate,
+        sha512: platformRelease.sha512 || "",
+        releaseDate: pubDate,
+        path: platformRelease.downloadUrl,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/desktop/update/latest-:platformKey.yml", async (req: Request, res: Response) => {
+    try {
+      const platformMap: Record<string, string> = { mac: "mac", linux: "linux", win: "win" };
+      const platform = platformMap[req.params.platformKey] || "win";
+      const latest = await storage.getLatestDesktopReleases();
+      const platformRelease = latest.find(r => r.platform === platform);
+      if (!platformRelease) {
+        return res.status(404).send("No release found");
+      }
+      const pubDate = platformRelease.createdAt instanceof Date
+        ? platformRelease.createdAt.toISOString()
+        : String(platformRelease.createdAt);
+      const yml = [
+        `version: ${platformRelease.version}`,
+        `path: ${platformRelease.downloadUrl}`,
+        `sha512: ${platformRelease.sha512 || ""}`,
+        `releaseDate: '${pubDate}'`,
+      ].join("\n");
+      res.setHeader("Content-Type", "text/yaml");
+      return res.send(yml);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/desktop/update/latest.yml", async (_req: Request, res: Response) => {
+    try {
+      const latest = await storage.getLatestDesktopReleases();
+      const platformRelease = latest.find(r => r.platform === "win");
+      if (!platformRelease) {
+        return res.status(404).send("No release found");
+      }
+      const pubDate = platformRelease.createdAt instanceof Date
+        ? platformRelease.createdAt.toISOString()
+        : String(platformRelease.createdAt);
+      const yml = [
+        `version: ${platformRelease.version}`,
+        `path: ${platformRelease.downloadUrl}`,
+        `sha512: ${platformRelease.sha512 || ""}`,
+        `releaseDate: '${pubDate}'`,
+      ].join("\n");
+      res.setHeader("Content-Type", "text/yaml");
+      return res.send(yml);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/desktop/downloads/track", async (req: Request, res: Response) => {
+    try {
+      const { platform, version } = req.body;
+      if (!platform || !version) {
+        return res.status(400).json({ message: "platform and version are required" });
+      }
+      await storage.trackDesktopDownload(platform, version);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
 
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");

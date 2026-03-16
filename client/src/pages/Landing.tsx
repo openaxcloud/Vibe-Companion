@@ -313,6 +313,7 @@ export default function Landing() {
         <div className="hidden md:flex items-center gap-8">
           <Link href="/demo" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-ai">AI</Link>
           <Link href="/teams" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-teams">Teams</Link>
+          <Link href="/desktop" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-desktop">Desktop App</Link>
           <Link href="/pricing" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-pricing">Pricing</Link>
           <a href="https://docs.e-code.ai" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-learn">Learn</a>
         </div>
@@ -341,6 +342,7 @@ export default function Landing() {
           <nav className="flex flex-col p-6 gap-2">
             <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-ai">AI</Link>
             <Link href="/teams" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-teams">Teams</Link>
+            <Link href="/desktop" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-desktop">Desktop App</Link>
             <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-pricing">Pricing</Link>
             <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="mobile-nav-learn">Learn</a>
             <div className="my-3 border-t border-[var(--ide-border)]/50" />
@@ -464,6 +466,7 @@ export default function Landing() {
           <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-[var(--ide-text-muted)]">
             <Link href="/pricing" className="hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
             <Link href="/teams" className="hover:text-[var(--ide-text)] transition-colors">Teams</Link>
+            <Link href="/desktop" className="hover:text-[var(--ide-text)] transition-colors">Desktop App</Link>
             <a href="https://docs.e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Docs</a>
             <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
