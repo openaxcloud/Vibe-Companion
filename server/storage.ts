@@ -135,7 +135,7 @@ export interface IStorage {
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
   createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined>;
+  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -752,7 +752,7 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.description !== undefined) updates.description = data.description;
@@ -767,6 +767,7 @@ export class DatabaseStorage implements IStorage {
     if (data.githubRepo !== undefined) updates.githubRepo = data.githubRepo;
     if (data.visibility !== undefined) updates.visibility = data.visibility;
     if ('selectedWorkflowId' in data) updates.selectedWorkflowId = data.selectedWorkflowId;
+    if (data.devUrlPublic !== undefined) updates.devUrlPublic = data.devUrlPublic;
     const [project] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
     return project;
   }

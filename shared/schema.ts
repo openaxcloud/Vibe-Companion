@@ -174,6 +174,7 @@ export const projects = pgTable("projects", {
   selectedWorkflowId: varchar("selected_workflow_id", { length: 36 }),
   viewCount: integer("view_count").notNull().default(0),
   forkCount: integer("fork_count").notNull().default(0),
+  devUrlPublic: boolean("dev_url_public").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
@@ -1334,7 +1335,7 @@ export const portConfigs = pgTable("port_configs", {
   port: integer("port").notNull(),
   label: text("label").notNull().default(""),
   protocol: text("protocol").notNull().default("http"),
-  isPublic: boolean("is_public").notNull().default(false),
+  isPublic: boolean("is_public").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("port_configs_project_idx").on(table.projectId),

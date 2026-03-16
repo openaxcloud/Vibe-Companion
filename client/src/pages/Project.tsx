@@ -270,6 +270,8 @@ function _projectPage() {
   const [wsLoading, setWsLoading] = useState(false);
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
+  const devUrl = projectId ? `${projectId}.dev.e-code.ai` : null;
+  const fullDevUrl = devUrl ? `${window.location.protocol}//${devUrl}` : null;
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -3442,11 +3444,12 @@ function _projectPage() {
           }}>
             <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
             <input
-              className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0"
-              value={webviewUrlInput || livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}
+              className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0 cursor-pointer"
+              value={webviewUrlInput || (livePreviewUrl ? (devUrl || livePreviewUrl) : (previewHtml ? "HTML Preview" : "localhost:3000"))}
               onChange={(e) => setWebviewUrlInput(e.target.value)}
               onFocus={() => setWebviewUrlInput(livePreviewUrl || "")}
               onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
+              onClick={() => { if (devUrl && livePreviewUrl && !webviewUrlInput) { navigator.clipboard.writeText(fullDevUrl || ""); toast({ title: "Development URL copied" }); } }}
               data-testid="input-webview-tab-url"
             />
           </form>
@@ -3456,7 +3459,7 @@ function _projectPage() {
           <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
           {livePreviewUrl && (
             <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
-              onClick={() => window.open(livePreviewUrl, "_blank")}
+              onClick={() => window.open(fullDevUrl || livePreviewUrl, "_blank")}
               title="Open in new tab" data-testid="button-webview-tab-newtab"><ExternalLink className="w-3 h-3" /></Button>
           )}
         </div>
@@ -4328,7 +4331,7 @@ function _projectPage() {
           <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <Globe className="w-3 h-3 text-[var(--ide-text-secondary)] shrink-0" />
-              <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">{livePreviewUrl}</span>
+              <span className="text-[11px] text-[var(--ide-text-secondary)] truncate cursor-pointer" onClick={() => { if (fullDevUrl) { navigator.clipboard.writeText(fullDevUrl); toast({ title: "Development URL copied" }); } }} data-testid="text-preview-dev-url">{devUrl || livePreviewUrl}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
@@ -4337,7 +4340,7 @@ function _projectPage() {
                 onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = effectivePreviewUrl || livePreviewUrl; }}
                 title="Refresh" data-testid="button-preview-refresh"><RefreshCw className="w-3 h-3" /></Button>
               <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px] text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] gap-1"
-                onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
+                onClick={() => window.open(fullDevUrl || livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
             </div>
           </div>
           <DeviceFrame selectedPreset={selectedDevicePreset}>
@@ -7338,11 +7341,12 @@ function _projectPage() {
                         }}>
                           <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
                           <input
-                            className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0"
-                            value={webviewUrlInput || livePreviewUrl || (previewHtml ? "HTML Preview" : "localhost:3000")}
+                            className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0 cursor-pointer"
+                            value={webviewUrlInput || (livePreviewUrl ? (devUrl || livePreviewUrl) : (previewHtml ? "HTML Preview" : "localhost:3000"))}
                             onChange={(e) => setWebviewUrlInput(e.target.value)}
                             onFocus={() => setWebviewUrlInput(livePreviewUrl || "")}
                             onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
+                            onClick={() => { if (devUrl && livePreviewUrl && !webviewUrlInput) { navigator.clipboard.writeText(fullDevUrl || ""); toast({ title: "Development URL copied" }); } }}
                             data-testid="input-preview-panel-url"
                           />
                         </form>
@@ -7352,7 +7356,7 @@ function _projectPage() {
                         <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
                         {(livePreviewUrl || previewHtml) && (
                           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
-                            onClick={() => { if (livePreviewUrl) window.open(livePreviewUrl, "_blank"); else if (previewHtml) { const blob = new Blob([previewHtml], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); } }}
+                            onClick={() => { if (livePreviewUrl) window.open(fullDevUrl || livePreviewUrl, "_blank"); else if (previewHtml) { const blob = new Blob([previewHtml], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); } }}
                             title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
                         )}
                         <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"

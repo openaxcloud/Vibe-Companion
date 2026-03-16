@@ -33,6 +33,11 @@ interface CustomDomain {
   verifiedAt: string | null;
 }
 
+interface ProjectData {
+  id: string;
+  devUrlPublic: boolean;
+}
+
 export default function NetworkingPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -62,6 +67,29 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
       const res = await fetch(`/api/projects/${projectId}/networking/domains`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load domains");
       return res.json();
+    },
+  });
+
+  const projectQuery = useQuery<ProjectData>({
+    queryKey: ["/api/projects", projectId, "dev-url-settings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load project");
+      return res.json();
+    },
+  });
+
+  const toggleDevUrlMutation = useMutation({
+    mutationFn: async (devUrlPublic: boolean) => {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, { devUrlPublic });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "dev-url-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      toast({ title: "Development URL privacy updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to update", description: err.message, variant: "destructive" });
     },
   });
 
@@ -183,6 +211,31 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+          <div className="flex items-center gap-2 py-2">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              {projectQuery.data?.devUrlPublic ? <Globe className="w-3.5 h-3.5 text-green-400 shrink-0" /> : <Lock className="w-3.5 h-3.5 text-yellow-400 shrink-0" />}
+              <div className="min-w-0">
+                <span className="text-[11px] font-medium text-[var(--ide-text)] block">Private development URL</span>
+                <span className="text-[9px] text-[var(--ide-text-muted)]">
+                  {projectQuery.data?.devUrlPublic ? "Dev URL is publicly accessible" : "Dev URL requires authentication"}
+                </span>
+              </div>
+            </div>
+            <Switch
+              checked={!projectQuery.data?.devUrlPublic}
+              onCheckedChange={(checked) => toggleDevUrlMutation.mutate(!checked)}
+              className="scale-75 shrink-0"
+              data-testid="toggle-dev-url-private"
+            />
+          </div>
+          <div className="mt-1 mb-1">
+            <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-1 rounded text-blue-400 block truncate" data-testid="text-dev-url">
+              {projectId}.dev.e-code.ai
+            </code>
+          </div>
+        </div>
+
         <div className="px-3 py-2">
           <button className="flex items-center gap-1.5 w-full text-left py-1.5" onClick={() => setPortsOpen(!portsOpen)} data-testid="toggle-ports">
             {portsOpen ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)]" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />}

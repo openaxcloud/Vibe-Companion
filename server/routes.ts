@@ -4341,7 +4341,7 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
-    const { name, language } = req.body;
+    const { name, language, devUrlPublic } = req.body;
     let safeName = name;
     if (typeof name === "string") {
       safeName = sanitizeProjectName(name);
@@ -4349,7 +4349,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid project name" });
       }
     }
-    const updated = await storage.updateProject(req.params.id, { name: safeName, language });
+    const updateData: any = { name: safeName, language };
+    if (typeof devUrlPublic === "boolean") updateData.devUrlPublic = devUrlPublic;
+    const updated = await storage.updateProject(req.params.id, updateData);
     if (!updated) {
       return res.status(404).json({ message: "Project not found" });
     }
@@ -6191,7 +6193,18 @@ export async function registerRoutes(
     const rawPort = parseInt(req.query.port as string);
     const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
     const url = runnerClient.previewUrl(workspace.id, port);
-    return res.json({ previewUrl: url, workspaceId: workspace.id, port });
+    const devUrl = `${req.protocol}://${project.id}.dev.e-code.ai`;
+    return res.json({ previewUrl: url, workspaceId: workspace.id, port, devUrl });
+  });
+
+  app.get("/api/projects/:id/dev-url", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const devUrl = `${project.id}.dev.e-code.ai`;
+    const fullDevUrl = `${req.protocol}://${devUrl}`;
+    return res.json({ devUrl, fullDevUrl, devUrlPublic: project.devUrlPublic });
   });
 
   app.get("/api/workspaces/:projectId/preview-proxy", requireAuth, async (req: Request, res: Response) => {
@@ -12467,7 +12480,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const { port, label, protocol } = req.body;
       if (!port) return res.status(400).json({ message: "Port is required" });
-      const config = await storage.createPortConfig({ projectId: project.id, port, label: label || "", protocol: protocol || "http", isPublic: false });
+      const config = await storage.createPortConfig({ projectId: project.id, port, label: label || "", protocol: protocol || "http", isPublic: true });
       res.status(201).json(config);
     } catch (err: any) {
       if (err.code === "23505") return res.status(409).json({ message: "Port already configured" });
@@ -12633,6 +12646,121 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     } catch (err: any) {
       if (!res.headersSent) {
         res.status(500).json({ message: "Proxy error" });
+      }
+    }
+  });
+
+  app.all("/dev-proxy/:projectId/{*path}", async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).send(`<!DOCTYPE html><html><head><title>Not Found</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}div{text-align:center;padding:2rem}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#888}</style></head><body><div><h1>Project Not Found</h1><p>This development URL does not correspond to an active project.</p></div></body></html>`);
+      }
+
+      if (!project.devUrlPublic) {
+        if (!req.session?.userId) {
+          return res.status(401).send(`<!DOCTYPE html><html><head><title>Authentication Required</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}div{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#888;margin-bottom:1.5rem}a{display:inline-block;padding:0.75rem 2rem;background:#0079F2;color:white;text-decoration:none;border-radius:8px;font-weight:500}a:hover{background:#0062c4}</style></head><body><div><h1>Authentication Required</h1><p>This development URL is private. Please sign in to access it.</p><a href="/auth/login">Sign In</a></div></body></html>`);
+        }
+
+        const hasAccess = project.userId === req.session.userId || await verifyProjectAccess(projectId, req.session.userId!);
+        if (!hasAccess) {
+          return res.status(403).send(`<!DOCTYPE html><html><head><title>Access Denied</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}div{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#888}</style></head><body><div><h1>Access Denied</h1><p>You do not have permission to view this development URL. Only the project owner and authorized team members can access private development URLs.</p></div></body></html>`);
+        }
+      }
+
+      const workspace = await storage.getWorkspaceByProject(projectId);
+      if (!workspace) {
+        return res.status(502).send(`<!DOCTYPE html><html><head><title>No Workspace</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}div{text-align:center;padding:2rem}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#888}</style></head><body><div><h1>Workspace Not Running</h1><p>The development server for this project is not currently active. Start the workspace to enable the development URL.</p></div></body></html>`);
+      }
+
+      const targetPort = 3000;
+      const previewBaseUrl = runnerClient.previewUrl(workspace.id, targetPort);
+      const rawPath = req.params.path;
+      const proxyPath = Array.isArray(rawPath) ? rawPath.join("/") : (rawPath || "");
+      const queryString = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+      const targetUrl = `${previewBaseUrl}/${proxyPath}${queryString}`;
+
+      const http = require("http") as typeof import("http");
+      const https = require("https") as typeof import("https");
+      const protocol = targetUrl.startsWith("https") ? https : http;
+
+      const DEV_PROXY_HOP_HEADERS = new Set([
+        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+        "te", "trailer", "transfer-encoding", "upgrade",
+        "cookie", "authorization", "host", "accept-encoding",
+      ]);
+      const forwardHeaders: Record<string, any> = {};
+      for (const [key, val] of Object.entries(req.headers)) {
+        if (!DEV_PROXY_HOP_HEADERS.has(key.toLowerCase())) {
+          forwardHeaders[key] = val;
+        }
+      }
+      forwardHeaders["x-forwarded-for"] = req.ip || "unknown";
+      forwardHeaders["x-forwarded-proto"] = req.protocol;
+      forwardHeaders["accept-encoding"] = "identity";
+
+      const DEV_PROXY_RESP_HOP_HEADERS = new Set([
+        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+        "te", "trailer", "transfer-encoding", "upgrade",
+      ]);
+
+      const proxyReq = protocol.request(targetUrl, {
+        method: req.method,
+        headers: forwardHeaders,
+        timeout: 30000,
+      }, (proxyRes: any) => {
+        const cleanHeaders: Record<string, any> = {};
+        for (const [key, val] of Object.entries(proxyRes.headers)) {
+          if (!DEV_PROXY_RESP_HOP_HEADERS.has(key.toLowerCase())) {
+            cleanHeaders[key] = val;
+          }
+        }
+
+        const contentType = (proxyRes.headers["content-type"] || "").toLowerCase();
+        const isHtml = contentType.includes("text/html");
+        const cookieHeader = req.headers.cookie || "";
+        const dismissCookie = cookieHeader.split(";").some(c => c.trim().startsWith("ecode_dev_banner_dismissed="));
+
+        if (isHtml && !dismissCookie) {
+          const chunks: Buffer[] = [];
+          proxyRes.on("data", (chunk: Buffer) => chunks.push(chunk));
+          proxyRes.on("end", () => {
+            let html = Buffer.concat(chunks).toString("utf-8");
+            const banner = `<div id="ecode-dev-banner" style="position:fixed;top:0;left:0;right:0;z-index:999999;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#e0e0e0;padding:8px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.1)"><span style="opacity:0.7">&#9432;</span><span>This is a development preview on <strong>.e-code.ai</strong>. Development URLs are temporary — <a href="/publish" style="color:#4dabf7;text-decoration:underline">publish your app</a> for a permanent URL.</span><button onclick="document.getElementById('ecode-dev-banner').remove();document.cookie='ecode_dev_banner_dismissed=1;path=/;max-age=86400;SameSite=Lax'" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#e0e0e0;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap">Dismiss</button></div><div style="height:38px"></div>`;
+            const bodyIdx = html.indexOf("<body");
+            if (bodyIdx !== -1) {
+              const closeIdx = html.indexOf(">", bodyIdx);
+              if (closeIdx !== -1) {
+                html = html.slice(0, closeIdx + 1) + banner + html.slice(closeIdx + 1);
+              }
+            } else {
+              html = banner + html;
+            }
+            delete cleanHeaders["content-length"];
+            res.writeHead(proxyRes.statusCode || 200, cleanHeaders);
+            res.end(html);
+          });
+        } else {
+          res.writeHead(proxyRes.statusCode || 502, cleanHeaders);
+          proxyRes.pipe(res);
+        }
+      });
+
+      proxyReq.on("error", (err: Error) => {
+        if (!res.headersSent) {
+          res.status(502).json({ message: `Proxy error: ${err.message}` });
+        }
+      });
+
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        req.pipe(proxyReq);
+      } else {
+        proxyReq.end();
+      }
+    } catch (err: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Dev URL proxy error" });
       }
     }
   });
