@@ -223,6 +223,7 @@ function _projectPage() {
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [bottomTab, setBottomTab] = useState<"terminal" | "shell" | "problems">("terminal");
+  const [runDropdownOpen, setRunDropdownOpen] = useState(false);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [webviewUrlInput, setWebviewUrlInput] = useState("");
@@ -680,6 +681,41 @@ function _projectPage() {
     },
   });
 
+  const runButtonWorkflowsQuery = useQuery<{ id: string; name: string; steps: any[] }[]>({
+    queryKey: ["/api/projects", projectId, "workflows"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/workflows`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const setSelectedWorkflowMutation = useMutation({
+    mutationFn: async (workflowId: string | null) => {
+      const res = await apiRequest("PUT", `/api/projects/${projectId}/selected-workflow`, { workflowId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      setRunDropdownOpen(false);
+    },
+  });
+
+  const runWorkflowMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/run-workflow`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (!data.success) {
+        toast({ title: "Workflow failed", variant: "destructive" });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Workflow run failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const filesQuery = useQuery<File[]>({
     queryKey: ["/api/projects", projectId, "files"],
     queryFn: async () => {
@@ -841,12 +877,31 @@ function _projectPage() {
           setCurrentConsoleRunId(null);
         }, 500);
       }
+      if (msg.type === "workflow_log" && msg.message) {
+        setLogs((prev) => [...prev, { id: Date.now() + Math.random(), text: msg.message!, type: msg.logType || "info" }]);
+      }
+      if (msg.type === "workflow_status") {
+        if (msg.status === "running") {
+          setIsRunning(true);
+          setTerminalVisible(true);
+          setBottomTab("terminal");
+        } else if (msg.status === "completed" || msg.status === "failed") {
+          setIsRunning(false);
+        }
+      }
     }
   }, [messages]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [logs]);
+
+  useEffect(() => {
+    if (!runDropdownOpen) return;
+    const handleClick = () => setRunDropdownOpen(false);
+    const timer = setTimeout(() => document.addEventListener("click", handleClick), 0);
+    return () => { clearTimeout(timer); document.removeEventListener("click", handleClick); };
+  }, [runDropdownOpen]);
 
   useEffect(() => {
     const updateViewMode = () => {
@@ -1291,6 +1346,20 @@ function _projectPage() {
 
   const handleRun = () => {
     if (isRunning) { setIsRunning(false); return; }
+
+    const project = projectQuery.data as any;
+    if (project?.selectedWorkflowId) {
+      const timestamp = new Date().toLocaleTimeString();
+      setLogs([{
+        id: Date.now(),
+        text: `\x1b[36m━━━ Workflow run started at ${timestamp} ━━━\x1b[0m`,
+        type: "info",
+      }]);
+      setTerminalVisible(true);
+      setBottomTab("terminal");
+      runWorkflowMutation.mutate();
+      return;
+    }
 
     const isHtmlFile = activeFileName?.endsWith(".html");
     if (isHtmlFile) {
@@ -3944,15 +4013,55 @@ function _projectPage() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  className={`h-7 ${isMobile ? "px-3" : "px-5"} text-[11px] font-semibold rounded-full gap-1.5 transition-all duration-150 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] btn-run-red" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)] btn-run-green"}`}
-                  onClick={handleRun}
-                  disabled={runMutation.isPending}
-                  data-testid="button-run"
-                >
-                  {runMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
-                </Button>
+                <div className="flex items-center">
+                  <Button
+                    size="sm"
+                    className={`h-7 ${isMobile ? "px-3" : "px-4"} text-[11px] font-semibold ${!isMobile ? "rounded-l-full rounded-r-none" : "rounded-full"} gap-1.5 transition-all duration-150 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] btn-run-red" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)] btn-run-green"}`}
+                    onClick={handleRun}
+                    disabled={runMutation.isPending || runWorkflowMutation.isPending}
+                    data-testid="button-run"
+                  >
+                    {(runMutation.isPending || runWorkflowMutation.isPending) ? <Loader2 className="w-3 h-3 animate-spin" /> : isRunning ? <><Square className="w-3 h-3 fill-current" /> Stop</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
+                  </Button>
+                  {!isMobile && (
+                    <div className="relative">
+                      <Button
+                        size="sm"
+                        className={`h-7 px-1.5 text-[11px] font-semibold rounded-r-full rounded-l-none border-l border-black/10 transition-all duration-150 ${isRunning ? "bg-red-600 hover:bg-red-500 text-white" : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525]"}`}
+                        onClick={(e) => { e.stopPropagation(); setRunDropdownOpen(!runDropdownOpen); }}
+                        data-testid="button-run-dropdown"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </Button>
+                      {runDropdownOpen && (
+                        <div className="absolute right-0 top-full mt-1 w-52 bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-lg shadow-xl z-50 py-1" data-testid="run-dropdown-menu">
+                          <button
+                            className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-[var(--ide-surface)] transition-colors flex items-center gap-2 ${!(projectQuery.data as any)?.selectedWorkflowId ? "text-[#0CCE6B] font-medium" : "text-[var(--ide-text)]"}`}
+                            onClick={() => setSelectedWorkflowMutation.mutate(null)}
+                            data-testid="run-option-default"
+                          >
+                            <Play className="w-3 h-3" /> Run Replit App
+                            {!(projectQuery.data as any)?.selectedWorkflowId && <Check className="w-3 h-3 ml-auto text-[#0CCE6B]" />}
+                          </button>
+                          {(runButtonWorkflowsQuery.data || []).map((wf) => (
+                            <button
+                              key={wf.id}
+                              className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-[var(--ide-surface)] transition-colors flex items-center gap-2 ${(projectQuery.data as any)?.selectedWorkflowId === wf.id ? "text-[#0079F2] font-medium" : "text-[var(--ide-text)]"}`}
+                              onClick={() => setSelectedWorkflowMutation.mutate(wf.id)}
+                              data-testid={`run-option-workflow-${wf.id}`}
+                            >
+                              <GitMerge className="w-3 h-3" /> {wf.name}
+                              {(projectQuery.data as any)?.selectedWorkflowId === wf.id && <Check className="w-3 h-3 ml-auto text-[#0079F2]" />}
+                            </button>
+                          ))}
+                          {(!runButtonWorkflowsQuery.data || runButtonWorkflowsQuery.data.length === 0) && (
+                            <div className="px-3 py-1.5 text-[10px] text-[var(--ide-text-muted)]">No workflows created yet</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">{isRunning ? "Stop (F5)" : "Run (F5)"}</TooltipContent>
             </Tooltip>

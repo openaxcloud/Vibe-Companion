@@ -168,6 +168,7 @@ export const projects = pgTable("projects", {
   frameworkCategory: text("framework_category"),
   frameworkCoverUrl: text("framework_cover_url"),
   isOfficialFramework: boolean("is_official_framework").notNull().default(false),
+  selectedWorkflowId: varchar("selected_workflow_id", { length: 36 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("projects_user_id_idx").on(table.userId),
@@ -1059,6 +1060,7 @@ export const workflows = pgTable("workflows", {
   projectId: varchar("project_id", { length: 36 }).notNull(),
   name: text("name").notNull(),
   triggerEvent: text("trigger_event").notNull().default("manual"),
+  executionMode: text("execution_mode").notNull().default("sequential"),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
@@ -1068,6 +1070,7 @@ export const insertWorkflowSchema = createInsertSchema(workflows).pick({
   projectId: true,
   name: true,
   triggerEvent: true,
+  executionMode: true,
   enabled: true,
 });
 export type InsertWorkflow = z.infer<typeof insertWorkflowSchema>;
@@ -1078,6 +1081,7 @@ export const workflowSteps = pgTable("workflow_steps", {
   workflowId: varchar("workflow_id", { length: 36 }).notNull(),
   name: text("name").notNull(),
   command: text("command").notNull(),
+  taskType: text("task_type").notNull().default("shell"),
   orderIndex: integer("order_index").notNull().default(0),
   continueOnError: boolean("continue_on_error").notNull().default(false),
 }, (table) => [
@@ -1087,6 +1091,7 @@ export const insertWorkflowStepSchema = createInsertSchema(workflowSteps).pick({
   workflowId: true,
   name: true,
   command: true,
+  taskType: true,
   orderIndex: true,
   continueOnError: true,
 });

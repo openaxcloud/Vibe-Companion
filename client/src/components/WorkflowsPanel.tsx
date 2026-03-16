@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Loader2, Plus, X, Play, ChevronDown, ChevronRight, CheckCircle, XCircle,
-  Clock, Trash2, GripVertical, RotateCcw, GitMerge, SkipForward
+  Clock, Trash2, GripVertical, RotateCcw, GitMerge, SkipForward, Layers, Zap
 } from "lucide-react";
 
 interface WorkflowsPanelProps {
@@ -20,6 +20,7 @@ interface WorkflowStep {
   workflowId: string;
   name: string;
   command: string;
+  taskType: string;
   orderIndex: number;
   continueOnError: boolean;
 }
@@ -29,6 +30,7 @@ interface Workflow {
   projectId: string;
   name: string;
   triggerEvent: string;
+  executionMode: string;
   enabled: boolean;
   createdAt: string;
   steps: WorkflowStep[];
@@ -57,7 +59,7 @@ interface WorkflowRun {
 interface WorkflowTemplate {
   name: string;
   triggerEvent: string;
-  steps: { name: string; command: string }[];
+  steps: { name: string; command: string; taskType?: string }[];
 }
 
 export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelProps) {
@@ -66,12 +68,17 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTrigger, setNewTrigger] = useState("manual");
+  const [newExecMode, setNewExecMode] = useState("sequential");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addingStep, setAddingStep] = useState<string | null>(null);
   const [newStepName, setNewStepName] = useState("");
   const [newStepCommand, setNewStepCommand] = useState("");
+  const [newStepTaskType, setNewStepTaskType] = useState("shell");
   const [showRuns, setShowRuns] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [dragWorkflowId, setDragWorkflowId] = useState<string | null>(null);
 
   const workflowsQuery = useQuery<Workflow[]>({
     queryKey: ["/api/projects", projectId, "workflows"],
@@ -105,13 +112,14 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/workflows`, { name: newName, triggerEvent: newTrigger });
+      const res = await apiRequest("POST", `/api/projects/${projectId}/workflows`, { name: newName, triggerEvent: newTrigger, executionMode: newExecMode });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflows"] });
       setCreating(false);
       setNewName("");
+      setNewExecMode("sequential");
       toast({ title: "Workflow created" });
     },
     onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
@@ -145,9 +153,17 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflows"] }),
   });
 
+  const updateWorkflowMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; executionMode?: string; triggerEvent?: string }) => {
+      const res = await apiRequest("PATCH", `/api/workflows/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflows"] }),
+  });
+
   const addStepMutation = useMutation({
-    mutationFn: async ({ workflowId, name, command, orderIndex }: { workflowId: string; name: string; command: string; orderIndex: number }) => {
-      const res = await apiRequest("POST", `/api/workflows/${workflowId}/steps`, { name, command, orderIndex });
+    mutationFn: async ({ workflowId, name, command, taskType, orderIndex }: { workflowId: string; name: string; command: string; taskType: string; orderIndex: number }) => {
+      const res = await apiRequest("POST", `/api/workflows/${workflowId}/steps`, { name, command, taskType, orderIndex });
       return res.json();
     },
     onSuccess: () => {
@@ -155,6 +171,7 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
       setAddingStep(null);
       setNewStepName("");
       setNewStepCommand("");
+      setNewStepTaskType("shell");
     },
   });
 
@@ -166,6 +183,14 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
   const toggleStepContinueMutation = useMutation({
     mutationFn: async ({ stepId, continueOnError }: { stepId: string; continueOnError: boolean }) => {
       const res = await apiRequest("PATCH", `/api/workflow-steps/${stepId}`, { continueOnError });
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflows"] }),
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async ({ workflowId, updates }: { workflowId: string; updates: { id: string; orderIndex: number }[] }) => {
+      const res = await apiRequest("PUT", `/api/workflows/${workflowId}/steps/reorder`, { updates });
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "workflows"] }),
@@ -183,6 +208,40 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
     },
   });
 
+  const handleDragStart = useCallback((index: number, workflowId: string) => {
+    dragItem.current = index;
+    setDragWorkflowId(workflowId);
+  }, []);
+
+  const handleDragEnter = useCallback((index: number) => {
+    dragOverItem.current = index;
+  }, []);
+
+  const handleDragEnd = useCallback((workflow: Workflow) => {
+    if (dragItem.current === null || dragOverItem.current === null || dragWorkflowId !== workflow.id) {
+      dragItem.current = null;
+      dragOverItem.current = null;
+      setDragWorkflowId(null);
+      return;
+    }
+    const from = dragItem.current;
+    const to = dragOverItem.current;
+    if (from === to) {
+      dragItem.current = null;
+      dragOverItem.current = null;
+      setDragWorkflowId(null);
+      return;
+    }
+    const reordered = [...workflow.steps];
+    const [removed] = reordered.splice(from, 1);
+    reordered.splice(to, 0, removed);
+    const updates = reordered.map((s, i) => ({ id: s.id, orderIndex: i }));
+    reorderMutation.mutate({ workflowId: workflow.id, updates });
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setDragWorkflowId(null);
+  }, [dragWorkflowId, reorderMutation]);
+
   const getStepStatusIcon = (status: string) => {
     switch (status) {
       case "success": return <CheckCircle className="w-3 h-3 text-[#0CCE6B] shrink-0" />;
@@ -190,6 +249,14 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
       case "running": return <Loader2 className="w-3 h-3 text-[#0079F2] animate-spin shrink-0" />;
       case "skipped": return <SkipForward className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />;
       default: return <Clock className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />;
+    }
+  };
+
+  const taskTypeLabel = (t: string) => {
+    switch (t) {
+      case "install_packages": return "Install Pkgs";
+      case "run_workflow": return "Run Workflow";
+      default: return "Shell";
     }
   };
 
@@ -230,12 +297,18 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
       {creating && (
         <div className="px-3 py-2 border-b border-[var(--ide-border)] space-y-2">
           <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Workflow name..." className="h-7 text-xs bg-[var(--ide-bg)] border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="input-workflow-name" />
-          <select value={newTrigger} onChange={(e) => setNewTrigger(e.target.value)} className="w-full h-7 text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)] rounded-md px-2" data-testid="select-workflow-trigger">
-            <option value="manual">Manual</option>
-            <option value="on-save">On Save</option>
-            <option value="on-deploy">On Deploy</option>
-            <option value="on-commit">On Commit</option>
-          </select>
+          <div className="flex gap-1.5">
+            <select value={newTrigger} onChange={(e) => setNewTrigger(e.target.value)} className="flex-1 h-7 text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)] rounded-md px-2" data-testid="select-workflow-trigger">
+              <option value="manual">Manual</option>
+              <option value="on-save">On Save</option>
+              <option value="on-deploy">On Deploy</option>
+              <option value="on-commit">On Commit</option>
+            </select>
+            <select value={newExecMode} onChange={(e) => setNewExecMode(e.target.value)} className="flex-1 h-7 text-[10px] bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)] rounded-md px-2" data-testid="select-execution-mode">
+              <option value="sequential">Sequential</option>
+              <option value="parallel">Parallel</option>
+            </select>
+          </div>
           <div className="flex gap-1.5">
             <Button size="sm" className="h-7 px-3 text-[10px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded-md font-semibold" onClick={() => createMutation.mutate()} disabled={!newName.trim() || createMutation.isPending} data-testid="button-create-workflow">
               {createMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create"}
@@ -268,7 +341,10 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
               <GitMerge className="w-3.5 h-3.5 text-[#0079F2] shrink-0" />
               <div className="flex-1 min-w-0">
                 <span className="text-[11px] text-[var(--ide-text)] font-medium truncate block">{workflow.name}</span>
-                <span className="text-[9px] text-[var(--ide-text-muted)]">{workflow.steps.length} step{workflow.steps.length !== 1 ? "s" : ""} · {workflow.triggerEvent}</span>
+                <span className="text-[9px] text-[var(--ide-text-muted)]">
+                  {workflow.steps.length} step{workflow.steps.length !== 1 ? "s" : ""} · {workflow.triggerEvent}
+                  {workflow.executionMode === "parallel" && <span className="ml-1 text-[#0079F2]">⚡ parallel</span>}
+                </span>
               </div>
               <Switch checked={workflow.enabled} onCheckedChange={(checked) => toggleMutation.mutate({ id: workflow.id, enabled: checked })}
                 className="scale-75" onClick={(e) => e.stopPropagation()} data-testid={`switch-workflow-${workflow.id}`} />
@@ -276,13 +352,54 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
 
             {expandedId === workflow.id && (
               <div className="px-3 pb-2 space-y-2">
+                <div className="flex gap-1.5 items-center">
+                  <select
+                    value={workflow.executionMode}
+                    onChange={(e) => updateWorkflowMutation.mutate({ id: workflow.id, executionMode: e.target.value })}
+                    className="h-6 text-[9px] bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)] rounded px-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                    data-testid={`select-exec-mode-${workflow.id}`}
+                  >
+                    <option value="sequential">Sequential</option>
+                    <option value="parallel">Parallel</option>
+                  </select>
+                  <select
+                    value={workflow.triggerEvent}
+                    onChange={(e) => updateWorkflowMutation.mutate({ id: workflow.id, triggerEvent: e.target.value })}
+                    className="h-6 text-[9px] bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)] rounded px-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                    data-testid={`select-trigger-${workflow.id}`}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="on-save">On Save</option>
+                    <option value="on-deploy">On Deploy</option>
+                    <option value="on-commit">On Commit</option>
+                  </select>
+                </div>
+
                 <div className="space-y-1">
                   {workflow.steps.map((step, i) => (
-                    <div key={step.id} className="flex items-center gap-1.5 px-2 py-1.5 bg-[var(--ide-bg)] rounded-md border border-[var(--ide-border)] group" data-testid={`workflow-step-${step.id}`}>
-                      <GripVertical className="w-3 h-3 text-[var(--ide-border)] shrink-0" />
+                    <div
+                      key={step.id}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 bg-[var(--ide-bg)] rounded-md border border-[var(--ide-border)] group ${dragWorkflowId === workflow.id ? 'cursor-grabbing' : ''}`}
+                      draggable
+                      onDragStart={() => handleDragStart(i, workflow.id)}
+                      onDragEnter={() => handleDragEnter(i)}
+                      onDragEnd={() => handleDragEnd(workflow)}
+                      onDragOver={(e) => e.preventDefault()}
+                      data-testid={`workflow-step-${step.id}`}
+                    >
+                      <GripVertical className="w-3 h-3 text-[var(--ide-border)] shrink-0 cursor-grab" />
                       <span className="text-[9px] font-bold text-[var(--ide-text-muted)] w-4">{i + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] text-[var(--ide-text)] font-medium block truncate">{step.name}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-[var(--ide-text)] font-medium truncate">{step.name}</span>
+                          {step.taskType !== "shell" && (
+                            <span className="text-[7px] px-1 py-0.5 rounded bg-[#0079F2]/10 text-[#0079F2] font-medium shrink-0">
+                              {taskTypeLabel(step.taskType)}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[8px] text-[var(--ide-text-muted)] font-mono truncate block">{step.command}</span>
                       </div>
                       <button className="p-0.5 opacity-0 group-hover:opacity-100 transition-opacity" title={step.continueOnError ? "Continues on error" : "Stops on error"}
@@ -301,10 +418,26 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
                 {addingStep === workflow.id ? (
                   <div className="space-y-1.5 p-2 bg-[var(--ide-bg)] rounded-md border border-[var(--ide-border)]">
                     <Input value={newStepName} onChange={(e) => setNewStepName(e.target.value)} placeholder="Step name..." className="h-6 text-[10px] bg-transparent border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="input-step-name" />
-                    <Input value={newStepCommand} onChange={(e) => setNewStepCommand(e.target.value)} placeholder="Command..." className="h-6 text-[10px] font-mono bg-transparent border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="input-step-command" />
+                    <select
+                      value={newStepTaskType}
+                      onChange={(e) => setNewStepTaskType(e.target.value)}
+                      className="w-full h-6 text-[10px] bg-transparent border border-[var(--ide-border)] text-[var(--ide-text)] rounded-md px-2"
+                      data-testid="select-step-task-type"
+                    >
+                      <option value="shell">Execute Shell Command</option>
+                      <option value="install_packages">Install Packages</option>
+                      <option value="run_workflow">Run Workflow</option>
+                    </select>
+                    <Input
+                      value={newStepCommand}
+                      onChange={(e) => setNewStepCommand(e.target.value)}
+                      placeholder={newStepTaskType === "run_workflow" ? "Workflow ID..." : newStepTaskType === "install_packages" ? "Package name or install command..." : "Command..."}
+                      className="h-6 text-[10px] font-mono bg-transparent border-[var(--ide-border)] text-[var(--ide-text)]"
+                      data-testid="input-step-command"
+                    />
                     <div className="flex gap-1">
                       <Button size="sm" className="h-5 px-2 text-[8px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded"
-                        onClick={() => addStepMutation.mutate({ workflowId: workflow.id, name: newStepName || "New Step", command: newStepCommand || "echo 'hello'", orderIndex: workflow.steps.length })}
+                        onClick={() => addStepMutation.mutate({ workflowId: workflow.id, name: newStepName || "New Step", command: newStepCommand || "echo 'hello'", taskType: newStepTaskType, orderIndex: workflow.steps.length })}
                         disabled={addStepMutation.isPending} data-testid="button-add-step">Add</Button>
                       <Button variant="ghost" size="sm" className="h-5 px-2 text-[8px]" onClick={() => setAddingStep(null)}>Cancel</Button>
                     </div>

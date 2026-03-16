@@ -52,7 +52,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 
 ## Database Schema (PostgreSQL)
 - `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id, keyboard_shortcuts (JSON)
-- `projects`: id, user_id (indexed), team_id, name, language, project_type (default 'web-app', also 'slides', 'video', 'mobile-app'), is_demo, is_published, published_slug, custom_domain, github_repo, is_dev_framework, framework_description, framework_category, framework_cover_url, is_official_framework, updated_at
+- `projects`: id, user_id (indexed), team_id, name, language, project_type (default 'web-app', also 'slides', 'video', 'mobile-app'), is_demo, is_published, published_slug, custom_domain, github_repo, is_dev_framework, framework_description, framework_category, framework_cover_url, is_official_framework, selected_workflow_id (nullable), updated_at
 - `slides_data`: id, project_id (unique indexed), slides (JSON array of SlideData), theme (JSON SlideTheme), updated_at
 - `video_data`: id, project_id (unique indexed), scenes (JSON array of VideoScene), audio_tracks (JSON), resolution (JSON), fps, updated_at
 - `framework_updates`: id, framework_id (indexed), message, created_at
@@ -91,8 +91,8 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `integration_logs`: id, project_integration_id (indexed), level, message, created_at
 - `automations`: id (uuid), project_id (indexed), name, type (cron/webhook/on-deploy/slack/telegram), cron_expression, webhook_token (unique), slack_bot_token, slack_signing_secret, telegram_bot_token, bot_status, script, language, enabled, last_run_at, created_at
 - `automation_runs`: id (uuid), automation_id (indexed), status, stdout, stderr, exit_code, duration_ms, triggered_by, started_at, finished_at
-- `workflows`: id (uuid), project_id (indexed), name, trigger_event, enabled, created_at
-- `workflow_steps`: id (uuid), workflow_id (indexed), name, command, order_index, continue_on_error
+- `workflows`: id (uuid), project_id (indexed), name, trigger_event, execution_mode (sequential/parallel), enabled, created_at
+- `workflow_steps`: id (uuid), workflow_id (indexed), name, command, task_type (shell/install_packages/run_workflow), order_index, continue_on_error
 - `workflow_runs`: id (uuid), workflow_id (indexed), status, step_results (JSON), duration_ms, started_at, finished_at
 - `monitoring_metrics`: id (uuid), project_id (indexed), metric_type (indexed), value, metadata (JSON), recorded_at
 - `monitoring_alerts`: id (uuid), project_id (indexed), name, metric_type, condition, threshold, enabled, last_triggered_at, created_at
@@ -117,7 +117,7 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - **Usage quotas**: Per-user daily limits (50 executions, 20 AI calls on free plan), project limits (5 on free), storage limits, with live usage display in dashboard sidebar
 - **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
 - **Automations**: Cron scheduling (node-cron), webhook triggers (unique token per automation), on-deploy triggers, Slack bot triggers (@slack/bolt with ExpressReceiver), Telegram bot triggers (telegraf with long-polling), execution history with stdout/stderr. Bot credentials stored securely (masked in API responses). Connection status indicators. Panel in activity bar (Zap icon, #F5A623).
-- **Workflows**: Multi-step sequential build/run workflows with templates (CI/CD, Build & Test, Lint & Format), live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
+- **Workflows**: Multi-step build/run workflows with sequential or parallel execution modes, 3 step task types (shell, install_packages, run_workflow with depth-limit protection), templates with real commands (npm install, npm test, etc.), drag-and-drop step reordering, trigger events (manual, on-save, on-deploy, on-commit) that fire automatically with debouncing, Run button workflow assignment dropdown, console pane integration streaming workflow outputs via WebSocket, live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
 - **Monitoring**: CPU, memory, request, and error metric tracking with configurable alerts (gt/lt/eq thresholds). Demo data generation. Panel in activity bar (Activity icon, #10B981).
 - **Threads**: Code discussion threads per-file with line number references, open/resolved status, comments. Panel in activity bar (MessageSquare icon, #8B5CF6).
 - **Build in Parallel (Tasks)**: Kanban board (Drafts/Active/Ready/Done) for parallel task execution. AI Plan mode breaks user prompts into independent tasks. Tasks execute against file snapshots (isolation). Three-way merge engine applies changes back to main. Per-task AI threads. WebSocket real-time updates. Task limits: free=2, pro/team=10 parallel. Components: `TaskBoard.tsx`, `TaskReviewDrawer.tsx`, Plan mode in `AIPanel.tsx`. Backend: `taskExecutor.ts`, `mergeEngine.ts`.

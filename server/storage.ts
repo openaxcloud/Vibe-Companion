@@ -122,7 +122,7 @@ export interface IStorage {
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
   createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string }>): Promise<Project | undefined>;
+  updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
@@ -335,13 +335,15 @@ export interface IStorage {
   getWorkflows(projectId: string): Promise<Workflow[]>;
   getWorkflow(id: string): Promise<Workflow | undefined>;
   createWorkflow(data: InsertWorkflow): Promise<Workflow>;
-  updateWorkflow(id: string, data: Partial<{ name: string; triggerEvent: string; enabled: boolean }>): Promise<Workflow | undefined>;
+  updateWorkflow(id: string, data: Partial<{ name: string; triggerEvent: string; executionMode: string; enabled: boolean }>): Promise<Workflow | undefined>;
   deleteWorkflow(id: string): Promise<boolean>;
+  getWorkflowsByTrigger(projectId: string, triggerEvent: string): Promise<Workflow[]>;
   getWorkflowStep(id: string): Promise<WorkflowStep | undefined>;
   getWorkflowSteps(workflowId: string): Promise<WorkflowStep[]>;
   createWorkflowStep(data: InsertWorkflowStep): Promise<WorkflowStep>;
-  updateWorkflowStep(id: string, data: Partial<{ name: string; command: string; orderIndex: number; continueOnError: boolean }>): Promise<WorkflowStep | undefined>;
+  updateWorkflowStep(id: string, data: Partial<{ name: string; command: string; taskType: string; orderIndex: number; continueOnError: boolean }>): Promise<WorkflowStep | undefined>;
   deleteWorkflowStep(id: string): Promise<boolean>;
+  bulkUpdateStepOrder(updates: { id: string; orderIndex: number }[]): Promise<void>;
   createWorkflowRun(workflowId: string): Promise<WorkflowRun>;
   updateWorkflowRun(id: string, data: Partial<{ status: string; stepResults: any; durationMs: number; finishedAt: Date }>): Promise<WorkflowRun | undefined>;
   getWorkflowRuns(workflowId: string, limit?: number): Promise<WorkflowRun[]>;
@@ -675,7 +677,7 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.language !== undefined) updates.language = data.language;
@@ -686,6 +688,7 @@ export class DatabaseStorage implements IStorage {
     if (data.teamId !== undefined) updates.teamId = data.teamId;
     if (data.githubRepo !== undefined) updates.githubRepo = data.githubRepo;
     if (data.visibility !== undefined) updates.visibility = data.visibility;
+    if ('selectedWorkflowId' in data) updates.selectedWorkflowId = data.selectedWorkflowId;
     const [project] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
     return project;
   }
@@ -1947,7 +1950,7 @@ export class DatabaseStorage implements IStorage {
     return w;
   }
 
-  async updateWorkflow(id: string, data: Partial<{ name: string; triggerEvent: string; enabled: boolean }>): Promise<Workflow | undefined> {
+  async updateWorkflow(id: string, data: Partial<{ name: string; triggerEvent: string; executionMode: string; enabled: boolean }>): Promise<Workflow | undefined> {
     const [w] = await db.update(workflows).set(data).where(eq(workflows.id, id)).returning();
     return w;
   }
@@ -1957,6 +1960,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(workflowSteps).where(eq(workflowSteps.workflowId, id));
     const result = await db.delete(workflows).where(eq(workflows.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getWorkflowsByTrigger(projectId: string, triggerEvent: string): Promise<Workflow[]> {
+    return db.select().from(workflows).where(and(eq(workflows.projectId, projectId), eq(workflows.triggerEvent, triggerEvent), eq(workflows.enabled, true)));
   }
 
   async getWorkflowStep(id: string): Promise<WorkflowStep | undefined> {
@@ -1973,7 +1980,7 @@ export class DatabaseStorage implements IStorage {
     return s;
   }
 
-  async updateWorkflowStep(id: string, data: Partial<{ name: string; command: string; orderIndex: number; continueOnError: boolean }>): Promise<WorkflowStep | undefined> {
+  async updateWorkflowStep(id: string, data: Partial<{ name: string; command: string; taskType: string; orderIndex: number; continueOnError: boolean }>): Promise<WorkflowStep | undefined> {
     const [s] = await db.update(workflowSteps).set(data).where(eq(workflowSteps.id, id)).returning();
     return s;
   }
@@ -1981,6 +1988,12 @@ export class DatabaseStorage implements IStorage {
   async deleteWorkflowStep(id: string): Promise<boolean> {
     const result = await db.delete(workflowSteps).where(eq(workflowSteps.id, id)).returning();
     return result.length > 0;
+  }
+
+  async bulkUpdateStepOrder(updates: { id: string; orderIndex: number }[]): Promise<void> {
+    for (const u of updates) {
+      await db.update(workflowSteps).set({ orderIndex: u.orderIndex }).where(eq(workflowSteps.id, u.id));
+    }
   }
 
   async createWorkflowRun(workflowId: string): Promise<WorkflowRun> {

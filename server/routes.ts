@@ -740,6 +740,10 @@ export async function registerRoutes(
   await mkdir(persistentStorageDir, { recursive: true });
   await mkdir(persistentStorageTmp, { recursive: true });
 
+  import("./workflowExecutor").then(({ setBroadcastFn }) => {
+    setBroadcastFn(broadcastToProject);
+  }).catch(() => {});
+
   const PgStore = connectPgSimple(session);
   const sessionMiddleware = session({
     store: new PgStore({
@@ -2211,6 +2215,7 @@ export async function registerRoutes(
       };
 
       const deployment = await storage.createDeployment(insertData);
+      import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(project.id, "on-deploy")).catch(() => {});
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
 
       const build = await buildAndDeploy(
@@ -3169,6 +3174,7 @@ export async function registerRoutes(
       const sanitizedContent = sanitizeInput(content, 500000);
       const file = await storage.updateFileContent(req.params.id, sanitizedContent);
       storage.updateStorageUsage(req.session.userId!).catch(() => {});
+      import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(project.id, "on-save")).catch(() => {});
       return res.json(file);
     }
     if (typeof filename === "string" && filename.trim()) {
@@ -4068,6 +4074,7 @@ export async function registerRoutes(
 
       const validFiles = Array.isArray(selectedFiles) ? selectedFiles.filter((f: unknown) => typeof f === "string") : undefined;
       const result = await gitService.addAndCommit(req.params.projectId, message.trim(), authorName, authorEmail, validFiles);
+      import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(req.params.projectId, "on-commit")).catch(() => {});
 
       const snapshot: Record<string, string> = {};
       for (const f of dbFiles) {
@@ -4769,6 +4776,7 @@ export async function registerRoutes(
       const { path, content } = req.body;
       if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
       await runnerClient.fsWrite(ctx.workspace.id, path, content ?? "");
+      import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(req.params.projectId, "on-save")).catch(() => {});
       return res.json({ ok: true });
     } catch (err: any) {
       return res.status(502).json({ message: err.message });
@@ -9616,14 +9624,14 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.post("/api/projects/:id/workflows", requireAuth, async (req: Request, res: Response) => {
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const { name, triggerEvent, steps } = req.body;
+      const { name, triggerEvent, executionMode, steps } = req.body;
       if (!name) return res.status(400).json({ message: "Name is required" });
 
-      const workflow = await storage.createWorkflow({ projectId: req.params.id, name, triggerEvent: triggerEvent || "manual" });
+      const workflow = await storage.createWorkflow({ projectId: req.params.id, name, triggerEvent: triggerEvent || "manual", executionMode: executionMode || "sequential" });
 
       if (steps && Array.isArray(steps)) {
         for (let i = 0; i < steps.length; i++) {
-          await storage.createWorkflowStep({ workflowId: workflow.id, name: steps[i].name || `Step ${i + 1}`, command: steps[i].command || "echo 'hello'", orderIndex: i, continueOnError: steps[i].continueOnError || false });
+          await storage.createWorkflowStep({ workflowId: workflow.id, name: steps[i].name || `Step ${i + 1}`, command: steps[i].command || "echo 'hello'", taskType: steps[i].taskType || "shell", orderIndex: i, continueOnError: steps[i].continueOnError || false });
         }
       }
 
@@ -9644,7 +9652,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
 
       const workflow = await storage.createWorkflow({ projectId: req.params.id, name: template.name, triggerEvent: template.triggerEvent });
       for (let i = 0; i < template.steps.length; i++) {
-        await storage.createWorkflowStep({ workflowId: workflow.id, name: template.steps[i].name, command: template.steps[i].command, orderIndex: i });
+        const s = template.steps[i] as any;
+        await storage.createWorkflowStep({ workflowId: workflow.id, name: s.name, command: s.command, taskType: s.taskType || "shell", orderIndex: i });
       }
 
       const createdSteps = await storage.getWorkflowSteps(workflow.id);
@@ -9663,6 +9672,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const updates: any = {};
       if (req.body.name !== undefined) updates.name = req.body.name;
       if (req.body.triggerEvent !== undefined) updates.triggerEvent = req.body.triggerEvent;
+      if (req.body.executionMode !== undefined) updates.executionMode = req.body.executionMode;
       if (req.body.enabled !== undefined) updates.enabled = req.body.enabled;
 
       const updated = await storage.updateWorkflow(req.params.workflowId, updates);
@@ -9692,8 +9702,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!workflow) return res.status(404).json({ message: "Not found" });
       if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
 
-      const { name, command, orderIndex, continueOnError } = req.body;
-      const step = await storage.createWorkflowStep({ workflowId: req.params.workflowId, name: name || "New Step", command: command || "echo 'hello'", orderIndex: orderIndex ?? 0, continueOnError: continueOnError || false });
+      const { name, command, taskType, orderIndex, continueOnError } = req.body;
+      const step = await storage.createWorkflowStep({ workflowId: req.params.workflowId, name: name || "New Step", command: command || "echo 'hello'", taskType: taskType || "shell", orderIndex: orderIndex ?? 0, continueOnError: continueOnError || false });
       res.status(201).json(step);
     } catch {
       res.status(500).json({ message: "Failed to create step" });
@@ -9711,6 +9721,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const updates: any = {};
       if (req.body.name !== undefined) updates.name = req.body.name;
       if (req.body.command !== undefined) updates.command = req.body.command;
+      if (req.body.taskType !== undefined) updates.taskType = req.body.taskType;
       if (req.body.orderIndex !== undefined) updates.orderIndex = req.body.orderIndex;
       if (req.body.continueOnError !== undefined) updates.continueOnError = req.body.continueOnError;
 
@@ -9743,7 +9754,115 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
 
       const { executeWorkflow } = await import("./workflowExecutor");
-      const result = await executeWorkflow(req.params.workflowId);
+
+      broadcastToProject(workflow.projectId, {
+        type: "workflow_status",
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        status: "running",
+      });
+
+      const onLog = (message: string, logType: "info" | "error" | "success") => {
+        broadcastToProject(workflow.projectId, {
+          type: "workflow_log",
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          message,
+          logType,
+          timestamp: Date.now(),
+        });
+      };
+
+      const result = await executeWorkflow(req.params.workflowId, undefined, onLog);
+
+      broadcastToProject(workflow.projectId, {
+        type: "workflow_status",
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        status: result.success ? "completed" : "failed",
+      });
+
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Failed to run workflow" });
+    }
+  });
+
+  app.put("/api/workflows/:workflowId/steps/reorder", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const workflow = await storage.getWorkflow(req.params.workflowId);
+      if (!workflow) return res.status(404).json({ message: "Not found" });
+      if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+
+      const { updates } = req.body;
+      if (!Array.isArray(updates)) return res.status(400).json({ message: "updates array required" });
+
+      const existingSteps = await storage.getWorkflowSteps(req.params.workflowId);
+      const validIds = new Set(existingSteps.map(s => s.id));
+      const sanitizedUpdates = updates.filter((u: any) => validIds.has(u.id));
+      if (sanitizedUpdates.length === 0) return res.status(400).json({ message: "No valid step IDs" });
+
+      await storage.bulkUpdateStepOrder(sanitizedUpdates);
+      const steps = await storage.getWorkflowSteps(req.params.workflowId);
+      res.json(steps);
+    } catch {
+      res.status(500).json({ message: "Failed to reorder steps" });
+    }
+  });
+
+  app.put("/api/projects/:id/selected-workflow", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { workflowId } = req.body;
+      if (workflowId) {
+        const wf = await storage.getWorkflow(workflowId);
+        if (!wf || wf.projectId !== req.params.id) return res.status(400).json({ message: "Workflow not found or does not belong to this project" });
+      }
+      await storage.updateProject(req.params.id, { selectedWorkflowId: workflowId || null } as any);
+      res.json({ success: true, selectedWorkflowId: workflowId || null });
+    } catch {
+      res.status(500).json({ message: "Failed to update selected workflow" });
+    }
+  });
+
+  app.post("/api/projects/:id/run-workflow", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const project = await storage.getProject(req.params.id);
+      if (!project?.selectedWorkflowId) return res.status(400).json({ message: "No workflow assigned to Run button" });
+
+      const workflow = await storage.getWorkflow(project.selectedWorkflowId);
+      if (!workflow || workflow.projectId !== req.params.id) return res.status(404).json({ message: "Selected workflow not found or does not belong to this project" });
+
+      const { executeWorkflow } = await import("./workflowExecutor");
+
+      broadcastToProject(project.id, {
+        type: "workflow_status",
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        status: "running",
+      });
+
+      const onLog = (message: string, logType: "info" | "error" | "success") => {
+        broadcastToProject(project.id, {
+          type: "workflow_log",
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          message,
+          logType,
+          timestamp: Date.now(),
+        });
+      };
+
+      const result = await executeWorkflow(project.selectedWorkflowId, undefined, onLog);
+
+      broadcastToProject(project.id, {
+        type: "workflow_status",
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        status: result.success ? "completed" : "failed",
+      });
+
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to run workflow" });
