@@ -531,7 +531,7 @@ export interface IStorage {
   getMcpServers(projectId: string): Promise<McpServer[]>;
   getMcpServer(id: string): Promise<McpServer | undefined>;
   createMcpServer(data: InsertMcpServer): Promise<McpServer>;
-  updateMcpServer(id: string, data: Partial<{ name: string; command: string; args: string[]; env: Record<string, string>; status: string }>): Promise<McpServer | undefined>;
+  updateMcpServer(id: string, data: Partial<{ name: string; command: string; args: string[]; env: Record<string, string>; baseUrl: string; headers: Record<string, string>; serverType: string; status: string }>): Promise<McpServer | undefined>;
   deleteMcpServer(id: string): Promise<boolean>;
 
   getMcpTools(serverId: string): Promise<McpTool[]>;
@@ -3126,7 +3126,7 @@ export class DatabaseStorage implements IStorage {
     return server;
   }
 
-  async updateMcpServer(id: string, data: Partial<{ name: string; command: string; args: string[]; env: Record<string, string>; status: string }>): Promise<McpServer | undefined> {
+  async updateMcpServer(id: string, data: Partial<{ name: string; command: string; args: string[]; env: Record<string, string>; baseUrl: string; headers: Record<string, string>; serverType: string; status: string }>): Promise<McpServer | undefined> {
     const [server] = await db.update(mcpServers).set(data).where(eq(mcpServers.id, id)).returning();
     return server;
   }

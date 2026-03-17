@@ -28,6 +28,8 @@ import ThemesExplore from "@/pages/ThemesExplore";
 import Import from "@/pages/Import";
 import AccountCLI from "@/pages/AccountCLI";
 import Desktop from "@/pages/Desktop";
+import McpDirectory from "@/pages/McpDirectory";
+import McpInstallLink from "@/pages/McpInstallLink";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import GlobalShortcuts from "@/components/GlobalShortcuts";
 
@@ -120,6 +122,8 @@ function App() {
                 <Route path="/themes/editor/:id">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
                 <Route path="/import">{() => <ProtectedRoute component={Import} />}</Route>
                 <Route path="/cli">{() => <ProtectedRoute component={AccountCLI} />}</Route>
+                <Route path="/mcp-directory" component={McpDirectory} />
+                <Route path="/mcp-install-link">{() => <ProtectedRoute component={McpInstallLink} />}</Route>
                 <Route path="/desktop" component={Desktop} />
                 <Route path="/pricing" component={Pricing} />
                 <Route path="/demo" component={DemoProject} />

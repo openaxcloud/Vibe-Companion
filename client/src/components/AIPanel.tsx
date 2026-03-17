@@ -43,6 +43,15 @@ interface GeneratedFile {
   size: number;
 }
 
+interface McpToolCall {
+  callId: string;
+  name: string;
+  serverId?: number;
+  args?: Record<string, unknown>;
+  status: "running" | "complete" | "error";
+  result?: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -53,6 +62,7 @@ interface ChatMessage {
   inlineImages?: { filename: string; dataUri: string }[];
   webSearchResults?: WebSearchResult[];
   generatedFiles?: GeneratedFile[];
+  mcpToolCalls?: McpToolCall[];
 }
 
 interface QueuedMsg {
@@ -187,6 +197,77 @@ function FileOpProgress({ ops }: { ops: { type: "created" | "updated"; filename:
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function McpToolCallTimeline({ calls }: { calls: McpToolCall[] }) {
+  const [expandedCallId, setExpandedCallId] = React.useState<string | null>(null);
+
+  if (!calls || calls.length === 0) return null;
+
+  return (
+    <div className="mt-3 rounded-lg overflow-hidden border border-[#7C65CB]/20" data-testid="mcp-tool-timeline">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#7C65CB]/5 border-b border-[#7C65CB]/20">
+        <Zap className="w-3 h-3 text-[#7C65CB]" />
+        <span className="text-[10px] font-semibold text-[#7C65CB] uppercase tracking-wider">MCP Tool Calls</span>
+        <span className="text-[10px] text-[#7C65CB]/60 ml-auto">{calls.length} call{calls.length > 1 ? "s" : ""}</span>
+      </div>
+      <div className="bg-[#7C65CB]/5 p-2 space-y-1">
+        {calls.map((call) => {
+          const isExpanded = expandedCallId === call.callId;
+          return (
+            <div key={call.callId} data-testid={`mcp-call-${call.callId}`}>
+              <button
+                className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-md hover:bg-[#7C65CB]/10 transition-colors text-left"
+                onClick={() => setExpandedCallId(isExpanded ? null : call.callId)}
+                data-testid={`button-expand-mcp-call-${call.callId}`}
+              >
+                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5" style={{
+                  backgroundColor: call.status === "running" ? "rgba(124,101,203,0.15)" : call.status === "error" ? "rgba(239,68,68,0.15)" : "rgba(12,206,107,0.15)",
+                }}>
+                  {call.status === "running" ? (
+                    <Loader2 className="w-3 h-3 text-[#7C65CB] animate-spin" />
+                  ) : call.status === "error" ? (
+                    <XCircle className="w-3 h-3 text-red-400" />
+                  ) : (
+                    <CheckCircle2 className="w-3 h-3 text-[#0CCE6B]" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-medium text-[var(--ide-text)] font-mono truncate">
+                    {call.name}
+                  </div>
+                  <div className="text-[9px] text-[var(--ide-text-muted)]">
+                    {call.status === "running" ? "Executing..." : call.status === "error" ? "Failed" : "Completed"}
+                  </div>
+                </div>
+                <ChevronDown className={`w-3 h-3 text-[var(--ide-text-muted)] shrink-0 mt-1 transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
+              </button>
+              {isExpanded && (
+                <div className="mx-2.5 mb-2 space-y-1.5" data-testid={`mcp-call-details-${call.callId}`}>
+                  {call.args && Object.keys(call.args).length > 0 && (
+                    <div>
+                      <div className="text-[8px] text-[var(--ide-text-muted)] uppercase tracking-wider mb-0.5 font-semibold">Request</div>
+                      <pre className="text-[9px] font-mono bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded p-2 overflow-x-auto max-h-[100px] text-[var(--ide-text-secondary)]">
+                        {JSON.stringify(call.args, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                  {call.result && (
+                    <div>
+                      <div className="text-[8px] text-[var(--ide-text-muted)] uppercase tracking-wider mb-0.5 font-semibold">Response</div>
+                      <pre className="text-[9px] font-mono bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded p-2 overflow-x-auto max-h-[150px] text-[var(--ide-text-secondary)]">
+                        {call.result}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -842,20 +923,26 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 );
               }
             } else if (data.type === "web_fetch_result") {
-            } else if (data.type === "mcp_tool_use") {
-              const toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
+            } else if (data.type === "mcp_tool_use" || data.type === "mcp_tool_call") {
+              const toolDisplayName = data.originalName || data.name || "unknown";
+              const callId = data.callId || `mcp_${Date.now()}`;
               setMessages((prev) =>
                 prev.map((m) => m.id === assistantId ? {
                   ...m,
-                  content: m.content + toolMsg
+                  mcpToolCalls: [...(m.mcpToolCalls || []), { callId, name: toolDisplayName, serverId: data.serverId, args: data.args, status: "running" as const }],
                 } : m)
               );
             } else if (data.type === "mcp_tool_result") {
               const resultPreview = data.result ? data.result.slice(0, 500) : data.error || "";
+              const resultCallId = data.callId;
               setMessages((prev) =>
                 prev.map((m) => m.id === assistantId ? {
                   ...m,
-                  content: m.content + `\n\n> MCP result: \`\`\`\n${resultPreview}\n\`\`\`\n`
+                  mcpToolCalls: (m.mcpToolCalls || []).map((tc: McpToolCall) =>
+                    (resultCallId && tc.callId === resultCallId) || (!resultCallId && tc.status === "running")
+                      ? { ...tc, status: (data.error ? "error" : "complete") as McpToolCall["status"], result: resultPreview }
+                      : tc
+                  ),
                 } : m)
               );
             } else if (data.type === "file_created") {
@@ -2747,6 +2834,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </div>
                 )}
                 {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages, msg.generatedFiles) : <TypingIndicator />}
+                {msg.role === "assistant" && msg.mcpToolCalls && msg.mcpToolCalls.length > 0 && (
+                  <McpToolCallTimeline calls={msg.mcpToolCalls} />
+                )}
                 {msg.role === "assistant" && msg.webSearchResults && msg.webSearchResults.length > 0 && (
                   <WebSearchCitations results={msg.webSearchResults} />
                 )}

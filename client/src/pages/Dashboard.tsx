@@ -420,6 +420,28 @@ export default function Dashboard() {
     }
   }, [projectsQuery.data]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mcpPayload = params.get("mcp");
+    if (mcpPayload) {
+      try {
+        const decoded = JSON.parse(atob(mcpPayload));
+        if (decoded.displayName && decoded.baseUrl) {
+          const safePayload = { displayName: decoded.displayName, baseUrl: decoded.baseUrl };
+          sessionStorage.setItem("pending_mcp_server", JSON.stringify(safePayload));
+          toast({
+            title: "MCP Server Install",
+            description: `Ready to add "${decoded.displayName}" to a project. Open a project to complete setup.`,
+          });
+        }
+      } catch {
+        toast({ title: "Invalid MCP install link", variant: "destructive" });
+      }
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, []);
+
   const acceptInviteMutation = useMutation({
     mutationFn: async (inviteId: string) => {
       const res = await apiRequest("POST", `/api/invites/${inviteId}/accept`);

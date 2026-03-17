@@ -8659,29 +8659,59 @@ Rules:
         const mcpDef = mcpDefs.find(d => d.name === toolName);
         if (mcpDef) {
           const mcpClientModule = await import("./mcpClient");
-          let client = mcpClientModule.getClient(mcpDef.serverId);
-          if (!client || client.status !== "running") {
+          const server = await storage.getMcpServer(mcpDef.serverId);
+
+          const mcpCallId = `mcp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+          const argsScan = mcpClientModule.scanToolCallArgs(toolName, toolInput);
+          if (!argsScan.safe) {
+            const blockedMsg = `MCP tool call blocked by security scanner: ${argsScan.reason}`;
+            res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", callId: mcpCallId, name: toolName, error: blockedMsg })}\n\n`);
+            return blockedMsg;
+          }
+
+          res.write(`data: ${JSON.stringify({ type: "mcp_tool_call", callId: mcpCallId, name: toolName, originalName: mcpDef.originalName, serverId: mcpDef.serverId, args: toolInput })}\n\n`);
+
+          if (server?.serverType === "remote" && server.baseUrl) {
             try {
-              const server = await storage.getMcpServer(mcpDef.serverId);
-              if (server) {
-                client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
-                await storage.updateMcpServer(server.id, { status: "running" });
-              }
-            } catch (startErr: any) {
-              const errorMsg = `Failed to start MCP server: ${startErr.message}`;
-              res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", name: toolName, error: errorMsg })}\n\n`);
+              const resultText = await mcpClientModule.callRemoteTool(
+                server.id,
+                mcpDef.originalName,
+                toolInput,
+                server.baseUrl,
+                server.headers as Record<string, string> || {}
+              );
+              res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", callId: mcpCallId, name: toolName, result: resultText.slice(0, 5000) })}\n\n`);
+              return resultText;
+            } catch (err: any) {
+              const errorMsg = `MCP remote tool call failed: ${err.message}`;
+              res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", callId: mcpCallId, name: toolName, error: errorMsg })}\n\n`);
               return errorMsg;
             }
+          } else {
+            let client = mcpClientModule.getClient(mcpDef.serverId);
+            if (!client || client.status !== "running") {
+              try {
+                if (server) {
+                  client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
+                  await storage.updateMcpServer(server.id, { status: "running" });
+                }
+              } catch (startErr: any) {
+                const errorMsg = `Failed to start MCP server: ${startErr.message}`;
+                res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", callId: mcpCallId, name: toolName, error: errorMsg })}\n\n`);
+                return errorMsg;
+              }
+            }
+            if (!client || client.status !== "running") {
+              const errorMsg = "MCP server not available";
+              res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", callId: mcpCallId, name: toolName, error: errorMsg })}\n\n`);
+              return errorMsg;
+            }
+            const result = await client.callTool(mcpDef.originalName, toolInput);
+            const resultText = result.content.map(c => c.text || "").join("\n");
+            res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", callId: mcpCallId, name: toolName, result: resultText.slice(0, 5000) })}\n\n`);
+            return resultText;
           }
-          if (!client || client.status !== "running") {
-            const errorMsg = "MCP server not available";
-            res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", name: toolName, error: errorMsg })}\n\n`);
-            return errorMsg;
-          }
-          const result = await client.callTool(mcpDef.originalName, toolInput);
-          const resultText = result.content.map(c => c.text || "").join("\n");
-          res.write(`data: ${JSON.stringify({ type: "mcp_tool_result", name: toolName, result: resultText.slice(0, 5000) })}\n\n`);
-          return resultText;
         }
       }
       if (toolName === "create_skill") {
@@ -8979,19 +9009,43 @@ Rules:
         const mcpServers = await storage.getMcpServers(projectId);
         const mcpClientModule = await import("./mcpClient");
         for (const server of mcpServers) {
-          let client = mcpClientModule.getClient(server.id);
-          if (!client || client.status !== "running") {
-            try {
-              client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
-              await storage.updateMcpServer(server.id, { status: "running" });
-              const discoveredTools = await client.listTools();
-              await storage.deleteMcpToolsByServer(server.id);
-              for (const tool of discoveredTools) {
-                await storage.createMcpTool({ serverId: server.id, name: tool.name, description: tool.description, inputSchema: tool.inputSchema });
+          if (server.serverType === "remote" && server.baseUrl) {
+            const remoteClient = mcpClientModule.getRemoteClient(server.id);
+            if (!remoteClient?.connected) {
+              try {
+                const connectResult = await mcpClientModule.connectRemoteServer(
+                  server.id,
+                  server.baseUrl,
+                  server.headers as Record<string, string> || {}
+                );
+                if (connectResult.success) {
+                  await storage.updateMcpServer(server.id, { status: "connected" });
+                  await storage.deleteMcpToolsByServer(server.id);
+                  for (const tool of connectResult.tools) {
+                    await storage.createMcpTool({ serverId: server.id, name: tool.name, description: tool.description, inputSchema: tool.inputSchema });
+                  }
+                } else {
+                  log(`MCP remote server '${server.name}' (${server.id}) failed to connect: ${connectResult.error}`, "mcp");
+                }
+              } catch (startErr: any) {
+                log(`MCP remote server '${server.name}' (${server.id}) error: ${startErr.message}`, "mcp");
               }
-            } catch (startErr: any) {
-              log(`MCP server '${server.name}' (${server.id}) failed to start/discover: ${startErr.message}`, "mcp");
-              await storage.updateMcpServer(server.id, { status: "error" });
+            }
+          } else {
+            let client = mcpClientModule.getClient(server.id);
+            if (!client || client.status !== "running") {
+              try {
+                client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
+                await storage.updateMcpServer(server.id, { status: "running" });
+                const discoveredTools = await client.listTools();
+                await storage.deleteMcpToolsByServer(server.id);
+                for (const tool of discoveredTools) {
+                  await storage.createMcpTool({ serverId: server.id, name: tool.name, description: tool.description, inputSchema: tool.inputSchema });
+                }
+              } catch (startErr: any) {
+                log(`MCP server '${server.name}' (${server.id}) failed to start/discover: ${startErr.message}`, "mcp");
+                await storage.updateMcpServer(server.id, { status: "error" });
+              }
             }
           }
         }
@@ -15324,6 +15378,10 @@ Respond ONLY with the JSON array, no other text.`;
     const servers = await storage.getMcpServers(req.params.projectId);
     const mcpClientModule = await import("./mcpClient");
     const serversWithStatus = servers.map(s => {
+      if (s.serverType === "remote") {
+        const remoteClient = mcpClientModule.getRemoteClient(s.id);
+        return { ...s, status: remoteClient?.connected ? "connected" : s.status };
+      }
       const client = mcpClientModule.getClient(s.id);
       return { ...s, status: client?.status || s.status };
     });
@@ -15335,22 +15393,53 @@ Respond ONLY with the JSON array, no other text.`;
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const { name, command, args, env } = req.body;
-    if (!name || !command) {
-      return res.status(400).json({ message: "name and command are required" });
+    const { name, command, args, env, baseUrl, headers: reqHeaders, serverType } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: "name is required" });
     }
     if (typeof name !== "string" || name.length > 100) {
       return res.status(400).json({ message: "Invalid server name" });
     }
-    if (typeof command !== "string" || command.length > 500) {
-      return res.status(400).json({ message: "Invalid command" });
+
+    const type = serverType === "remote" ? "remote" : "stdio";
+
+    if (type === "remote") {
+      if (!baseUrl || typeof baseUrl !== "string") {
+        return res.status(400).json({ message: "baseUrl is required for remote servers" });
+      }
+      if (baseUrl.length > 2000) {
+        return res.status(400).json({ message: "baseUrl too long" });
+      }
+      try {
+        const parsedMcpUrl = new URL(baseUrl);
+        if (parsedMcpUrl.protocol !== "https:") {
+          return res.status(400).json({ message: "MCP server URL must use HTTPS" });
+        }
+      } catch {
+        return res.status(400).json({ message: "Invalid URL format" });
+      }
+      const urlValidation = validateExternalUrl(baseUrl);
+      if (!urlValidation.valid) {
+        return res.status(400).json({ message: urlValidation.error });
+      }
+    } else {
+      if (!command) {
+        return res.status(400).json({ message: "command is required for stdio servers" });
+      }
+      if (typeof command !== "string" || command.length > 500) {
+        return res.status(400).json({ message: "Invalid command" });
+      }
     }
+
     const server = await storage.createMcpServer({
       projectId: req.params.projectId,
       name: name.slice(0, 100),
-      command: command.slice(0, 500),
+      command: type === "stdio" ? String(command || "").slice(0, 500) : "",
       args: Array.isArray(args) ? args.map((a: any) => String(a).slice(0, 1000)) : [],
       env: typeof env === "object" && env !== null ? env : {},
+      baseUrl: type === "remote" ? baseUrl : undefined,
+      headers: typeof reqHeaders === "object" && reqHeaders !== null ? reqHeaders : {},
+      serverType: type,
     });
     return res.json(server);
   });
@@ -15364,12 +15453,30 @@ Respond ONLY with the JSON array, no other text.`;
     if (!server || server.projectId !== req.params.projectId) {
       return res.status(404).json({ message: "MCP server not found" });
     }
-    const { name, command, args, env } = req.body;
+    const { name, command, args, env, baseUrl, headers: reqHeaders } = req.body;
     const updates: Record<string, any> = {};
     if (name) updates.name = String(name).slice(0, 100);
     if (command) updates.command = String(command).slice(0, 500);
     if (args) updates.args = Array.isArray(args) ? args.map((a: any) => String(a).slice(0, 1000)) : [];
     if (env) updates.env = typeof env === "object" && env !== null ? env : {};
+    if (baseUrl !== undefined) {
+      if (baseUrl) {
+        try {
+          const parsedMcpUrl = new URL(baseUrl);
+          if (parsedMcpUrl.protocol !== "https:") {
+            return res.status(400).json({ message: "MCP server URL must use HTTPS" });
+          }
+        } catch {
+          return res.status(400).json({ message: "Invalid URL format" });
+        }
+        const urlValidation = validateExternalUrl(baseUrl);
+        if (!urlValidation.valid) {
+          return res.status(400).json({ message: urlValidation.error });
+        }
+      }
+      updates.baseUrl = baseUrl || null;
+    }
+    if (reqHeaders !== undefined) updates.headers = typeof reqHeaders === "object" && reqHeaders !== null ? reqHeaders : {};
     const updated = await storage.updateMcpServer(server.id, updates);
     return res.json(updated);
   });
@@ -15385,10 +15492,120 @@ Respond ONLY with the JSON array, no other text.`;
     }
     try {
       const mcpClientModule = await import("./mcpClient");
-      await mcpClientModule.stopClient(server.id);
+      if (server.serverType === "remote") {
+        mcpClientModule.disconnectRemoteClient(server.id);
+      } else {
+        await mcpClientModule.stopClient(server.id);
+      }
     } catch {}
     await storage.deleteMcpServer(server.id);
     return res.json({ message: "Server deleted" });
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/test-remote", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { baseUrl, headers: reqHeaders } = req.body;
+    if (!baseUrl || typeof baseUrl !== "string") {
+      return res.status(400).json({ success: false, message: "baseUrl is required" });
+    }
+    try {
+      const parsedMcpUrl = new URL(baseUrl);
+      if (parsedMcpUrl.protocol !== "https:") {
+        return res.status(400).json({ success: false, message: "MCP server URL must use HTTPS" });
+      }
+    } catch {
+      return res.status(400).json({ success: false, message: "Invalid URL format" });
+    }
+    const urlValidation = validateExternalUrl(baseUrl);
+    if (!urlValidation.valid) {
+      return res.status(400).json({ success: false, message: urlValidation.error });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      const result = await mcpClientModule.testRemoteConnection(baseUrl, reqHeaders || {});
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/:serverId/test", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    try {
+      if (server.serverType === "remote" && server.baseUrl) {
+        const mcpClientModule = await import("./mcpClient");
+        const result = await mcpClientModule.testRemoteConnection(
+          server.baseUrl,
+          server.headers as Record<string, string> || {}
+        );
+        if (result.success) {
+          await storage.updateMcpServer(server.id, { status: "connected" });
+        } else {
+          await storage.updateMcpServer(server.id, { status: "error" });
+        }
+        return res.json(result);
+      } else {
+        return res.json({ success: false, message: "Use start endpoint for stdio servers" });
+      }
+    } catch (err: any) {
+      await storage.updateMcpServer(server.id, { status: "error" });
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.post("/api/projects/:projectId/mcp/servers/:serverId/connect", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const server = await storage.getMcpServer(req.params.serverId);
+    if (!server || server.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "MCP server not found" });
+    }
+    if (server.serverType !== "remote" || !server.baseUrl) {
+      return res.status(400).json({ message: "Only remote servers can be connected this way" });
+    }
+    try {
+      const mcpClientModule = await import("./mcpClient");
+      const result = await mcpClientModule.connectRemoteServer(
+        server.id,
+        server.baseUrl,
+        server.headers as Record<string, string> || {}
+      );
+      if (result.success) {
+        await storage.updateMcpServer(server.id, { status: "connected" });
+        await storage.deleteMcpToolsByServer(server.id);
+        for (const tool of result.tools) {
+          await storage.createMcpTool({
+            serverId: server.id,
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          });
+        }
+        return res.json({
+          status: "connected",
+          tools: result.tools,
+          blockedTools: result.blocked,
+        });
+      } else {
+        await storage.updateMcpServer(server.id, { status: "error" });
+        return res.status(400).json({ message: result.error || "Connection failed" });
+      }
+    } catch (err: any) {
+      await storage.updateMcpServer(server.id, { status: "error" });
+      return res.status(500).json({ message: err.message });
+    }
   });
 
   app.post("/api/projects/:projectId/mcp/servers/:serverId/start", requireAuth, async (req: Request, res: Response) => {

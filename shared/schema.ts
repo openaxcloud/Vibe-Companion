@@ -1863,9 +1863,12 @@ export const mcpServers = pgTable("mcp_servers", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   name: text("name").notNull(),
-  command: text("command").notNull(),
+  command: text("command").notNull().default(""),
   args: json("args").$type<string[]>().notNull().default([]),
   env: json("env").$type<Record<string, string>>().notNull().default({}),
+  baseUrl: text("base_url"),
+  headers: json("headers").$type<Record<string, string>>().notNull().default({}),
+  serverType: text("server_type").notNull().default("stdio"),
   status: text("status").notNull().default("stopped"),
   isBuiltIn: boolean("is_built_in").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1878,10 +1881,25 @@ export const insertMcpServerSchema = createInsertSchema(mcpServers).pick({
   command: true,
   args: true,
   env: true,
+  baseUrl: true,
+  headers: true,
+  serverType: true,
   isBuiltIn: true,
 });
 export type InsertMcpServer = z.infer<typeof insertMcpServerSchema>;
 export type McpServer = typeof mcpServers.$inferSelect;
+
+export const MCP_DIRECTORY_SERVERS = [
+  { id: "atlassian", name: "Atlassian", description: "Connect to Jira, Confluence, and other Atlassian products", icon: "clipboard", baseUrl: "https://mcp.atlassian.com/v1/sse", category: "Project Management" },
+  { id: "amplitude", name: "Amplitude", description: "Analytics and product intelligence platform", icon: "bar-chart", baseUrl: "https://mcp.amplitude.com/v1/sse", category: "Analytics" },
+  { id: "granola", name: "Granola", description: "AI-powered meeting notes and knowledge management", icon: "book-open", baseUrl: "https://mcp.granola.ai/v1/sse", category: "Productivity" },
+  { id: "linear", name: "Linear", description: "Issue tracking and project management for software teams", icon: "git-branch", baseUrl: "https://mcp.linear.app/v1/sse", category: "Project Management" },
+  { id: "miro", name: "Miro", description: "Visual collaboration and whiteboarding platform", icon: "layout", baseUrl: "https://mcp.miro.com/v1/sse", category: "Productivity" },
+  { id: "notion", name: "Notion", description: "All-in-one workspace for notes, docs, and databases", icon: "book-open", baseUrl: "https://mcp.notion.so/v1/sse", category: "Productivity" },
+  { id: "posthog", name: "PostHog", description: "Product analytics, feature flags, and session replay", icon: "bar-chart", baseUrl: "https://mcp.posthog.com/v1/sse", category: "Analytics" },
+  { id: "sentry", name: "Sentry", description: "Error monitoring and performance tracking", icon: "zap", baseUrl: "https://mcp.sentry.io/v1/sse", category: "Developer Tools" },
+  { id: "stripe", name: "Stripe", description: "Payment processing and financial infrastructure", icon: "credit-card", baseUrl: "https://mcp.stripe.com/v1/sse", category: "Payments" },
+] as const;
 
 export const mcpTools = pgTable("mcp_tools", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

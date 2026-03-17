@@ -369,3 +369,422 @@ export async function stopAllClients(): Promise<void> {
 export function getActiveClientIds(): string[] {
   return Array.from(activeClients.keys());
 }
+
+const SUSPICIOUS_TOOL_PATTERNS = [
+  /exec(ute)?[_\s]?(command|shell|bash|sh|cmd)/i,
+  /run[_\s]?(command|shell|process)/i,
+  /system[_\s]?(call|exec)/i,
+  /eval(uate)?[_\s]?code/i,
+  /file[_\s]?(delete|remove|write|overwrite)/i,
+  /drop[_\s]?(table|database|collection)/i,
+  /rm\s+-rf/i,
+  /format[_\s]?disk/i,
+  /\bsudo\b/i,
+  /password|secret|credential|private[_\s]?key/i,
+];
+
+const SUSPICIOUS_DESCRIPTION_PATTERNS = [
+  /execute arbitrary/i,
+  /run any command/i,
+  /unrestricted access/i,
+  /bypass security/i,
+  /delete all/i,
+  /root access/i,
+  /admin privilege/i,
+];
+
+export function scanToolSecurity(tool: McpToolDefinition): { safe: boolean; reason?: string } {
+  for (const pattern of SUSPICIOUS_TOOL_PATTERNS) {
+    if (pattern.test(tool.name)) {
+      return { safe: false, reason: `Tool name matches suspicious pattern: ${tool.name}` };
+    }
+  }
+  for (const pattern of SUSPICIOUS_DESCRIPTION_PATTERNS) {
+    if (pattern.test(tool.description)) {
+      return { safe: false, reason: `Tool description contains suspicious content` };
+    }
+  }
+  if (tool.inputSchema) {
+    const schemaStr = JSON.stringify(tool.inputSchema);
+    if (schemaStr.length > 50000) {
+      return { safe: false, reason: "Tool schema is suspiciously large" };
+    }
+  }
+  return { safe: true };
+}
+
+export function scanAllTools(tools: McpToolDefinition[]): { safe: McpToolDefinition[]; blocked: { tool: McpToolDefinition; reason: string }[] } {
+  const safe: McpToolDefinition[] = [];
+  const blocked: { tool: McpToolDefinition; reason: string }[] = [];
+  for (const tool of tools) {
+    const result = scanToolSecurity(tool);
+    if (result.safe) {
+      safe.push(tool);
+    } else {
+      blocked.push({ tool, reason: result.reason! });
+    }
+  }
+  return { safe, blocked };
+}
+
+const DANGEROUS_ARG_PATTERNS = [
+  /;\s*(rm|del|format|shutdown|reboot|kill|pkill)\b/i,
+  /\|\s*(bash|sh|cmd|powershell)\b/i,
+  /`[^`]*`/,
+  /\$\([^)]+\)/,
+  /&&\s*(rm|del|curl|wget|nc)\b/i,
+  />\s*\/dev\//i,
+  /eval\s*\(/i,
+  /exec\s*\(/i,
+  /__proto__|constructor\s*\[|prototype\s*\[/i,
+];
+
+export function scanToolCallArgs(toolName: string, args: Record<string, unknown>): { safe: boolean; reason?: string } {
+  const argsStr = JSON.stringify(args);
+
+  if (argsStr.length > 100000) {
+    return { safe: false, reason: "Tool call arguments are suspiciously large" };
+  }
+
+  for (const pattern of DANGEROUS_ARG_PATTERNS) {
+    if (pattern.test(argsStr)) {
+      return { safe: false, reason: `Tool call arguments contain potentially dangerous content matching: ${pattern.source}` };
+    }
+  }
+
+  const stringValues = extractStringValues(args);
+  for (const val of stringValues) {
+    for (const pattern of DANGEROUS_ARG_PATTERNS) {
+      if (pattern.test(val)) {
+        return { safe: false, reason: `Argument value contains potentially dangerous content` };
+      }
+    }
+  }
+
+  return { safe: true };
+}
+
+function extractStringValues(obj: unknown, depth = 0): string[] {
+  if (depth > 10) return [];
+  if (typeof obj === "string") return [obj];
+  if (Array.isArray(obj)) return obj.flatMap(v => extractStringValues(v, depth + 1));
+  if (obj && typeof obj === "object") return Object.values(obj).flatMap(v => extractStringValues(v, depth + 1));
+  return [];
+}
+
+interface RemoteMcpClient {
+  serverId: string;
+  baseUrl: string;
+  headers: Record<string, string>;
+  tools: McpToolDefinition[];
+  connected: boolean;
+  messageEndpoint: string | null;
+}
+
+const remoteClients = new Map<string, RemoteMcpClient>();
+
+function validateRemoteUrl(baseUrl: string): { valid: boolean; error?: string } {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+  if (url.protocol !== "https:") {
+    return { valid: false, error: "MCP server URL must use HTTPS" };
+  }
+  const host = url.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" ||
+      host === "[::1]" || host.startsWith("10.") || host.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+      host.endsWith(".local") || host.endsWith(".internal")) {
+    return { valid: false, error: "URL must not point to internal/private hosts" };
+  }
+  return { valid: true };
+}
+
+function validateDiscoveredEndpoint(discoveredUrl: string, originalSseUrl: string): string | null {
+  let resolved: URL;
+  try {
+    resolved = new URL(discoveredUrl, originalSseUrl);
+  } catch {
+    return null;
+  }
+
+  if (resolved.protocol !== "https:") {
+    return null;
+  }
+
+  const originalHost = new URL(originalSseUrl).hostname.toLowerCase();
+  const discoveredHost = resolved.hostname.toLowerCase();
+  if (discoveredHost !== originalHost) {
+    return null;
+  }
+
+  const hostValidation = validateRemoteUrl(resolved.toString());
+  if (!hostValidation.valid) {
+    return null;
+  }
+
+  return resolved.toString();
+}
+
+async function discoverSseMessageEndpoint(sseUrl: string, headers: Record<string, string>): Promise<string | null> {
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => { controller.abort(); resolve(null); }, 10000);
+
+    function resolveEndpoint(rawEndpoint: string): void {
+      const validated = validateDiscoveredEndpoint(rawEndpoint, sseUrl);
+      clearTimeout(timeout);
+      controller.abort();
+      resolve(validated);
+    }
+
+    fetch(sseUrl, {
+      method: "GET",
+      headers: { Accept: "text/event-stream", ...headers },
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok || !response.body) {
+          clearTimeout(timeout);
+          resolve(null);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        function read(): void {
+          reader.read().then(({ done, value }) => {
+            if (done) { clearTimeout(timeout); resolve(null); return; }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            for (const line of lines) {
+              if (line.startsWith("data:")) {
+                const data = line.slice(5).trim();
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.endpoint || parsed.messageEndpoint || parsed.uri) {
+                    const endpoint = parsed.endpoint || parsed.messageEndpoint || parsed.uri;
+                    resolveEndpoint(endpoint);
+                    return;
+                  }
+                } catch {}
+              }
+              if (line.startsWith("event: endpoint")) {
+                const nextDataLine = lines[lines.indexOf(line) + 1];
+                if (nextDataLine?.startsWith("data:")) {
+                  const endpoint = nextDataLine.slice(5).trim();
+                  resolveEndpoint(endpoint);
+                  return;
+                }
+              }
+            }
+            buffer = lines[lines.length - 1] || "";
+            read();
+          }).catch(() => { clearTimeout(timeout); resolve(null); });
+        }
+        read();
+      })
+      .catch(() => { clearTimeout(timeout); resolve(null); });
+  });
+}
+
+async function sendJsonRpc(url: string, method: string, params: Record<string, unknown> | undefined, headers: Record<string, string>, timeoutMs = 15000): Promise<JsonRpcResponse | null> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ jsonrpc: "2.0", method, id: Date.now(), params }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function testRemoteConnection(baseUrl: string, headers: Record<string, string> = {}): Promise<{ success: boolean; message: string; toolCount?: number }> {
+  const validation = validateRemoteUrl(baseUrl);
+  if (!validation.valid) {
+    return { success: false, message: validation.error! };
+  }
+
+  try {
+    const isSseUrl = /\/sse\/?$/.test(baseUrl);
+
+    if (isSseUrl) {
+      const messageEndpoint = await discoverSseMessageEndpoint(baseUrl, headers);
+      if (messageEndpoint) {
+        const initResp = await sendJsonRpc(messageEndpoint, "initialize", {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "replit-agent", version: "1.0.0" },
+        }, headers);
+        if (initResp?.result?.serverInfo) {
+          return { success: true, message: `Connected via SSE to ${initResp.result.serverInfo.name || "MCP server"} v${initResp.result.serverInfo.version || "unknown"}` };
+        }
+        return { success: true, message: "Connected via SSE (message endpoint discovered)" };
+      }
+    }
+
+    const httpUrl = baseUrl.replace(/\/sse\/?$/, "");
+    const initResp = await sendJsonRpc(httpUrl, "initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "replit-agent", version: "1.0.0" },
+    }, headers);
+
+    if (initResp?.result?.serverInfo) {
+      return { success: true, message: `Connected to ${initResp.result.serverInfo.name || "MCP server"} v${initResp.result.serverInfo.version || "unknown"}` };
+    }
+
+    if (initResp?.result) {
+      return { success: true, message: "Server responded to MCP initialize" };
+    }
+
+    return { success: false, message: "Server did not respond to MCP initialize handshake. Ensure it supports the MCP protocol." };
+  } catch (err: any) {
+    const msg = err.name === "TimeoutError" ? "Connection timed out" : (err.message || "Connection failed");
+    return { success: false, message: msg };
+  }
+}
+
+export async function connectRemoteServer(
+  serverId: string,
+  baseUrl: string,
+  headers: Record<string, string> = {}
+): Promise<{ success: boolean; tools: McpToolDefinition[]; blocked: { tool: McpToolDefinition; reason: string }[]; error?: string }> {
+  const validation = validateRemoteUrl(baseUrl);
+  if (!validation.valid) {
+    return { success: false, tools: [], blocked: [], error: validation.error };
+  }
+
+  try {
+    let messageEndpoint: string | null = null;
+    const isSseUrl = /\/sse\/?$/.test(baseUrl);
+
+    if (isSseUrl) {
+      messageEndpoint = await discoverSseMessageEndpoint(baseUrl, headers);
+    }
+
+    const rpcUrl = messageEndpoint || baseUrl.replace(/\/sse\/?$/, "");
+
+    const initResp = await sendJsonRpc(rpcUrl, "initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: { tools: {} },
+      clientInfo: { name: "replit-agent", version: "1.0.0" },
+    }, headers);
+
+    if (!initResp || initResp.error) {
+      const errMsg = initResp?.error?.message || "Server did not respond to initialize handshake";
+      return { success: false, tools: [], blocked: [], error: errMsg };
+    }
+
+    await sendJsonRpc(rpcUrl, "notifications/initialized", undefined, headers).catch(() => {});
+
+    let rawTools: McpToolDefinition[] = [];
+
+    const toolsResp = await sendJsonRpc(rpcUrl, "tools/list", undefined, headers);
+    if (toolsResp?.result?.tools) {
+      rawTools = (toolsResp.result.tools as any[]).map((t: any) => ({
+        name: t.name,
+        description: t.description || "",
+        inputSchema: t.inputSchema || {},
+      }));
+    }
+
+    if (rawTools.length === 0 && !messageEndpoint) {
+      const altUrl = `${rpcUrl}/tools/list`;
+      const altResp = await sendJsonRpc(altUrl, "tools/list", undefined, headers);
+      if (altResp?.result?.tools) {
+        rawTools = (altResp.result.tools as any[]).map((t: any) => ({
+          name: t.name,
+          description: t.description || "",
+          inputSchema: t.inputSchema || {},
+        }));
+      }
+    }
+
+    const { safe, blocked } = scanAllTools(rawTools);
+
+    const client: RemoteMcpClient = {
+      serverId,
+      baseUrl,
+      headers,
+      tools: safe,
+      connected: true,
+      messageEndpoint,
+    };
+    remoteClients.set(serverId, client);
+
+    return { success: true, tools: safe, blocked };
+  } catch (err: any) {
+    const errorMsg = err.name === "TimeoutError" ? "Connection timed out (15s)" : (err.message || "Unknown error");
+    return { success: false, tools: [], blocked: [], error: errorMsg };
+  }
+}
+
+export async function callRemoteTool(
+  serverId: string,
+  toolName: string,
+  args: Record<string, any>,
+  baseUrl?: string,
+  headers?: Record<string, string>
+): Promise<string> {
+  let client = remoteClients.get(serverId);
+
+  if (!client && baseUrl) {
+    const result = await connectRemoteServer(serverId, baseUrl, headers || {});
+    if (!result.success) {
+      throw new Error(`Failed to connect to MCP server: ${result.error}`);
+    }
+    client = remoteClients.get(serverId);
+  }
+
+  if (!client) {
+    throw new Error("MCP server not connected");
+  }
+
+  const argScan = scanToolCallArgs(toolName, args);
+  if (!argScan.safe) {
+    throw new Error(`Security scanner blocked tool call: ${argScan.reason}`);
+  }
+
+  const rpcUrl = client.messageEndpoint || client.baseUrl.replace(/\/sse\/?$/, "");
+
+  const data = await sendJsonRpc(rpcUrl, "tools/call", { name: toolName, arguments: args }, client.headers, 30000);
+
+  if (!data) {
+    throw new Error("Tool call failed: no response from server");
+  }
+
+  if (data.error) {
+    throw new Error(data.error.message || "Tool call returned an error");
+  }
+
+  const content = data.result?.content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c: any) => {
+        if (c.type === "text") return c.text;
+        if (c.type === "image") return `[Image: ${c.mimeType || "image"}]`;
+        return JSON.stringify(c);
+      })
+      .join("\n");
+  }
+
+  return JSON.stringify(data.result || data);
+}
+
+export function getRemoteClient(serverId: string): RemoteMcpClient | undefined {
+  return remoteClients.get(serverId);
+}
+
+export function disconnectRemoteClient(serverId: string): void {
+  remoteClients.delete(serverId);
+}

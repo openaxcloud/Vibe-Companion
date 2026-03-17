@@ -9,8 +9,9 @@ import {
   Database, Sparkles, CreditCard, Cloud, Mail, Phone, Flame, Zap, Github, Plug,
   MessageSquare, MessageCircle, Send, Smartphone, BookOpen, Table2, Calendar,
   Users, Music, Layout, ClipboardList, RefreshCw, CheckCircle2, XCircle, AlertCircle,
-  Warehouse, BarChart, GitBranch, Hexagon,
+  Warehouse, BarChart, GitBranch, Hexagon, Shield, Globe, Link2, ExternalLink,
 } from "lucide-react";
+import type { McpServer, McpTool } from "@shared/schema";
 
 interface CatalogEntry {
   id: string;
@@ -485,7 +486,414 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
             <p className="text-[10px] text-[var(--ide-text-muted)] mt-1">Integration catalog is being loaded</p>
           </div>
         )}
+
+        <McpServersSection projectId={projectId} />
       </div>
+    </div>
+  );
+}
+
+function McpServersSection({ projectId }: { projectId: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [mcpName, setMcpName] = useState("");
+  const [mcpBaseUrl, setMcpBaseUrl] = useState("");
+  const [mcpHeaderKey, setMcpHeaderKey] = useState("");
+  const [mcpHeaderValue, setMcpHeaderValue] = useState("");
+  const [mcpHeaders, setMcpHeaders] = useState<{ key: string; value: string }[]>([]);
+  const [testingServerId, setTestingServerId] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [expandedToolsId, setExpandedToolsId] = useState<string | null>(null);
+  const [pendingChecked, setPendingChecked] = useState(false);
+
+  React.useEffect(() => {
+    if (pendingChecked) return;
+    const pending = sessionStorage.getItem("pending_mcp_server");
+    if (pending) {
+      try {
+        const data = JSON.parse(pending);
+        if (data.displayName) setMcpName(data.displayName);
+        if (data.baseUrl) setMcpBaseUrl(data.baseUrl);
+        if (data.headers) {
+          const headerEntries = Object.entries(data.headers).map(([key, value]) => ({ key, value: String(value) }));
+          setMcpHeaders(headerEntries);
+        }
+        setShowAddForm(true);
+        sessionStorage.removeItem("pending_mcp_server");
+      } catch {}
+    }
+    setPendingChecked(true);
+  }, [pendingChecked]);
+
+  const mcpServersQuery = useQuery<McpServer[]>({
+    queryKey: ["/api/projects", projectId, "mcp", "servers"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/mcp/servers`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load MCP servers");
+      return res.json();
+    },
+  });
+
+  const mcpToolsQuery = useQuery<McpTool[]>({
+    queryKey: ["/api/projects", projectId, "mcp", "servers", expandedToolsId, "tools"],
+    queryFn: async () => {
+      if (!expandedToolsId) return [];
+      const res = await fetch(`/api/projects/${projectId}/mcp/servers/${expandedToolsId}/tools`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load tools");
+      return res.json();
+    },
+    enabled: !!expandedToolsId,
+  });
+
+  const [testPassed, setTestPassed] = useState(false);
+
+  const addMcpServer = useMutation({
+    mutationFn: async () => {
+      if (!testPassed) {
+        const headersObj = Object.fromEntries(mcpHeaders.map(h => [h.key, h.value]));
+        const testRes = await apiRequest("POST", `/api/projects/${projectId}/mcp/servers/test-remote`, {
+          baseUrl: mcpBaseUrl,
+          headers: headersObj,
+        });
+        const testData = await testRes.json();
+        if (!testData.success) {
+          throw new Error(testData.message || "Connection test failed. Fix the URL or headers and try again.");
+        }
+      }
+      const headersObj = Object.fromEntries(mcpHeaders.map(h => [h.key, h.value]));
+      const res = await apiRequest("POST", `/api/projects/${projectId}/mcp/servers`, {
+        name: mcpName,
+        baseUrl: mcpBaseUrl,
+        headers: headersObj,
+        serverType: "remote",
+      });
+      return res.json();
+    },
+    onSuccess: async (server: McpServer) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "mcp", "servers"] });
+      setShowAddForm(false);
+      setMcpName("");
+      setMcpBaseUrl("");
+      setMcpHeaders([]);
+      setTestPassed(false);
+
+      try {
+        await apiRequest("POST", `/api/projects/${projectId}/mcp/servers/${server.id}/connect`);
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "mcp", "servers"] });
+        toast({ title: "MCP server connected", description: "Tools discovered and available" });
+      } catch {
+        toast({ title: "Server saved but tool discovery failed", description: "You can retry connection later", variant: "destructive" });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to add server", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const testMcpServer = useMutation({
+    mutationFn: async (serverId: string) => {
+      setTestingServerId(serverId);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/mcp/servers/${serverId}/test`);
+      return res.json();
+    },
+    onSuccess: (data: { success: boolean; message: string }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "mcp", "servers"] });
+      toast({
+        title: data.success ? "Connection verified" : "Connection test failed",
+        description: data.message,
+        variant: data.success ? "default" : "destructive",
+      });
+      setTestingServerId(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Test failed", description: err.message, variant: "destructive" });
+      setTestingServerId(null);
+    },
+  });
+
+  const testRemoteMcpServer = useMutation({
+    mutationFn: async () => {
+      setIsTesting(true);
+      const headersObj = Object.fromEntries(mcpHeaders.map(h => [h.key, h.value]));
+      const res = await apiRequest("POST", `/api/projects/${projectId}/mcp/servers/test-remote`, {
+        baseUrl: mcpBaseUrl,
+        headers: headersObj,
+      });
+      return res.json();
+    },
+    onSuccess: (data: { success: boolean; message: string }) => {
+      if (data.success) setTestPassed(true);
+      toast({
+        title: data.success ? "Connection test passed" : "Connection test failed",
+        description: data.message,
+        variant: data.success ? "default" : "destructive",
+      });
+      setIsTesting(false);
+    },
+    onError: (err: any) => {
+      setTestPassed(false);
+      toast({ title: "Test failed", description: err.message, variant: "destructive" });
+      setIsTesting(false);
+    },
+  });
+
+  const disconnectMcp = useMutation({
+    mutationFn: async (serverId: string) => {
+      await apiRequest("DELETE", `/api/projects/${projectId}/mcp/servers/${serverId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "mcp", "servers"] });
+      toast({ title: "MCP server removed" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to remove", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const mcpServers = (mcpServersQuery.data || []).filter(s => s.serverType === "remote");
+  const mcpTools = mcpToolsQuery.data || [];
+
+  const addMcpHeader = () => {
+    if (mcpHeaderKey && mcpHeaderValue) {
+      setMcpHeaders(prev => [...prev, { key: mcpHeaderKey, value: mcpHeaderValue }]);
+      setMcpHeaderKey("");
+      setMcpHeaderValue("");
+    }
+  };
+
+  return (
+    <div className="border-t border-[var(--ide-border)]">
+      <div className="px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Shield className="w-3.5 h-3.5 text-[#7C65CB]" />
+          <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">MCP Servers</span>
+          {mcpServers.length > 0 && (
+            <span className="text-[8px] text-[var(--ide-text-muted)]">({mcpServers.length})</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <a
+            href="/mcp-directory"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 text-[var(--ide-text-muted)] hover:text-[#0079F2]"
+            title="Browse MCP Directory"
+            data-testid="link-mcp-directory"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </a>
+          <button
+            className="p-1 text-[var(--ide-text-muted)] hover:text-[#0CCE6B]"
+            onClick={() => setShowAddForm(!showAddForm)}
+            title="Add MCP Server"
+            data-testid="button-add-mcp-server"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {showAddForm && (
+        <div className="px-3 pb-2" data-testid="mcp-add-form">
+          <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2.5 space-y-2">
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)] block mb-0.5">Display Name</label>
+              <Input
+                value={mcpName}
+                onChange={(e) => setMcpName(e.target.value)}
+                placeholder="My MCP Server"
+                className="bg-[var(--ide-surface)] border-[var(--ide-border)] h-7 text-[10px] text-[var(--ide-text)] rounded"
+                data-testid="input-mcp-name"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)] block mb-0.5">Base URL (HTTPS)</label>
+              <Input
+                value={mcpBaseUrl}
+                onChange={(e) => { setMcpBaseUrl(e.target.value); setTestPassed(false); }}
+                placeholder="https://mcp.example.com/v1/sse"
+                className="bg-[var(--ide-surface)] border-[var(--ide-border)] h-7 text-[10px] text-[var(--ide-text)] font-mono rounded"
+                data-testid="input-mcp-url"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)] block mb-0.5">Headers (Optional)</label>
+              {mcpHeaders.map((h, i) => (
+                <div key={i} className="flex items-center gap-1 mb-1">
+                  <span className="text-[8px] font-mono bg-[var(--ide-surface)] border border-[var(--ide-border)] px-1.5 py-0.5 rounded flex-1 truncate">
+                    {h.key}
+                  </span>
+                  <button onClick={() => setMcpHeaders(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-300">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
+              <div className="flex items-center gap-1">
+                <Input
+                  value={mcpHeaderKey}
+                  onChange={(e) => setMcpHeaderKey(e.target.value)}
+                  placeholder="X-API-Key"
+                  className="bg-[var(--ide-surface)] border-[var(--ide-border)] h-6 text-[9px] rounded flex-1"
+                  data-testid="input-mcp-header-key"
+                />
+                <Input
+                  value={mcpHeaderValue}
+                  onChange={(e) => setMcpHeaderValue(e.target.value)}
+                  placeholder="value"
+                  type="password"
+                  className="bg-[var(--ide-surface)] border-[var(--ide-border)] h-6 text-[9px] rounded flex-1"
+                  data-testid="input-mcp-header-value"
+                />
+                <button
+                  onClick={addMcpHeader}
+                  disabled={!mcpHeaderKey || !mcpHeaderValue}
+                  className="text-[9px] text-[#0079F2] hover:text-[#0079F2]/80 disabled:opacity-40 px-1"
+                  data-testid="button-mcp-add-header"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 pt-1">
+              <Button
+                className="h-7 text-[10px] bg-[var(--ide-surface)] hover:bg-[var(--ide-surface)]/80 text-[var(--ide-text)] border border-[var(--ide-border)] rounded font-medium gap-1 px-2"
+                onClick={() => testRemoteMcpServer.mutate()}
+                disabled={!mcpBaseUrl || !mcpBaseUrl.startsWith("https://") || isTesting}
+                data-testid="button-mcp-test"
+              >
+                {isTesting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                Test
+              </Button>
+              <Button
+                className="flex-1 h-7 text-[10px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded font-medium gap-1"
+                onClick={() => addMcpServer.mutate()}
+                disabled={!mcpName || !mcpBaseUrl || !mcpBaseUrl.startsWith("https://") || addMcpServer.isPending}
+                data-testid="button-mcp-save"
+              >
+                {addMcpServer.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                Test & Save
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-7 px-2 text-[10px] text-[var(--ide-text-muted)]"
+                onClick={() => { setShowAddForm(false); setMcpName(""); setMcpBaseUrl(""); setMcpHeaders([]); }}
+                data-testid="button-mcp-cancel"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mcpServers.length > 0 && (
+        <div className="space-y-0.5 pb-2">
+          {mcpServers.map(server => (
+            <div key={server.id} data-testid={`mcp-server-${server.id}`}>
+              <div className="px-3 py-2 hover:bg-[var(--ide-surface)]/30 transition-colors group">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[#7C65CB]/15">
+                    <Globe className="w-3.5 h-3.5 text-[#7C65CB]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-[var(--ide-text)] font-medium truncate" data-testid={`text-mcp-name-${server.id}`}>{server.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full ${
+                        server.status === "connected"
+                          ? "bg-[#0CCE6B]/15 text-[#0CCE6B]"
+                          : server.status === "error"
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-[var(--ide-surface)] text-[var(--ide-text-muted)]"
+                      }`} data-testid={`status-mcp-${server.id}`}>
+                        {server.status === "connected" ? (
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                        ) : server.status === "error" ? (
+                          <XCircle className="w-2.5 h-2.5" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--ide-text-muted)]" />
+                        )}
+                        {server.status}
+                      </span>
+                      <span className="text-[8px] text-[var(--ide-text-muted)] font-mono truncate max-w-[120px]">{server.baseUrl}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      className="p-1 text-[var(--ide-text-muted)] hover:text-[#0079F2]"
+                      onClick={() => testMcpServer.mutate(server.id)}
+                      title="Test connection"
+                      disabled={testingServerId === server.id}
+                      data-testid={`button-test-mcp-${server.id}`}
+                    >
+                      {testingServerId === server.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    </button>
+                    <button
+                      className="p-1 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
+                      onClick={() => setExpandedToolsId(expandedToolsId === server.id ? null : server.id)}
+                      title="View tools"
+                      data-testid={`button-tools-mcp-${server.id}`}
+                    >
+                      {expandedToolsId === server.id ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    </button>
+                    <button
+                      className="p-1 text-[var(--ide-text-muted)] hover:text-red-400"
+                      onClick={() => disconnectMcp.mutate(server.id)}
+                      title="Disconnect"
+                      data-testid={`button-disconnect-mcp-${server.id}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {expandedToolsId === server.id && (
+                <div className="px-3 pb-2">
+                  <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2 max-h-[150px] overflow-y-auto">
+                    {mcpToolsQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-2">
+                        <Loader2 className="w-3 h-3 animate-spin text-[var(--ide-text-muted)]" />
+                      </div>
+                    ) : mcpTools.length === 0 ? (
+                      <p className="text-[9px] text-[var(--ide-text-muted)] text-center py-1">No tools discovered yet</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {mcpTools.map(tool => (
+                          <div key={tool.id} className="flex items-start gap-1.5 text-[9px]">
+                            <Zap className="w-2.5 h-2.5 text-[#7C65CB] shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-mono text-[var(--ide-text)]">{tool.name}</span>
+                              {tool.description && (
+                                <p className="text-[var(--ide-text-muted)] leading-snug">{tool.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {mcpServers.length === 0 && !showAddForm && (
+        <div className="px-3 pb-3">
+          <div className="rounded-md bg-[var(--ide-bg)]/50 border border-dashed border-[var(--ide-border)] p-3 text-center">
+            <Globe className="w-4 h-4 text-[var(--ide-text-muted)] opacity-40 mx-auto mb-1" />
+            <p className="text-[9px] text-[var(--ide-text-muted)]">No MCP servers connected</p>
+            <button
+              className="text-[9px] text-[#0079F2] hover:underline mt-1"
+              onClick={() => setShowAddForm(true)}
+              data-testid="button-mcp-add-first"
+            >
+              Add a remote MCP server
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
