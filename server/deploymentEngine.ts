@@ -1014,6 +1014,7 @@ interface DeploymentSettings {
   responseHeaders: Array<{ path: string; name: string; value: string }>;
   rewrites: Array<{ from: string; to: string }>;
   isPrivate: boolean;
+  projectId: string;
 }
 
 async function getDeploymentSettings(slug: string): Promise<DeploymentSettings | null> {
@@ -1034,6 +1035,7 @@ async function getDeploymentSettings(slug: string): Promise<DeploymentSettings |
             responseHeaders: dep.responseHeaders || [],
             rewrites: dep.rewrites || [],
             isPrivate: dep.isPrivate ?? false,
+            projectId: dep.projectId,
           };
         }
       }
@@ -1042,13 +1044,72 @@ async function getDeploymentSettings(slug: string): Promise<DeploymentSettings |
   return null;
 }
 
-function injectWidgets(html: string, settings: { showBadge: boolean; enableFeedback: boolean }): string {
+function injectWidgets(html: string, settings: { showBadge: boolean; enableFeedback: boolean; projectId: string }): string {
   const widgets: string[] = [];
   if (settings.showBadge) {
     widgets.push(`<div style="position:fixed;bottom:8px;right:8px;background:#0E1525;color:#F5F9FC;padding:4px 10px;border-radius:6px;font-size:11px;font-family:sans-serif;opacity:0.8;z-index:99999;pointer-events:none">Deployed with E-Code</div>`);
   }
   if (settings.enableFeedback) {
-    widgets.push(`<div id="ecode-feedback" style="position:fixed;bottom:8px;left:8px;z-index:99999"><button onclick="document.getElementById('ecode-fb-form').style.display=document.getElementById('ecode-fb-form').style.display==='none'?'block':'none'" style="background:#0079F2;color:#fff;border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">💬</button><div id="ecode-fb-form" style="display:none;position:absolute;bottom:50px;left:0;background:#1A2035;border:1px solid #2D3548;border-radius:8px;padding:12px;width:250px"><textarea placeholder="Send feedback..." style="width:100%;height:60px;background:#0E1525;color:#F5F9FC;border:1px solid #2D3548;border-radius:4px;padding:6px;resize:none;font-family:sans-serif;font-size:13px"></textarea><button style="margin-top:6px;background:#0079F2;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:12px">Send</button></div></div>`);
+    widgets.push(`<div id="ecode-feedback" style="position:fixed;bottom:8px;left:8px;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
+<button id="ecode-fb-toggle" style="background:#0079F2;color:#fff;border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;font-size:20px;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center" aria-label="Send feedback">💬</button>
+<div id="ecode-fb-form" style="display:none;position:absolute;bottom:54px;left:0;background:#1A2035;border:1px solid #2D3548;border-radius:10px;padding:16px;width:300px;box-shadow:0 4px 20px rgba(0,0,0,0.4)">
+<div style="font-size:14px;font-weight:600;color:#F5F9FC;margin-bottom:10px">Send Feedback</div>
+<input id="ecode-fb-name" placeholder="Name (optional)" style="width:100%;box-sizing:border-box;height:32px;background:#0E1525;color:#F5F9FC;border:1px solid #2D3548;border-radius:6px;padding:0 8px;font-size:13px;margin-bottom:6px" />
+<input id="ecode-fb-email" placeholder="Email (optional)" type="email" style="width:100%;box-sizing:border-box;height:32px;background:#0E1525;color:#F5F9FC;border:1px solid #2D3548;border-radius:6px;padding:0 8px;font-size:13px;margin-bottom:6px" />
+<textarea id="ecode-fb-text" placeholder="Describe the issue or share your thoughts..." style="width:100%;box-sizing:border-box;height:80px;background:#0E1525;color:#F5F9FC;border:1px solid #2D3548;border-radius:6px;padding:8px;resize:none;font-size:13px;margin-bottom:6px"></textarea>
+<div style="margin-bottom:8px"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#8B949E;font-size:12px"><input id="ecode-fb-file" type="file" multiple accept="image/*,.pdf,.txt" style="display:none" /><span id="ecode-fb-file-label" style="background:#0E1525;border:1px solid #2D3548;border-radius:4px;padding:3px 8px">📎 Attach files</span></label></div>
+<div style="display:flex;gap:8px;justify-content:flex-end">
+<button id="ecode-fb-cancel" style="background:transparent;color:#8B949E;border:1px solid #2D3548;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">Cancel</button>
+<button id="ecode-fb-submit" style="background:#0079F2;color:#fff;border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:500">Send</button>
+</div>
+<div id="ecode-fb-status" style="display:none;margin-top:8px;font-size:12px;text-align:center"></div>
+</div>
+</div>
+<script>
+(function(){
+  var pid="${settings.projectId}";
+  var toggle=document.getElementById("ecode-fb-toggle");
+  var form=document.getElementById("ecode-fb-form");
+  var cancel=document.getElementById("ecode-fb-cancel");
+  var submit=document.getElementById("ecode-fb-submit");
+  var fileInput=document.getElementById("ecode-fb-file");
+  var fileLabel=document.getElementById("ecode-fb-file-label");
+  var status=document.getElementById("ecode-fb-status");
+  toggle.onclick=function(){form.style.display=form.style.display==="none"?"block":"none"};
+  cancel.onclick=function(){form.style.display="none"};
+  fileInput.onchange=function(){
+    fileLabel.textContent=fileInput.files.length>0?"📎 "+fileInput.files.length+" file(s)":"📎 Attach files";
+  };
+  submit.onclick=function(){
+    var text=document.getElementById("ecode-fb-text").value.trim();
+    if(!text){status.style.display="block";status.style.color="#E54D4D";status.textContent="Please enter feedback text";return}
+    submit.disabled=true;submit.textContent="Sending...";
+    var fd=new FormData();
+    fd.append("content",text);
+    var n=document.getElementById("ecode-fb-name").value.trim();
+    var e=document.getElementById("ecode-fb-email").value.trim();
+    if(n)fd.append("visitorName",n);
+    if(e)fd.append("visitorEmail",e);
+    fd.append("pageUrl",window.location.href);
+    if(fileInput.files){for(var i=0;i<fileInput.files.length;i++)fd.append("files",fileInput.files[i])}
+    fetch("/api/feedback/"+pid,{method:"POST",body:fd})
+    .then(function(r){
+      if(r.ok){
+        status.style.display="block";status.style.color="#0CCE6B";status.textContent="Thank you for your feedback!";
+        document.getElementById("ecode-fb-text").value="";
+        document.getElementById("ecode-fb-name").value="";
+        document.getElementById("ecode-fb-email").value="";
+        fileInput.value="";fileLabel.textContent="📎 Attach files";
+        setTimeout(function(){form.style.display="none";status.style.display="none"},2000);
+      } else {
+        r.json().then(function(d){status.style.display="block";status.style.color="#E54D4D";status.textContent=d.message||"Failed to send"});
+      }
+      submit.disabled=false;submit.textContent="Send";
+    })
+    .catch(function(){status.style.display="block";status.style.color="#E54D4D";status.textContent="Network error";submit.disabled=false;submit.textContent="Send"});
+  };
+})();
+</script>`);
   }
   if (widgets.length === 0) return html;
   const injection = widgets.join("");

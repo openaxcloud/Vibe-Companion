@@ -2203,3 +2203,31 @@ export const artifactTemplates = pgTable("artifact_templates", {
 export const insertArtifactTemplateSchema = createInsertSchema(artifactTemplates).omit({ id: true });
 export type InsertArtifactTemplate = z.infer<typeof insertArtifactTemplateSchema>;
 export type ArtifactTemplate = typeof artifactTemplates.$inferSelect;
+
+export const deploymentFeedback = pgTable("deployment_feedback", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  deploymentId: varchar("deployment_id", { length: 36 }),
+  visitorName: text("visitor_name"),
+  visitorEmail: text("visitor_email"),
+  content: text("content").notNull(),
+  attachments: json("attachments").$type<string[]>().default([]),
+  pageUrl: text("page_url"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => [
+  index("deployment_feedback_project_idx").on(table.projectId),
+  index("deployment_feedback_status_idx").on(table.status),
+]);
+export const insertDeploymentFeedbackSchema = createInsertSchema(deploymentFeedback).pick({
+  projectId: true,
+  deploymentId: true,
+  visitorName: true,
+  visitorEmail: true,
+  content: true,
+  attachments: true,
+  pageUrl: true,
+});
+export type InsertDeploymentFeedback = z.infer<typeof insertDeploymentFeedbackSchema>;
+export type DeploymentFeedback = typeof deploymentFeedback.$inferSelect;

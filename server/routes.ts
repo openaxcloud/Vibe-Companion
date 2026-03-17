@@ -916,6 +916,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/ai/chat",
   "/api/ai/complete",
   "/api/billing/webhook",
+  "/api/feedback",
   "/api/stripe/webhook",
   "/api/analytics/track",
   "/api/webhooks/automation",
@@ -1003,10 +1004,26 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   const { mkdir } = await import("fs/promises");
+  const express = await import("express");
   const persistentStorageDir = path.join(process.cwd(), ".storage", "objects");
   const persistentStorageTmp = path.join(process.cwd(), ".storage", "tmp");
+  const feedbackUploadsDir = path.join(process.cwd(), "uploads", "feedback");
   await mkdir(persistentStorageDir, { recursive: true });
   await mkdir(persistentStorageTmp, { recursive: true });
+  await mkdir(feedbackUploadsDir, { recursive: true });
+  app.get("/uploads/feedback/:projectId/:filename", requireAuth, async (req: Request, res: Response) => {
+    const { projectId, filename } = req.params;
+    const project = await storage.getProject(projectId);
+    if (!project || project.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    if (/[\/\\]|\.\./.test(filename)) {
+      return res.status(400).json({ message: "Invalid filename" });
+    }
+    const filepath = path.join(feedbackUploadsDir, projectId, filename);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.sendFile(filepath);
+  });
 
   import("./workflowExecutor").then(({ setBroadcastFn }) => {
     setBroadcastFn(broadcastToProject);
@@ -16513,6 +16530,120 @@ Respond ONLY with the JSON array, no other text.`;
   } catch (e: any) {
     log(`storage_bandwidth migration: ${e.message}`, "seed");
   }
+
+  // --- DEPLOYMENT FEEDBACK ---
+  const FEEDBACK_ALLOWED_MIMES = new Set([
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "application/pdf", "text/plain",
+  ]);
+  const feedbackUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 3 },
+    fileFilter: (_req, file, cb) => {
+      cb(null, FEEDBACK_ALLOWED_MIMES.has(file.mimetype));
+    },
+  });
+
+  app.post("/api/feedback/:projectId", feedbackUpload.array("files", 3), async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const { content, visitorName, visitorEmail, pageUrl } = req.body;
+      if (!content || typeof content !== "string" || content.trim().length === 0) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+      if (content.length > 5000) {
+        return res.status(400).json({ message: "Content is too long (max 5000 characters)" });
+      }
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const deps = await storage.getProjectDeployments(projectId);
+      const liveDep = deps.find(d => d.status === "live" && d.enableFeedback);
+      if (!liveDep) {
+        return res.status(403).json({ message: "Feedback is not enabled for this project" });
+      }
+      const attachments: string[] = [];
+      const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        const fs = await import("fs");
+        const path = await import("path");
+        const uploadDir = path.join(process.cwd(), "uploads", "feedback", projectId);
+        await fs.promises.mkdir(uploadDir, { recursive: true });
+        for (const file of uploadedFiles) {
+          const filename = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const filepath = path.join(uploadDir, filename);
+          await fs.promises.writeFile(filepath, file.buffer);
+          attachments.push(`/uploads/feedback/${projectId}/${filename}`);
+        }
+      }
+      const feedback = await storage.createDeploymentFeedback({
+        projectId,
+        deploymentId: liveDep.id,
+        content: content.trim(),
+        visitorName: visitorName || null,
+        visitorEmail: visitorEmail || null,
+        pageUrl: pageUrl || null,
+        attachments,
+      });
+      return res.status(201).json(feedback);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to submit feedback" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/feedback", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const status = req.query.status as string | undefined;
+      const feedback = await storage.getDeploymentFeedback(projectId, status);
+      return res.json(feedback);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch feedback" });
+    }
+  });
+
+  app.patch("/api/projects/:projectId/feedback/:feedbackId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { projectId, feedbackId } = req.params;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { status } = req.body;
+      if (!status || !["open", "resolved"].includes(status)) {
+        return res.status(400).json({ message: "Status must be 'open' or 'resolved'" });
+      }
+      const updated = await storage.updateDeploymentFeedbackStatus(feedbackId, projectId, status);
+      if (!updated) {
+        return res.status(404).json({ message: "Feedback not found" });
+      }
+      return res.json(updated);
+    } catch {
+      return res.status(500).json({ message: "Failed to update feedback" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/feedback/:feedbackId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { projectId, feedbackId } = req.params;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const deleted = await storage.deleteDeploymentFeedback(feedbackId, projectId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Feedback not found" });
+      }
+      return res.json({ message: "Feedback deleted" });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete feedback" });
+    }
+  });
 
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");

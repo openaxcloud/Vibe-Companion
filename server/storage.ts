@@ -132,6 +132,8 @@ import {
   canvasFrames, canvasAnnotations,
   type CanvasFrame, type InsertCanvasFrame,
   type CanvasAnnotation, type InsertCanvasAnnotation,
+  deploymentFeedback,
+  type DeploymentFeedback, type InsertDeploymentFeedback,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -646,6 +648,12 @@ export interface IStorage {
   createCanvasAnnotation(data: InsertCanvasAnnotation): Promise<CanvasAnnotation>;
   updateCanvasAnnotation(id: string, projectId: string, data: Partial<{ type: string; content: string; x: number; y: number; width: number; height: number; color: string; zIndex: number }>): Promise<CanvasAnnotation | undefined>;
   deleteCanvasAnnotation(id: string, projectId: string): Promise<boolean>;
+
+  createDeploymentFeedback(data: InsertDeploymentFeedback): Promise<DeploymentFeedback>;
+  getDeploymentFeedback(projectId: string, status?: string): Promise<DeploymentFeedback[]>;
+  getDeploymentFeedbackById(id: string): Promise<DeploymentFeedback | undefined>;
+  updateDeploymentFeedbackStatus(id: string, projectId: string, status: string): Promise<DeploymentFeedback | undefined>;
+  deleteDeploymentFeedback(id: string, projectId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3964,6 +3972,40 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCanvasAnnotation(id: string, projectId: string): Promise<boolean> {
     const result = await db.delete(canvasAnnotations).where(and(eq(canvasAnnotations.id, id), eq(canvasAnnotations.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async createDeploymentFeedback(data: InsertDeploymentFeedback): Promise<DeploymentFeedback> {
+    const [feedback] = await db.insert(deploymentFeedback).values(data).returning();
+    return feedback;
+  }
+
+  async getDeploymentFeedback(projectId: string, status?: string): Promise<DeploymentFeedback[]> {
+    if (status) {
+      return db.select().from(deploymentFeedback)
+        .where(and(eq(deploymentFeedback.projectId, projectId), eq(deploymentFeedback.status, status)))
+        .orderBy(desc(deploymentFeedback.createdAt));
+    }
+    return db.select().from(deploymentFeedback)
+      .where(eq(deploymentFeedback.projectId, projectId))
+      .orderBy(desc(deploymentFeedback.createdAt));
+  }
+
+  async getDeploymentFeedbackById(id: string): Promise<DeploymentFeedback | undefined> {
+    const [feedback] = await db.select().from(deploymentFeedback).where(eq(deploymentFeedback.id, id)).limit(1);
+    return feedback;
+  }
+
+  async updateDeploymentFeedbackStatus(id: string, projectId: string, status: string): Promise<DeploymentFeedback | undefined> {
+    const [feedback] = await db.update(deploymentFeedback)
+      .set({ status, resolvedAt: status === "resolved" ? new Date() : null })
+      .where(and(eq(deploymentFeedback.id, id), eq(deploymentFeedback.projectId, projectId)))
+      .returning();
+    return feedback;
+  }
+
+  async deleteDeploymentFeedback(id: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(deploymentFeedback).where(and(eq(deploymentFeedback.id, id), eq(deploymentFeedback.projectId, projectId))).returning();
     return result.length > 0;
   }
 }

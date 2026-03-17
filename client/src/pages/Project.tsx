@@ -13,7 +13,7 @@ import {
   Folder, FolderPlus, ChevronRight, ChevronDown, ChevronUp, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
-  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu, Frame, Maximize2,
+  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu, Frame, Maximize2, Inbox,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -36,6 +36,7 @@ import MCPPanel from "@/components/MCPPanel";
 import SpotlightOverlay from "@/components/SpotlightOverlay";
 import CheckpointsPanel from "@/components/CheckpointsPanel";
 import SSHPanel from "@/components/SSHPanel";
+import FeedbackInboxPanel from "@/components/FeedbackInboxPanel";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
 import type { UserPreferences, MergeConflictFile, MergeResolution } from "@shared/schema";
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
@@ -319,7 +320,7 @@ function _projectPage() {
   };
   const [currentFsPath, setCurrentFsPath] = useState("/");
   const [activeRunnerPath, setActiveRunnerPath] = useState<string | null>(null);
-  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings" | "ssh";
+  type MobileTabType = "files" | "editor" | "terminal" | "preview" | "ai" | "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "workflows" | "monitoring" | "threads" | "networking" | "checkpoints" | "settings" | "ssh" | "inbox";
   const [mobileTab, setMobileTab] = useState<MobileTabType>("ai");
   const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
@@ -337,7 +338,7 @@ function _projectPage() {
   const [moreMenuSwipeY, setMoreMenuSwipeY] = useState(0);
   const moreMenuTouchStartY = useRef(0);
   const lastScrollY = useRef(0);
-  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "fileHistory", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings", "ssh"] as const;
+  const tabOrder = ["files", "editor", "terminal", "preview", "ai", "search", "git", "fileHistory", "deployments", "packages", "database", "tests", "security", "storage", "auth", "integrations", "automations", "workflows", "monitoring", "threads", "networking", "checkpoints", "settings", "ssh", "inbox"] as const;
   const overflowTabs: { id: MobileTabType; icon: typeof Sparkles; label: string; color: string }[] = [
     { id: "ai", icon: Sparkles, label: "Agent", color: "#7C65CB" },
     { id: "search", icon: Search, label: "Search", color: "#0079F2" },
@@ -357,6 +358,7 @@ function _projectPage() {
     { id: "networking", icon: Network, label: "Networking", color: "#06B6D4" },
     { id: "checkpoints", icon: Clock, label: "Checkpoints", color: "#7C65CB" },
     { id: "ssh", icon: Terminal, label: "SSH", color: "#F5A623" },
+    { id: "inbox", icon: Inbox, label: "Feedback Inbox", color: "#0079F2" },
     { id: "settings", icon: Settings, label: "Settings", color: "#0079F2" },
   ];
   const overflowTabIds = overflowTabs.map(t => t.id);
@@ -423,7 +425,7 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh";
+  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh" | "inbox";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -448,6 +450,7 @@ function _projectPage() {
     { id: "settings", label: "Settings", icon: Settings, color: "#0079F2" },
     { id: "envVars", label: "Secrets", icon: Key, color: "#F5A623" },
     { id: "ssh", label: "SSH", icon: Terminal, color: "#F5A623" },
+    { id: "inbox", label: "Feedback Inbox", icon: Inbox, color: "#0079F2" },
   ];
   const [openPanelTabs, setOpenPanelTabs] = useState<ToolPanelId[]>([]);
   const [activePanelTab, setActivePanelTab] = useState<ToolPanelId | null>(null);
@@ -520,6 +523,7 @@ function _projectPage() {
   const monitoringPanelOpen = isPanelOpen("monitoring");
   const threadsPanelOpen = isPanelOpen("threads");
   const networkingPanelOpen = isPanelOpen("networking");
+  const inboxPanelOpen = isPanelOpen("inbox");
   const envVarsPanelOpen = isPanelOpen("envVars");
 
   const handlePanelTabDragStart = useCallback((e: React.DragEvent, tabId: ToolPanelId) => {
@@ -6312,6 +6316,11 @@ function _projectPage() {
                   <SSHPanel projectId={projectId} onClose={() => setMobileTab("editor")} />
                 </div>
               )}
+              {mobileTab === "inbox" && (
+                <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-inbox-panel">
+                  <FeedbackInboxPanel projectId={projectId} onClose={() => setMobileTab("editor")} onSendToAI={(text) => { setMobileTab("ai"); }} />
+                </div>
+              )}
               {mobileTab === "settings" && (
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
                   <UserSettingsPanel
@@ -6690,6 +6699,19 @@ function _projectPage() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Networking</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${inboxPanelOpen ? "text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
+                    onClick={() => openPanel("inbox")}
+                    data-testid="activity-inbox"
+                  >
+                    {inboxPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
+                    <Inbox className="w-5 h-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Feedback Inbox</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -8207,6 +8229,12 @@ function _projectPage() {
             {activePanelTab === "networking" && (
               <div className="flex-1 flex flex-col" data-testid="networking-sidebar">
                 <NetworkingPanel projectId={projectId} onClose={() => closePanel("networking")} />
+              </div>
+            )}
+
+            {activePanelTab === "inbox" && (
+              <div className="flex-1 flex flex-col" data-testid="inbox-sidebar">
+                <FeedbackInboxPanel projectId={projectId} onClose={() => closePanel("inbox")} onSendToAI={(text) => { setAiPanelOpen(true); }} />
               </div>
             )}
 
