@@ -125,6 +125,9 @@ import {
   type Artifact, type InsertArtifact,
   desktopReleases, desktopDownloads,
   type DesktopRelease, type InsertDesktopRelease,
+  canvasFrames, canvasAnnotations,
+  type CanvasFrame, type InsertCanvasFrame,
+  type CanvasAnnotation, type InsertCanvasAnnotation,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -606,6 +609,18 @@ export interface IStorage {
   getDesktopReleasesByVersion(version: string): Promise<DesktopRelease[]>;
   createDesktopRelease(data: InsertDesktopRelease): Promise<DesktopRelease>;
   trackDesktopDownload(platform: string, version: string): Promise<void>;
+
+  getCanvasFrames(projectId: string): Promise<CanvasFrame[]>;
+  getCanvasFrame(id: string): Promise<CanvasFrame | undefined>;
+  createCanvasFrame(data: InsertCanvasFrame): Promise<CanvasFrame>;
+  updateCanvasFrame(id: string, projectId: string, data: Partial<{ name: string; htmlContent: string; x: number; y: number; width: number; height: number; zIndex: number }>): Promise<CanvasFrame | undefined>;
+  deleteCanvasFrame(id: string, projectId: string): Promise<boolean>;
+
+  getCanvasAnnotations(projectId: string): Promise<CanvasAnnotation[]>;
+  getCanvasAnnotation(id: string): Promise<CanvasAnnotation | undefined>;
+  createCanvasAnnotation(data: InsertCanvasAnnotation): Promise<CanvasAnnotation>;
+  updateCanvasAnnotation(id: string, projectId: string, data: Partial<{ type: string; content: string; x: number; y: number; width: number; height: number; color: string; zIndex: number }>): Promise<CanvasAnnotation | undefined>;
+  deleteCanvasAnnotation(id: string, projectId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3644,6 +3659,54 @@ export class DatabaseStorage implements IStorage {
 
   async trackDesktopDownload(platform: string, version: string): Promise<void> {
     await db.insert(desktopDownloads).values({ platform, version });
+  }
+
+  async getCanvasFrames(projectId: string): Promise<CanvasFrame[]> {
+    return db.select().from(canvasFrames).where(eq(canvasFrames.projectId, projectId));
+  }
+
+  async getCanvasFrame(id: string): Promise<CanvasFrame | undefined> {
+    const [frame] = await db.select().from(canvasFrames).where(eq(canvasFrames.id, id)).limit(1);
+    return frame;
+  }
+
+  async createCanvasFrame(data: InsertCanvasFrame): Promise<CanvasFrame> {
+    const [frame] = await db.insert(canvasFrames).values(data).returning();
+    return frame;
+  }
+
+  async updateCanvasFrame(id: string, projectId: string, data: Partial<{ name: string; htmlContent: string; x: number; y: number; width: number; height: number; zIndex: number }>): Promise<CanvasFrame | undefined> {
+    const [frame] = await db.update(canvasFrames).set(data).where(and(eq(canvasFrames.id, id), eq(canvasFrames.projectId, projectId))).returning();
+    return frame;
+  }
+
+  async deleteCanvasFrame(id: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(canvasFrames).where(and(eq(canvasFrames.id, id), eq(canvasFrames.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async getCanvasAnnotations(projectId: string): Promise<CanvasAnnotation[]> {
+    return db.select().from(canvasAnnotations).where(eq(canvasAnnotations.projectId, projectId));
+  }
+
+  async getCanvasAnnotation(id: string): Promise<CanvasAnnotation | undefined> {
+    const [annotation] = await db.select().from(canvasAnnotations).where(eq(canvasAnnotations.id, id)).limit(1);
+    return annotation;
+  }
+
+  async createCanvasAnnotation(data: InsertCanvasAnnotation): Promise<CanvasAnnotation> {
+    const [annotation] = await db.insert(canvasAnnotations).values(data).returning();
+    return annotation;
+  }
+
+  async updateCanvasAnnotation(id: string, projectId: string, data: Partial<{ type: string; content: string; x: number; y: number; width: number; height: number; color: string; zIndex: number }>): Promise<CanvasAnnotation | undefined> {
+    const [annotation] = await db.update(canvasAnnotations).set(data).where(and(eq(canvasAnnotations.id, id), eq(canvasAnnotations.projectId, projectId))).returning();
+    return annotation;
+  }
+
+  async deleteCanvasAnnotation(id: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(canvasAnnotations).where(and(eq(canvasAnnotations.id, id), eq(canvasAnnotations.projectId, projectId))).returning();
+    return result.length > 0;
   }
 }
 

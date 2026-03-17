@@ -15557,6 +15557,153 @@ Respond ONLY with the JSON array, no other text.`;
     }
   });
 
+  // ===================== CANVAS ROUTES =====================
+  const canvasFrameCreateSchema = z.object({
+    name: z.string().max(200).optional().default("Untitled Frame"),
+    htmlContent: z.string().optional().default(""),
+    x: z.number().int().optional().default(0),
+    y: z.number().int().optional().default(0),
+    width: z.number().int().min(50).max(4000).optional().default(400),
+    height: z.number().int().min(50).max(4000).optional().default(300),
+    zIndex: z.number().int().optional().default(0),
+  });
+
+  const canvasFrameUpdateSchema = z.object({
+    name: z.string().max(200).optional(),
+    htmlContent: z.string().optional(),
+    x: z.number().int().optional(),
+    y: z.number().int().optional(),
+    width: z.number().int().min(50).max(4000).optional(),
+    height: z.number().int().min(50).max(4000).optional(),
+    zIndex: z.number().int().optional(),
+  });
+
+  const canvasAnnotationCreateSchema = z.object({
+    type: z.enum(["sticky", "text", "image"]).optional().default("sticky"),
+    content: z.string().optional().default(""),
+    x: z.number().int().optional().default(0),
+    y: z.number().int().optional().default(0),
+    width: z.number().int().min(20).max(2000).optional().default(200),
+    height: z.number().int().min(20).max(2000).optional().default(150),
+    color: z.string().max(20).optional().default("#FBBF24"),
+    zIndex: z.number().int().optional().default(0),
+  });
+
+  const canvasAnnotationUpdateSchema = z.object({
+    type: z.enum(["sticky", "text", "image"]).optional(),
+    content: z.string().optional(),
+    x: z.number().int().optional(),
+    y: z.number().int().optional(),
+    width: z.number().int().min(20).max(2000).optional(),
+    height: z.number().int().min(20).max(2000).optional(),
+    color: z.string().max(20).optional(),
+    zIndex: z.number().int().optional(),
+  });
+
+  app.get("/api/projects/:projectId/canvas/frames", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const frames = await storage.getCanvasFrames(req.params.projectId);
+      return res.json(frames);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch canvas frames" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/canvas/frames", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = canvasFrameCreateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
+      const frame = await storage.createCanvasFrame({ projectId: req.params.projectId, ...parsed.data });
+      broadcastToProject(req.params.projectId, { type: "canvas_frame_created", frame });
+      return res.status(201).json(frame);
+    } catch {
+      return res.status(500).json({ message: "Failed to create canvas frame" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/canvas/frames/:frameId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = canvasFrameUpdateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid update data", errors: parsed.error.errors });
+      const frame = await storage.updateCanvasFrame(req.params.frameId, req.params.projectId, parsed.data);
+      if (!frame) return res.status(404).json({ message: "Frame not found" });
+      broadcastToProject(req.params.projectId, { type: "canvas_frame_updated", frame });
+      return res.json(frame);
+    } catch {
+      return res.status(500).json({ message: "Failed to update canvas frame" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/canvas/frames/:frameId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deleted = await storage.deleteCanvasFrame(req.params.frameId, req.params.projectId);
+      if (!deleted) return res.status(404).json({ message: "Frame not found" });
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete canvas frame" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/canvas/annotations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const annotations = await storage.getCanvasAnnotations(req.params.projectId);
+      return res.json(annotations);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch canvas annotations" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/canvas/annotations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = canvasAnnotationCreateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid annotation data", errors: parsed.error.errors });
+      const annotation = await storage.createCanvasAnnotation({ projectId: req.params.projectId, ...parsed.data });
+      broadcastToProject(req.params.projectId, { type: "canvas_annotation_created", annotation });
+      return res.status(201).json(annotation);
+    } catch {
+      return res.status(500).json({ message: "Failed to create canvas annotation" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/canvas/annotations/:annotationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = canvasAnnotationUpdateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid update data", errors: parsed.error.errors });
+      const annotation = await storage.updateCanvasAnnotation(req.params.annotationId, req.params.projectId, parsed.data);
+      if (!annotation) return res.status(404).json({ message: "Annotation not found" });
+      broadcastToProject(req.params.projectId, { type: "canvas_annotation_updated", annotation });
+      return res.json(annotation);
+    } catch {
+      return res.status(500).json({ message: "Failed to update canvas annotation" });
+    }
+  });
+
+  app.delete("/api/projects/:projectId/canvas/annotations/:annotationId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const deleted = await storage.deleteCanvasAnnotation(req.params.annotationId, req.params.projectId);
+      if (!deleted) return res.status(404).json({ message: "Annotation not found" });
+      return res.json({ success: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to delete canvas annotation" });
+    }
+  });
+
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");
   await storage.seedPlanConfigs();

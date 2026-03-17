@@ -13,7 +13,7 @@ import {
   Folder, FolderPlus, ChevronRight, ChevronDown, ChevronUp, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
-  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu,
+  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu, Frame,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -77,6 +77,7 @@ import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
 import SlideEditor from "@/components/SlideEditor";
 import VideoEditor from "@/components/VideoEditor";
+import DesignCanvas from "@/components/DesignCanvas";
 import {
   usePaneLayout, PaneOptionsMenu, ResizeHandle, FloatingPaneWrapper,
   useWorkspaceBroadcast, savePaneLayout, loadPaneLayout,
@@ -321,6 +322,13 @@ function _projectPage() {
   const [prevMobileTab, setPrevMobileTab] = useState<MobileTabType>("editor");
   const [mobileShellMode, setMobileShellMode] = useState<"console" | "shell">("console");
   const [viewMode, setViewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  const [workspaceMode, setWorkspaceMode] = useState<"editor" | "canvas">(() => {
+    try {
+      const saved = localStorage.getItem(`workspace-mode-${projectId}`);
+      if (saved === "canvas") return "canvas";
+    } catch {}
+    return "editor";
+  });
   const [mobileToolbarHidden, setMobileToolbarHidden] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -747,6 +755,19 @@ function _projectPage() {
           description: latestMsg,
         });
       }
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`workspace-mode-${projectId}`, workspaceMode);
+    } catch {}
+  }, [workspaceMode, projectId]);
+
+  useEffect(() => {
+    const canvasFrameMsgs = messages.filter((m: { type: string }) => m.type === "canvas_frame_created" || m.type === "canvas_frame_updated");
+    if (canvasFrameMsgs.length > 0 && workspaceMode !== "canvas") {
+      toast({ title: "Canvas Updated", description: "A new frame was added to the design canvas." });
     }
   }, [messages]);
 
@@ -1733,6 +1754,32 @@ function _projectPage() {
     if (userPrefs.agentAudioNotification) playNotificationSound();
     if (userPrefs.agentPushNotification) sendPushNotification("AI Agent", "Your AI agent has finished responding.");
   }, [userPrefs.agentAudioNotification, userPrefs.agentPushNotification]);
+
+  const handleCanvasFrameCreate = useCallback(async (htmlContent: string, name?: string) => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/canvas/frames`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        credentials: "include",
+        body: JSON.stringify({
+          name: name || "AI Generated Frame",
+          htmlContent,
+          x: Math.round(Math.random() * 200),
+          y: Math.round(Math.random() * 200),
+          width: 500,
+          height: 400,
+          zIndex: 0,
+        }),
+      });
+      if (res.ok) {
+        toast({ title: "Frame Added", description: "Design frame has been added to the canvas." });
+        setWorkspaceMode("canvas");
+      }
+    } catch (err) {
+      console.error("Failed to create canvas frame:", err);
+    }
+  }, [projectId]);
 
   const handleAskAIFromConsole = useCallback((logContent: string) => {
     const message = `Please analyze these console logs and help me debug any issues:\n\n\`\`\`\n${logContent.slice(0, 4000)}\n\`\`\``;
@@ -4380,6 +4427,10 @@ function _projectPage() {
         }}
       />
     </div>
+  ) : workspaceMode === "canvas" && projectId ? (
+    <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
+      <DesignCanvas projectId={projectId} messages={messages} />
+    </div>
   ) : isMediaProject ? (
     <div className="flex-1 overflow-hidden relative flex flex-col animate-fade-in">
       {isSlideProject && projectId ? <SlideEditor projectId={projectId} /> : null}
@@ -5011,6 +5062,22 @@ function _projectPage() {
                 <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Preview HTML (⌘\)</TooltipContent>
               </Tooltip>
             )}
+            {!isMobile && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={`h-7 px-3 text-[11px] font-medium rounded-full gap-1.5 transition-all duration-150 border ${workspaceMode === "canvas" ? "bg-[#7C65CB]/15 text-[#7C65CB] border-[#7C65CB]/30" : "text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border-[var(--ide-border)]"}`}
+                    onClick={() => setWorkspaceMode(prev => prev === "canvas" ? "editor" : "canvas")}
+                    data-testid="button-canvas-mode"
+                  >
+                    <Frame className="w-3 h-3" /> Canvas
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Design Canvas</TooltipContent>
+              </Tooltip>
+            )}
           </TooltipProvider>
         </div>
         <div className="flex items-center justify-end gap-1">
@@ -5392,6 +5459,7 @@ function _projectPage() {
                     pendingMessage={pendingAIMessage}
                     onPendingMessageConsumed={() => setPendingAIMessage(null)}
                     onAgentComplete={handleAgentComplete}
+                    onCanvasFrameCreate={handleCanvasFrameCreate}
                     onFileCreated={(file) => {
                       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                       setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
@@ -6265,6 +6333,7 @@ function _projectPage() {
                   pendingMessage={pendingAIMessage}
                   onPendingMessageConsumed={() => setPendingAIMessage(null)}
                   onAgentComplete={handleAgentComplete}
+                  onCanvasFrameCreate={handleCanvasFrameCreate}
                   onFileCreated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);

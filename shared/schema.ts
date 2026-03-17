@@ -2046,6 +2046,48 @@ export const desktopDownloads = pgTable("desktop_downloads", {
 }, (table) => [
   index("desktop_downloads_platform_idx").on(table.platform),
 ]);
+
+export const canvasFrames = pgTable("canvas_frames", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  name: text("name").notNull().default("Untitled Frame"),
+  htmlContent: text("html_content").notNull().default(""),
+  x: integer("x").notNull().default(0),
+  y: integer("y").notNull().default(0),
+  width: integer("width").notNull().default(400),
+  height: integer("height").notNull().default(300),
+  zIndex: integer("z_index").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("canvas_frames_project_idx").on(table.projectId),
+]);
+
+export const insertCanvasFrameSchema = createInsertSchema(canvasFrames).omit({ id: true, createdAt: true });
+export type InsertCanvasFrame = z.infer<typeof insertCanvasFrameSchema>;
+export type CanvasFrame = typeof canvasFrames.$inferSelect;
+
+export const canvasAnnotationTypeEnum = ["sticky", "text", "image"] as const;
+export type CanvasAnnotationType = typeof canvasAnnotationTypeEnum[number];
+
+export const canvasAnnotations = pgTable("canvas_annotations", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  type: text("type").notNull().default("sticky"),
+  content: text("content").notNull().default(""),
+  x: integer("x").notNull().default(0),
+  y: integer("y").notNull().default(0),
+  width: integer("width").notNull().default(200),
+  height: integer("height").notNull().default(150),
+  color: text("color").notNull().default("#FBBF24"),
+  zIndex: integer("z_index").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("canvas_annotations_project_idx").on(table.projectId),
+]);
+
+export const insertCanvasAnnotationSchema = createInsertSchema(canvasAnnotations).omit({ id: true, createdAt: true });
+export type InsertCanvasAnnotation = z.infer<typeof insertCanvasAnnotationSchema>;
+export type CanvasAnnotation = typeof canvasAnnotations.$inferSelect;
 export const systemModules = pgTable("system_modules", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),

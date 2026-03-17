@@ -91,6 +91,7 @@ interface AIPanelProps {
   pendingMessage?: string | null;
   onPendingMessageConsumed?: () => void;
   onAgentComplete?: () => void;
+  onCanvasFrameCreate?: (htmlContent: string, name?: string) => void;
 }
 
 type AIModel = "claude" | "gpt" | "gemini";
@@ -432,7 +433,7 @@ function parsePlanFromResponse(content: string): { title: string; tasks: PlanTas
   }
 }
 
-function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete }: AIPanelProps) {
+function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete, onCanvasFrameCreate }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -1869,6 +1870,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     data-testid={`button-apply-code-${i}`}
                   >
                     {isApplied ? <><Check className="w-3 h-3" /> Applied</> : <><FileDown className="w-3 h-3" /> Apply</>}
+                  </button>
+                )}
+                {onCanvasFrameCreate && (codeLang.toLowerCase() === "html" || code.includes("<!DOCTYPE") || code.includes("<html")) && (
+                  <button
+                    onClick={() => onCanvasFrameCreate(code, `AI Frame ${Date.now().toString(36)}`)}
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded text-[#7C65CB] hover:text-[var(--ide-text)] hover:bg-[#7C65CB]/10 transition-all"
+                    data-testid={`button-add-to-canvas-${i}`}
+                  >
+                    <Layers className="w-3 h-3" /> Canvas
                   </button>
                 )}
                 <button
