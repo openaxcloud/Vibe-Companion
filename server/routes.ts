@@ -48,6 +48,7 @@ import { getConnectorKey, getSupportedConnectors, getConnectorOperations, execut
 import path, { posix as pathPosix } from "path";
 import { generateImageBuffer, editImages } from "./replit_integrations/image/client";
 import { registerImageRoutes } from "./replit_integrations/image";
+import { searchBraveImages, BRAVE_CREDIT_COST, generateSpeech, AVAILABLE_VOICES, TTS_CREDIT_COST, generateNanoBananaImage, NANOBANANA_CREDIT_COST } from "./agentServices";
 import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "./fileGeneration";
 import PDFDocument from "pdfkit";
 import * as fs from "fs";
@@ -9110,6 +9111,81 @@ Rules:
     onToolComplete?: () => Promise<void>
   ): Promise<string> => {
     try {
+      if (toolName === "brave_image_search") {
+        const query = toolInput.query || toolInput.content || "";
+        if (!query) return "Error: search query is required";
+        const rawCount = Number(toolInput.count);
+        const count = Number.isFinite(rawCount) && rawCount >= 1 ? Math.min(Math.floor(rawCount), 20) : 8;
+        let results;
+        try {
+          results = await searchBraveImages(query, count);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Brave Image Search failed";
+          res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
+          return `Error: ${msg}`;
+        }
+        await storage.deductCredits(req.session.userId!, "economy", "brave-image-search", "agent-service", BRAVE_CREDIT_COST);
+        res.write(`data: ${JSON.stringify({ type: "image_search_results", query, results })}\n\n`);
+        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "brave_image_search", projectId, query, creditCost: BRAVE_CREDIT_COST });
+        if (results.length === 0) return "No image results found.";
+        return "Image search results:\n" + results.map((r, i) => `${i + 1}. "${r.title}" (${r.width}x${r.height}) from ${r.sourceDomain} — ${r.imageUrl}`).join("\n");
+      }
+      if (toolName === "text_to_speech") {
+        const text = toolInput.text || toolInput.content || "";
+        if (!text) return "Error: text is required for speech generation";
+        if (text.length > 5000) return "Error: text too long (max 5000 characters)";
+        const voiceId = toolInput.voice_id || toolInput.voice || undefined;
+        let result;
+        try {
+          result = await generateSpeech(text, voiceId);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Text-to-speech generation failed";
+          res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
+          return `Error: ${msg}`;
+        }
+        await storage.deductCredits(req.session.userId!, "economy", "elevenlabs-tts", "agent-service", TTS_CREDIT_COST);
+        const audioDataUri = `data:${result.mimeType};base64,${result.audioBase64}`;
+        res.write(`data: ${JSON.stringify({ type: "tts_audio_generated", audio: audioDataUri, voiceName: result.voiceName, durationEstimate: result.durationEstimate, textLength: result.textLength, mimeType: result.mimeType })}\n\n`);
+        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "elevenlabs_tts", projectId, textLength: text.length, voice: result.voiceName, creditCost: TTS_CREDIT_COST });
+        return `Speech generated using voice "${result.voiceName}" (~${result.durationEstimate}s, ${result.textLength} characters)`;
+      }
+      if (toolName === "generate_ai_image") {
+        const prompt = toolInput.prompt || toolInput.content || "";
+        if (!prompt) return "Error: prompt is required for image generation";
+        const rawWidth = Number(toolInput.width);
+        const rawHeight = Number(toolInput.height);
+        const width = Number.isFinite(rawWidth) && rawWidth >= 64 ? Math.min(Math.floor(rawWidth), 2048) : 1024;
+        const height = Number.isFinite(rawHeight) && rawHeight >= 64 ? Math.min(Math.floor(rawHeight), 2048) : 1024;
+        let result;
+        try {
+          result = await generateNanoBananaImage(prompt, width, height);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "AI image generation failed";
+          res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
+          return `Error: ${msg}`;
+        }
+        await storage.deductCredits(req.session.userId!, "economy", "nanobanana", "agent-service", NANOBANANA_CREDIT_COST);
+        const imageDataUri = `data:${result.mimeType};base64,${result.imageBase64}`;
+        const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
+        const safeName = sanitizeAIFilename(filename);
+        if (safeName) {
+          const existingFile = existingFiles.find(f => f.filename === safeName);
+          if (existingFile) {
+            const file = await storage.updateFileContent(existingFile.id, imageDataUri);
+            res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
+            broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+          } else {
+            const file = await storage.createFile(projectId, { filename: safeName, content: imageDataUri });
+            existingFiles.push(file);
+            res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
+            broadcastToProject(projectId, { type: "file_created", filename: safeName });
+          }
+          if (modifiedFiles) modifiedFiles.add(safeName);
+        }
+        res.write(`data: ${JSON.stringify({ type: "ai_image_generated", prompt, imageDataUri, width: result.width, height: result.height, model: result.model, filename: safeName || filename })}\n\n`);
+        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "nanobanana", projectId, prompt: prompt.slice(0, 200), width, height, creditCost: NANOBANANA_CREDIT_COST });
+        return `AI image generated (${result.width}x${result.height}) using ${result.model}${safeName ? ` and saved as ${safeName}` : ""}`;
+      }
       if (toolName === "web_search") {
         const query = toolInput.query || toolInput.content || "";
         if (!query) return "Error: search query is required";
@@ -9616,6 +9692,12 @@ When the user asks you to generate a document, report, spreadsheet, presentation
 When the user asks about data from connected services (Linear, Slack, Notion, BigQuery, Amplitude, Segment, Hex), use the query_connector tool to read data or write_connector to create/update data. Available connectors and operations:
 ${getConnectorDescription()}
 
+When the user asks you to find or search for images on the web (e.g. product photos, stock images, reference images), use the brave_image_search tool. Results include image URLs, thumbnails, and source attribution.
+
+When the user asks for text-to-speech, voice narration, or audio generation from text, use the text_to_speech tool. Available voices: ${AVAILABLE_VOICES.map(v => `${v.name} (${v.description})`).join(", ")}.
+
+When the user asks to generate an AI image (illustrations, art, hero images, concept art — NOT photos from the web), use the generate_ai_image tool with NanoBanana. This is different from generate_image (DALL-E) — use generate_ai_image for open-source model generation.
+
 Always write complete, working code. Never use placeholders or TODOs.${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
 
 ## Web Search
@@ -9846,6 +9928,44 @@ Always cite your sources in your response when using information from web search
                 required: ["scenes"],
               },
             },
+            {
+              name: "brave_image_search",
+              description: "Search the web for images using Brave Image Search. Use when the user wants to find photos, product images, stock images, or reference images from the web.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  query: { type: Type.STRING, description: "The image search query (e.g. 'modern office interior', 'sunset landscape photo')" },
+                  count: { type: Type.NUMBER, description: "Number of results to return (1-20, default 8)" },
+                },
+                required: ["query"],
+              },
+            },
+            {
+              name: "text_to_speech",
+              description: "Generate realistic text-to-speech audio using ElevenLabs. Use when the user wants voice narration, audio content, or spoken text.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  text: { type: Type.STRING, description: "The text to convert to speech (max 5000 characters)" },
+                  voice_id: { type: Type.STRING, description: "Voice ID to use. Available voices: Rachel (calm female), Drew (male), Bella (soft female), Josh (deep male), Adam (versatile male)" },
+                },
+                required: ["text"],
+              },
+            },
+            {
+              name: "generate_ai_image",
+              description: "Generate an AI image using NanoBanana (open-source models like Stable Diffusion). Use for illustrations, concept art, hero images, and creative AI-generated visuals.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  prompt: { type: Type.STRING, description: "A detailed description of the image to generate" },
+                  filename: { type: Type.STRING, description: "Filename to save the image as (e.g. 'assets/hero.png')" },
+                  width: { type: Type.NUMBER, description: "Image width in pixels (default 1024, max 2048)" },
+                  height: { type: Type.NUMBER, description: "Image height in pixels (default 1024, max 2048)" },
+                },
+                required: ["prompt"],
+              },
+            },
         ];
         if (webSearchEnabled) {
           geminiToolDeclarations.push(
@@ -9918,7 +10038,7 @@ Always cite your sources in your response when using information from web search
               const fn = part.functionCall;
               const toolInput = fn.args as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
@@ -10150,6 +10270,30 @@ Always cite your sources in your response when using information from web search
               },
             },
           },
+          {
+            type: "function",
+            function: {
+              name: "brave_image_search",
+              description: "Search the web for images using Brave Image Search. Use when the user wants to find photos, product images, stock images, or reference images from the web.",
+              parameters: { type: "object", properties: { query: { type: "string", description: "The image search query" }, count: { type: "number", description: "Number of results (1-20, default 8)" } }, required: ["query"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "text_to_speech",
+              description: "Generate realistic text-to-speech audio using ElevenLabs. Use when the user wants voice narration, audio content, or spoken text.",
+              parameters: { type: "object", properties: { text: { type: "string", description: "The text to convert to speech (max 5000 characters)" }, voice_id: { type: "string", description: "Voice ID to use" } }, required: ["text"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "generate_ai_image",
+              description: "Generate an AI image using NanoBanana (open-source models). Use for illustrations, concept art, hero images, and creative AI-generated visuals.",
+              parameters: { type: "object", properties: { prompt: { type: "string", description: "A detailed description of the image to generate" }, filename: { type: "string", description: "Filename to save as" }, width: { type: "number", description: "Image width (default 1024, max 2048)" }, height: { type: "number", description: "Image height (default 1024, max 2048)" } }, required: ["prompt"] },
+            },
+          },
           ...mcpToolDefinitions.map(t => ({
             type: "function" as const,
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
@@ -10220,7 +10364,7 @@ Always cite your sources in your response when using information from web search
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
@@ -10315,6 +10459,9 @@ Always cite your sources in your response when using information from web search
               parameters: { type: "object", properties: { connector: { type: "string" }, operation: { type: "string" }, params: { type: "object" } }, required: ["connector", "operation"] },
             },
           },
+          { type: "function", function: { name: "brave_image_search", description: "Search the web for images using Brave Image Search", parameters: { type: "object", properties: { query: { type: "string" }, count: { type: "number" } }, required: ["query"] } } },
+          { type: "function", function: { name: "text_to_speech", description: "Generate text-to-speech audio using ElevenLabs", parameters: { type: "object", properties: { text: { type: "string" }, voice_id: { type: "string" } }, required: ["text"] } } },
+          { type: "function", function: { name: "generate_ai_image", description: "Generate an AI image using NanoBanana (open-source models)", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, width: { type: "number" }, height: { type: "number" } }, required: ["prompt"] } } },
           ...mcpToolDefinitions.map(t => ({
             type: "function" as const,
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
@@ -10360,7 +10507,7 @@ Always cite your sources in your response when using information from web search
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as Record<string, unknown>;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
@@ -10560,6 +10707,44 @@ Always cite your sources in your response when using information from web search
               required: ["scenes"],
             },
           },
+          {
+            name: "brave_image_search",
+            description: "Search the web for images using Brave Image Search. Use when the user wants to find photos, product images, stock images, or reference images from the web.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                query: { type: "string", description: "The image search query" },
+                count: { type: "number", description: "Number of results (1-20, default 8)" },
+              },
+              required: ["query"],
+            },
+          },
+          {
+            name: "text_to_speech",
+            description: "Generate realistic text-to-speech audio using ElevenLabs. Use when the user wants voice narration, audio content, or spoken text.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                text: { type: "string", description: "The text to convert to speech (max 5000 characters)" },
+                voice_id: { type: "string", description: "Voice ID to use" },
+              },
+              required: ["text"],
+            },
+          },
+          {
+            name: "generate_ai_image",
+            description: "Generate an AI image using NanoBanana (open-source models). Use for illustrations, concept art, hero images, and creative AI-generated visuals.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                prompt: { type: "string", description: "A detailed description of the image to generate" },
+                filename: { type: "string", description: "Filename to save the image as" },
+                width: { type: "number", description: "Image width (default 1024, max 2048)" },
+                height: { type: "number", description: "Image height (default 1024, max 2048)" },
+              },
+              required: ["prompt"],
+            },
+          },
           ...mcpToolDefinitions.map(t => ({
             name: t.name,
             description: t.description,
@@ -10618,7 +10803,7 @@ Always cite your sources in your response when using information from web search
             } else if (block.type === "tool_use") {
               const input = block.input as any;
 
-              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : undefined;
+              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : block.name === "brave_image_search" ? "Searching for images" : block.name === "text_to_speech" ? "Generating speech" : block.name === "generate_ai_image" ? "Generating AI image" : undefined;
               res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);

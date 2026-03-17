@@ -54,6 +54,24 @@ interface McpToolCall {
   result?: string;
 }
 
+interface ImageSearchResult {
+  title: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  sourceUrl: string;
+  sourceDomain: string;
+  width: number;
+  height: number;
+}
+
+interface GeneratedAudio {
+  audioDataUri: string;
+  voiceName: string;
+  durationEstimate: number;
+  textLength: number;
+  mimeType: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -67,6 +85,8 @@ interface ChatMessage {
   mcpToolCalls?: McpToolCall[];
   audioChunks?: string[];
   audioTranscript?: string;
+  imageSearchResults?: ImageSearchResult[];
+  generatedAudio?: GeneratedAudio[];
 }
 
 interface QueuedMsg {
@@ -1261,6 +1281,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 toolMsg = `\n\n> 🔍 Searching the web...\n`;
               } else if (data.name === "fetch_url") {
                 toolMsg = `\n\n> 🌐 Fetching content...\n`;
+              } else if (data.name === "brave_image_search") {
+                toolMsg = `\n\n> 🖼️ Searching for images...\n`;
+              } else if (data.name === "text_to_speech") {
+                toolMsg = `\n\n> 🔊 Generating speech...\n`;
+              } else if (data.name === "generate_ai_image") {
+                toolMsg = `\n\n> 🎨 Generating AI image...\n`;
               } else if (data.name?.startsWith("mcp__")) {
                 toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
               } else {
@@ -1281,6 +1307,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     webSearchResults: [...(m.webSearchResults || []), ...data.results],
                   } : m)
                 );
+              }
+            } else if (data.type === "image_search_results") {
+              if (data.results && data.results.length > 0) {
+                setMessages((prev) =>
+                  prev.map((m) => m.id === assistantId ? {
+                    ...m,
+                    imageSearchResults: [...(m.imageSearchResults || []), ...data.results],
+                  } : m)
+                );
+              }
+            } else if (data.type === "tts_audio_generated") {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  generatedAudio: [...(m.generatedAudio || []), {
+                    audioDataUri: data.audio,
+                    voiceName: data.voiceName,
+                    durationEstimate: data.durationEstimate,
+                    textLength: data.textLength,
+                    mimeType: data.mimeType,
+                  }],
+                } : m)
+              );
+            } else if (data.type === "ai_image_generated") {
+              if (data.imageDataUri) {
+                inlineImages.push({ filename: data.filename || "ai-generated.png", dataUri: data.imageDataUri });
               }
             } else if (data.type === "web_fetch_result") {
             } else if (data.type === "mcp_tool_use" || data.type === "mcp_tool_call") {
@@ -2487,7 +2539,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     csv: { color: "text-amber-400", bg: "bg-amber-500/15", label: "CSV" },
   };
 
-  const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[], inlineImages?: { filename: string; dataUri: string }[], generatedFiles?: GeneratedFile[]) => {
+  const renderContent = (content: string, fileOps?: { type: "created" | "updated"; filename: string }[], inlineImages?: { filename: string; dataUri: string }[], generatedFiles?: GeneratedFile[], imageSearchResults?: ImageSearchResult[], generatedAudio?: GeneratedAudio[]) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
     const rendered = parts.map((part, i) => {
       if (part.includes("data:image/")) {
@@ -2701,6 +2753,81 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </div>
             );
           })}
+        </div>
+      );
+    }
+
+    if (imageSearchResults && imageSearchResults.length > 0) {
+      rendered.push(
+        <div key="image-search-results" className="mt-3 rounded-lg overflow-hidden border border-[#E44D26]/20" data-testid="image-search-results">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#E44D26]/5 border-b border-[#E44D26]/20">
+            <Search className="w-3 h-3 text-[#E44D26]" />
+            <span className="text-[10px] font-semibold text-[#E44D26] uppercase tracking-wider">Image Results</span>
+            <span className="text-[10px] text-[#E44D26]/60 ml-auto">{imageSearchResults.length} image{imageSearchResults.length > 1 ? "s" : ""}</span>
+          </div>
+          <div className="bg-[#E44D26]/5 p-2 grid grid-cols-2 gap-2">
+            {imageSearchResults.slice(0, 8).map((img, i) => (
+              <a
+                key={`img-search-${i}`}
+                href={img.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-md overflow-hidden border border-[var(--ide-border)] hover:border-[#E44D26]/40 transition-colors"
+                data-testid={`link-image-result-${i}`}
+              >
+                <div className="aspect-video bg-[var(--ide-bg)] overflow-hidden">
+                  <img
+                    src={img.thumbnailUrl}
+                    alt={img.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="px-2 py-1.5">
+                  <div className="text-[10px] font-medium text-[var(--ide-text)] truncate group-hover:text-[#E44D26] transition-colors">{img.title}</div>
+                  <div className="text-[8px] text-[var(--ide-text-muted)] truncate">{img.sourceDomain}{img.width > 0 ? ` · ${img.width}×${img.height}` : ""}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (generatedAudio && generatedAudio.length > 0) {
+      rendered.push(
+        <div key="generated-audio" className="mt-3 space-y-2" data-testid="generated-audio">
+          {generatedAudio.map((audio, i) => (
+            <div key={`audio-${i}`} className="rounded-lg overflow-hidden border border-[#9333EA]/20">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-[#9333EA]/5 border-b border-[#9333EA]/20">
+                <Mic className="w-3 h-3 text-[#9333EA]" />
+                <span className="text-[10px] font-semibold text-[#9333EA] uppercase tracking-wider">Generated Speech</span>
+                <span className="text-[10px] text-[#9333EA]/60 ml-auto">{audio.voiceName} · ~{audio.durationEstimate}s</span>
+              </div>
+              <div className="bg-[#9333EA]/5 p-3">
+                <audio
+                  controls
+                  className="w-full h-8"
+                  src={audio.audioDataUri}
+                  data-testid={`audio-player-${i}`}
+                >
+                  Your browser does not support the audio element.
+                </audio>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[9px] text-[var(--ide-text-muted)]">{audio.textLength} characters · {audio.voiceName}</span>
+                  <a
+                    href={audio.audioDataUri}
+                    download={`speech-${audio.voiceName.toLowerCase()}-${Date.now()}.${audio.mimeType.includes("mpeg") ? "mp3" : "wav"}`}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-[#9333EA]/10 hover:bg-[#9333EA]/20 text-[#9333EA] text-[9px] font-medium transition-colors"
+                    data-testid={`button-download-audio-${i}`}
+                  >
+                    <FileDown className="w-3 h-3" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       );
     }
@@ -3594,7 +3721,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     ))}
                   </div>
                 )}
-                {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages, msg.generatedFiles) : <TypingIndicator />}
+                {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages, msg.generatedFiles, msg.imageSearchResults, msg.generatedAudio) : <TypingIndicator />}
                 {msg.role === "assistant" && msg.mcpToolCalls && msg.mcpToolCalls.length > 0 && (
                   <McpToolCallTimeline calls={msg.mcpToolCalls} />
                 )}
