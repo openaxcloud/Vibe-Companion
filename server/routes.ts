@@ -17725,6 +17725,251 @@ Respond ONLY with the JSON array, no other text.`;
     }
   });
 
+  const visualEditSchema = z.object({
+    type: z.enum(["text", "style", "class", "image"]),
+    property: z.string().optional(),
+    oldValue: z.string(),
+    newValue: z.string(),
+    element: z.object({
+      tag: z.string(),
+      text: z.string(),
+      className: z.string(),
+      id: z.string(),
+      imgSrc: z.string(),
+      isImg: z.boolean(),
+      dataTestId: z.string(),
+      xpath: z.string(),
+      styles: z.record(z.string()).optional(),
+      rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional(),
+    }),
+    frameId: z.string().optional(),
+  });
+
+  const TAILWIND_MAP: Record<string, (v: string) => string | null> = {
+    color: (v) => { const hex = v.replace("#", "").toLowerCase(); return `text-[#${hex}]`; },
+    backgroundColor: (v) => { const hex = v.replace("#", "").toLowerCase(); return `bg-[#${hex}]`; },
+    fontSize: (v) => { const px = parseInt(v); if (isNaN(px)) return null; return `text-[${px}px]`; },
+    borderRadius: (v) => { const px = parseInt(v); if (isNaN(px)) return null; if (px === 0) return "rounded-none"; return `rounded-[${px}px]`; },
+    paddingTop: (v) => `pt-[${parseInt(v) || 0}px]`,
+    paddingRight: (v) => `pr-[${parseInt(v) || 0}px]`,
+    paddingBottom: (v) => `pb-[${parseInt(v) || 0}px]`,
+    paddingLeft: (v) => `pl-[${parseInt(v) || 0}px]`,
+    marginTop: (v) => `mt-[${parseInt(v) || 0}px]`,
+    marginRight: (v) => `mr-[${parseInt(v) || 0}px]`,
+    marginBottom: (v) => `mb-[${parseInt(v) || 0}px]`,
+    marginLeft: (v) => `ml-[${parseInt(v) || 0}px]`,
+  };
+
+  function findTailwindClassForProperty(prop: string): RegExp | null {
+    const patterns: Record<string, RegExp> = {
+      color: /text-\[#[0-9a-fA-F]+\]|text-(black|white|transparent|current|inherit|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+/,
+      backgroundColor: /bg-\[#[0-9a-fA-F]+\]|bg-(black|white|transparent|current|inherit|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+/,
+      fontSize: /text-\[\d+px\]|text-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)/,
+      borderRadius: /rounded-\[\d+px\]|rounded(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full)?/,
+      paddingTop: /pt-\[\d+px\]|pt-\d+/,
+      paddingRight: /pr-\[\d+px\]|pr-\d+/,
+      paddingBottom: /pb-\[\d+px\]|pb-\d+/,
+      paddingLeft: /pl-\[\d+px\]|pl-\d+/,
+      marginTop: /mt-\[\d+px\]|mt-\d+/,
+      marginRight: /mr-\[\d+px\]|mr-\d+/,
+      marginBottom: /mb-\[\d+px\]|mb-\d+/,
+      marginLeft: /ml-\[\d+px\]|ml-\d+/,
+    };
+    return patterns[prop] || null;
+  }
+
+  app.post("/api/projects/:projectId/visual-edit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const isOwner = project.userId === req.session.userId;
+      const isCollab = !isOwner && await storage.isProjectCollaborator(req.params.projectId, req.session.userId!);
+      const isGuest = !isOwner && !isCollab && await storage.isProjectGuest(req.params.projectId, req.session.userId!);
+      if (!isOwner && !isCollab && !isGuest) return res.status(403).json({ message: "Access denied" });
+
+      const parsed = visualEditSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid edit data", errors: parsed.error.errors });
+      const edit = parsed.data;
+
+      if (edit.frameId) {
+        const frame = await storage.getCanvasFrame(edit.frameId);
+        if (!frame || frame.projectId !== req.params.projectId) return res.status(404).json({ message: "Frame not found" });
+        let html = frame.htmlContent || "";
+        if (edit.type === "text" && edit.oldValue && edit.newValue) {
+          html = html.replace(edit.oldValue, edit.newValue);
+        }
+        await storage.updateCanvasFrame(edit.frameId, req.params.projectId, { htmlContent: html });
+        broadcastToProject(req.params.projectId, { type: "canvas_frame_updated", frame: { ...frame, htmlContent: html } });
+        return res.json({ success: true, target: "frame", frameId: edit.frameId, content: html });
+      }
+
+      const projectFiles = await storage.getFiles(req.params.projectId);
+      const editableExts = [".tsx", ".jsx", ".ts", ".js", ".html", ".css", ".vue", ".svelte"];
+      const editableFiles = projectFiles.filter(f => editableExts.some(ext => f.filename.endsWith(ext)));
+
+      let matchedFile: typeof projectFiles[0] | null = null;
+      let updatedContent = "";
+
+      if (edit.type === "text" && edit.oldValue && edit.newValue !== edit.oldValue) {
+        for (const file of editableFiles) {
+          if (file.content.includes(edit.oldValue)) {
+            matchedFile = file;
+            updatedContent = file.content.replace(edit.oldValue, edit.newValue);
+            break;
+          }
+        }
+      } else if (edit.type === "style" && edit.property) {
+        const prop = edit.property;
+        const newVal = edit.newValue;
+        const elemClass = edit.element.className;
+
+        for (const file of editableFiles) {
+          if (!elemClass || typeof elemClass !== "string") continue;
+          const classSegments = elemClass.split(/\s+/).filter(Boolean);
+          if (classSegments.length === 0) continue;
+
+          const classPattern = findTailwindClassForProperty(prop);
+          if (classPattern) {
+            const oldMatch = classSegments.find(c => classPattern.test(c));
+            const twMapper = TAILWIND_MAP[prop];
+            if (twMapper) {
+              const newClass = twMapper(newVal);
+              if (newClass) {
+                const searchClasses = classSegments.join(" ");
+                if (file.content.includes(searchClasses) || classSegments.some(c => file.content.includes(c))) {
+                  matchedFile = file;
+                  if (oldMatch && file.content.includes(oldMatch)) {
+                    updatedContent = file.content.replace(oldMatch, newClass);
+                  } else {
+                    const classStr = classSegments.join(" ");
+                    if (file.content.includes(classStr)) {
+                      updatedContent = file.content.replace(classStr, classStr + " " + newClass);
+                    } else {
+                      updatedContent = file.content;
+                    }
+                  }
+                  if (updatedContent !== file.content) break;
+                  matchedFile = null;
+                }
+              }
+            }
+          }
+
+          if (!matchedFile) {
+            const cssPropName = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+            const styleAttrRegex = new RegExp(`style\\s*=\\s*["'][^"']*${cssPropName}\\s*:\\s*[^;'"]*`, "i");
+            if (styleAttrRegex.test(file.content)) {
+              matchedFile = file;
+              const inlineStyleRegex = new RegExp(`(${cssPropName}\\s*:\\s*)([^;'"]+)`, "i");
+              updatedContent = file.content.replace(inlineStyleRegex, `$1${newVal}`);
+              break;
+            }
+          }
+        }
+
+        if (!matchedFile) {
+          for (const file of editableFiles) {
+            if (file.filename.endsWith(".css")) {
+              const cssPropName = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+              const cssRegex = new RegExp(`(${cssPropName}\\s*:\\s*)([^;]+)`, "g");
+              if (cssRegex.test(file.content)) {
+                matchedFile = file;
+                updatedContent = file.content.replace(new RegExp(`(${cssPropName}\\s*:\\s*)([^;]+)`, "g"), `$1${newVal}`);
+                break;
+              }
+            }
+          }
+        }
+      } else if (edit.type === "image" && edit.oldValue && edit.newValue) {
+        for (const file of editableFiles) {
+          if (file.content.includes(edit.oldValue)) {
+            matchedFile = file;
+            updatedContent = file.content.replace(edit.oldValue, edit.newValue);
+            break;
+          }
+        }
+      }
+
+      if (matchedFile && updatedContent && updatedContent !== matchedFile.content) {
+        await storage.updateFileContent(matchedFile.id, updatedContent);
+        broadcastToProject(req.params.projectId, {
+          type: "file_updated",
+          file: { id: matchedFile.id, filename: matchedFile.filename, content: updatedContent },
+        });
+        return res.json({
+          success: true,
+          target: "file",
+          fileId: matchedFile.id,
+          filename: matchedFile.filename,
+          content: updatedContent,
+        });
+      }
+
+      return res.json({
+        success: false,
+        message: "Could not find matching source location. Use the AI Agent for complex edits.",
+        needsAI: true,
+      });
+    } catch (err: any) {
+      console.error("Visual edit error:", err);
+      return res.status(500).json({ message: "Failed to apply visual edit" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/visual-edit/find-source", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const isOwner = project.userId === req.session.userId;
+      const isCollab = !isOwner && await storage.isProjectCollaborator(req.params.projectId, req.session.userId!);
+      const isGuest = !isOwner && !isCollab && await storage.isProjectGuest(req.params.projectId, req.session.userId!);
+      if (!isOwner && !isCollab && !isGuest) return res.status(403).json({ message: "Access denied" });
+
+      const { text, className, tag, dataTestId } = req.body;
+      const projectFiles = await storage.getFiles(req.params.projectId);
+      const editableExts = [".tsx", ".jsx", ".ts", ".js", ".html", ".css", ".vue", ".svelte"];
+      const editableFiles = projectFiles.filter(f => editableExts.some(ext => f.filename.endsWith(ext)));
+
+      if (dataTestId) {
+        for (const file of editableFiles) {
+          const idx = file.content.indexOf(dataTestId);
+          if (idx !== -1) {
+            const line = file.content.substring(0, idx).split("\n").length;
+            return res.json({ fileId: file.id, filename: file.filename, line });
+          }
+        }
+      }
+
+      if (text && text.length > 2) {
+        for (const file of editableFiles) {
+          const idx = file.content.indexOf(text);
+          if (idx !== -1) {
+            const line = file.content.substring(0, idx).split("\n").length;
+            return res.json({ fileId: file.id, filename: file.filename, line });
+          }
+        }
+      }
+
+      if (className && typeof className === "string") {
+        const classes = className.split(/\s+/).filter(Boolean);
+        const searchStr = classes.slice(0, 5).join(" ");
+        if (searchStr.length > 5) {
+          for (const file of editableFiles) {
+            const idx = file.content.indexOf(searchStr);
+            if (idx !== -1) {
+              const line = file.content.substring(0, idx).split("\n").length;
+              return res.json({ fileId: file.id, filename: file.filename, line });
+            }
+          }
+        }
+      }
+
+      return res.json({ fileId: null, filename: null, line: null, message: "Could not locate source" });
+    } catch {
+      return res.status(500).json({ message: "Failed to find source" });
+    }
+  });
+
   app.get("/api/projects/:projectId/canvas/annotations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
