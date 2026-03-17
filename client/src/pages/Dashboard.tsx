@@ -8,7 +8,7 @@ import {
   Home, BookOpen, Users, Compass, HelpCircle, MessageSquare, GitBranch, ArrowUpDown, HardDrive,
   Bell, CreditCard, Menu, X, Terminal, FileText, User, Lock,
   Smartphone, Palette, Presentation, Play, BarChart3, RefreshCw, LayoutGrid, List as ListIcon,
-  Box, Cog, PenTool, Table2
+  Box, Cog, PenTool, Table2, Link2
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -29,6 +29,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
 import ArtifactTypeCarousel, { ARTIFACT_TYPE_OPTIONS } from "@/components/ArtifactTypeCarousel";
+import LZString from "lz-string";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project, Notification } from "@shared/schema";
@@ -520,6 +521,44 @@ export default function Dashboard() {
     onError: (err: any) => { toast({ title: "Failed to duplicate project", description: err.message || "Could not duplicate the project.", variant: "destructive" }); },
   });
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const compressedPrompt = params.get("prompt");
+    const stack = params.get("stack");
+    const referrer = params.get("referrer");
+
+    if (referrer) {
+      sessionStorage.setItem("ecode_referrer", referrer);
+    }
+
+    if (stack && stack !== "design" && stack !== "build") {
+      toast({ title: "Invalid link", description: `Invalid stack mode "${stack}". Expected "design" or "build".`, variant: "destructive" });
+      window.history.replaceState({}, "", "/dashboard");
+      return;
+    }
+
+    if (compressedPrompt) {
+      if (compressedPrompt.length > 10000) {
+        toast({ title: "Invalid link", description: "The prompt parameter is too large.", variant: "destructive" });
+        window.history.replaceState({}, "", "/dashboard");
+        return;
+      }
+      const decompressed = LZString.decompressFromEncodedURIComponent(compressedPrompt);
+      if (!decompressed) {
+        toast({ title: "Invalid link", description: "Failed to decompress the prompt. The link may be malformed.", variant: "destructive" });
+        window.history.replaceState({}, "", "/dashboard");
+        return;
+      }
+      const outputType = stack === "design" ? "design" : "web";
+      setAiPrompt(decompressed);
+      if (outputType !== "web") {
+        setSelectedCategory(outputType);
+      }
+      toast({ title: "Prompt loaded", description: "Your prompt has been pre-filled. Click Build to create your project." });
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, []);
+
   const userPlan = usageQuery.data?.plan || "free";
   const isFreePlan = userPlan === "free";
 
@@ -671,6 +710,7 @@ export default function Dashboard() {
   const sidebarSecondaryLinks = [
     { icon: Compass, label: "Templates", action: () => setDialogOpen(true), testId: "nav-templates" },
     { icon: Box, label: "Frameworks", action: () => setLocation("/frameworks"), testId: "nav-frameworks" },
+    { icon: Link2, label: "Open in E-Code", action: () => setLocation("/open"), testId: "nav-open-in-replit" },
     { icon: MessageSquare, label: "Community", action: () => window.open("https://ask.replit.com", "_blank"), testId: "nav-community-link" },
   ];
 

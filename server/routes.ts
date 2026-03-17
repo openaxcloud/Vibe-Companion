@@ -4784,6 +4784,25 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/badge/:caption?", (req: Request, res: Response) => {
+    const caption = req.params.caption || "Open in E-Code";
+    const sanitizedCaption = caption.replace(/[<>&"']/g, "").slice(0, 100);
+    const width = Math.max(160, sanitizedCaption.length * 8 + 80);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="32" viewBox="0 0 ${width} 32" fill="none">
+      <rect width="${width}" height="32" rx="6" fill="#0E1525"/>
+      <rect x="0.5" y="0.5" width="${width - 1}" height="31" rx="5.5" stroke="#2B3245"/>
+      <g transform="translate(10, 6)">
+        <path d="M3.5 2.75C3.5 2.335 3.835 2 4.25 2H7.75C8.165 2 8.5 2.335 8.5 2.75V6H4.25C3.835 6 3.5 5.665 3.5 5.25V2.75Z" fill="#F26522"/>
+        <path d="M8.5 6H12.75C13.165 6 13.5 6.335 13.5 6.75V9.25C13.5 9.665 13.165 10 12.75 10H8.5V6Z" fill="#F26522"/>
+        <path d="M3.5 10.75C3.5 10.335 3.835 10 4.25 10H8.5V14H4.25C3.835 14 3.5 13.665 3.5 13.25V10.75Z" fill="#F26522"/>
+      </g>
+      <text x="34" y="20.5" fill="white" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500">${sanitizedCaption}</text>
+    </svg>`;
+    res.setHeader("Content-Type", "image/svg+xml");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.send(svg);
+  });
+
   app.get("/api/landing-stats", async (_req: Request, res: Response) => {
     try {
       const stats = await storage.getLandingStats();

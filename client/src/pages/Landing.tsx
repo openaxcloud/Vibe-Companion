@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Github, Play, Terminal, Code2, Sparkles, Globe, Users, Zap, Shield, ArrowRight, ChevronRight, ChevronLeft, Eye, Menu, X, Send, Loader2, Smartphone, Presentation, Palette, BarChart3, Gamepad2, Cog, PenTool, Table2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import LZString from "lz-string";
 
 function ECodeLogo({ size = 32 }: { size?: number }) {
   return (
@@ -129,12 +130,24 @@ function useTypewriter(texts: string[], typingSpeed = 50, pauseMs = 2000) {
   return display;
 }
 
-function PromptInput({ onSubmit, isLoading }: { onSubmit: (prompt: string, outputType: string) => void; isLoading: boolean }) {
-  const [prompt, setPrompt] = useState("");
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+function PromptInput({ onSubmit, isLoading, defaultPrompt, defaultOutputType }: { onSubmit: (prompt: string, outputType: string) => void; isLoading: boolean; defaultPrompt?: string; defaultOutputType?: string }) {
+  const [prompt, setPrompt] = useState(defaultPrompt || "");
+  const [selectedType, setSelectedType] = useState<string | null>(defaultOutputType || null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const typewriterText = useTypewriter(typewriterPrompts);
+
+  useEffect(() => {
+    if (defaultPrompt && defaultPrompt !== prompt) {
+      setPrompt(defaultPrompt);
+    }
+  }, [defaultPrompt]);
+
+  useEffect(() => {
+    if (defaultOutputType && defaultOutputType !== selectedType) {
+      setSelectedType(defaultOutputType);
+    }
+  }, [defaultOutputType]);
 
   const handleSubmit = () => {
     const trimmed = prompt.trim();
@@ -264,6 +277,42 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [promptLoading, setPromptLoading] = useState(false);
 
+  const [incomingPrompt, setIncomingPrompt] = useState<string | null>(null);
+  const [incomingStack, setIncomingStack] = useState<string | null>(null);
+  const [incomingError, setIncomingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const compressedPrompt = params.get("prompt");
+    const stack = params.get("stack");
+    const referrer = params.get("referrer");
+
+    if (referrer) {
+      sessionStorage.setItem("ecode_referrer", referrer);
+    }
+
+    if (stack && stack !== "design" && stack !== "build") {
+      setIncomingError(`Invalid stack mode "${stack}". Expected "design" or "build".`);
+      return;
+    }
+
+    if (compressedPrompt) {
+      if (compressedPrompt.length > 10000) {
+        setIncomingError("The prompt parameter is too large. The link may be invalid.");
+        return;
+      }
+      const decompressed = LZString.decompressFromEncodedURIComponent(compressedPrompt);
+      if (!decompressed) {
+        setIncomingError("Failed to decompress the prompt. The link may be malformed or truncated.");
+        return;
+      }
+      setIncomingPrompt(decompressed);
+      setIncomingStack(stack || "build");
+    } else if (stack) {
+      setIncomingStack(stack);
+    }
+  }, []);
+
   const handlePromptSubmit = async (prompt: string, outputType: string = "web") => {
     setPromptLoading(true);
     try {
@@ -288,8 +337,8 @@ export default function Landing() {
   const stats = statsQuery.data || defaultStats;
 
   useEffect(() => {
-    if (isAuthenticated) setLocation("/dashboard");
-  }, [isAuthenticated, setLocation]);
+    if (isAuthenticated && !incomingPrompt && !incomingError) setLocation("/dashboard");
+  }, [isAuthenticated, setLocation, incomingPrompt, incomingError]);
 
   if (isLoading) {
     return (
@@ -299,11 +348,38 @@ export default function Landing() {
     );
   }
 
-  if (isAuthenticated) return null;
+  if (isAuthenticated && !incomingPrompt && !incomingError) return null;
 
   return (
     <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)] overflow-x-hidden" data-testid="landing-page">
       <AnimatedGrid />
+
+      {incomingError && (
+        <div className="relative z-20 bg-red-500/10 border-b border-red-500/20 px-6 py-3" data-testid="banner-incoming-error">
+          <div className="max-w-3xl mx-auto flex items-center gap-3 text-sm text-red-400">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            {incomingError}
+          </div>
+        </div>
+      )}
+
+      {incomingPrompt && !isAuthenticated && (
+        <div className="relative z-20 bg-[#0079F2]/10 border-b border-[#0079F2]/20 px-6 py-3" data-testid="banner-incoming-prompt">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-sm text-[#0079F2] min-w-0">
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span className="truncate">Prompt ready: "{incomingPrompt.slice(0, 80)}{incomingPrompt.length > 80 ? "..." : ""}"</span>
+            </div>
+            <Link href={`/login?signup=true&prompt=${encodeURIComponent(incomingPrompt)}&outputType=${incomingStack === "design" ? "design" : "web"}`}>
+              <Button className="h-8 px-4 text-xs font-medium bg-[#0079F2] hover:bg-[#006AD8] text-white rounded-lg whitespace-nowrap" data-testid="button-signin-to-build">
+                Sign up to build
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
         <div className="flex items-center gap-3">
@@ -370,7 +446,7 @@ export default function Landing() {
           A cloud IDE with a powerful editor, AI coding agent, live terminal, instant deployment, and team collaboration. Write, run, and ship code from anywhere.
         </p>
 
-        <PromptInput onSubmit={handlePromptSubmit} isLoading={promptLoading} />
+        <PromptInput onSubmit={handlePromptSubmit} isLoading={promptLoading} defaultPrompt={incomingPrompt || undefined} defaultOutputType={incomingStack === "design" ? "design" : undefined} />
 
         <p className="text-xs text-[var(--ide-text-muted)] mt-6 mb-12">No credit card required. Free tier included.</p>
 
