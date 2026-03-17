@@ -7,7 +7,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, STORAGE_PLAN_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES } from "@shared/schema";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode, sendStdinToProcess, killInteractiveProcess, resolveRunCommand } from "./executor";
@@ -3744,6 +3744,8 @@ export async function registerRoutes(
     enableFeedback: z.boolean().optional(),
     responseHeaders: z.array(z.object({ path: z.string(), name: z.string(), value: z.string() })).optional(),
     rewrites: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
+    createProductionDb: z.boolean().optional(),
+    seedProductionDb: z.boolean().optional(),
   });
 
   app.get("/api/projects/:id/collaborators", requireAuth, async (req: Request, res: Response) => {
@@ -3932,6 +3934,8 @@ export async function registerRoutes(
           enableFeedback: deployConfig.enableFeedback,
           responseHeaders: deployConfig.responseHeaders,
           rewrites: deployConfig.rewrites,
+          createProductionDatabase: deployConfig.createProductionDb,
+          seedProductionData: deployConfig.seedProductionDb,
         },
       );
 
@@ -11280,31 +11284,307 @@ Based on the search results above, provide a comprehensive answer to the user's 
   });
 
   // ============ DATABASE VIEWER ============
-  app.post("/api/projects/:id/database/query", requireAuth, async (req: Request, res: Response) => {
+  const VALID_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/;
+  function isValidIdentifier(name: string): boolean {
+    return VALID_IDENTIFIER_RE.test(name);
+  }
+  function getProjectSchema(projectId: string, env?: string): string {
+    const sanitized = projectId.replace(/[^a-zA-Z0-9_]/g, "_");
+    return env === "production" ? `prod_${sanitized}` : `proj_${sanitized}`;
+  }
+  async function ensureProjectSchema(pool: any, projectId: string, env?: string): Promise<string> {
+    const schema = getProjectSchema(projectId, env);
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+    return schema;
+  }
+  function containsCrossSchemaRef(sql: string, allowedSchema: string): boolean {
+    const normalized = sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/'[^']*'/g, "''");
+    if (/SET\s+search_path/i.test(normalized)) return true;
+    const blockedSchemas = ["public", "pg_catalog", "pg_toast"];
+    for (const schema of blockedSchemas) {
+      const pattern = new RegExp(`\\b${schema}\\s*\\.`, "i");
+      if (pattern.test(normalized)) return true;
+    }
+    const crossTenantPattern = /\b(proj_|prod_)[a-zA-Z0-9_]+\s*\./gi;
+    let match;
+    while ((match = crossTenantPattern.exec(normalized)) !== null) {
+      const ref = match[0].replace(/\s*\.$/, "").toLowerCase();
+      if (ref === allowedSchema.toLowerCase()) continue;
+      return true;
+    }
+    return false;
+  }
+
+  app.post("/api/projects/:id/database/execute", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
-      const { sql } = req.body;
-      if (!sql || typeof sql !== "string") return res.status(400).json({ error: "SQL query required" });
-
-      const trimmed = sql.trim().toUpperCase();
-      const allowed = trimmed.startsWith("SELECT") || trimmed.startsWith("WITH") || trimmed.startsWith("EXPLAIN") || trimmed.startsWith("SHOW");
-      if (!allowed) return res.status(400).json({ error: "Only SELECT, WITH, EXPLAIN, and SHOW queries are allowed" });
+      const { sql: sqlQuery, confirm, env } = req.body;
+      if (!sqlQuery || typeof sqlQuery !== "string") return res.status(400).json({ error: "SQL query required" });
 
       const { pool } = await import("./db");
-      const result = await pool.query(sql);
+      const schema = await ensureProjectSchema(pool, project.id, env);
 
-      if (result.rows && result.fields) {
-        const columns = result.fields.map((f: any) => f.name);
-        const rows = result.rows.map((row: any) => columns.map((col: string) => row[col]));
-        res.json({ columns, rows, rowCount: result.rowCount ?? rows.length });
-      } else {
-        res.json({ columns: [], rows: [], rowCount: result.rowCount ?? 0 });
+      if (containsCrossSchemaRef(sqlQuery, schema)) {
+        return res.status(403).json({ error: "Cross-schema references are not allowed. Queries are restricted to your project database." });
+      }
+
+      const stripped = sqlQuery.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/'[^']*'/g, "''");
+      const statements = stripped.split(";").map(s => s.trim()).filter(s => s.length > 0);
+      if (statements.length > 1) {
+        return res.status(400).json({ error: "Multi-statement queries are not allowed. Please execute one statement at a time." });
+      }
+
+      const writeKeywords = /\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|GRANT|REVOKE)\b/i;
+      const destructiveKeywords = /\b(DROP|DELETE|TRUNCATE|ALTER|UPDATE)\b/i;
+      const isWrite = writeKeywords.test(stripped);
+      const isDestructive = destructiveKeywords.test(stripped);
+
+      if (env === "production" && isWrite) {
+        return res.status(403).json({ error: "Write operations are not allowed on production databases" });
+      }
+
+      if (isDestructive && !confirm) {
+        return res.json({
+          requiresConfirmation: true,
+          sql: sqlQuery,
+          message: "This is a destructive query. Confirm to execute.",
+          columns: [],
+          rows: [],
+          rowCount: 0,
+        });
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query(`SET search_path TO "${schema}"`);
+        const result = await client.query(sqlQuery);
+        if (result.rows && result.fields) {
+          const columns = result.fields.map((f: any) => f.name);
+          const rows = result.rows.map((row: any) => columns.map((col: string) => row[col]));
+          res.json({ columns, rows, rowCount: result.rowCount ?? rows.length });
+        } else {
+          res.json({ columns: [], rows: [], rowCount: result.rowCount ?? 0 });
+        }
+      } finally {
+        client.release();
       }
     } catch (err: any) {
       res.json({ error: err.message || "Query failed" });
+    }
+  });
+
+  app.get("/api/projects/:id/database/tables", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+
+      const env = req.query.env as string;
+      const { pool } = await import("./db");
+      const schema = await ensureProjectSchema(pool, project.id, env);
+      const result = await pool.query(
+        `SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
+        [schema]
+      );
+      res.json({ tables: result.rows.map((r: any) => r.tablename) });
+    } catch (err: any) {
+      res.json({ error: err.message || "Failed to list tables" });
+    }
+  });
+
+  app.get("/api/projects/:id/database/tables/:tableName/data", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+
+      const tableName = req.params.tableName;
+      if (!isValidIdentifier(tableName)) return res.status(400).json({ error: "Invalid table name" });
+
+      const env = req.query.env as string;
+      const { pool } = await import("./db");
+      const schema = await ensureProjectSchema(pool, project.id, env);
+
+      const tableCheck = await pool.query(
+        `SELECT 1 FROM pg_tables WHERE schemaname = $1 AND tablename = $2`,
+        [schema, tableName]
+      );
+      if (tableCheck.rows.length === 0) return res.status(404).json({ error: "Table not found in project schema" });
+
+      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const sortCol = req.query.sort as string;
+      const sortDir = (req.query.dir as string)?.toUpperCase() === "DESC" ? "DESC" : "ASC";
+      const filterCol = req.query.filterCol as string;
+      const filterVal = req.query.filterVal as string;
+
+      const colResult = await pool.query(
+        `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = $1 AND table_schema = $2 ORDER BY ordinal_position`,
+        [tableName, schema]
+      );
+      const validCols = colResult.rows.map((c: any) => c.column_name);
+
+      let countQuery = `SELECT COUNT(*) as total FROM "${schema}"."${tableName}"`;
+      let dataQuery = `SELECT * FROM "${schema}"."${tableName}"`;
+      const params: any[] = [];
+
+      if (filterCol && filterVal && validCols.includes(filterCol)) {
+        const filterClause = ` WHERE "${filterCol}"::text ILIKE $1`;
+        countQuery += filterClause;
+        dataQuery += filterClause;
+        params.push(`%${filterVal}%`);
+      }
+
+      if (sortCol && validCols.includes(sortCol)) {
+        dataQuery += ` ORDER BY "${sortCol}" ${sortDir}`;
+      }
+
+      dataQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+
+      const [countRes, dataRes] = await Promise.all([
+        pool.query(countQuery, params),
+        pool.query(dataQuery, params),
+      ]);
+
+      const columns = colResult.rows.map((c: any) => ({
+        name: c.column_name,
+        type: c.data_type,
+        nullable: c.is_nullable === "YES",
+        hasDefault: !!c.column_default,
+      }));
+
+      res.json({
+        columns,
+        rows: dataRes.rows,
+        totalRows: parseInt(countRes.rows[0]?.total || "0"),
+        limit,
+        offset,
+      });
+    } catch (err: any) {
+      res.json({ error: err.message || "Failed to fetch table data" });
+    }
+  });
+
+  app.get("/api/projects/:id/database/credentials", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== userId) return res.status(403).json({ error: "Access denied" });
+
+      const dbUrl = process.env.DATABASE_URL;
+      if (!dbUrl) return res.json({ credentials: {} });
+
+      const env = req.query.env as string;
+      const schema = getProjectSchema(project.id, env);
+
+      try {
+        const url = new URL(dbUrl);
+        const mask = (s: string) => s.length > 4 ? s.slice(0, 2) + "***" + s.slice(-2) : "***";
+        res.json({
+          credentials: {
+            DATABASE_URL: `postgresql://${url.username}:${mask(decodeURIComponent(url.password))}@${url.hostname}:${url.port || "5432"}${url.pathname}?options=-csearch_path%3D${schema}`,
+            PGHOST: url.hostname,
+            PGUSER: url.username,
+            PGPASSWORD: mask(decodeURIComponent(url.password)),
+            PGDATABASE: url.pathname.slice(1),
+            PGPORT: url.port || "5432",
+            PGSCHEMA: schema,
+          },
+        });
+      } catch {
+        res.json({ credentials: { DATABASE_URL: "Not configured" } });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to get credentials" });
+    }
+  });
+
+  app.get("/api/projects/:id/database/usage", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+
+      const env = req.query.env as string;
+      const { pool } = await import("./db");
+      const schema = await ensureProjectSchema(pool, project.id, env);
+
+      const tablesResult = await pool.query(
+        `SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
+        [schema]
+      );
+
+      const tableStats = [];
+      let totalSize = 0;
+      for (const t of tablesResult.rows) {
+        try {
+          const countRes = await pool.query(`SELECT COUNT(*) as cnt FROM "${schema}"."${t.tablename}"`);
+          const sizeRes = await pool.query(`SELECT pg_total_relation_size('"${schema}"."${t.tablename}"') as tsize`);
+          const tsize = parseInt(sizeRes.rows[0]?.tsize || "0");
+          totalSize += tsize;
+          tableStats.push({
+            schema,
+            table: t.tablename,
+            rowCount: parseInt(countRes.rows[0]?.cnt || "0"),
+            sizeBytes: tsize,
+          });
+        } catch {
+          tableStats.push({ schema, table: t.tablename, rowCount: 0, sizeBytes: 0 });
+        }
+      }
+
+      res.json({
+        dbSizeBytes: totalSize,
+        tableCount: tablesResult.rows.length,
+        tables: tableStats,
+        freeLimit: "10 GB",
+        freeLimitBytes: 10 * 1024 * 1024 * 1024,
+      });
+    } catch (err: any) {
+      res.json({ error: err.message || "Failed to get usage" });
+    }
+  });
+
+  app.post("/api/projects/:id/database/remove", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      const project = await storage.getProject(req.params.id);
+      if (!project || project.userId !== userId) return res.status(403).json({ error: "Access denied" });
+
+      const { confirmToken, env } = req.body;
+      if (env === "production") {
+        return res.status(403).json({ error: "Production databases cannot be removed from the panel" });
+      }
+      if (confirmToken !== "REMOVE_DATABASE") {
+        return res.status(400).json({ error: "Confirmation required. Send confirmToken: 'REMOVE_DATABASE'" });
+      }
+
+      const { pool } = await import("./db");
+      const schema = getProjectSchema(project.id, env);
+
+      const tablesResult = await pool.query(
+        `SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
+        [schema]
+      );
+
+      const droppedTables: string[] = [];
+      for (const t of tablesResult.rows) {
+        try {
+          await pool.query(`DROP TABLE IF EXISTS "${schema}"."${t.tablename}" CASCADE`);
+          droppedTables.push(t.tablename);
+        } catch {}
+      }
+
+      try {
+        await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+      } catch {}
+
+      res.json({ message: `Removed ${droppedTables.length} tables`, droppedTables });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to remove database" });
     }
   });
 
@@ -12608,6 +12888,22 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (file.size === 0) return res.status(400).json({ message: "Empty file (0 bytes) cannot be uploaded" });
 
       const projectId = req.params.id;
+      const project = await storage.getProject(projectId);
+      if (project) {
+        const userQuota = await storage.getUserQuota(project.userId);
+        const plan = (userQuota?.plan || "free") as keyof typeof STORAGE_PLAN_LIMITS;
+        const planLimits = STORAGE_PLAN_LIMITS[plan] || STORAGE_PLAN_LIMITS.free;
+        const limitBytes = planLimits.storageMb * 1024 * 1024;
+        const currentUsage = await storage.getProjectStorageUsage(projectId);
+        if (currentUsage.totalBytes + file.size > limitBytes) {
+          const { unlink } = await import("fs/promises");
+          try { await unlink(file.path); } catch {}
+          return res.status(413).json({
+            message: `Storage quota exceeded. Current usage: ${(currentUsage.totalBytes / 1024 / 1024).toFixed(1)} MB, limit: ${planLimits.storageMb} MB (${plan} plan). Upgrade your plan for more storage.`,
+          });
+        }
+      }
+
       const { mkdir, rename } = await import("fs/promises");
 
       const storageDir = path.join(PERSISTENT_STORAGE_DIR, projectId);
@@ -12647,6 +12943,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.setHeader("Content-Type", obj.mimeType);
       const encodedFilename = encodeURIComponent(obj.filename).replace(/'/g, "%27");
       res.setHeader("Content-Disposition", `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
+
+      storage.trackBandwidth(req.params.id, obj.sizeBytes).catch(() => {});
+
       createReadStream(obj.storagePath).pipe(res);
     } catch {
       res.status(500).json({ message: "Download failed" });
@@ -12679,6 +12978,16 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.json(usage);
     } catch {
       res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/bandwidth", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const bandwidth = await storage.getProjectBandwidth(req.params.id);
+      res.json(bandwidth);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch bandwidth" });
     }
   });
 
@@ -16184,6 +16493,26 @@ Respond ONLY with the JSON array, no other text.`;
       return res.status(500).json({ message: "Failed to delete canvas annotation" });
     }
   });
+
+  try {
+    const { pool: dbPool } = await import("./db");
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS storage_bandwidth (
+        id varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id varchar(36) NOT NULL,
+        period_start timestamp NOT NULL,
+        period_end timestamp NOT NULL,
+        bytes_downloaded bigint NOT NULL DEFAULT 0,
+        download_count integer NOT NULL DEFAULT 0,
+        updated_at timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS storage_bandwidth_project_idx ON storage_bandwidth (project_id);
+      CREATE INDEX IF NOT EXISTS storage_bandwidth_period_idx ON storage_bandwidth (project_id, period_start);
+    `);
+    log("storage_bandwidth table ensured", "seed");
+  } catch (e: any) {
+    log(`storage_bandwidth migration: ${e.message}`, "seed");
+  }
 
   await storage.seedDemoProject();
   log("Demo project seeded", "seed");

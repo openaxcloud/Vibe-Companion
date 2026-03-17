@@ -139,7 +139,17 @@ A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write,
 - `project_invite_links`: id (uuid), project_id (indexed), token (unique), created_by, role (default "editor"), max_uses, use_count, expires_at, is_active, created_at
 - `desktop_releases`: id (uuid), version (unique), platform, download_url, file_size, sha256, changelog, is_latest, created_at — stores desktop app release metadata per platform
 - `desktop_downloads`: id (uuid), platform, version, ip_address, user_agent, created_at — tracks desktop app download events
+- `storage_bandwidth`: id (uuid), project_id (indexed), period_start, period_end, bytes_downloaded, updated_at — tracks download bandwidth per project per billing period
 - `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
+
+## Database Panel & Storage
+- **Project-scoped databases**: Each project gets its own PostgreSQL schema (`proj_{projectId}`) for isolation. SQL Runner executes queries within project schema via `SET search_path`. No access to platform tables.
+- **DatabasePanel** (`client/src/components/DatabasePanel.tsx`): 3 tabs — My Data (table browser with data grid, inline cell edit, insert/delete rows, sortable columns, filter, CSV export), SQL Runner (full SQL with destructive query confirmation dialog), Settings (masked credentials display, usage metrics with size per table, remove database action).
+- **Dev/Prod switcher**: Frontend dropdown to view dev vs production data. Production mode blocks destructive queries server-side.
+- **Production database provisioning**: `provisionProductionDatabase()` in `deploymentEngine.ts` creates `prod_{projectId}` schema, copies table structures from dev schema, optional data seeding.
+- **Storage quota enforcement**: Plan-based limits (Free=50MB, Pro=5GB, Team=50GB from `STORAGE_PLAN_LIMITS`). Upload returns 413 when exceeded.
+- **Bandwidth tracking**: Downloads tracked in `storage_bandwidth` table. `AppStoragePanel` shows bandwidth usage bar alongside storage usage.
+- **API Routes**: `POST /api/projects/:id/database/execute` (SQL with env/confirm), `GET /database/tables`, `GET /database/tables/:name/data`, `GET /database/credentials`, `GET /database/usage`, `POST /database/remove`, `GET /api/projects/:id/storage/bandwidth`.
 
 ## Key Features
 - Email/password authentication with persistent PostgreSQL-backed sessions

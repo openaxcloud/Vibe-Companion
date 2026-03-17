@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, uniqueIndex, index, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1218,6 +1218,26 @@ export const insertStorageObjectSchema = createInsertSchema(storageObjects).pick
 });
 export type InsertStorageObject = z.infer<typeof insertStorageObjectSchema>;
 export type StorageObject = typeof storageObjects.$inferSelect;
+
+export const storageBandwidth = pgTable("storage_bandwidth", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  bytesDownloaded: bigint("bytes_downloaded", { mode: "number" }).notNull().default(0),
+  downloadCount: integer("download_count").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("storage_bandwidth_project_idx").on(table.projectId),
+  index("storage_bandwidth_period_idx").on(table.projectId, table.periodStart),
+]);
+export type StorageBandwidth = typeof storageBandwidth.$inferSelect;
+
+export const STORAGE_PLAN_LIMITS = {
+  free: { storageMb: 50, bandwidthGb: 1 },
+  pro: { storageMb: 5000, bandwidthGb: 100 },
+  team: { storageMb: 50000, bandwidthGb: 500 },
+} as const;
 
 export const projectAuthConfig = pgTable("project_auth_config", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

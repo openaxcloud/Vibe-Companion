@@ -58,6 +58,8 @@ export interface DeploymentConfig {
   enableFeedback?: boolean;
   responseHeaders?: Array<{ path: string; name: string; value: string }>;
   rewrites?: Array<{ from: string; to: string }>;
+  createProductionDatabase?: boolean;
+  seedProductionData?: boolean;
 }
 
 const RESERVED_HEADERS = new Set([
@@ -287,6 +289,75 @@ export function getProcessStatus(projectId: string): {
   return getProcessStatusPM(projectId);
 }
 
+export async function provisionProductionDatabase(
+  projectId: string,
+  seedFromDev: boolean,
+  addLog: (line: string) => void,
+): Promise<string | null> {
+  try {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      addLog(`[db] No DATABASE_URL found, skipping production database provisioning`);
+      return null;
+    }
+
+    const pg = await import("pg");
+    const pool = new pg.default.Pool({ connectionString: dbUrl });
+
+    const devSchema = `proj_${projectId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+    const prodSchema = `prod_${projectId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+    addLog(`[db] Creating production schema: ${prodSchema}`);
+
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS "${prodSchema}"`);
+    addLog(`[db] Production schema created`);
+
+    const devTablesResult = await pool.query(
+      `SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
+      [devSchema]
+    );
+
+    const projectTables = devTablesResult.rows.map((r: any) => r.tablename);
+
+    if (projectTables.length === 0) {
+      addLog(`[db] No user-created tables found to copy`);
+    }
+
+    for (const tableName of projectTables) {
+      try {
+        const existsResult = await pool.query(
+          `SELECT 1 FROM pg_tables WHERE schemaname = $1 AND tablename = $2`,
+          [prodSchema, tableName]
+        );
+        if (existsResult.rows.length === 0) {
+          await pool.query(`CREATE TABLE "${prodSchema}"."${tableName}" (LIKE "${devSchema}"."${tableName}" INCLUDING ALL)`);
+          addLog(`[db] Copied table structure: ${tableName}`);
+        } else {
+          addLog(`[db] Table already exists: ${tableName}`);
+        }
+
+        if (seedFromDev) {
+          await pool.query(`INSERT INTO "${prodSchema}"."${tableName}" SELECT * FROM "${devSchema}"."${tableName}"`);
+          addLog(`[db] Seeded data for: ${tableName}`);
+        }
+      } catch (err: any) {
+        addLog(`[db] Warning: Could not copy table ${tableName}: ${err.message}`);
+      }
+    }
+
+    const url = new URL(dbUrl);
+    const existingOptions = url.searchParams.get("options") || "";
+    url.searchParams.set("options", `${existingOptions ? existingOptions + " " : ""}-csearch_path=${prodSchema}`);
+    const prodDbUrl = url.toString();
+    addLog(`[db] Production DATABASE_URL configured with schema: ${prodSchema}`);
+
+    await pool.end();
+    return prodDbUrl;
+  } catch (err: any) {
+    addLog(`[db] Production database provisioning failed: ${err.message}`);
+    return null;
+  }
+}
+
 export async function buildAndDeploy(
   projectId: string,
   projectName: string,
@@ -338,6 +409,20 @@ export async function buildAndDeploy(
 
     if (config?.deploymentSecrets && Object.keys(config.deploymentSecrets).length > 0) {
       addLog(`[build] Injecting ${Object.keys(config.deploymentSecrets).length} deployment secret(s)`);
+    }
+
+    if (config?.createProductionDatabase) {
+      addLog(`[build] Provisioning production database...`);
+      const prodDbUrl = await provisionProductionDatabase(
+        projectId,
+        config.seedProductionData ?? false,
+        addLog,
+      );
+      if (prodDbUrl) {
+        if (!config.deploymentSecrets) config.deploymentSecrets = {};
+        config.deploymentSecrets.DATABASE_URL = prodDbUrl;
+        addLog(`[build] Production DATABASE_URL injected as deployment secret`);
+      }
     }
 
     await ensureDir(outputDir);

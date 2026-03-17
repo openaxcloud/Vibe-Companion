@@ -11,7 +11,7 @@ import {
   customDomains, purchasedDomains, dnsRecords, planConfigs,
   securityScans, securityFindings,
   projectCollaborators, projectInviteLinks,
-  storageKv, storageObjects,
+  storageKv, storageObjects, storageBandwidth,
   projectAuthConfig, projectAuthUsers,
   integrationCatalog, projectIntegrations, integrationLogs,
   automations, automationRuns,
@@ -388,6 +388,8 @@ export interface IStorage {
   createStorageObject(data: InsertStorageObject): Promise<StorageObject>;
   deleteStorageObject(id: string): Promise<boolean>;
   getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }>;
+  trackBandwidth(projectId: string, bytes: number): Promise<void>;
+  getProjectBandwidth(projectId: string): Promise<{ bytesDownloaded: number; downloadCount: number; periodStart: string; periodEnd: string }>;
 
   getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined>;
   upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[]; appName: string | null; appIconUrl: string | null }>): Promise<ProjectAuthConfig>;
@@ -2286,6 +2288,61 @@ export class DatabaseStorage implements IStorage {
     const objectCount = objects.length;
     const objectSizeBytes = objects.reduce((sum, o) => sum + o.sizeBytes, 0);
     return { kvCount, kvSizeBytes, objectCount, objectSizeBytes, totalBytes: kvSizeBytes + objectSizeBytes };
+  }
+
+  async trackBandwidth(projectId: string, bytes: number): Promise<void> {
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const [existing] = await db.select().from(storageBandwidth)
+      .where(and(
+        eq(storageBandwidth.projectId, projectId),
+        eq(storageBandwidth.periodStart, periodStart),
+      )).limit(1);
+
+    if (existing) {
+      await db.update(storageBandwidth).set({
+        bytesDownloaded: sql`${storageBandwidth.bytesDownloaded} + ${bytes}`,
+        downloadCount: sql`${storageBandwidth.downloadCount} + 1`,
+        updatedAt: now,
+      }).where(eq(storageBandwidth.id, existing.id));
+    } else {
+      await db.insert(storageBandwidth).values({
+        projectId,
+        periodStart,
+        periodEnd,
+        bytesDownloaded: bytes,
+        downloadCount: 1,
+      });
+    }
+  }
+
+  async getProjectBandwidth(projectId: string): Promise<{ bytesDownloaded: number; downloadCount: number; periodStart: string; periodEnd: string }> {
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [record] = await db.select().from(storageBandwidth)
+      .where(and(
+        eq(storageBandwidth.projectId, projectId),
+        eq(storageBandwidth.periodStart, periodStart),
+      )).limit(1);
+
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    if (record) {
+      return {
+        bytesDownloaded: record.bytesDownloaded,
+        downloadCount: record.downloadCount,
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+      };
+    }
+    return {
+      bytesDownloaded: 0,
+      downloadCount: 0,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+    };
   }
 
   async getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined> {

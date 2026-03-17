@@ -715,6 +715,8 @@ function _projectPage() {
   const [deployIsPrivate, setDeployIsPrivate] = useState(false);
   const [deployShowBadge, setDeployShowBadge] = useState(true);
   const [deployEnableFeedback, setDeployEnableFeedback] = useState(false);
+  const [deployCreateProductionDb, setDeployCreateProductionDb] = useState(false);
+  const [deploySeedProductionDb, setDeploySeedProductionDb] = useState(false);
   const [deploySecretsEntries, setDeploySecretsEntries] = useState<{key: string; value: string}[]>([]);
   const [deployPanelTab, setDeployPanelTab] = useState<"config" | "history" | "process" | "analytics" | "settings">("config");
   const [deployProcessLogs, setDeployProcessLogs] = useState<string[]>([]);
@@ -2147,6 +2149,8 @@ function _projectPage() {
         isPrivate: deployIsPrivate,
         showBadge: deployShowBadge,
         enableFeedback: deployEnableFeedback,
+        createProductionDb: deployCreateProductionDb || undefined,
+        seedProductionDb: deploySeedProductionDb || undefined,
       });
       const deployData = await res.json();
       if (deployData.deployment?.status === "failed") {
@@ -7598,6 +7602,28 @@ function _projectPage() {
                       </div>
                     </div>
                   )}
+
+                  <div className="px-3 pb-3">
+                    <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Database</span>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] text-[var(--ide-text)]">Create production database</p>
+                          <p className="text-[9px] text-[var(--ide-text-muted)]">Provision a separate database schema for production</p>
+                        </div>
+                        <Switch checked={deployCreateProductionDb} onCheckedChange={setDeployCreateProductionDb} data-testid="toggle-create-production-db" />
+                      </div>
+                      {deployCreateProductionDb && (
+                        <div className="flex items-center justify-between pl-3">
+                          <div>
+                            <p className="text-[11px] text-[var(--ide-text)]">Seed from dev data</p>
+                            <p className="text-[9px] text-[var(--ide-text-muted)]">Copy development data to production</p>
+                          </div>
+                          <Switch checked={deploySeedProductionDb} onCheckedChange={setDeploySeedProductionDb} data-testid="toggle-seed-production-db" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

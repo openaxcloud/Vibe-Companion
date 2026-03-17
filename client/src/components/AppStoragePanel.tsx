@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Loader2, HardDrive, X, Plus, Trash2, Pencil, Upload, Download, File as FileIcon, Key, Database } from "lucide-react";
-import { UPLOAD_LIMITS } from "@shared/schema";
+import { Loader2, HardDrive, X, Plus, Trash2, Pencil, Upload, Download, File as FileIcon, Key, Database, Activity } from "lucide-react";
+import { UPLOAD_LIMITS, STORAGE_PLAN_LIMITS } from "@shared/schema";
 
 interface AppStoragePanelProps {
   projectId: string;
@@ -76,6 +76,15 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/storage/usage`, { credentials: "include" });
       if (!res.ok) return { kvCount: 0, kvSizeBytes: 0, objectCount: 0, objectSizeBytes: 0, totalBytes: 0 };
+      return res.json();
+    },
+  });
+
+  const bandwidthQuery = useQuery<{ bytesDownloaded: number; downloadCount: number; periodStart: string; periodEnd: string }>({
+    queryKey: ["/api/projects", projectId, "storage/bandwidth"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/storage/bandwidth`, { credentials: "include" });
+      if (!res.ok) return { bytesDownloaded: 0, downloadCount: 0, periodStart: "", periodEnd: "" };
       return res.json();
     },
   });
@@ -191,12 +200,30 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
             <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-storage-total">{formatBytes(usage.totalBytes)}</span>
           </div>
           <div className="w-full h-1.5 bg-[var(--ide-bg)] rounded-full overflow-hidden">
-            <div className="h-full bg-[#7C65CB] rounded-full transition-all" style={{ width: `${Math.min(100, (usage.totalBytes / (50 * 1024 * 1024)) * 100)}%` }} />
+            <div className="h-full bg-[#7C65CB] rounded-full transition-all" style={{ width: `${Math.min(100, (usage.totalBytes / (STORAGE_PLAN_LIMITS.free.storageMb * 1024 * 1024)) * 100)}%` }} />
           </div>
           <div className="flex items-center justify-between mt-1">
             <span className="text-[9px] text-[var(--ide-text-muted)]">{usage.kvCount} keys · {usage.objectCount} files</span>
-            <span className="text-[9px] text-[var(--ide-text-muted)]">50 MB limit</span>
+            <span className="text-[9px] text-[var(--ide-text-muted)]">{STORAGE_PLAN_LIMITS.free.storageMb} MB limit (Free)</span>
           </div>
+
+          {bandwidthQuery.data && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] text-[var(--ide-text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1">
+                  <Activity className="w-3 h-3" /> Bandwidth
+                </span>
+                <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-bandwidth-total">{formatBytes(bandwidthQuery.data.bytesDownloaded)}</span>
+              </div>
+              <div className="w-full h-1.5 bg-[var(--ide-bg)] rounded-full overflow-hidden">
+                <div className="h-full bg-[#0079F2] rounded-full transition-all" style={{ width: `${Math.min(100, (bandwidthQuery.data.bytesDownloaded / (STORAGE_PLAN_LIMITS.free.bandwidthGb * 1024 * 1024 * 1024)) * 100)}%` }} />
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[9px] text-[var(--ide-text-muted)]">{bandwidthQuery.data.downloadCount} downloads this period</span>
+                <span className="text-[9px] text-[var(--ide-text-muted)]">{STORAGE_PLAN_LIMITS.free.bandwidthGb} GB limit</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
