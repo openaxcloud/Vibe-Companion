@@ -7,7 +7,8 @@ import {
   Mic, MicOff, Paperclip, Image, FileText, XCircle, ImagePlus, Loader2, ToggleLeft, ToggleRight,
   Settings2, Search, FlaskConical, Brain, Globe,
   Pause, GripVertical, Pencil, ListOrdered, ChevronUp,
-  Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers
+  Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers,
+  Volume2, VolumeX, Download, Square
 } from "lucide-react";
 import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
 import FigmaDesignCard, { FigmaLinkIndicator, detectFigmaUrl } from "./FigmaDesignCard";
@@ -64,6 +65,8 @@ interface ChatMessage {
   webSearchResults?: WebSearchResult[];
   generatedFiles?: GeneratedFile[];
   mcpToolCalls?: McpToolCall[];
+  audioChunks?: string[];
+  audioTranscript?: string;
 }
 
 interface QueuedMsg {
@@ -460,6 +463,184 @@ function WebSearchIndicator({ label }: { label: string }) {
   );
 }
 
+type VoiceOption = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
+const VOICE_OPTIONS: { value: VoiceOption; label: string; desc: string }[] = [
+  { value: "alloy", label: "Alloy", desc: "Neutral & balanced" },
+  { value: "echo", label: "Echo", desc: "Warm & clear" },
+  { value: "fable", label: "Fable", desc: "Expressive & British" },
+  { value: "onyx", label: "Onyx", desc: "Deep & authoritative" },
+  { value: "nova", label: "Nova", desc: "Friendly & upbeat" },
+  { value: "shimmer", label: "Shimmer", desc: "Soft & gentle" },
+];
+
+function decodePCM16ToFloat32(base64Audio: string): Float32Array {
+  const raw = atob(base64Audio);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) {
+    bytes[i] = raw.charCodeAt(i);
+  }
+  const pcm16 = new Int16Array(bytes.buffer);
+  const float32 = new Float32Array(pcm16.length);
+  for (let i = 0; i < pcm16.length; i++) {
+    float32[i] = pcm16[i] / 32768;
+  }
+  return float32;
+}
+
+function pcmChunksToWavBlob(chunks: string[]): Blob {
+  let totalSamples = 0;
+  const decodedChunks: Int16Array[] = [];
+  for (const chunk of chunks) {
+    const raw = atob(chunk);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    const pcm = new Int16Array(bytes.buffer);
+    decodedChunks.push(pcm);
+    totalSamples += pcm.length;
+  }
+  const sampleRate = 24000;
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const dataSize = totalSamples * (bitsPerSample / 8);
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeString = (offset: number, str: string) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (const pcm of decodedChunks) {
+    for (let i = 0; i < pcm.length; i++) {
+      view.setInt16(offset, pcm[i], true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+function InlineAudioPlayer({ audioChunks, messageId }: { audioChunks: string[]; messageId: string }) {
+  const [playState, setPlayState] = useState<"idle" | "playing" | "ended">("idle");
+  const ctxRef = useRef<AudioContext | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
+  const readyRef = useRef(false);
+  const playIndexRef = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  const initAudio = useCallback(async () => {
+    if (readyRef.current && ctxRef.current) {
+      if (ctxRef.current.state === "suspended") await ctxRef.current.resume();
+      return;
+    }
+    const ctx = new AudioContext({ sampleRate: 24000 });
+    if (ctx.state === "suspended") await ctx.resume();
+    await ctx.audioWorklet.addModule("/audio-playback-worklet.js");
+    const worklet = new AudioWorkletNode(ctx, "audio-playback-processor");
+    worklet.connect(ctx.destination);
+    worklet.port.onmessage = (e) => {
+      if (e.data.type === "ended") {
+        setPlayState("ended");
+        setProgress(100);
+      }
+    };
+    ctxRef.current = ctx;
+    workletRef.current = worklet;
+    readyRef.current = true;
+  }, []);
+
+  const play = useCallback(async () => {
+    await initAudio();
+    if (!workletRef.current) return;
+    workletRef.current.port.postMessage({ type: "clear" });
+    playIndexRef.current = 0;
+    setProgress(0);
+    setPlayState("playing");
+    for (let i = 0; i < audioChunks.length; i++) {
+      const samples = decodePCM16ToFloat32(audioChunks[i]);
+      workletRef.current.port.postMessage({ type: "audio", samples });
+    }
+    workletRef.current.port.postMessage({ type: "streamComplete" });
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    const totalDuration = audioChunks.length * 50;
+    const startTime = Date.now();
+    intervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min((elapsed / totalDuration) * 100, 99);
+      setProgress(pct);
+    }, 100);
+  }, [audioChunks, initAudio]);
+
+  const stop = useCallback(() => {
+    workletRef.current?.port.postMessage({ type: "clear" });
+    setPlayState("idle");
+    setProgress(0);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }, []);
+
+  const download = useCallback(() => {
+    const blob = pcmChunksToWavBlob(audioChunks);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audio-response-${messageId.slice(0, 8)}.wav`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [audioChunks, messageId]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      workletRef.current?.port.postMessage({ type: "clear" });
+    };
+  }, []);
+
+  if (!audioChunks || audioChunks.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#7C65CB]/8 border border-[#7C65CB]/20" data-testid={`audio-player-${messageId}`}>
+      <button
+        onClick={playState === "playing" ? stop : play}
+        className="w-7 h-7 rounded-full flex items-center justify-center bg-[#7C65CB] hover:bg-[#6B56B8] text-white transition-colors shrink-0"
+        data-testid={`button-audio-play-${messageId}`}
+      >
+        {playState === "playing" ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3 ml-0.5" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#7C65CB] transition-all duration-200"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <Volume2 className="w-3 h-3 text-[#7C65CB]" />
+        <span className="text-[9px] text-[var(--ide-text-muted)]">Audio</span>
+      </div>
+      <button
+        onClick={download}
+        className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10 transition-all"
+        title="Download audio"
+        data-testid={`button-audio-download-${messageId}`}
+      >
+        <Download className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
 class AIPanelErrorBoundary extends React.Component<
   { children: React.ReactNode; onClose: () => void },
   { hasError: boolean; error: Error | null }
@@ -575,6 +756,18 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [userPlan, setUserPlan] = useState<string>("free");
   const [credentialModes, setCredentialModes] = useState<Record<string, { mode: string; hasApiKey: boolean; configured: boolean }>>({});
   const [showManagedApproval, setShowManagedApproval] = useState<{ provider: string; providerLabel: string } | null>(null);
+  const [audioOutputEnabled, setAudioOutputEnabled] = useState(() => {
+    try { return localStorage.getItem("ai-audio-output") === "true"; } catch { return false; }
+  });
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption>(() => {
+    try { return (localStorage.getItem("ai-voice") as VoiceOption) || "alloy"; } catch { return "alloy"; }
+  });
+  const [isAudioStreaming, setIsAudioStreaming] = useState(false);
+  const [readAloudMsgId, setReadAloudMsgId] = useState<string | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioWorkletRef = useRef<AudioWorkletNode | null>(null);
+  const audioReadyRef = useRef(false);
+  const audioAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetch("/api/user/usage", { credentials: "include" })
@@ -1465,13 +1658,26 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       await processSSEStream(res, assistantId, isAgent, setMessages, model);
 
-      setMessages((prev) => {
-        const assistantMsg = prev.find((m) => m.id === assistantId);
-        if (assistantMsg && assistantMsg.content) {
-          persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
-        }
-        return prev;
+      const extractedContent = await new Promise<string>((resolve) => {
+        setMessages((prev) => {
+          const assistantMsg = prev.find((m) => m.id === assistantId);
+          if (assistantMsg && assistantMsg.content) {
+            persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
+            resolve(assistantMsg.content);
+          } else {
+            resolve("");
+          }
+          return prev;
+        });
       });
+
+      if (audioOutputEnabled && extractedContent && !extractedContent.includes("⚠️")) {
+        const plainText = extractedContent.replace(/```[\s\S]*?```/g, "").replace(/[#*_`>\[\]()!]/g, "").trim();
+        if (plainText.length > 0 && plainText.length <= 4096) {
+          readAloud(plainText, assistantId);
+        }
+      }
+
       return true;
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
@@ -1486,7 +1692,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       abortRef.current = null;
       onAgentComplete?.();
     }
-  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete]);
+  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -1839,6 +2045,190 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
     }
   };
+
+  const toggleAudioOutput = useCallback(() => {
+    setAudioOutputEnabled((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("ai-audio-output", String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleVoiceChange = useCallback((voice: VoiceOption) => {
+    setSelectedVoice(voice);
+    try { localStorage.setItem("ai-voice", voice); } catch {}
+  }, []);
+
+  const initAudioPlayback = useCallback(async () => {
+    if (audioReadyRef.current && audioCtxRef.current) {
+      if (audioCtxRef.current.state === "suspended") {
+        await audioCtxRef.current.resume();
+      }
+      return;
+    }
+    const ctx = new AudioContext({ sampleRate: 24000 });
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
+    await ctx.audioWorklet.addModule("/audio-playback-worklet.js");
+    const worklet = new AudioWorkletNode(ctx, "audio-playback-processor");
+    worklet.connect(ctx.destination);
+    worklet.port.onmessage = (e) => {
+      if (e.data.type === "ended") {
+        setIsAudioStreaming(false);
+        setReadAloudMsgId(null);
+      }
+    };
+    audioCtxRef.current = ctx;
+    audioWorkletRef.current = worklet;
+    audioReadyRef.current = true;
+  }, []);
+
+  const stopAudioPlayback = useCallback(() => {
+    audioWorkletRef.current?.port.postMessage({ type: "clear" });
+    audioAbortRef.current?.abort();
+    setIsAudioStreaming(false);
+    setReadAloudMsgId(null);
+  }, []);
+
+  const readAloud = useCallback(async (text: string, msgId: string) => {
+    if (isAudioStreaming) {
+      stopAudioPlayback();
+      if (readAloudMsgId === msgId) return;
+    }
+
+    await initAudioPlayback();
+    if (!audioWorkletRef.current) return;
+
+    audioWorkletRef.current.port.postMessage({ type: "clear" });
+    setIsAudioStreaming(true);
+    setReadAloudMsgId(msgId);
+
+    audioAbortRef.current = new AbortController();
+    const collectedChunks: string[] = [];
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+      const response = await fetch("/api/ai/tts", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ text, voice: selectedVoice }),
+        signal: audioAbortRef.current.signal,
+      });
+
+      if (!response.ok) throw new Error("TTS request failed");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "audio" && audioWorkletRef.current) {
+              collectedChunks.push(event.data);
+              const samples = decodePCM16ToFloat32(event.data);
+              audioWorkletRef.current.port.postMessage({ type: "audio", samples });
+            } else if (event.type === "done") {
+              audioWorkletRef.current?.port.postMessage({ type: "streamComplete" });
+              setMessages((prev) =>
+                prev.map((m) => m.id === msgId ? { ...m, audioChunks: collectedChunks } : m)
+              );
+            } else if (event.type === "error") {
+              throw new Error(event.error);
+            }
+          } catch (e) {
+            if (!(e instanceof SyntaxError)) throw e;
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error("TTS error:", err);
+      }
+      setIsAudioStreaming(false);
+      setReadAloudMsgId(null);
+    }
+  }, [isAudioStreaming, readAloudMsgId, selectedVoice, initAudioPlayback, stopAudioPlayback]);
+
+  const streamAudioResponse = useCallback(async (chatMessages: { role: string; content: string }[], assistantMsgId: string) => {
+    await initAudioPlayback();
+    if (!audioWorkletRef.current) return;
+
+    audioWorkletRef.current.port.postMessage({ type: "clear" });
+    setIsAudioStreaming(true);
+    setReadAloudMsgId(assistantMsgId);
+
+    audioAbortRef.current = new AbortController();
+    const collectedChunks: string[] = [];
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+      const response = await fetch("/api/ai/chat-audio", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ messages: chatMessages, voice: selectedVoice }),
+        signal: audioAbortRef.current.signal,
+      });
+
+      if (!response.ok) throw new Error("Audio chat request failed");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "audio" && audioWorkletRef.current) {
+              collectedChunks.push(event.data);
+              const samples = decodePCM16ToFloat32(event.data);
+              audioWorkletRef.current.port.postMessage({ type: "audio", samples });
+            } else if (event.type === "done") {
+              audioWorkletRef.current?.port.postMessage({ type: "streamComplete" });
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantMsgId ? { ...m, audioChunks: collectedChunks, audioTranscript: event.transcript } : m)
+              );
+            }
+          } catch (e) {
+            if (!(e instanceof SyntaxError)) throw e;
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") console.error("Audio stream error:", err);
+      setIsAudioStreaming(false);
+      setReadAloudMsgId(null);
+    }
+  }, [selectedVoice, initAudioPlayback]);
 
   const generateImage = async (prompt: string, size: string = "1024x1024", filename?: string) => {
     if (!prompt.trim() || isGeneratingImage) return;
@@ -2860,6 +3250,49 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     );
                   })}
                 </div>
+                <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
+                  <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Audio Output</span>
+                </div>
+                <div className="p-2 space-y-1">
+                  <button
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all hover:bg-[var(--ide-surface)] cursor-pointer"
+                    onClick={toggleAudioOutput}
+                    data-testid="toggle-audio-output"
+                  >
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-[#7C65CB]/15">
+                      <Volume2 className="w-3.5 h-3.5 text-[#7C65CB]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-medium text-[var(--ide-text)]">Audio Responses</div>
+                      <div className="text-[9px] text-[var(--ide-text-muted)]">Auto-play voice with responses</div>
+                    </div>
+                    <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
+                      audioOutputEnabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
+                    }`}>
+                      <div className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+                  <div className="px-2.5 pt-1">
+                    <div className="text-[9px] text-[var(--ide-text-muted)] mb-1.5">Voice</div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {VOICE_OPTIONS.map((v) => (
+                        <button
+                          key={v.value}
+                          className={`px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-center ${
+                            selectedVoice === v.value
+                              ? "bg-[#7C65CB]/20 text-[#7C65CB] ring-1 ring-[#7C65CB]/30"
+                              : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                          }`}
+                          onClick={() => handleVoiceChange(v.value)}
+                          title={v.desc}
+                          data-testid={`voice-option-${v.value}`}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </PopoverContent>
             </Popover>
           )}
@@ -3182,6 +3615,30 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 {msg.role === "user" && detectFigmaUrl(msg.content) && (
                   <div className="mt-2">
                     <FigmaLinkIndicator url={detectFigmaUrl(msg.content)!} />
+                  </div>
+                )}
+                {msg.role === "assistant" && msg.audioChunks && msg.audioChunks.length > 0 && (
+                  <InlineAudioPlayer audioChunks={msg.audioChunks} messageId={msg.id} />
+                )}
+                {msg.role === "assistant" && msg.content && !msg.content.includes("⚠️") && msg.content.length > 0 && (
+                  <div className="mt-1.5 flex items-center gap-1">
+                    <button
+                      onClick={() => readAloud(msg.content.replace(/```[\s\S]*?```/g, "").replace(/[#*_`>\[\]()!]/g, "").trim(), msg.id)}
+                      className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] transition-all ${
+                        readAloudMsgId === msg.id && isAudioStreaming
+                          ? "bg-[#7C65CB]/20 text-[#7C65CB]"
+                          : "text-[var(--ide-text-muted)] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10"
+                      }`}
+                      disabled={isStreaming}
+                      title={readAloudMsgId === msg.id && isAudioStreaming ? "Stop reading" : "Read aloud"}
+                      data-testid={`button-read-aloud-${msg.id}`}
+                    >
+                      {readAloudMsgId === msg.id && isAudioStreaming ? (
+                        <><VolumeX className="w-3 h-3" /> Stop</>
+                      ) : (
+                        <><Volume2 className="w-3 h-3" /> Read aloud</>
+                      )}
+                    </button>
                   </div>
                 )}
                 {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
@@ -3573,6 +4030,18 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   data-testid="button-ai-generate-image"
                 >
                   {isGeneratingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+                </button>
+                <button
+                  onClick={toggleAudioOutput}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                    audioOutputEnabled
+                      ? "bg-[#7C65CB] text-white shadow-sm shadow-[#7C65CB]/30"
+                      : "text-[var(--ide-text-muted)] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10"
+                  }`}
+                  title={audioOutputEnabled ? `Audio responses ON (${selectedVoice}) — click to disable` : "Enable audio responses"}
+                  data-testid="button-audio-toggle"
+                >
+                  {audioOutputEnabled ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
                 </button>
                 {mode === "agent" && projectId && !liteMode && (
                   <button

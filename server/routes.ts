@@ -8002,6 +8002,114 @@ ${formatInstruction}`;
     }
   });
 
+  app.post("/api/ai/tts", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { text, voice = "alloy" } = req.body;
+      if (!text || typeof text !== "string" || text.trim().length === 0) {
+        return res.status(400).json({ error: "Text is required" });
+      }
+      if (text.length > 4096) {
+        return res.status(400).json({ error: "Text too long (max 4096 characters)" });
+      }
+      const validVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+      const selectedVoice = validVoices.includes(voice) ? voice : "alloy";
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-audio",
+        modalities: ["text", "audio"],
+        audio: { voice: selectedVoice, format: "pcm16" },
+        messages: [
+          { role: "system", content: "You are a helpful assistant. Read the following text aloud naturally." },
+          { role: "user", content: text },
+        ],
+        stream: true,
+      });
+
+      let transcript = "";
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta as any;
+        if (!delta) continue;
+
+        if (delta?.audio?.transcript) {
+          transcript += delta.audio.transcript;
+          res.write(`data: ${JSON.stringify({ type: "transcript", data: delta.audio.transcript })}\n\n`);
+        }
+
+        if (delta?.audio?.data) {
+          res.write(`data: ${JSON.stringify({ type: "audio", data: delta.audio.data })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done", transcript })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      log(`TTS error: ${err.message}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ type: "error", error: "TTS failed" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: "TTS failed: " + (err.message || "unknown error") });
+      }
+    }
+  });
+
+  app.post("/api/ai/chat-audio", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    try {
+      const { messages: chatMessages, voice = "alloy", model: reqModel } = req.body;
+      if (!chatMessages || !Array.isArray(chatMessages) || chatMessages.length === 0) {
+        return res.status(400).json({ error: "Messages are required" });
+      }
+      const validVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+      const selectedVoice = validVoices.includes(voice) ? voice : "alloy";
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-audio",
+        modalities: ["text", "audio"],
+        audio: { voice: selectedVoice, format: "pcm16" },
+        messages: chatMessages.map((m: any) => ({ role: m.role, content: m.content })),
+        stream: true,
+      });
+
+      let transcript = "";
+      let allAudioChunks: string[] = [];
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta as any;
+        if (!delta) continue;
+
+        if (delta?.audio?.transcript) {
+          transcript += delta.audio.transcript;
+          res.write(`data: ${JSON.stringify({ type: "transcript", data: delta.audio.transcript })}\n\n`);
+        }
+
+        if (delta?.audio?.data) {
+          allAudioChunks.push(delta.audio.data);
+          res.write(`data: ${JSON.stringify({ type: "audio", data: delta.audio.data })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done", transcript })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      log(`Chat audio error: ${err.message}`, "ai");
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ type: "error", error: "Audio response failed" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: "Audio response failed: " + (err.message || "unknown error") });
+      }
+    }
+  });
+
   app.post("/api/ai/generate-image", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
       const { prompt, size = "1024x1024" } = req.body;
