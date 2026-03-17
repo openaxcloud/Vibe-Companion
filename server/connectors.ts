@@ -293,6 +293,172 @@ const CONNECTOR_CONFIGS: Record<string, ConnectorConfig> = {
       },
     },
   },
+  google_drive: {
+    connectorName: "google_drive",
+    baseUrl: "https://www.googleapis.com/drive/v3",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.GOOGLE_ACCESS_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      list_files: {
+        method: "GET",
+        path: (p) => `/files?pageSize=${p.limit || "20"}&fields=files(id,name,mimeType,modifiedTime,size)`,
+        description: "List files in Google Drive",
+        type: "read",
+      },
+      get_file: {
+        method: "GET",
+        path: (p) => `/files/${encodeURIComponent(p.fileId)}?fields=id,name,mimeType,modifiedTime,size,webViewLink`,
+        description: "Get file metadata from Google Drive",
+        type: "read",
+      },
+    },
+  },
+  google_sheets: {
+    connectorName: "google_sheets",
+    baseUrl: "https://sheets.googleapis.com/v4",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.GOOGLE_ACCESS_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      get_spreadsheet: {
+        method: "GET",
+        path: (p) => `/spreadsheets/${encodeURIComponent(p.spreadsheetId)}`,
+        description: "Get a Google Sheets spreadsheet",
+        type: "read",
+      },
+      get_values: {
+        method: "GET",
+        path: (p) => `/spreadsheets/${encodeURIComponent(p.spreadsheetId)}/values/${encodeURIComponent(p.range || "Sheet1")}`,
+        description: "Get values from a sheet range",
+        type: "read",
+      },
+    },
+  },
+  google_calendar: {
+    connectorName: "google_calendar",
+    baseUrl: "https://www.googleapis.com/calendar/v3",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.GOOGLE_ACCESS_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      list_events: {
+        method: "GET",
+        path: (p) => `/calendars/${encodeURIComponent(p.calendarId || "primary")}/events?maxResults=${p.limit || "10"}&orderBy=startTime&singleEvents=true&timeMin=${new Date().toISOString()}`,
+        description: "List upcoming calendar events",
+        type: "read",
+      },
+      create_event: {
+        method: "POST",
+        path: (p) => `/calendars/${encodeURIComponent(p.calendarId || "primary")}/events`,
+        body: (p) => ({
+          summary: p.summary || "Untitled Event",
+          start: { dateTime: p.startTime },
+          end: { dateTime: p.endTime },
+          ...(p.description ? { description: p.description } : {}),
+        }),
+        description: "Create a new calendar event",
+        type: "write",
+      },
+    },
+  },
+  hubspot: {
+    connectorName: "hubspot",
+    baseUrl: "https://api.hubapi.com",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.HUBSPOT_ACCESS_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      list_contacts: {
+        method: "GET",
+        path: (p) => `/crm/v3/objects/contacts?limit=${p.limit || "10"}`,
+        description: "List HubSpot contacts",
+        type: "read",
+      },
+      get_contact: {
+        method: "GET",
+        path: (p) => `/crm/v3/objects/contacts/${encodeURIComponent(p.contactId)}`,
+        description: "Get a specific HubSpot contact",
+        type: "read",
+      },
+      create_contact: {
+        method: "POST",
+        path: () => "/crm/v3/objects/contacts",
+        body: (p) => ({
+          properties: {
+            email: p.email,
+            firstname: p.firstName || "",
+            lastname: p.lastName || "",
+          },
+        }),
+        description: "Create a new HubSpot contact",
+        type: "write",
+      },
+    },
+  },
+  salesforce: {
+    connectorName: "salesforce",
+    baseUrl: "https://login.salesforce.com/services/data/v59.0",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.SALESFORCE_ACCESS_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      query: {
+        method: "GET",
+        path: (p) => `/query?q=${encodeURIComponent(p.soql || "SELECT Id, Name FROM Account LIMIT 10")}`,
+        description: "Execute a Salesforce SOQL query",
+        type: "read",
+      },
+    },
+  },
+  discord: {
+    connectorName: "discord",
+    baseUrl: "https://discord.com/api/v10",
+    authHeader: (c) => ({ Authorization: `Bot ${c.access_token || c.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      list_guilds: {
+        method: "GET",
+        path: () => "/users/@me/guilds",
+        description: "List Discord servers the bot is in",
+        type: "read",
+      },
+      send_message: {
+        method: "POST",
+        path: (p) => `/channels/${encodeURIComponent(p.channelId)}/messages`,
+        body: (p) => ({ content: p.content }),
+        description: "Send a message to a Discord channel",
+        type: "write",
+      },
+    },
+  },
+  dropbox: {
+    connectorName: "dropbox",
+    baseUrl: "https://api.dropboxapi.com/2",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.DROPBOX_ACCESS_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      list_files: {
+        method: "POST",
+        path: () => "/files/list_folder",
+        body: (p) => ({ path: p.path || "", limit: parseInt(p.limit || "20") }),
+        description: "List files in a Dropbox folder",
+        type: "read",
+      },
+    },
+  },
+  todoist: {
+    connectorName: "todoist",
+    baseUrl: "https://api.todoist.com/rest/v2",
+    authHeader: (c) => ({ Authorization: `Bearer ${c.access_token || c.TODOIST_API_TOKEN}`, "Content-Type": "application/json" }),
+    operations: {
+      list_tasks: {
+        method: "GET",
+        path: () => "/tasks",
+        description: "List all active Todoist tasks",
+        type: "read",
+      },
+      create_task: {
+        method: "POST",
+        path: () => "/tasks",
+        body: (p) => ({
+          content: p.content || "Untitled Task",
+          ...(p.dueDate ? { due_date: p.dueDate } : {}),
+          ...(p.priority ? { priority: parseInt(p.priority) } : {}),
+        }),
+        description: "Create a new Todoist task",
+        type: "write",
+      },
+    },
+  },
 };
 
 const CONNECTOR_NAME_MAP: Record<string, string> = {
@@ -303,6 +469,14 @@ const CONNECTOR_NAME_MAP: Record<string, string> = {
   "Amplitude": "amplitude",
   "Segment": "segment",
   "Hex": "hex",
+  "Google Drive": "google_drive",
+  "Google Sheets": "google_sheets",
+  "Google Calendar": "google_calendar",
+  "HubSpot": "hubspot",
+  "Salesforce": "salesforce",
+  "Discord": "discord",
+  "Dropbox": "dropbox",
+  "Todoist": "todoist",
 };
 
 export function getConnectorKey(serviceName: string): string | null {

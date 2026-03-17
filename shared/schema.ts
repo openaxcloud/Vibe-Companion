@@ -1282,6 +1282,18 @@ export const projectAuthUsers = pgTable("project_auth_users", {
 ]);
 export type ProjectAuthUser = typeof projectAuthUsers.$inferSelect;
 
+export const connectorTypeEnum = ["oauth", "apikey", "managed"] as const;
+export type ConnectorType = typeof connectorTypeEnum[number];
+
+export const connectionLevelEnum = ["account", "project"] as const;
+export type ConnectionLevel = typeof connectionLevelEnum[number];
+
+export interface OAuthConfig {
+  authUrl: string;
+  tokenUrl: string;
+  scopes: string[];
+}
+
 export const integrationCatalog = pgTable("integration_catalog", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
@@ -1289,6 +1301,10 @@ export const integrationCatalog = pgTable("integration_catalog", {
   description: text("description").notNull().default(""),
   icon: text("icon").notNull().default("plug"),
   envVarKeys: json("env_var_keys").notNull().$type<string[]>().default([]),
+  connectorType: text("connector_type").notNull().default("apikey"),
+  connectionLevel: text("connection_level").notNull().default("project"),
+  oauthConfig: json("oauth_config").$type<OAuthConfig>(),
+  providerUrl: text("provider_url"),
 });
 export type IntegrationCatalogEntry = typeof integrationCatalog.$inferSelect;
 
@@ -1315,6 +1331,35 @@ export const integrationLogs = pgTable("integration_logs", {
   index("integration_logs_pi_idx").on(table.projectIntegrationId),
 ]);
 export type IntegrationLog = typeof integrationLogs.$inferSelect;
+
+export const userConnections = pgTable("user_connections", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  integrationId: varchar("integration_id", { length: 36 }).notNull(),
+  status: text("status").notNull().default("connected"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  metadata: json("metadata").$type<Record<string, string>>().default({}),
+  connectedAt: timestamp("connected_at").notNull().defaultNow(),
+}, (table) => [
+  index("user_connections_user_idx").on(table.userId),
+  uniqueIndex("user_connections_unique").on(table.userId, table.integrationId),
+]);
+export type UserConnection = typeof userConnections.$inferSelect;
+
+export const oauthStates = pgTable("oauth_states", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  state: text("state").notNull().unique(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  integrationId: varchar("integration_id", { length: 36 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("oauth_states_state_idx").on(table.state),
+]);
+export type OAuthState = typeof oauthStates.$inferSelect;
 
 export const automations = pgTable("automations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),

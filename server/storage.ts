@@ -1,4 +1,4 @@
-import { eq, desc, and, or, sql, inArray, count, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, notInArray, count, gte, lte } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
@@ -13,7 +13,7 @@ import {
   projectCollaborators, projectInviteLinks,
   storageKv, storageObjects, storageBandwidth,
   projectAuthConfig, projectAuthUsers,
-  integrationCatalog, projectIntegrations, integrationLogs,
+  integrationCatalog, projectIntegrations, integrationLogs, userConnections, oauthStates,
   automations, automationRuns,
   workflows, workflowSteps, workflowRuns,
   monitoringMetrics, monitoringAlerts,
@@ -2607,44 +2607,85 @@ export class DatabaseStorage implements IStorage {
 
   async seedIntegrationCatalog(): Promise<void> {
     const entries = [
-      { name: "PostgreSQL", category: "Database", description: "Connect to a PostgreSQL database", icon: "database", envVarKeys: ["DATABASE_URL"] },
-      { name: "Redis", category: "Database", description: "In-memory data store for caching", icon: "database", envVarKeys: ["REDIS_URL"] },
-      { name: "MongoDB", category: "Database", description: "NoSQL document database", icon: "database", envVarKeys: ["MONGODB_URI"] },
-      { name: "OpenAI", category: "AI & ML", description: "GPT models and embeddings API", icon: "sparkles", envVarKeys: ["OPENAI_API_KEY"] },
-      { name: "Anthropic", category: "AI & ML", description: "Claude AI assistant API", icon: "sparkles", envVarKeys: ["ANTHROPIC_API_KEY"] },
-      { name: "Perplexity AI", category: "AI & ML", description: "AI-powered search and answer engine", icon: "sparkles", envVarKeys: ["PERPLEXITY_API_KEY"] },
-      { name: "Stripe", category: "Payments", description: "Payment processing and subscriptions", icon: "credit-card", envVarKeys: ["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY"] },
-      { name: "GitHub", category: "Developer Tools", description: "Source control and CI/CD integration", icon: "github", envVarKeys: ["GITHUB_TOKEN"] },
-      { name: "Linear", category: "Project Management", description: "Issue tracking and project management", icon: "layout", envVarKeys: ["LINEAR_API_KEY"] },
-      { name: "Jira", category: "Developer Tools", description: "Agile project management and issue tracking", icon: "clipboard", envVarKeys: ["JIRA_API_TOKEN", "JIRA_BASE_URL", "JIRA_EMAIL"] },
-      { name: "AWS S3", category: "Cloud Storage", description: "Object storage for files and assets", icon: "cloud", envVarKeys: ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_BUCKET"] },
-      { name: "SendGrid", category: "Communication", description: "Email delivery service", icon: "mail", envVarKeys: ["SENDGRID_API_KEY"] },
-      { name: "Twilio", category: "Communication", description: "SMS and voice communication", icon: "phone", envVarKeys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"] },
-      { name: "Firebase", category: "Backend Services", description: "Authentication, database, and hosting", icon: "flame", envVarKeys: ["FIREBASE_API_KEY", "FIREBASE_PROJECT_ID"] },
-      { name: "Supabase", category: "Backend Services", description: "Open source Firebase alternative", icon: "zap", envVarKeys: ["SUPABASE_URL", "SUPABASE_ANON_KEY"] },
-      { name: "Slack", category: "Communication", description: "Team messaging and workflow automation", icon: "message-square", envVarKeys: ["SLACK_BOT_TOKEN", "SLACK_SIGNING_SECRET"] },
-      { name: "Discord", category: "Communication", description: "Community chat and bot platform", icon: "message-circle", envVarKeys: ["DISCORD_BOT_TOKEN"] },
-      { name: "Telegram", category: "Communication", description: "Messaging platform with bot API", icon: "send", envVarKeys: ["TELEGRAM_BOT_TOKEN"] },
-      { name: "WhatsApp", category: "Communication", description: "WhatsApp Business messaging API", icon: "smartphone", envVarKeys: ["WHATSAPP_API_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"] },
-      { name: "Microsoft Outlook", category: "Communication", description: "Email, calendar, and contacts via Microsoft Graph", icon: "mail", envVarKeys: ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_TENANT_ID"] },
-      { name: "Notion", category: "Productivity", description: "All-in-one workspace for notes, docs, and databases", icon: "book-open", envVarKeys: ["NOTION_API_KEY"] },
-      { name: "Google Sheets", category: "Productivity", description: "Cloud spreadsheet with real-time collaboration", icon: "table", envVarKeys: ["GOOGLE_SERVICE_ACCOUNT_KEY"] },
-      { name: "Google Calendar", category: "Productivity", description: "Calendar scheduling and event management", icon: "calendar", envVarKeys: ["GOOGLE_SERVICE_ACCOUNT_KEY"] },
-      { name: "HubSpot", category: "CRM & Marketing", description: "CRM, marketing, and sales automation platform", icon: "users", envVarKeys: ["HUBSPOT_ACCESS_TOKEN"] },
-      { name: "Spotify", category: "Media", description: "Music streaming API for playlists and playback", icon: "music", envVarKeys: ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"] },
-      { name: "BigQuery", category: "Data Warehouse", description: "Google Cloud data warehouse for large-scale SQL analytics", icon: "warehouse", envVarKeys: ["BIGQUERY_ACCESS_TOKEN", "BIGQUERY_PROJECT_ID"] },
-      { name: "Amplitude", category: "Analytics", description: "Product analytics and user behavior tracking", icon: "bar-chart", envVarKeys: ["AMPLITUDE_API_KEY", "AMPLITUDE_SECRET_KEY"] },
-      { name: "Segment", category: "Analytics", description: "Customer data platform for event tracking and routing", icon: "git-branch", envVarKeys: ["SEGMENT_WRITE_KEY"] },
-      { name: "Hex", category: "Data", description: "Collaborative data workspace for notebooks and queries", icon: "hexagon", envVarKeys: ["HEX_API_TOKEN"] },
-      { name: "Figma", category: "Design", description: "Design extraction, screenshots, and code generation via Figma MCP", icon: "figma", envVarKeys: ["FIGMA_CLIENT_ID", "FIGMA_CLIENT_SECRET"] },
+      // Google Workspace (5 connectors)
+      { name: "Google Drive", category: "Google Workspace", description: "Cloud file storage, sharing, and collaboration", icon: "cloud", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token", scopes: ["https://www.googleapis.com/auth/drive"] }, providerUrl: "https://drive.google.com" },
+      { name: "Google Docs", category: "Google Workspace", description: "Create and edit documents with real-time collaboration", icon: "book-open", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token", scopes: ["https://www.googleapis.com/auth/documents"] }, providerUrl: "https://docs.google.com" },
+      { name: "Google Sheets", category: "Google Workspace", description: "Cloud spreadsheet with real-time collaboration", icon: "table", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token", scopes: ["https://www.googleapis.com/auth/spreadsheets"] }, providerUrl: "https://sheets.google.com" },
+      { name: "Google Calendar", category: "Google Workspace", description: "Calendar scheduling and event management", icon: "calendar", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token", scopes: ["https://www.googleapis.com/auth/calendar"] }, providerUrl: "https://calendar.google.com" },
+      { name: "Gmail", category: "Google Workspace", description: "Send and read emails programmatically", icon: "mail", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token", scopes: ["https://www.googleapis.com/auth/gmail.modify"] }, providerUrl: "https://mail.google.com" },
+
+      // Microsoft 365 (3 connectors)
+      { name: "OneDrive", category: "Microsoft 365", description: "Cloud file storage and sharing via Microsoft Graph", icon: "cloud", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize", tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token", scopes: ["Files.ReadWrite.All"] }, providerUrl: "https://onedrive.live.com" },
+      { name: "Microsoft Outlook", category: "Microsoft 365", description: "Email, calendar, and contacts via Microsoft Graph", icon: "mail", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize", tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token", scopes: ["Mail.ReadWrite", "Calendars.ReadWrite"] }, providerUrl: "https://outlook.live.com" },
+      { name: "SharePoint", category: "Microsoft 365", description: "Document management and team collaboration", icon: "globe", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize", tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token", scopes: ["Sites.ReadWrite.All"] }, providerUrl: "https://sharepoint.com" },
+
+      // Developer Tools (5 connectors)
+      { name: "GitHub", category: "Developer Tools", description: "Source control, CI/CD, and repository management", icon: "github", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://github.com/login/oauth/authorize", tokenUrl: "https://github.com/login/oauth/access_token", scopes: ["repo", "read:user"] }, providerUrl: "https://github.com" },
+      { name: "Linear", category: "Developer Tools", description: "Streamlined issue tracking and project management", icon: "layout", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://linear.app/oauth/authorize", tokenUrl: "https://api.linear.app/oauth/token", scopes: ["read", "write"] }, providerUrl: "https://linear.app" },
+      { name: "Jira", category: "Developer Tools", description: "Agile project management and issue tracking", icon: "clipboard", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://auth.atlassian.com/authorize", tokenUrl: "https://auth.atlassian.com/oauth/token", scopes: ["read:jira-work", "write:jira-work"] }, providerUrl: "https://www.atlassian.com/software/jira" },
+      { name: "Asana", category: "Developer Tools", description: "Work management and team collaboration platform", icon: "clipboard", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://app.asana.com/-/oauth_authorize", tokenUrl: "https://app.asana.com/-/oauth_token", scopes: ["default"] }, providerUrl: "https://asana.com" },
+      { name: "Confluence", category: "Developer Tools", description: "Team wiki and knowledge base", icon: "book-open", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://auth.atlassian.com/authorize", tokenUrl: "https://auth.atlassian.com/oauth/token", scopes: ["read:confluence-content.all", "write:confluence-content"] }, providerUrl: "https://www.atlassian.com/software/confluence" },
+
+      // Cloud Storage (2 connectors)
+      { name: "Dropbox", category: "Cloud Storage", description: "Cloud file hosting and synchronization", icon: "cloud", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://www.dropbox.com/oauth2/authorize", tokenUrl: "https://api.dropboxapi.com/oauth2/token", scopes: ["files.content.read", "files.content.write"] }, providerUrl: "https://dropbox.com" },
+      { name: "Box", category: "Cloud Storage", description: "Secure cloud content management and sharing", icon: "cloud", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://account.box.com/api/oauth2/authorize", tokenUrl: "https://api.box.com/oauth2/token", scopes: ["root_readwrite"] }, providerUrl: "https://box.com" },
+
+      // Communication (6 connectors)
+      { name: "AgentMail", category: "Communication", description: "AI-native email infrastructure for agents", icon: "mail", envVarKeys: ["AGENTMAIL_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://agentmail.to" },
+      { name: "Discord", category: "Communication", description: "Community chat, voice, and bot platform", icon: "message-circle", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://discord.com/api/oauth2/authorize", tokenUrl: "https://discord.com/api/oauth2/token", scopes: ["bot", "guilds"] }, providerUrl: "https://discord.com" },
+      { name: "Resend", category: "Communication", description: "Modern email API for developers", icon: "send", envVarKeys: ["RESEND_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://resend.com" },
+      { name: "SendGrid", category: "Communication", description: "Email delivery and marketing campaigns", icon: "mail", envVarKeys: ["SENDGRID_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://sendgrid.com" },
+      { name: "Slack", category: "Communication", description: "Team messaging and workflow automation", icon: "message-square", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://slack.com/oauth/v2/authorize", tokenUrl: "https://slack.com/api/oauth.v2.access", scopes: ["chat:write", "channels:read", "users:read"] }, providerUrl: "https://slack.com" },
+      { name: "Twilio", category: "Communication", description: "SMS, voice, and messaging APIs", icon: "phone", envVarKeys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://twilio.com" },
+
+      // CRM & Sales (3 connectors)
+      { name: "Salesforce", category: "CRM & Sales", description: "Enterprise CRM and sales automation platform", icon: "users", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://login.salesforce.com/services/oauth2/authorize", tokenUrl: "https://login.salesforce.com/services/oauth2/token", scopes: ["full", "refresh_token"] }, providerUrl: "https://salesforce.com" },
+      { name: "HubSpot", category: "CRM & Sales", description: "CRM, marketing, sales, and service platform", icon: "users", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://app.hubspot.com/oauth/authorize", tokenUrl: "https://api.hubapi.com/oauth/v1/token", scopes: ["crm.objects.contacts.read", "crm.objects.contacts.write"] }, providerUrl: "https://hubspot.com" },
+      { name: "Zendesk", category: "CRM & Sales", description: "Customer support and ticketing system", icon: "users", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://{subdomain}.zendesk.com/oauth/authorizations/new", tokenUrl: "https://{subdomain}.zendesk.com/oauth/tokens", scopes: ["read", "write"] }, providerUrl: "https://zendesk.com" },
+
+      // Payments (2 connectors)
+      { name: "RevenueCat", category: "Payments", description: "In-app subscription and purchase management", icon: "credit-card", envVarKeys: ["REVENUECAT_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://revenuecat.com" },
+      { name: "Stripe", category: "Payments", description: "Payment processing, subscriptions, and billing", icon: "credit-card", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://connect.stripe.com/oauth/authorize", tokenUrl: "https://connect.stripe.com/oauth/token", scopes: ["read_write"] }, providerUrl: "https://stripe.com" },
+
+      // AI & Media (3 connectors)
+      { name: "ElevenLabs", category: "AI & Media", description: "AI voice synthesis and text-to-speech", icon: "sparkles", envVarKeys: ["ELEVENLABS_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://elevenlabs.io" },
+      { name: "OpenAI", category: "AI & Media", description: "GPT models and embeddings API", icon: "sparkles", envVarKeys: ["OPENAI_API_KEY"], connectorType: "managed" as const, connectionLevel: "project" as const, providerUrl: "https://openai.com" },
+      { name: "Anthropic", category: "AI & Media", description: "Claude AI assistant API", icon: "sparkles", envVarKeys: ["ANTHROPIC_API_KEY"], connectorType: "managed" as const, connectionLevel: "project" as const, providerUrl: "https://anthropic.com" },
+
+      // Productivity (3 connectors)
+      { name: "Notion", category: "Productivity", description: "All-in-one workspace for notes, docs, and databases", icon: "book-open", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://api.notion.com/v1/oauth/authorize", tokenUrl: "https://api.notion.com/v1/oauth/token", scopes: [] }, providerUrl: "https://notion.so" },
+      { name: "Spotify", category: "Productivity", description: "Music streaming API for playlists and playback", icon: "music", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://accounts.spotify.com/authorize", tokenUrl: "https://accounts.spotify.com/api/token", scopes: ["playlist-read-private", "user-library-read"] }, providerUrl: "https://spotify.com" },
+      { name: "Todoist", category: "Productivity", description: "Task management and to-do list app", icon: "clipboard", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://todoist.com/oauth/authorize", tokenUrl: "https://todoist.com/oauth/access_token", scopes: ["data:read_write"] }, providerUrl: "https://todoist.com" },
+
+      // Database (3 connectors)
+      { name: "PostgreSQL", category: "Database", description: "Connect to a PostgreSQL database", icon: "database", envVarKeys: ["DATABASE_URL"], connectorType: "managed" as const, connectionLevel: "project" as const, providerUrl: "https://postgresql.org" },
+      { name: "Redis", category: "Database", description: "In-memory data store for caching", icon: "database", envVarKeys: ["REDIS_URL"], connectorType: "managed" as const, connectionLevel: "project" as const, providerUrl: "https://redis.io" },
+      { name: "MongoDB", category: "Database", description: "NoSQL document database", icon: "database", envVarKeys: ["MONGODB_URI"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://mongodb.com" },
+
+      // Backend Services (2 connectors)
+      { name: "Firebase", category: "Backend Services", description: "Authentication, database, and hosting", icon: "flame", envVarKeys: ["FIREBASE_API_KEY", "FIREBASE_PROJECT_ID"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://firebase.google.com" },
+      { name: "Supabase", category: "Backend Services", description: "Open source Firebase alternative", icon: "zap", envVarKeys: ["SUPABASE_URL", "SUPABASE_ANON_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://supabase.com" },
+
+      // Authentication (from main)
       { name: "Replit Auth", category: "Authentication", description: "Sign in with Replit — zero-setup OAuth for deployed apps", icon: "user-check", envVarKeys: [] },
     ];
     for (const entry of entries) {
       await db.insert(integrationCatalog).values(entry).onConflictDoUpdate({
         target: integrationCatalog.name,
-        set: { category: entry.category, description: entry.description, icon: entry.icon, envVarKeys: entry.envVarKeys },
+        set: {
+          category: entry.category,
+          description: entry.description,
+          icon: entry.icon,
+          envVarKeys: entry.envVarKeys,
+          connectorType: entry.connectorType,
+          connectionLevel: entry.connectionLevel,
+          oauthConfig: entry.oauthConfig || null,
+          providerUrl: entry.providerUrl || null,
+        },
       });
     }
+    const validNames = entries.map(e => e.name);
+    await db.delete(integrationCatalog).where(notInArray(integrationCatalog.name, validNames));
   }
 
   async getProjectIntegrations(projectId: string): Promise<(ProjectIntegration & { integration: IntegrationCatalogEntry })[]> {
@@ -2692,6 +2733,63 @@ export class DatabaseStorage implements IStorage {
   async addIntegrationLog(projectIntegrationId: string, level: string, message: string): Promise<IntegrationLog> {
     const [log] = await db.insert(integrationLogs).values({ projectIntegrationId, level, message }).returning();
     return log;
+  }
+
+  async createOAuthState(data: { state: string; userId: string; projectId: string; integrationId: string; expiresAt: Date }): Promise<void> {
+    await db.insert(oauthStates).values(data);
+  }
+
+  async validateAndConsumeOAuthState(state: string): Promise<{ userId: string; projectId: string; integrationId: string } | null> {
+    const [row] = await db.select().from(oauthStates).where(eq(oauthStates.state, state)).limit(1);
+    if (!row) return null;
+    await db.delete(oauthStates).where(eq(oauthStates.id, row.id));
+    if (row.expiresAt < new Date()) return null;
+    return { userId: row.userId, projectId: row.projectId, integrationId: row.integrationId };
+  }
+
+  async getUserConnections(userId: string): Promise<(typeof userConnections.$inferSelect & { integration: IntegrationCatalogEntry })[]> {
+    const rows = await db.select()
+      .from(userConnections)
+      .innerJoin(integrationCatalog, eq(userConnections.integrationId, integrationCatalog.id))
+      .where(eq(userConnections.userId, userId));
+    return rows.map(r => ({
+      ...r.user_connections,
+      integration: r.integration_catalog,
+    }));
+  }
+
+  async createUserConnection(userId: string, integrationId: string, data: { accessToken?: string; refreshToken?: string; tokenExpiresAt?: Date; status?: string; metadata?: Record<string, string> }): Promise<typeof userConnections.$inferSelect> {
+    const status = data.status || "connected";
+    const [conn] = await db.insert(userConnections).values({
+      userId,
+      integrationId,
+      status,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      tokenExpiresAt: data.tokenExpiresAt,
+      metadata: data.metadata || {},
+    }).onConflictDoUpdate({
+      target: [userConnections.userId, userConnections.integrationId],
+      set: {
+        status,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        tokenExpiresAt: data.tokenExpiresAt,
+        metadata: data.metadata || {},
+        connectedAt: new Date(),
+      },
+    }).returning();
+    return conn;
+  }
+
+  async disconnectUserConnection(userId: string, id: string): Promise<boolean> {
+    const result = await db.delete(userConnections).where(and(eq(userConnections.id, id), eq(userConnections.userId, userId))).returning();
+    return result.length > 0;
+  }
+
+  async getUserConnectionForIntegration(userId: string, integrationId: string): Promise<typeof userConnections.$inferSelect | undefined> {
+    const [conn] = await db.select().from(userConnections).where(and(eq(userConnections.userId, userId), eq(userConnections.integrationId, integrationId))).limit(1);
+    return conn;
   }
 
   async getAutomations(projectId: string): Promise<Automation[]> {

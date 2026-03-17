@@ -4848,7 +4848,16 @@ export async function registerRoutes(
     }
   });
 
-  const badgeHandler = (req: Request, res: Response) => {
+  app.get("/badge", (req: Request, res: Response) => {
+    req.params.caption = "Open in E-Code";
+    return badgeHandler(req, res);
+  });
+
+  app.get("/badge/:caption", (req: Request, res: Response) => {
+    return badgeHandler(req, res);
+  });
+
+  function badgeHandler(req: Request, res: Response) {
     const caption = req.params.caption || "Open in E-Code";
     const sanitizedCaption = caption.replace(/[<>&"']/g, "").slice(0, 100);
     const width = Math.max(160, sanitizedCaption.length * 8 + 80);
@@ -4865,9 +4874,7 @@ export async function registerRoutes(
     res.setHeader("Content-Type", "image/svg+xml");
     res.setHeader("Cache-Control", "public, max-age=86400");
     return res.send(svg);
-  };
-  app.get("/badge/:caption", badgeHandler);
-  app.get("/badge", badgeHandler);
+  }
 
   app.get("/api/landing-stats", async (_req: Request, res: Response) => {
     try {
@@ -14279,6 +14286,158 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.json(logs);
     } catch (err: any) {
       res.status(500).json({ message: "Failed to get integration logs" });
+    }
+  });
+
+  app.get("/api/user/connections", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const connections = await storage.getUserConnections(req.session.userId!);
+      res.json(connections);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to get connections" });
+    }
+  });
+
+  app.delete("/api/user/connections/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.disconnectUserConnection(req.session.userId!, req.params.id);
+      if (!deleted) return res.status(404).json({ message: "Connection not found" });
+      res.json({ message: "Connection removed" });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to remove connection" });
+    }
+  });
+
+  app.post("/api/projects/:id/integrations/oauth/start", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const { integrationId } = z.object({ integrationId: z.string() }).parse(req.body);
+      const catalog = await storage.getIntegrationCatalog();
+      const entry = catalog.find(c => c.id === integrationId);
+      if (!entry) return res.status(404).json({ message: "Integration not found" });
+      if (entry.connectorType !== "oauth" || !entry.oauthConfig) {
+        return res.status(400).json({ message: "This integration does not support OAuth" });
+      }
+
+      const { randomBytes } = await import("crypto");
+      const stateToken = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.createOAuthState({
+        state: stateToken,
+        userId: req.session.userId!,
+        projectId: req.params.id,
+        integrationId,
+        expiresAt,
+      });
+
+      const oauthConfig = entry.oauthConfig as { authUrl: string; tokenUrl: string; scopes: string[] };
+      const redirectUri = `${req.protocol}://${req.get("host")}/api/integrations/oauth/callback`;
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: `replit_${entry.name.toLowerCase().replace(/\s+/g, "_")}`,
+        redirect_uri: redirectUri,
+        scope: oauthConfig.scopes.join(" "),
+        state: stateToken,
+      });
+      const authUrl = `${oauthConfig.authUrl}?${params.toString()}`;
+
+      res.json({ authUrl, state: stateToken });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Failed to start OAuth flow" });
+    }
+  });
+
+  app.get("/api/integrations/oauth/callback", async (req: Request, res: Response) => {
+    try {
+      const { state, code } = req.query;
+      if (!state || typeof state !== "string") {
+        return res.status(400).send("Invalid OAuth callback: missing state");
+      }
+
+      const stateData = await storage.validateAndConsumeOAuthState(state);
+      if (!stateData) {
+        return res.status(400).send("Invalid or expired OAuth state. Please try connecting again.");
+      }
+
+      const catalog = await storage.getIntegrationCatalog();
+      const entry = catalog.find(c => c.id === stateData.integrationId);
+      if (!entry) return res.status(400).send("Integration not found");
+
+      const oauthConfig = entry.oauthConfig as { authUrl: string; tokenUrl: string; scopes: string[] };
+
+      let accessToken: string | undefined;
+      let refreshToken: string | undefined;
+      let tokenExpiresAt: Date | undefined;
+      let connectionStatus = "pending";
+
+      if (code && typeof code === "string") {
+        try {
+          const redirectUri = `${req.protocol}://${req.get("host")}/api/integrations/oauth/callback`;
+          const tokenResponse = await fetch(oauthConfig.tokenUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+            body: new URLSearchParams({
+              grant_type: "authorization_code",
+              code,
+              redirect_uri: redirectUri,
+              client_id: `replit_${entry.name.toLowerCase().replace(/\s+/g, "_")}`,
+            }).toString(),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (tokenResponse.ok) {
+            const tokenData = await tokenResponse.json();
+            accessToken = tokenData.access_token;
+            refreshToken = tokenData.refresh_token;
+            if (tokenData.expires_in) {
+              tokenExpiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+            }
+            if (accessToken) {
+              connectionStatus = "connected";
+            }
+          }
+        } catch {
+          connectionStatus = "error";
+        }
+      } else {
+        connectionStatus = "connected";
+      }
+
+      await storage.createUserConnection(stateData.userId, stateData.integrationId, {
+        accessToken,
+        refreshToken,
+        tokenExpiresAt,
+        status: connectionStatus,
+        metadata: { connectorName: entry.name, category: entry.category },
+      });
+
+      try {
+        const pi = await storage.connectIntegration(stateData.projectId, stateData.integrationId, {
+          oauth_connected: "true",
+          user_connection: "true",
+          connected_at: new Date().toISOString(),
+        });
+        await storage.updateIntegrationStatus(pi.id, connectionStatus);
+        await storage.addIntegrationLog(pi.id, connectionStatus === "connected" ? "info" : "warn", 
+          connectionStatus === "connected" 
+            ? `OAuth connection established for "${entry.name}" (account-level)` 
+            : `OAuth flow completed but token exchange ${connectionStatus === "error" ? "failed" : "is pending"} for "${entry.name}"`);
+      } catch (err: any) {
+        if (err.code === "23505") {
+          const integrations = await storage.getProjectIntegrations(stateData.projectId);
+          const existing = integrations.find(i => i.integrationId === stateData.integrationId);
+          if (existing) {
+            await storage.updateIntegrationStatus(existing.id, connectionStatus);
+          }
+        }
+      }
+
+      const oauthResult = connectionStatus === "connected" ? "success" : "error";
+      res.redirect(`/?project=${stateData.projectId}&oauth=${oauthResult}&connector=${encodeURIComponent(entry.name)}`);
+    } catch (err: any) {
+      res.status(500).send("OAuth callback failed");
     }
   });
 

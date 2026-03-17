@@ -20,6 +20,10 @@ interface CatalogEntry {
   description: string;
   icon: string;
   envVarKeys: string[];
+  connectorType: "oauth" | "apikey" | "managed";
+  connectionLevel: "account" | "project";
+  oauthConfig?: { authUrl: string; tokenUrl: string; scopes: string[] } | null;
+  providerUrl?: string | null;
 }
 
 interface ProjectIntegration {
@@ -75,13 +79,14 @@ function IntegrationIcon({ icon, className, style }: { icon: string; className?:
 }
 
 const categoryColors: Record<string, string> = {
-  "Database": "#0079F2",
-  "AI & ML": "#7C65CB",
-  "Payments": "#0CCE6B",
+  "Google Workspace": "#4285F4",
+  "Microsoft 365": "#00A4EF",
   "Developer Tools": "#F26522",
   "Cloud Storage": "#F5A623",
   "Communication": "#E84D8A",
-  "Backend Services": "#00B4D8",
+  "CRM & Sales": "#EC4899",
+  "Payments": "#0CCE6B",
+  "AI & Media": "#7C65CB",
   "Productivity": "#10B981",
   "CRM & Marketing": "#EC4899",
   "Media": "#8B5CF6",
@@ -91,6 +96,8 @@ const categoryColors: Record<string, string> = {
   "Data": "#6366F1",
   "Design": "#A259FF",
   "Authentication": "#14B8A6",
+  "Database": "#0079F2",
+  "Backend Services": "#00B4D8",
 };
 
 export default function IntegrationsPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
@@ -118,6 +125,15 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/integrations`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load integrations");
+      return res.json();
+    },
+  });
+
+  const userConnectionsQuery = useQuery<{ id: string; userId: string; integrationId: string; status: string; connectedAt: string; integration: CatalogEntry }[]>({
+    queryKey: ["/api/user/connections"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/connections", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load connections");
       return res.json();
     },
   });
@@ -168,6 +184,25 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
     },
   });
 
+  const oauthStartMutation = useMutation({
+    mutationFn: async (integrationId: string) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/integrations/oauth/start`, { integrationId });
+      return res.json();
+    },
+    onSuccess: (data: { authUrl: string; state: string }) => {
+      window.open(data.authUrl, "_blank", "width=600,height=700,popup=yes");
+      setConnectingId(null);
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/user/connections"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "integrations"] });
+      }, 3000);
+      toast({ title: "OAuth flow started", description: "Complete authorization in the popup window" });
+    },
+    onError: (err: any) => {
+      toast({ title: "OAuth flow failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const testMutation = useMutation({
     mutationFn: async (integrationId: string) => {
       setTestingId(integrationId);
@@ -194,7 +229,8 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
 
   const catalog = catalogQuery.data || [];
   const connected = integrationsQuery.data || [];
-  const connectedIds = new Set(connected.map(c => c.integrationId));
+  const accountConnections = userConnectionsQuery.data || [];
+  const connectedIds = new Set([...connected.map(c => c.integrationId), ...accountConnections.map(c => c.integrationId)]);
   const logs = logsQuery.data || [];
 
   const filteredCatalog = catalog.filter(c =>
@@ -256,7 +292,18 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                         <IntegrationIcon icon={pi.integration.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[pi.integration.category] || "#0079F2" }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-[var(--ide-text)] font-medium truncate">{pi.integration.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[11px] text-[var(--ide-text)] font-medium truncate">{pi.integration.name}</p>
+                          <span className={`text-[7px] px-1 py-0.5 rounded font-medium uppercase tracking-wider ${
+                            pi.integration.connectorType === "oauth"
+                              ? "bg-[#4285F4]/15 text-[#4285F4]"
+                              : pi.integration.connectorType === "managed"
+                              ? "bg-[#0CCE6B]/15 text-[#0CCE6B]"
+                              : "bg-[var(--ide-surface)] text-[var(--ide-text-muted)]"
+                          }`}>
+                            {pi.integration.connectorType === "oauth" ? "OAuth" : pi.integration.connectorType === "managed" ? "Managed" : "API Key"}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-1.5">
                           <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full ${
                             pi.status === "connected"
@@ -347,6 +394,41 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
           </div>
         )}
 
+        {accountConnections.length > 0 && (
+          <div className="border-b border-[var(--ide-border)]">
+            <div className="px-3 py-2">
+              <span className="text-[10px] font-bold text-[#7C65CB] uppercase tracking-widest">Account Connections ({accountConnections.length})</span>
+            </div>
+            <div className="space-y-0.5 pb-2">
+              {accountConnections.filter(ac => !connected.some(c => c.integrationId === ac.integrationId)).map((ac) => (
+                <div key={ac.id} className="px-3 py-2 hover:bg-[var(--ide-surface)]/30 transition-colors" data-testid={`account-connection-${ac.id}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${categoryColors[ac.integration.category] || "#7C65CB"}15` }}>
+                      <IntegrationIcon icon={ac.integration.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[ac.integration.category] || "#7C65CB" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] text-[var(--ide-text)] font-medium truncate">{ac.integration.name}</p>
+                        <span className="text-[7px] px-1 py-0.5 rounded bg-[#7C65CB]/15 text-[#7C65CB] font-medium uppercase tracking-wider">Account</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/15 text-[#0CCE6B]" data-testid={`status-account-${ac.id}`}>
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          {ac.status}
+                        </span>
+                        <span className="text-[8px] text-[var(--ide-text-muted)]" style={{ color: categoryColors[ac.integration.category] || "#9DA2B0" }}>
+                          {ac.integration.category}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[7px] text-[var(--ide-text-muted)]">All projects</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {(showCatalog || connected.length === 0) && (
           <div>
             <div className="px-3 py-2">
@@ -404,7 +486,12 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                 <p className="text-[10px] text-[var(--ide-text-muted)]">{connectedIds.size > 0 && !searchTerm ? "All integrations connected" : "No matching integrations"}</p>
               </div>
             ) : (
-              Object.entries(groupedCatalog).sort(([a], [b]) => a.localeCompare(b)).map(([category, items]) => (
+              Object.entries(groupedCatalog).sort(([a], [b]) => {
+                const order = ["Google Workspace", "Microsoft 365", "Developer Tools", "Cloud Storage", "Communication", "CRM & Sales", "Payments", "AI & Media", "Productivity", "Database", "Backend Services"];
+                const ai = order.indexOf(a);
+                const bi = order.indexOf(b);
+                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+              }).map(([category, items]) => (
                 <div key={category} className="mb-1">
                   <div className="px-3 py-1 flex items-center gap-1.5">
                     <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: categoryColors[category] || "#9DA2B0" }}>{category}</span>
@@ -429,47 +516,106 @@ export default function IntegrationsPanel({ projectId, onClose }: { projectId: s
                           <IntegrationIcon icon={item.icon} className="w-3.5 h-3.5" style={{ color: categoryColors[category] || "#0079F2" }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-[var(--ide-text)] font-medium">{item.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[11px] text-[var(--ide-text)] font-medium">{item.name}</p>
+                            <span className={`text-[7px] px-1 py-0.5 rounded font-medium uppercase tracking-wider ${
+                              item.connectorType === "oauth"
+                                ? "bg-[#4285F4]/15 text-[#4285F4]"
+                                : item.connectorType === "managed"
+                                ? "bg-[#0CCE6B]/15 text-[#0CCE6B]"
+                                : "bg-[var(--ide-surface)] text-[var(--ide-text-muted)]"
+                            }`} data-testid={`badge-type-${item.id}`}>
+                              {item.connectorType === "oauth" ? "OAuth" : item.connectorType === "managed" ? "Managed" : "API Key"}
+                            </span>
+                            {item.connectionLevel === "account" && (
+                              <span className="text-[7px] px-1 py-0.5 rounded bg-[#7C65CB]/15 text-[#7C65CB] font-medium uppercase tracking-wider" data-testid={`badge-level-${item.id}`}>
+                                Account
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[9px] text-[var(--ide-text-muted)] truncate">{item.description}</p>
                         </div>
-                        <Plus className="w-3.5 h-3.5 text-[var(--ide-text-muted)] shrink-0" />
+                        {item.connectorType === "oauth" ? (
+                          <ExternalLink className="w-3.5 h-3.5 text-[var(--ide-text-muted)] shrink-0" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5 text-[var(--ide-text-muted)] shrink-0" />
+                        )}
                       </button>
 
                       {connectingId === item.id && (
                         <div className="px-3 pb-2" data-testid={`connect-form-${item.id}`}>
                           <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2.5 space-y-2">
-                            {item.envVarKeys.map(key => (
-                              <div key={key}>
-                                <label className="text-[9px] text-[var(--ide-text-muted)] font-mono block mb-0.5">{key}</label>
-                                <Input
-                                  value={configValues[key] || ""}
-                                  onChange={(e) => setConfigValues(prev => ({ ...prev, [key]: e.target.value }))}
-                                  type="password"
-                                  placeholder={`Enter ${key}`}
-                                  className="bg-[var(--ide-surface)] border-[var(--ide-border)] h-7 text-[10px] text-[var(--ide-text)] font-mono rounded"
-                                  data-testid={`input-config-${key}`}
-                                />
-                              </div>
-                            ))}
-                            <div className="flex items-center gap-1.5 pt-1">
-                              <Button
-                                className="flex-1 h-7 text-[10px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded font-medium gap-1"
-                                onClick={() => connectMutation.mutate({ integrationId: item.id, config: configValues })}
-                                disabled={connectMutation.isPending}
-                                data-testid={`button-connect-${item.id}`}
-                              >
-                                {connectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                                Connect & Test
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="h-7 px-2 text-[10px] text-[var(--ide-text-muted)]"
-                                onClick={() => { setConnectingId(null); setConfigValues({}); }}
-                                data-testid={`button-cancel-connect-${item.id}`}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
+                            {item.connectorType === "oauth" ? (
+                              <>
+                                <div className="flex items-center gap-2 text-[10px] text-[var(--ide-text-secondary)]">
+                                  <Shield className="w-3.5 h-3.5 text-[#4285F4]" />
+                                  <span>Sign in with {item.name} to grant access</span>
+                                </div>
+                                {item.oauthConfig && item.oauthConfig.scopes.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pl-5">
+                                    {item.oauthConfig.scopes.map(scope => (
+                                      <span key={scope} className="text-[7px] px-1.5 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[var(--ide-text-muted)] font-mono truncate max-w-[180px]">{scope.split("/").pop() || scope}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1.5 pt-1">
+                                  <Button
+                                    className="flex-1 h-7 text-[10px] bg-[#4285F4] hover:bg-[#4285F4]/80 text-white rounded font-medium gap-1"
+                                    onClick={() => {
+                                      oauthStartMutation.mutate(item.id);
+                                    }}
+                                    disabled={oauthStartMutation.isPending}
+                                    data-testid={`button-connect-${item.id}`}
+                                  >
+                                    {oauthStartMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ExternalLink className="w-3 h-3" />}
+                                    Connect with OAuth
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    className="h-7 px-2 text-[10px] text-[var(--ide-text-muted)]"
+                                    onClick={() => { setConnectingId(null); setConfigValues({}); }}
+                                    data-testid={`button-cancel-connect-${item.id}`}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                {item.envVarKeys.map(key => (
+                                  <div key={key}>
+                                    <label className="text-[9px] text-[var(--ide-text-muted)] font-mono block mb-0.5">{key}</label>
+                                    <Input
+                                      value={configValues[key] || ""}
+                                      onChange={(e) => setConfigValues(prev => ({ ...prev, [key]: e.target.value }))}
+                                      type="password"
+                                      placeholder={`Enter ${key}`}
+                                      className="bg-[var(--ide-surface)] border-[var(--ide-border)] h-7 text-[10px] text-[var(--ide-text)] font-mono rounded"
+                                      data-testid={`input-config-${key}`}
+                                    />
+                                  </div>
+                                ))}
+                                <div className="flex items-center gap-1.5 pt-1">
+                                  <Button
+                                    className="flex-1 h-7 text-[10px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded font-medium gap-1"
+                                    onClick={() => connectMutation.mutate({ integrationId: item.id, config: configValues })}
+                                    disabled={connectMutation.isPending}
+                                    data-testid={`button-connect-${item.id}`}
+                                  >
+                                    {connectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                    Connect & Test
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    className="h-7 px-2 text-[10px] text-[var(--ide-text-muted)]"
+                                    onClick={() => { setConnectingId(null); setConfigValues({}); }}
+                                    data-testid={`button-cancel-connect-${item.id}`}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
