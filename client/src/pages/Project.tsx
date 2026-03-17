@@ -70,6 +70,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 import AIPanel from "@/components/AIPanel";
 import { playNotificationSound, sendPushNotification } from "@/lib/notifications";
 import ConsolePanel from "@/components/ConsolePanel";
@@ -254,7 +256,6 @@ function _projectPage() {
   const [bottomTab, setBottomTab] = useState<"terminal" | "shell" | "problems" | "references">("terminal");
   const [runDropdownOpen, setRunDropdownOpen] = useState(false);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
-  const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [webviewUrlInput, setWebviewUrlInput] = useState("");
   const [selectedDevicePreset, setSelectedDevicePreset] = useState("responsive");
   const [customDeviceWidth, setCustomDeviceWidth] = useState<number | null>(null);
@@ -288,7 +289,37 @@ function _projectPage() {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [infoInviteEmail, setInfoInviteEmail] = useState("");
   const [deployInviteEmail, setDeployInviteEmail] = useState("");
-  const [terminalHeight, setTerminalHeight] = useState(220);
+  const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
+  const terminalPanelRef = useRef<ImperativePanelHandle>(null);
+  const previewPanelRef = useRef<ImperativePanelHandle>(null);
+
+  const sidebarShouldBeOpen = sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0;
+  useEffect(() => {
+    if (!sidebarPanelRef.current) return;
+    if (sidebarShouldBeOpen && sidebarPanelRef.current.isCollapsed()) {
+      sidebarPanelRef.current.expand();
+    } else if (!sidebarShouldBeOpen && !sidebarPanelRef.current.isCollapsed()) {
+      sidebarPanelRef.current.collapse();
+    }
+  }, [sidebarShouldBeOpen]);
+
+  useEffect(() => {
+    if (!terminalPanelRef.current) return;
+    if (terminalVisible && terminalPanelRef.current.isCollapsed()) {
+      terminalPanelRef.current.expand();
+    } else if (!terminalVisible && !terminalPanelRef.current.isCollapsed()) {
+      terminalPanelRef.current.collapse();
+    }
+  }, [terminalVisible]);
+
+  useEffect(() => {
+    if (!previewPanelRef.current) return;
+    if (previewPanelOpen && previewPanelRef.current.isCollapsed()) {
+      previewPanelRef.current.expand();
+    } else if (!previewPanelOpen && !previewPanelRef.current.isCollapsed()) {
+      previewPanelRef.current.collapse();
+    }
+  }, [previewPanelOpen]);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [wsStatus, setWsStatus] = useState<"offline" | "starting" | "running" | "stopped" | "error" | "none">("none");
   const [wsLoading, setWsLoading] = useState(false);
@@ -878,10 +909,6 @@ function _projectPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const dragStartY = useRef<number | null>(null);
-  const dragStartH = useRef<number>(220);
-  const dragStartX = useRef<number | null>(null);
-  const dragStartW = useRef<number>(40);
   const editorPreviewContainerRef = useRef<HTMLDivElement>(null);
   const hasAutoRun = useRef(false);
 
@@ -2929,51 +2956,6 @@ function _projectPage() {
     }
   };
 
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    const y = "touches" in e ? e.touches[0].clientY : e.clientY;
-    dragStartY.current = y;
-    dragStartH.current = terminalHeight;
-    const onMove = (ev: MouseEvent | TouchEvent) => {
-      if (dragStartY.current === null) return;
-      const cy = "touches" in ev ? ev.touches[0].clientY : ev.clientY;
-      setTerminalHeight(Math.max(80, Math.min(500, dragStartH.current + (dragStartY.current - cy))));
-    };
-    const onUp = () => {
-      dragStartY.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.addEventListener("touchmove", onMove);
-    document.addEventListener("touchend", onUp);
-  };
-
-  const handlePreviewDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    const x = "touches" in e ? e.touches[0].clientX : e.clientX;
-    dragStartX.current = x;
-    dragStartW.current = previewPanelWidth;
-    const totalWidth = editorPreviewContainerRef.current?.clientWidth || window.innerWidth;
-    const onMove = (ev: MouseEvent | TouchEvent) => {
-      if (dragStartX.current === null) return;
-      const cx = "touches" in ev ? ev.touches[0].clientX : ev.clientX;
-      const deltaPercent = ((dragStartX.current - cx) / totalWidth) * 100;
-      setPreviewPanelWidth(Math.max(20, Math.min(60, dragStartW.current + deltaPercent)));
-    };
-    const onUp = () => {
-      dragStartX.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.addEventListener("touchmove", onMove);
-    document.addEventListener("touchend", onUp);
-  };
 
   const performSearch = useCallback((term: string) => {
     if (!term.trim() || !filesQuery.data) {
@@ -5607,9 +5589,6 @@ function _projectPage() {
 
   const bottomPanel = (
     <div className="flex flex-col bg-[var(--ide-panel)] h-full">
-      <div className="h-1 cursor-ns-resize resize-handle flex items-center justify-center shrink-0" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
-        <div className="w-8 h-[2px] rounded-full bg-[var(--ide-surface)]" />
-      </div>
       <div className="flex items-center justify-between px-1 h-9 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         <div className="flex items-center h-full overflow-x-auto">
           <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "terminal" ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`} onClick={() => setBottomTab("terminal")} data-testid="tab-console">
@@ -5662,7 +5641,7 @@ function _projectPage() {
           </button>
           {wsStatusBadge}
           {workspaceButton}
-          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => setTerminalVisible(false)} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors duration-150" onClick={() => { terminalPanelRef.current?.collapse(); }} title="Close" data-testid="button-close-terminal"><X className="w-3 h-3" /></Button>
         </div>
       </div>
       {bottomTab === "terminal" ? terminalContent : bottomTab === "shell" ? shellContent : bottomTab === "problems" ? (
@@ -8560,74 +8539,155 @@ function _projectPage() {
               </div>
             )}
 
+            <ResizablePanelGroup direction="horizontal" autoSaveId="ide-horizontal" className="flex-1 min-w-0">
             {/* FILE EXPLORER SIDEBAR */}
-            <div className={`shrink-0 transition-all duration-200 overflow-hidden ${sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0 ? ((isTablet && !isKeyboardModeActive) ? "w-[200px]" : "w-[240px]") : "w-0"}`}>
-              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[200px]" : "w-[240px]"} h-full`}>
-                {sidebarContent}
-              </div>
-            </div>
-
-            {/* MAIN EDITOR + TERMINAL + PREVIEW AREA */}
-            <div ref={editorPreviewContainerRef} className="flex-1 flex overflow-hidden min-w-0 relative">
-              <div className="flex-1 flex flex-col overflow-hidden min-w-0" style={previewPanelOpen ? { width: `${100 - previewPanelWidth}%` } : undefined}>
-                <div className="flex-1 overflow-hidden min-w-0">
-                  {/* Desktop/tablet only: multi-pane layout. Mobile uses single-pane editorTabBar+editorContent via the isMobile ternary above */}
-                  {!isMobile ? renderPaneNode(paneLayout.layout.root) : (
-                    <>{editorTabBar}{editorContent}</>
-                  )}
-                </div>
-                {terminalVisible && (
-                  <div className="shrink-0 border-t border-[var(--ide-border)]" style={{ height: `${terminalHeight}px` }}>
-                    {bottomPanel}
-                  </div>
-                )}
-              </div>
-              {!isMobile && paneLayout.layout.floatingPanes.map(fp => (
-                <FloatingPaneWrapper
-                  key={fp.id}
-                  pane={fp}
-                  onPositionChange={paneLayout.updateFloatingPosition}
-                  onBringToFront={paneLayout.bringFloatingToFront}
-                  onDock={paneLayout.dockFloatingPane}
-                  onClose={(pId, tId) => { closeTab(tId); }}
+                <ResizablePanel
+                  id="sidebar"
+                  order={1}
+                  ref={sidebarPanelRef}
+                  defaultSize={sidebarShouldBeOpen ? 15 : 0}
+                  minSize={10}
+                  maxSize={30}
+                  collapsible
+                  collapsedSize={0}
+                  onCollapse={() => setSidebarOpen(false)}
+                  onExpand={() => { setSidebarOpen(true); setAiPanelOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); }}
+                  className="overflow-hidden"
+                  data-testid="panel-sidebar"
                 >
-                  <div className="flex flex-col h-full">
-                    <div className="flex items-center h-7 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 overflow-x-auto scrollbar-hide">
-                      {fp.tabs.map(tabId => {
-                        const specialInfo = getSpecialTabInfo(tabId);
-                        const file = !specialInfo ? filesQuery.data?.find(f => f.id === tabId) : null;
-                        const tabName = specialInfo ? specialInfo.name : file?.filename || tabId;
-                        return (
-                          <div
-                            key={tabId}
-                            className={`flex items-center gap-1 px-2 h-full cursor-pointer shrink-0 text-[10px] ${tabId === fp.activeTab ? "text-[var(--ide-text)] bg-[var(--ide-panel)]" : "text-[var(--ide-text-muted)]"}`}
-                            onClick={() => {
-                              paneLayout.setLayout(prev => ({
-                                ...prev,
-                                floatingPanes: prev.floatingPanes.map(f => f.id === fp.id ? { ...f, activeTab: tabId } : f),
-                              }));
-                              setActiveFileId(tabId);
-                            }}
-                            data-testid={`floating-tab-${fp.id}-${tabId}`}
-                          >
-                            {specialInfo ? specialInfo.icon : <FileTypeIcon filename={tabName} />}
-                            <span className="truncate max-w-[100px]">{tabName}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                      {renderPaneContentForTab(fp.activeTab)}
-                    </div>
+                  <div className="h-full">
+                    {sidebarContent}
                   </div>
-                </FloatingPaneWrapper>
-              ))}
-              {previewPanelOpen && (
-                <>
-                  <div className="w-1 cursor-col-resize flex items-center justify-center shrink-0 hover:bg-[#0079F2]/30 transition-colors bg-[var(--ide-surface)]/50" onMouseDown={handlePreviewDragStart}>
-                    <div className="w-[2px] h-8 rounded-full bg-[var(--ide-surface)]" />
+                </ResizablePanel>
+                <ResizableHandle
+                  className="w-px bg-[var(--ide-border)] hover:bg-[#0079F2] active:bg-[#0079F2] transition-colors group"
+                  data-testid="handle-sidebar"
+                  onDoubleClick={() => {
+                    if (sidebarPanelRef.current?.isCollapsed()) {
+                      sidebarPanelRef.current.expand();
+                    } else {
+                      sidebarPanelRef.current?.collapse();
+                    }
+                  }}
+                >
+                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 flex items-center justify-center pointer-events-none">
+                    <div className="w-[3px] h-6 rounded-full bg-[var(--ide-border)] group-hover:bg-[#0079F2] group-active:bg-[#0079F2] transition-colors opacity-0 group-hover:opacity-100" />
                   </div>
-                  <div className="overflow-hidden flex flex-col" style={{ width: `${previewPanelWidth}%` }}>
+                </ResizableHandle>
+
+            {/* MAIN EDITOR + TERMINAL AREA */}
+            <ResizablePanel id="editor-main" order={2} defaultSize={85} minSize={30}>
+              <div ref={editorPreviewContainerRef} className="h-full overflow-hidden min-w-0 relative">
+                <ResizablePanelGroup direction="vertical" autoSaveId="ide-vertical">
+                  <ResizablePanel id="editor-area" order={1} defaultSize={70} minSize={20}>
+                    <div className="h-full overflow-hidden min-w-0">
+                      {!isMobile ? renderPaneNode(paneLayout.layout.root) : (
+                        <>{editorTabBar}{editorContent}</>
+                      )}
+                    </div>
+                  </ResizablePanel>
+                      <ResizableHandle
+                        className="h-px bg-[var(--ide-border)] hover:bg-[#0079F2] active:bg-[#0079F2] transition-colors group"
+                        data-testid="handle-terminal"
+                        onDoubleClick={() => {
+                          if (terminalPanelRef.current?.isCollapsed()) {
+                            terminalPanelRef.current.expand();
+                          } else {
+                            terminalPanelRef.current?.collapse();
+                          }
+                        }}
+                      >
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 flex items-center justify-center pointer-events-none">
+                          <div className="h-[3px] w-6 rounded-full bg-[var(--ide-border)] group-hover:bg-[#0079F2] group-active:bg-[#0079F2] transition-colors opacity-0 group-hover:opacity-100" />
+                        </div>
+                      </ResizableHandle>
+                      <ResizablePanel
+                        id="terminal"
+                        order={2}
+                        ref={terminalPanelRef}
+                        defaultSize={terminalVisible ? 30 : 0}
+                        minSize={8}
+                        maxSize={70}
+                        collapsible
+                        collapsedSize={0}
+                        onCollapse={() => setTerminalVisible(false)}
+                        onExpand={() => setTerminalVisible(true)}
+                        data-testid="panel-terminal"
+                      >
+                        {bottomPanel}
+                      </ResizablePanel>
+                </ResizablePanelGroup>
+                {!isMobile && paneLayout.layout.floatingPanes.map(fp => (
+                  <FloatingPaneWrapper
+                    key={fp.id}
+                    pane={fp}
+                    onPositionChange={paneLayout.updateFloatingPosition}
+                    onBringToFront={paneLayout.bringFloatingToFront}
+                    onDock={paneLayout.dockFloatingPane}
+                    onClose={(pId, tId) => { closeTab(tId); }}
+                  >
+                    <div className="flex flex-col h-full">
+                      <div className="flex items-center h-7 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 overflow-x-auto scrollbar-hide">
+                        {fp.tabs.map(tabId => {
+                          const specialInfo = getSpecialTabInfo(tabId);
+                          const file = !specialInfo ? filesQuery.data?.find(f => f.id === tabId) : null;
+                          const tabName = specialInfo ? specialInfo.name : file?.filename || tabId;
+                          return (
+                            <div
+                              key={tabId}
+                              className={`flex items-center gap-1 px-2 h-full cursor-pointer shrink-0 text-[10px] ${tabId === fp.activeTab ? "text-[var(--ide-text)] bg-[var(--ide-panel)]" : "text-[var(--ide-text-muted)]"}`}
+                              onClick={() => {
+                                paneLayout.setLayout(prev => ({
+                                  ...prev,
+                                  floatingPanes: prev.floatingPanes.map(f => f.id === fp.id ? { ...f, activeTab: tabId } : f),
+                                }));
+                                setActiveFileId(tabId);
+                              }}
+                              data-testid={`floating-tab-${fp.id}-${tabId}`}
+                            >
+                              {specialInfo ? specialInfo.icon : <FileTypeIcon filename={tabName} />}
+                              <span className="truncate max-w-[100px]">{tabName}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        {renderPaneContentForTab(fp.activeTab)}
+                      </div>
+                    </div>
+                  </FloatingPaneWrapper>
+                ))}
+              </div>
+            </ResizablePanel>
+                <ResizableHandle
+                  className="w-px bg-[var(--ide-border)] hover:bg-[#0079F2] active:bg-[#0079F2] transition-colors group"
+                  data-testid="handle-preview"
+                  onDoubleClick={() => {
+                    if (previewPanelRef.current?.isCollapsed()) {
+                      previewPanelRef.current.expand();
+                    } else {
+                      previewPanelRef.current?.collapse();
+                    }
+                  }}
+                >
+                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 flex items-center justify-center pointer-events-none">
+                    <div className="w-[3px] h-6 rounded-full bg-[var(--ide-border)] group-hover:bg-[#0079F2] group-active:bg-[#0079F2] transition-colors opacity-0 group-hover:opacity-100" />
+                  </div>
+                </ResizableHandle>
+                <ResizablePanel
+                  id="preview"
+                  order={3}
+                  ref={previewPanelRef}
+                  defaultSize={previewPanelOpen ? 40 : 0}
+                  minSize={15}
+                  maxSize={70}
+                  collapsible
+                  collapsedSize={0}
+                  onCollapse={() => setPreviewPanelOpen(false)}
+                  onExpand={() => setPreviewPanelOpen(true)}
+                  data-testid="panel-preview"
+                >
+                  <div className="overflow-hidden flex flex-col h-full">
                     {projectArtifacts.length > 0 && (
                       <div className="flex items-center gap-0.5 px-1 h-7 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0 overflow-x-auto scrollbar-none" data-testid="artifact-switcher">
                         {projectArtifacts.map((art) => {
@@ -8738,7 +8798,7 @@ function _projectPage() {
                             title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
                         )}
                         <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
-                          onClick={() => setPreviewPanelOpen(false)}
+                          onClick={() => { previewPanelRef.current?.collapse(); }}
                           title="Close preview" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
                       </div>
                     </div>
@@ -8791,9 +8851,8 @@ function _projectPage() {
                       )}
                     </div>
                   </div>
-                </>
-              )}
-            </div>
+                </ResizablePanel>
+            </ResizablePanelGroup>
 
           </div>
 
