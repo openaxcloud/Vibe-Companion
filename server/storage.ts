@@ -2629,6 +2629,7 @@ export class DatabaseStorage implements IStorage {
       { name: "Amplitude", category: "Analytics", description: "Product analytics and user behavior tracking", icon: "bar-chart", envVarKeys: ["AMPLITUDE_API_KEY", "AMPLITUDE_SECRET_KEY"] },
       { name: "Segment", category: "Analytics", description: "Customer data platform for event tracking and routing", icon: "git-branch", envVarKeys: ["SEGMENT_WRITE_KEY"] },
       { name: "Hex", category: "Data", description: "Collaborative data workspace for notebooks and queries", icon: "hexagon", envVarKeys: ["HEX_API_TOKEN"] },
+      { name: "Figma", category: "Design", description: "Design extraction, screenshots, and code generation via Figma MCP", icon: "figma", envVarKeys: ["FIGMA_CLIENT_ID", "FIGMA_CLIENT_SECRET"] },
     ];
     for (const entry of entries) {
       await db.insert(integrationCatalog).values(entry).onConflictDoUpdate({

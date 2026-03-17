@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Server, Loader2, Plus, X, Play, Square, RefreshCw,
   ChevronDown, ChevronRight, Wrench, CheckCircle2, XCircle, AlertCircle, Plug2,
-  Search, Globe, Database, Terminal, Pencil, FileText,
+  Search, Globe, Database, Terminal, Pencil, FileText, Figma, ExternalLink, BookOpen,
 } from "lucide-react";
 
 interface McpServer {
@@ -35,6 +35,7 @@ const serverIconMap: Record<string, typeof Server> = {
   "file-search": Search,
   "web-fetch": Globe,
   "database-query": Database,
+  "figma": Figma,
 };
 
 function ServerIcon({ name, className }: { name: string; className?: string }) {
@@ -624,6 +625,80 @@ export default function MCPPanel({ projectId, onClose }: { projectId: string; on
             </Button>
           </div>
         )}
+
+        <div className="border-t border-[var(--ide-border)]">
+          <div className="px-3 py-2">
+            <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">MCP Directory</span>
+          </div>
+          <div className="px-3 pb-3 space-y-1.5">
+            <div className="rounded-lg border border-[#A259FF]/20 bg-[#A259FF]/5 p-2.5" data-testid="mcp-directory-figma">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#A259FF]/15 shrink-0">
+                  <Figma className="w-4 h-4 text-[#A259FF]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-[var(--ide-text)]">Figma</span>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#A259FF]/10 text-[#A259FF]">OAuth</span>
+                  </div>
+                  <span className="text-[9px] text-[var(--ide-text-muted)] block">Design extraction & code generation</span>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {["getDesignContext", "getScreenshot", "getMetadata", "getVariableDefs", "generateDiagram"].map(tool => (
+                  <span key={tool} className="text-[8px] px-1.5 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[var(--ide-text-muted)] font-mono">
+                    {tool}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <a
+                  href="https://modelcontextprotocol.io/integrations/figma"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[9px] text-[#A259FF] hover:underline"
+                  data-testid="link-figma-guide"
+                >
+                  <BookOpen className="w-2.5 h-2.5" />
+                  Setup Guide
+                </a>
+                <a
+                  href="https://www.figma.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[9px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
+                  data-testid="link-figma-external"
+                >
+                  <ExternalLink className="w-2.5 h-2.5" />
+                  figma.com
+                </a>
+              </div>
+              <div className="mt-2 text-[8px] text-[var(--ide-text-muted)]">
+                <span className="font-medium">Rate limits:</span> Free: 6/mo | Dev/Pro: 200/day | Enterprise: 600/day
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[var(--ide-border)] bg-[var(--ide-surface)]/20 p-2.5" data-testid="mcp-directory-builtins">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Server className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                <span className="text-[10px] font-medium text-[var(--ide-text-secondary)]">Built-in Servers</span>
+              </div>
+              <div className="space-y-1">
+                {[
+                  { name: "file-search", label: "File Search", desc: "grep & find files" },
+                  { name: "web-fetch", label: "Web Fetch", desc: "Fetch URL content" },
+                  { name: "database-query", label: "Database Query", desc: "Read-only SQL queries" },
+                ].map(s => (
+                  <div key={s.name} className="flex items-center gap-2 px-1.5 py-1">
+                    <ServerIcon name={s.name} className="w-3 h-3 text-[var(--ide-text-muted)]" />
+                    <span className="text-[9px] text-[var(--ide-text-secondary)] font-medium">{s.label}</span>
+                    <span className="text-[8px] text-[var(--ide-text-muted)]">{s.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

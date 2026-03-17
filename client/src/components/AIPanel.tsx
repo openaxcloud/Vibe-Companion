@@ -10,6 +10,7 @@ import {
   Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers
 } from "lucide-react";
 import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
+import FigmaDesignCard, { FigmaLinkIndicator, detectFigmaUrl } from "./FigmaDesignCard";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -693,6 +694,59 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragItemRef = useRef<number | null>(null);
+  const [figmaConnection, setFigmaConnection] = useState<{ connected: boolean; username?: string; plan?: string; callsUsed?: number; callsLimit?: number; callsRemaining?: number }>({ connected: false });
+  const [detectedFigmaUrl, setDetectedFigmaUrl] = useState<string | null>(null);
+  const [figmaMcpEvents, setFigmaMcpEvents] = useState<{ id: string; tool: string; timestamp: number; input?: Record<string, any>; output?: string; error?: string; duration?: number }[]>([]);
+  const [showFigmaCard, setShowFigmaCard] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/figma/connection", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.connected) {
+          setFigmaConnection(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const url = detectFigmaUrl(input);
+    setDetectedFigmaUrl(url);
+    if (url && !showFigmaCard) {
+      setShowFigmaCard(true);
+    }
+  }, [input]);
+
+  const handleFigmaConnect = useCallback(() => {
+    const width = 600, height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popup = window.open(
+      "/api/figma/oauth/authorize",
+      "figma-oauth",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+    );
+    const checkClosed = setInterval(() => {
+      if (popup && popup.closed) {
+        clearInterval(checkClosed);
+        fetch("/api/figma/connection", { credentials: "include" })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data) setFigmaConnection(data); })
+          .catch(() => {});
+      }
+    }, 500);
+  }, []);
+
+  const handleFigmaDisconnect = useCallback(async () => {
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = {};
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      await fetch("/api/figma/disconnect", { method: "POST", headers, credentials: "include" });
+      setFigmaConnection({ connected: false });
+    } catch {}
+  }, []);
 
   useEffect(() => {
     fetch("/api/user/preferences", { credentials: "include" })
@@ -1037,6 +1091,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               }
             } else if (data.type === "web_fetch_result") {
             } else if (data.type === "mcp_tool_use" || data.type === "mcp_tool_call") {
+              const isFigmaTool = data.name?.startsWith("mcp__figma__");
+              if (isFigmaTool) {
+                const toolName = data.name?.replace(/^mcp__figma__/, "") || data.name;
+                const eventId = data.callId || `figma-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                setFigmaMcpEvents(prev => [...prev, {
+                  id: eventId,
+                  tool: toolName,
+                  timestamp: Date.now(),
+                  input: data.input || {},
+                }]);
+              }
               const toolDisplayName = data.originalName || data.name || "unknown";
               const callId = data.callId || `mcp_${Date.now()}`;
               setMessages((prev) =>
@@ -1046,6 +1111,28 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 } : m)
               );
             } else if (data.type === "mcp_tool_result") {
+              const isFigmaResult = data.name?.startsWith("mcp__figma__") || data.serverName === "figma";
+              if (isFigmaResult) {
+                setFigmaMcpEvents(prev => {
+                  const updated = [...prev];
+                  const targetEvent = data.callId
+                    ? updated.find(e => e.id === data.callId)
+                    : [...updated].reverse().find(e => !e.output && !e.error);
+                  if (targetEvent) {
+                    targetEvent.output = data.result || "";
+                    targetEvent.error = data.error || undefined;
+                    targetEvent.duration = Date.now() - targetEvent.timestamp;
+                  }
+                  return updated;
+                });
+                if (figmaConnection.callsUsed != null) {
+                  setFigmaConnection(prev => ({
+                    ...prev,
+                    callsUsed: (prev.callsUsed || 0) + 1,
+                    callsRemaining: Math.max((prev.callsRemaining || 0) - 1, 0),
+                  }));
+                }
+              }
               const resultPreview = data.result ? data.result.slice(0, 500) : data.error || "";
               const resultCallId = data.callId;
               setMessages((prev) =>
@@ -3081,6 +3168,22 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 {msg.role === "assistant" && msg.webSearchResults && msg.webSearchResults.length > 0 && (
                   <WebSearchCitations results={msg.webSearchResults} />
                 )}
+                {msg.role === "assistant" && figmaMcpEvents.length > 0 && idx === messages.length - 1 && msg.content.includes("Figma MCP") && (
+                  <div className="mt-3">
+                    <FigmaDesignCard
+                      url={detectedFigmaUrl || ""}
+                      connection={figmaConnection}
+                      onConnect={handleFigmaConnect}
+                      onDisconnect={handleFigmaDisconnect}
+                      events={figmaMcpEvents}
+                    />
+                  </div>
+                )}
+                {msg.role === "user" && detectFigmaUrl(msg.content) && (
+                  <div className="mt-2">
+                    <FigmaLinkIndicator url={detectFigmaUrl(msg.content)!} />
+                  </div>
+                )}
                 {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
                   <div className="mt-2 flex items-center gap-2">
                     <button
@@ -3258,6 +3361,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           onChange={handleFileAttachment}
           data-testid="input-file-attachment"
         />
+        {detectedFigmaUrl && showFigmaCard && (
+          <div className="mb-2">
+            <FigmaDesignCard
+              url={detectedFigmaUrl}
+              connection={figmaConnection}
+              onConnect={handleFigmaConnect}
+              onDisconnect={handleFigmaDisconnect}
+              events={figmaMcpEvents}
+              onDismiss={() => setShowFigmaCard(false)}
+            />
+          </div>
+        )}
+        {detectedFigmaUrl && !showFigmaCard && (
+          <div className="mb-2 cursor-pointer" onClick={() => setShowFigmaCard(true)}>
+            <FigmaLinkIndicator url={detectedFigmaUrl} />
+          </div>
+        )}
         {showImageDialog && (
           <div className="mb-2 rounded-lg border border-[#7C65CB]/30 bg-[var(--ide-bg)] p-3 animate-[slide-in_0.2s_ease-out]">
             <div className="flex items-center gap-2 mb-2">
