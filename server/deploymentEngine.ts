@@ -10,6 +10,23 @@ import { storage } from "./storage";
 import { validateCronExpression } from "./automationScheduler";
 import http from "http";
 import { getProjectConfig } from "./configParser";
+import {
+  startProcess,
+  stopProcess as stopManagedProcessPM,
+  restartProcess as restartManagedProcessPM,
+  rollbackProcess,
+  performHealthCheck as performHealthCheckPM,
+  getProcessLogs as getProcessLogsPM,
+  getProcessInfo,
+  getProcessStatus as getProcessStatusPM,
+  getAllManagedProcesses as getAllManagedProcessesPM,
+  shutdownAllProcesses,
+  cleanupProjectProcesses,
+  getPortForProject,
+  setProcessLogCallback,
+  type ManagedProcess as PMProcess,
+  type ProcessInfo,
+} from "./processManager";
 
 const execAsync = promisify(exec);
 
@@ -173,33 +190,9 @@ interface ProjectFile {
   content: string;
 }
 
-interface ManagedProcess {
-  process: ChildProcess;
-  projectId: string;
-  deploymentId: string;
-  slug: string;
-  port: number;
-  language: string;
-  entryFile: string;
-  outputDir: string;
-  status: "starting" | "running" | "stopped" | "error" | "restarting";
-  restartCount: number;
-  lastHealthCheck?: Date;
-  healthStatus: "healthy" | "unhealthy" | "unknown";
-  logBuffer: string[];
-  onLog?: (line: string) => void;
-}
-
 const activeDeploys = new Map<string, DeploymentBuild>();
 const activeVMProcesses = new Map<string, ChildProcess>();
 const scheduledDeployJobs = new Map<string, { stop: () => void }>();
-const managedProcesses = new Map<string, ManagedProcess>();
-const healthCheckIntervals = new Map<string, NodeJS.Timeout>();
-let nextPort = 9100;
-
-function getNextPort(): number {
-  return nextPort++;
-}
 
 async function ensureDir(dir: string) {
   if (!existsSync(dir)) {
@@ -271,259 +264,16 @@ function getSandboxEnv(port: number): Record<string, string> {
   return env;
 }
 
-function spawnProcess(
-  language: string,
-  entryFile: string,
-  cwd: string,
-  port: number,
-): ChildProcess {
-  const env = getSandboxEnv(port);
-
-  if (language === "javascript" || language === "typescript") {
-    const cmd = language === "typescript" ? "npx" : "node";
-    const args = language === "typescript" ? ["tsx", entryFile] : [entryFile];
-    return spawn(cmd, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-  }
-
-  if (language === "python") {
-    return spawn("python3", [entryFile], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-  }
-
-  return spawn("node", [entryFile], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-}
-
-function addProcessLog(managed: ManagedProcess, line: string) {
-  managed.logBuffer.push(`[${new Date().toISOString()}] ${line}`);
-  if (managed.logBuffer.length > MAX_LOG_BUFFER) {
-    managed.logBuffer.shift();
-  }
-  managed.onLog?.(line);
-}
-
-async function startManagedProcess(
-  projectId: string,
-  deploymentId: string,
-  slug: string,
-  language: string,
-  entryFile: string,
-  outputDir: string,
-  onLog?: (line: string) => void,
-): Promise<ManagedProcess> {
-  await stopManagedProcess(projectId);
-
-  const port = getNextPort();
-  const proc = spawnProcess(language, entryFile, outputDir, port);
-
-  const managed: ManagedProcess = {
-    process: proc,
-    projectId,
-    deploymentId,
-    slug,
-    port,
-    language,
-    entryFile,
-    outputDir,
-    status: "starting",
-    restartCount: 0,
-    healthStatus: "unknown",
-    logBuffer: [],
-    onLog,
-  };
-
-  proc.stdout?.on("data", (data) => {
-    const lines = data.toString().split("\n").filter((l: string) => l.trim());
-    for (const line of lines) {
-      addProcessLog(managed, `[stdout] ${line}`);
-    }
-  });
-
-  proc.stderr?.on("data", (data) => {
-    const lines = data.toString().split("\n").filter((l: string) => l.trim());
-    for (const line of lines) {
-      addProcessLog(managed, `[stderr] ${line}`);
-    }
-  });
-
-  function attachExitHandler(proc: ChildProcess, managed: ManagedProcess) {
-    proc.on("exit", (code, signal) => {
-      const msg = `Process exited with code ${code}${signal ? ` (signal: ${signal})` : ""}`;
-      addProcessLog(managed, msg);
-      log(`[${slug}] ${msg}`, "deploy");
-
-      if (managed.status !== "stopped") {
-        managed.status = "error";
-        managed.healthStatus = "unhealthy";
-
-        const build = activeDeploys.get(projectId);
-        if (build && build.deploymentType === "autoscale" && managed.restartCount < MAX_RESTART_ATTEMPTS) {
-          managed.status = "restarting";
-          managed.restartCount++;
-          addProcessLog(managed, `Auto-restarting (attempt ${managed.restartCount}/${MAX_RESTART_ATTEMPTS})...`);
-
-          setTimeout(() => {
-            try {
-              const newProc = spawnProcess(language, entryFile, outputDir, port);
-              managed.process = newProc;
-              managed.status = "starting";
-
-              newProc.stdout?.on("data", (data) => {
-                const lines = data.toString().split("\n").filter((l: string) => l.trim());
-                for (const line of lines) addProcessLog(managed, `[stdout] ${line}`);
-              });
-
-              newProc.stderr?.on("data", (data) => {
-                const lines = data.toString().split("\n").filter((l: string) => l.trim());
-                for (const line of lines) addProcessLog(managed, `[stderr] ${line}`);
-              });
-
-              attachExitHandler(newProc, managed);
-
-              setTimeout(() => {
-                if (managed.status === "starting") {
-                  managed.status = "running";
-                  addProcessLog(managed, "Process restarted successfully");
-                }
-              }, 2000);
-            } catch (err: any) {
-              addProcessLog(managed, `Restart failed: ${err.message}`);
-              managed.status = "error";
-            }
-          }, RESTART_BACKOFF_MS * managed.restartCount);
-        }
-      }
-    });
-  }
-
-  attachExitHandler(proc, managed);
-
-  managedProcesses.set(projectId, managed);
-
-  setTimeout(() => {
-    if (managed.status === "starting") {
-      managed.status = "running";
-      addProcessLog(managed, `Process running on port ${port}`);
-    }
-  }, 2000);
-
-  startHealthChecks(projectId, port);
-
-  return managed;
-}
-
 export async function stopManagedProcess(projectId: string): Promise<void> {
-  const managed = managedProcesses.get(projectId);
-  if (!managed) return;
-
-  managed.status = "stopped";
-  stopHealthChecks(projectId);
-
-  try {
-    managed.process.kill("SIGTERM");
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        try { managed.process.kill("SIGKILL"); } catch {}
-        resolve();
-      }, 5000);
-      managed.process.on("exit", () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
-  } catch {}
-
-  managedProcesses.delete(projectId);
-  addProcessLog(managed, "Process stopped");
-  log(`Stopped managed process for ${projectId}`, "deploy");
+  return stopManagedProcessPM(projectId);
 }
 
-export async function restartManagedProcess(projectId: string): Promise<ManagedProcess | null> {
-  const managed = managedProcesses.get(projectId);
-  if (!managed) return null;
-
-  const { deploymentId, slug, language, entryFile, outputDir, onLog } = managed;
-  await stopManagedProcess(projectId);
-  return startManagedProcess(projectId, deploymentId, slug, language, entryFile, outputDir, onLog);
+export async function restartManagedProcess(projectId: string): Promise<PMProcess | null> {
+  return restartManagedProcessPM(projectId);
 }
 
-function startHealthChecks(projectId: string, port: number) {
-  stopHealthChecks(projectId);
-
-  const interval = setInterval(async () => {
-    const managed = managedProcesses.get(projectId);
-    if (!managed || managed.status === "stopped") {
-      clearInterval(interval);
-      return;
-    }
-
-    try {
-      const healthy = await checkHealth(port);
-      managed.lastHealthCheck = new Date();
-      managed.healthStatus = healthy ? "healthy" : "unhealthy";
-    } catch {
-      managed.healthStatus = "unhealthy";
-      managed.lastHealthCheck = new Date();
-    }
-  }, HEALTH_CHECK_INTERVAL_MS);
-
-  healthCheckIntervals.set(projectId, interval);
-}
-
-function stopHealthChecks(projectId: string) {
-  const interval = healthCheckIntervals.get(projectId);
-  if (interval) {
-    clearInterval(interval);
-    healthCheckIntervals.delete(projectId);
-  }
-}
-
-async function checkHealth(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(false), HEALTH_CHECK_TIMEOUT_MS);
-
-    const req = http.get(`http://localhost:${port}/`, (res) => {
-      clearTimeout(timeout);
-      resolve(res.statusCode !== undefined && res.statusCode < 500);
-      res.resume();
-    });
-
-    req.on("error", () => {
-      clearTimeout(timeout);
-      resolve(false);
-    });
-  });
-}
-
-export async function performHealthCheck(projectId: string): Promise<{
-  status: string;
-  healthy: boolean;
-  lastCheck: Date | null;
-  port: number | null;
-  processStatus: string | null;
-  restartCount: number;
-}> {
-  const managed = managedProcesses.get(projectId);
-  if (!managed) {
-    return { status: "no_process", healthy: false, lastCheck: null, port: null, processStatus: null, restartCount: 0 };
-  }
-
-  const healthy = await checkHealth(managed.port);
-  managed.lastHealthCheck = new Date();
-  managed.healthStatus = healthy ? "healthy" : "unhealthy";
-
-  return {
-    status: managed.healthStatus,
-    healthy,
-    lastCheck: managed.lastHealthCheck,
-    port: managed.port,
-    processStatus: managed.status,
-    restartCount: managed.restartCount,
-  };
-}
-
-export function getProcessLogs(projectId: string): string[] {
-  const managed = managedProcesses.get(projectId);
-  return managed?.logBuffer || [];
-}
+export { performHealthCheckPM as performHealthCheck };
+export { getProcessLogsPM as getProcessLogs };
 
 export function getProcessStatus(projectId: string): {
   status: string;
@@ -531,16 +281,10 @@ export function getProcessStatus(projectId: string): {
   healthStatus: string;
   lastHealthCheck: Date | undefined;
   restartCount: number;
+  pid: number | undefined;
+  uptime: number;
 } | null {
-  const managed = managedProcesses.get(projectId);
-  if (!managed) return null;
-  return {
-    status: managed.status,
-    port: managed.port,
-    healthStatus: managed.healthStatus,
-    lastHealthCheck: managed.lastHealthCheck,
-    restartCount: managed.restartCount,
-  };
+  return getProcessStatusPM(projectId);
 }
 
 export async function buildAndDeploy(
@@ -645,7 +389,7 @@ export async function buildAndDeploy(
       }
     }
 
-    const isProcessDeploy = deploymentType === "autoscale" || deploymentType === "scheduled";
+    const isProcessDeploy = deploymentType === "autoscale" || deploymentType === "reserved-vm";
     let projectConfig: import("./configParser").ReplitConfig = {};
     try { projectConfig = await getProjectConfig(projectId); } catch {}
 
@@ -694,9 +438,12 @@ export async function buildAndDeploy(
       throw new Error(`No entry file found for ${deploymentType} deployment. Expected index.js, main.js, server.js, app.js (Node.js) or main.py, app.py, server.py (Python).`);
     }
 
-    if (projectConfig.deployment?.ignorePorts && projectConfig.deployment.ignorePorts.length > 0) {
-      addLog(`[build] Ignoring ports from .replit config: ${projectConfig.deployment.ignorePorts.join(", ")}`);
-      if (config?.portMapping && projectConfig.deployment.ignorePorts.includes(config.portMapping)) {
+    const cfgIgnorePorts = projectConfig.deployment?.ignorePorts;
+    if (cfgIgnorePorts === true) {
+      addLog(`[build] All port health checks disabled via ignorePorts = true`);
+    } else if (Array.isArray(cfgIgnorePorts) && cfgIgnorePorts.length > 0) {
+      addLog(`[build] Ignoring ports from .replit config: ${cfgIgnorePorts.join(", ")}`);
+      if (config?.portMapping && cfgIgnorePorts.includes(config.portMapping)) {
         addLog(`[build] Warning: configured portMapping ${config.portMapping} is in ignorePorts list, skipping`);
         config.portMapping = undefined;
       }
@@ -709,19 +456,59 @@ export async function buildAndDeploy(
         addLog(`[build] Max machines: ${config.maxMachines}`);
       }
 
-      const managed = await startManagedProcess(
+      const rawIgnorePorts = projectConfig.deployment?.ignorePorts;
+      const ignorePorts = rawIgnorePorts === true || (Array.isArray(rawIgnorePorts) && rawIgnorePorts.length > 0);
+
+      let userPlan = "free";
+      try {
+        const quota = await storage.getUserQuota(userId);
+        if (quota?.plan) {
+          userPlan = quota.plan.toLowerCase();
+        }
+      } catch {}
+
+      const managed = await startProcess({
         projectId,
         deploymentId,
         slug,
         language,
-        entryFile.filename,
+        entryFile: entryFile.filename,
         outputDir,
+        runCommand: config?.runCommand,
+        buildCommand: config?.buildCommand,
         onLog,
-      );
+        onLogPersist: async (_pid, logs) => {
+          try {
+            const current = await storage.getDeployment(deploymentId);
+            const existingLog = current?.buildLog || build.buildLog || "";
+            const separator = existingLog.includes("--- Runtime Logs ---") ? "\n" : "\n--- Runtime Logs ---\n";
+            const appendedLog = existingLog + separator + logs.join("\n");
+            await storage.updateDeployment(deploymentId, { buildLog: appendedLog });
+          } catch {}
+        },
+        envVars: config?.deploymentSecrets,
+        ignorePorts,
+        autoRestart: deploymentType === "autoscale",
+        plan: userPlan,
+      });
 
       build.processPort = managed.port;
-      addLog(`[build] Process started on port ${managed.port}`);
-      addLog(`[build] Health monitoring enabled (${HEALTH_CHECK_INTERVAL_MS / 1000}s interval)`);
+      addLog(`[build] Process started on port ${managed.port} (PID: ${managed.pid})`);
+      addLog(`[build] Health monitoring enabled with exponential backoff`);
+
+      const versionMeta = {
+        language,
+        entryFile: entryFile.filename,
+        runCommand: config?.runCommand,
+        buildCommand: config?.buildCommand,
+        deploymentType: effectiveDeploymentType,
+        ignorePorts,
+        autoRestart: deploymentType === "autoscale",
+        plan: userPlan,
+        envVarKeys: config?.deploymentSecrets ? Object.keys(config.deploymentSecrets) : [],
+      };
+      await writeFile(join(outputDir, ".deploy-config.json"), JSON.stringify(versionMeta, null, 2), "utf-8");
+      addLog(`[build] Deployment config saved for version rollback`);
 
       if (deploymentType === "autoscale") {
         addLog(`[build] Auto-restart on crash enabled (max ${MAX_RESTART_ATTEMPTS} attempts)`);
@@ -1014,7 +801,8 @@ export async function rollbackDeployment(
   projectId: string,
   slug: string,
   targetVersion: number,
-): Promise<{ success: boolean; message: string }> {
+  onLog?: (line: string) => void,
+): Promise<{ success: boolean; message: string; processPort?: number }> {
   const versionDir = join(DEPLOYMENTS_DIR, slug, `v${targetVersion}`);
   const latestDir = join(DEPLOYMENTS_DIR, slug, "latest");
 
@@ -1023,12 +811,71 @@ export async function rollbackDeployment(
   }
 
   try {
+    const configPath = join(versionDir, ".deploy-config.json");
+    let savedConfig: {
+      language?: string;
+      entryFile?: string;
+      runCommand?: string;
+      buildCommand?: string;
+      deploymentType?: string;
+      ignorePorts?: boolean;
+      autoRestart?: boolean;
+      plan?: string;
+      envVarKeys?: string[];
+    } = {};
+
+    if (existsSync(configPath)) {
+      try {
+        savedConfig = JSON.parse(await readFile(configPath, "utf-8"));
+      } catch {}
+    }
+
     if (existsSync(latestDir)) {
       await rm(latestDir, { recursive: true, force: true });
     }
     await cp(versionDir, latestDir, { recursive: true });
+
+    let processPort: number | undefined;
+    const deployType = savedConfig.deploymentType || activeDeploys.get(projectId)?.deploymentType;
+
+    if (deployType === "autoscale" || deployType === "reserved-vm") {
+      const project = await storage.getProject(projectId);
+      const language = savedConfig.language || project?.language || "javascript";
+      const entryFileName = savedConfig.entryFile;
+
+      if (entryFileName) {
+        let userPlan = savedConfig.plan || "free";
+        if (!savedConfig.plan) {
+          try {
+            const quota = project?.userId ? await storage.getUserQuota(project.userId) : null;
+            if (quota?.plan) userPlan = quota.plan.toLowerCase();
+          } catch {}
+        }
+
+        const deployments = await storage.getProjectDeployments(projectId);
+        const targetDep = deployments.find(d => d.version === targetVersion);
+        const depSecrets = targetDep?.deploymentSecrets as Record<string, string> | undefined;
+
+        const managed = await startProcess({
+          projectId,
+          deploymentId: targetDep?.id || activeDeploys.get(projectId)?.deploymentId || "rollback",
+          slug,
+          language,
+          entryFile: entryFileName,
+          outputDir: latestDir,
+          runCommand: savedConfig.runCommand,
+          onLog,
+          envVars: depSecrets,
+          ignorePorts: savedConfig.ignorePorts || false,
+          autoRestart: savedConfig.autoRestart || false,
+          plan: userPlan,
+        });
+        processPort = managed.port;
+      }
+    }
+
     log(`Rolled back ${slug} to v${targetVersion}`, "deploy");
-    return { success: true, message: `Rolled back to v${targetVersion}` };
+    return { success: true, message: `Rolled back to v${targetVersion}`, processPort };
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -1181,6 +1028,54 @@ async function trackAnalytics(slug: string, req: Request): Promise<void> {
   }
 }
 
+function findProcessForSlug(slug: string): PMProcess | undefined {
+  const allProcesses = getAllManagedProcessesPM();
+  let found: PMProcess | undefined;
+  allProcesses.forEach((proc) => {
+    if (!found && proc.slug === slug && (proc.status === "live" || proc.status === "running" || proc.status === "starting")) {
+      found = proc;
+    }
+  });
+  return found;
+}
+
+const STRIPPED_PROXY_HEADERS = new Set([
+  "cookie",
+  "authorization",
+  "x-session-id",
+  "x-csrf-token",
+  "x-forwarded-for",
+  "x-real-ip",
+  "set-cookie",
+]);
+
+function proxyToProcess(port: number, req: Request, res: Response): void {
+  const target = `http://localhost:${port}`;
+  const safeHeaders: Record<string, string | string[] | undefined> = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (!STRIPPED_PROXY_HEADERS.has(key.toLowerCase())) {
+      safeHeaders[key] = value;
+    }
+  }
+  safeHeaders["host"] = `localhost:${port}`;
+
+  const proxyReq = http.request(
+    `${target}${req.url?.replace(/^\/deployed\/[^/]+/, "") || "/"}`,
+    {
+      method: req.method,
+      headers: safeHeaders,
+    },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      proxyRes.pipe(res);
+    },
+  );
+  proxyReq.on("error", () => {
+    res.status(502).json({ error: "Deployment process is not responding" });
+  });
+  req.pipe(proxyReq);
+}
+
 export function createDeploymentRouter(): Router {
   const router = Router();
 
@@ -1268,7 +1163,7 @@ export function createDeploymentRouter(): Router {
     return serve404(baseDir, slug, res);
   }
 
-  router.get("/deployed/:slug/{*filePath}", async (req: Request, res: Response) => {
+  router.all("/deployed/:slug/{*filePath}", async (req: Request, res: Response) => {
     const slug = String(req.params.slug || "");
     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
       return res.status(400).json({ error: "Invalid slug" });
@@ -1280,13 +1175,18 @@ export function createDeploymentRouter(): Router {
 
     trackAnalytics(slug, req).catch(() => {});
 
+    const managedProc = findProcessForSlug(slug);
+    if (managedProc) {
+      return proxyToProcess(managedProc.port, req, res);
+    }
+
     const rawPath = String((req.params as Record<string, string>).filePath || "index.html");
     const baseDir = resolve(DEPLOYMENTS_DIR, slug, "latest");
 
     return resolveAndServe(rawPath, slug, baseDir, settings, req, res);
   });
 
-  router.get("/deployed/:slug/", async (req: Request, res: Response) => {
+  router.all("/deployed/:slug/", async (req: Request, res: Response) => {
     const slug = String(req.params.slug || "");
 
     const settings = await getDeploymentSettings(slug);
@@ -1294,6 +1194,11 @@ export function createDeploymentRouter(): Router {
     if (!await handlePrivateCheck(slug, req, res, settings)) return;
 
     trackAnalytics(slug, req).catch(() => {});
+
+    const managedProc = findProcessForSlug(slug);
+    if (managedProc) {
+      return proxyToProcess(managedProc.port, req, res);
+    }
 
     const baseDir = join(DEPLOYMENTS_DIR, slug, "latest");
 
@@ -1368,6 +1273,9 @@ export async function listDeploymentVersions(slug: string): Promise<number[]> {
   }
 }
 
-export function getAllManagedProcesses(): Map<string, ManagedProcess> {
-  return managedProcesses;
+export function getAllManagedProcesses() {
+  return getAllManagedProcessesPM();
 }
+
+export { shutdownAllProcesses, cleanupProjectProcesses, getPortForProject, setProcessLogCallback, setProcessBroadcastFn } from "./processManager";
+export type { ProcessInfo } from "./processManager";

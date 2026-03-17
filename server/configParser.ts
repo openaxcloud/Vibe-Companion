@@ -19,7 +19,7 @@ export interface PackagerConfig {
 export interface DeploymentConfig {
   run?: string | string[];
   build?: string;
-  ignorePorts?: number[];
+  ignorePorts?: number[] | boolean;
   deploymentTarget?: string;
 }
 
@@ -113,7 +113,11 @@ export function parseReplitConfig(content: string): ReplitConfig {
       config.deployment.run = raw.deployment.run.map(String);
     }
     if (typeof raw.deployment.build === "string") config.deployment.build = raw.deployment.build;
-    if (Array.isArray(raw.deployment.ignorePorts)) config.deployment.ignorePorts = raw.deployment.ignorePorts.map(Number);
+    if (raw.deployment.ignorePorts === true) {
+      config.deployment.ignorePorts = true;
+    } else if (Array.isArray(raw.deployment.ignorePorts)) {
+      config.deployment.ignorePorts = raw.deployment.ignorePorts.map(Number);
+    }
     if (typeof raw.deployment.deploymentTarget === "string") config.deployment.deploymentTarget = raw.deployment.deploymentTarget;
   }
 
@@ -244,7 +248,9 @@ export function serializeReplitConfig(config: ReplitConfig): string {
     }
     if (config.deployment.build) lines.push(`build = "${config.deployment.build}"`);
     if (config.deployment.deploymentTarget) lines.push(`deploymentTarget = "${config.deployment.deploymentTarget}"`);
-    if (config.deployment.ignorePorts && config.deployment.ignorePorts.length > 0) {
+    if (config.deployment.ignorePorts === true) {
+      lines.push(`ignorePorts = true`);
+    } else if (Array.isArray(config.deployment.ignorePorts) && config.deployment.ignorePorts.length > 0) {
       lines.push(`ignorePorts = [${config.deployment.ignorePorts.join(", ")}]`);
     }
   }

@@ -9,7 +9,7 @@ import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { startAutoMetricsCollector } from "./metricsCollector";
-import { getAllManagedProcesses, performHealthCheck } from "./deploymentEngine";
+import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from "./deploymentEngine";
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
 
@@ -58,7 +58,7 @@ app.post(
 );
 
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook") {
+  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook" || req.path.startsWith("/deployed/")) {
     return next();
   }
   express.json({
@@ -69,7 +69,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook") {
+  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook" || req.path.startsWith("/deployed/")) {
     return next();
   }
   express.urlencoded({ extended: false })(req, res, next);
@@ -205,6 +205,22 @@ async function initStripe() {
       console.warn("[cleanup] Failed to purge old file versions:", err?.message || err);
     });
   }, 24 * 60 * 60 * 1000);
+
+  const gracefulShutdown = async (signal: string) => {
+    log(`Received ${signal}, shutting down gracefully...`);
+    await shutdownAllProcesses();
+    httpServer.close(() => {
+      log("HTTP server closed");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      log("Forced shutdown after timeout");
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(

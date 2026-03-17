@@ -716,7 +716,9 @@ function _projectPage() {
   const [deployShowBadge, setDeployShowBadge] = useState(true);
   const [deployEnableFeedback, setDeployEnableFeedback] = useState(false);
   const [deploySecretsEntries, setDeploySecretsEntries] = useState<{key: string; value: string}[]>([]);
-  const [deployPanelTab, setDeployPanelTab] = useState<"config" | "history" | "analytics" | "settings">("config");
+  const [deployPanelTab, setDeployPanelTab] = useState<"config" | "history" | "process" | "analytics" | "settings">("config");
+  const [deployProcessLogs, setDeployProcessLogs] = useState<string[]>([]);
+  const deployLogsEndRef = useRef<HTMLDivElement>(null);
   const [convertingCron, setConvertingCron] = useState(false);
   const splitDragStartX = useRef<number | null>(null);
   const splitDragStartW = useRef<number>(50);
@@ -1134,6 +1136,16 @@ function _projectPage() {
       }
       if (msg.type === "notification") {
         queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      }
+      if (msg.type === "deploy_log" && msg.line) {
+        setDeployProcessLogs((prev) => {
+          const next = [...prev, msg.line as string];
+          return next.length > 500 ? next.slice(-500) : next;
+        });
+      }
+      if (msg.type === "deploy_status") {
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deploy", "process"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deployments"] });
       }
     }
   }, [messages]);
@@ -2196,6 +2208,62 @@ function _projectPage() {
     },
     onError: (err: any) => { toast({ title: "Failed to remove guest", description: err.message, variant: "destructive" }); },
   });
+
+  const deployProcessQuery = useQuery<{ process: { projectId: string; port: number; status: string; startedAt: string; restartCount: number; pid?: number; uptime?: number; healthStatus?: string; resourceLimits: { maxMemoryMB: number; maxCpuPercent: number }; resourceUsage: { cpuPercent: number; memoryMb: number } | null } | null; liveUrl: string | null }>({
+    queryKey: ["/api/projects", projectId, "deploy", "process"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/deploy/process`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load process status");
+      return res.json();
+    },
+    enabled: !!projectId && deployPanelTab === "process",
+    refetchInterval: deployPanelTab === "process" ? 5000 : false,
+    retry: 1,
+  });
+
+  const stopProcessMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/deploy/stop`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deploy", "process"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deployments"] });
+      toast({ title: "Process stopped" });
+    },
+    onError: (err: any) => { toast({ title: "Stop failed", description: err.message, variant: "destructive" }); },
+  });
+
+  const restartProcessMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/deploy/restart`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deploy", "process"] });
+      toast({ title: "Process restarting" });
+    },
+    onError: (err: any) => { toast({ title: "Restart failed", description: err.message, variant: "destructive" }); },
+  });
+
+  const streamLogsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/deploy/stream-logs`);
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (deployPanelTab === "process" && projectId) {
+      streamLogsMutation.mutate();
+    }
+  }, [deployPanelTab, projectId]);
+
+  useEffect(() => {
+    if (deployLogsEndRef.current) {
+      deployLogsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [deployProcessLogs]);
 
   const deployAnalyticsQuery = useQuery<{ pageViews: number; uniqueVisitors: number; topReferrers: { referrer: string; count: number }[]; trafficByDay: { date: string; views: number }[] }>({
     queryKey: ["/api/projects", projectId, "deploy", "analytics"],
@@ -6905,7 +6973,7 @@ function _projectPage() {
                 </div>
 
                 <div className="flex border-b border-[var(--ide-border)] shrink-0">
-                  {(["config", "history", "analytics", "settings"] as const).map(tab => (
+                  {(["config", "history", "process", "analytics", "settings"] as const).map(tab => (
                     <button key={tab} className={`flex-1 text-[10px] py-2 font-medium capitalize ${deployPanelTab === tab ? "text-[#0079F2] border-b-2 border-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`} onClick={() => setDeployPanelTab(tab)} data-testid={`deploy-tab-${tab}`}>{tab}</button>
                   ))}
                 </div>
@@ -7246,6 +7314,95 @@ function _projectPage() {
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {deployPanelTab === "process" && (
+                    <div className="px-3 py-3 space-y-3">
+                      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block">Process Manager</span>
+                      {deployProcessQuery.isLoading ? (
+                        <div className="text-xs text-[var(--ide-text-muted)] py-4 text-center">Loading...</div>
+                      ) : !deployProcessQuery.data?.process ? (
+                        <div className="text-xs text-[var(--ide-text-muted)] py-4 text-center">No running process. Deploy to start one.</div>
+                      ) : (() => {
+                        const proc = deployProcessQuery.data.process;
+                        const statusColor = (proc.status === "running" || proc.status === "live") ? "bg-[#0CCE6B]" : proc.status === "starting" ? "bg-amber-400" : (proc.status === "crashed" || proc.status === "stopped") ? "bg-red-500" : proc.status === "restarting" ? "bg-amber-400" : "bg-[var(--ide-text-muted)]";
+                        const statusLabel = proc.status === "live" ? "Live" : proc.status === "running" ? "Running" : proc.status === "starting" ? "Starting" : proc.status === "crashed" ? "Crashed" : proc.status === "stopped" ? "Stopped" : proc.status === "restarting" ? "Restarting" : proc.status;
+                        const uptime = proc.startedAt ? Math.floor((Date.now() - new Date(proc.startedAt).getTime()) / 1000) : 0;
+                        const uptimeStr = uptime > 3600 ? `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m` : uptime > 60 ? `${Math.floor(uptime / 60)}m ${uptime % 60}s` : `${uptime}s`;
+                        return (
+                          <>
+                            <div className="bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${statusColor} animate-pulse`} />
+                                  <span className="text-xs font-semibold text-[var(--ide-text)]" data-testid="process-status-label">{statusLabel}</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <button className="text-[9px] px-2 py-1 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[var(--ide-text)] hover:bg-[var(--ide-surface-hover)]" onClick={() => restartProcessMutation.mutate()} disabled={restartProcessMutation.isPending} data-testid="button-restart-process">{restartProcessMutation.isPending ? "Restarting..." : "Restart"}</button>
+                                  <button className="text-[9px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20" onClick={() => stopProcessMutation.mutate()} disabled={stopProcessMutation.isPending} data-testid="button-stop-process">{stopProcessMutation.isPending ? "Stopping..." : "Stop"}</button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div>
+                                  <span className="text-[var(--ide-text-muted)]">Port</span>
+                                  <span className="ml-1 text-[var(--ide-text)] font-mono" data-testid="text-process-port">{proc.port}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--ide-text-muted)]">Uptime</span>
+                                  <span className="ml-1 text-[var(--ide-text)]" data-testid="text-process-uptime">{uptimeStr}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--ide-text-muted)]">Restarts</span>
+                                  <span className="ml-1 text-[var(--ide-text)]" data-testid="text-process-restarts">{proc.restartCount}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--ide-text-muted)]">PID</span>
+                                  <span className="ml-1 text-[var(--ide-text)] font-mono">{proc.pid || "—"}</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5 pt-1">
+                                <div className="text-[10px] text-[var(--ide-text-muted)]">CPU Usage</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 rounded-full bg-[var(--ide-border)] overflow-hidden">
+                                    <div className={`h-full rounded-full transition-all ${(proc.resourceUsage?.cpuPercent || 0) > 80 ? "bg-red-500" : (proc.resourceUsage?.cpuPercent || 0) > 50 ? "bg-amber-400" : "bg-[#0CCE6B]"}`} style={{ width: `${Math.min(100, proc.resourceUsage?.cpuPercent || 0)}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-[var(--ide-text)] w-14 text-right" data-testid="text-cpu-usage">{proc.resourceUsage?.cpuPercent?.toFixed(1) || "0.0"}% / {proc.resourceLimits?.maxCpuPercent || 100}%</span>
+                                </div>
+                                <div className="text-[10px] text-[var(--ide-text-muted)]">Memory Usage</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 rounded-full bg-[var(--ide-border)] overflow-hidden">
+                                    <div className={`h-full rounded-full transition-all ${(proc.resourceUsage?.memoryMb || 0) > (proc.resourceLimits?.maxMemoryMB || 512) * 0.8 ? "bg-red-500" : (proc.resourceUsage?.memoryMb || 0) > (proc.resourceLimits?.maxMemoryMB || 512) * 0.5 ? "bg-amber-400" : "bg-[#0079F2]"}`} style={{ width: `${Math.min(100, (proc.resourceUsage?.memoryMb || 0) / (proc.resourceLimits?.maxMemoryMB || 512) * 100)}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-[var(--ide-text)] w-16 text-right" data-testid="text-memory-usage">{proc.resourceUsage?.memoryMb || 0} / {proc.resourceLimits?.maxMemoryMB || 512} MB</span>
+                                </div>
+                              </div>
+                              {deployProcessQuery.data.liveUrl && (
+                                <div className="text-[10px]">
+                                  <span className="text-[var(--ide-text-muted)]">URL: </span>
+                                  <a href={deployProcessQuery.data.liveUrl} target="_blank" rel="noopener noreferrer" className="text-[#0079F2] hover:underline" data-testid="link-process-url">{deployProcessQuery.data.liveUrl}</a>
+                                </div>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Live Logs</span>
+                                <button className="text-[9px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setDeployProcessLogs([])} data-testid="button-clear-logs">Clear</button>
+                              </div>
+                              <div className="bg-[#0D1117] border border-[var(--ide-border)] rounded-lg h-48 overflow-y-auto font-mono text-[10px] leading-4 p-2" data-testid="deploy-process-logs">
+                                {deployProcessLogs.length === 0 ? (
+                                  <div className="text-[var(--ide-text-muted)] text-center py-8">Waiting for logs...</div>
+                                ) : (
+                                  deployProcessLogs.map((line, i) => (
+                                    <div key={i} className={`whitespace-pre-wrap break-all ${line.includes("[ERROR]") || line.includes("Error") ? "text-red-400" : line.includes("[WARN]") ? "text-amber-400" : "text-[#8B949E]"}`}>{line}</div>
+                                  ))
+                                )}
+                                <div ref={deployLogsEndRef} />
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 

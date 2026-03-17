@@ -17,7 +17,8 @@ import { executionPool } from "./executionPool";
 import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity } from "./terminal";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
-import { buildAndDeploy, buildAndDeployMultiArtifact, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess } from "./deploymentEngine";
+import { buildAndDeploy, buildAndDeployMultiArtifact, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess, shutdownAllProcesses, cleanupProjectProcesses, setProcessLogCallback } from "./deploymentEngine";
+import { getProcessInfo } from "./processManager";
 import type { DeploymentType } from "./deploymentEngine";
 import { incrementRequests, incrementErrors, recordResponseTime, getAndResetCounters, getRealMetrics } from "./metricsCollector";
 import { DEFAULT_SHORTCUTS, isValidShortcutValue, findConflict, mergeWithDefaults } from "@shared/keyboardShortcuts";
@@ -1009,6 +1010,10 @@ export async function registerRoutes(
 
   import("./workflowExecutor").then(({ setBroadcastFn }) => {
     setBroadcastFn(broadcastToProject);
+  }).catch(() => {});
+
+  import("./deploymentEngine").then(({ setProcessBroadcastFn }) => {
+    setProcessBroadcastFn(broadcastToProject);
   }).catch(() => {});
 
   const PgStore = connectPgSimple(session);
@@ -3978,9 +3983,23 @@ export async function registerRoutes(
       if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { version } = z.object({ version: z.number().int().min(0) }).parse(req.body);
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
-      const result = await rollbackDeployment(project.id, slug, version);
+      const result = await rollbackDeployment(project.id, slug, version, (line) => {
+        broadcastToProject(project.id, { type: "deploy_log", line });
+      });
       if (!result.success) return res.status(400).json({ message: result.message });
-      return res.json({ success: true, message: result.message, version });
+
+      const deps = await storage.getProjectDeployments(project.id);
+      const targetDep = deps.find(d => d.version === version);
+      if (targetDep) {
+        await storage.demotePreviousLiveDeployments(project.id, targetDep.id);
+        await storage.updateDeployment(targetDep.id, {
+          status: "live",
+          processPort: result.processPort || undefined,
+        });
+      }
+
+      broadcastToProject(project.id, { type: "deploy_status", status: "live", version });
+      return res.json({ success: true, message: result.message, version, processPort: result.processPort });
     } catch {
       return res.status(500).json({ message: "Rollback failed" });
     }
@@ -4151,8 +4170,27 @@ export async function registerRoutes(
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const status = getProcessStatus(project.id);
-      return res.json({ process: status });
+      const info = getProcessInfo(project.id);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const liveUrl = info ? `/deployed/${slug}/` : null;
+      return res.json({
+        process: info ? {
+          projectId: info.projectId,
+          port: info.port,
+          status: info.status,
+          startedAt: new Date(info.startedAt || Date.now()).toISOString(),
+          restartCount: info.restartCount,
+          resourceLimits: {
+            maxMemoryMB: info.resourceLimits?.maxMemoryMb || 512,
+            maxCpuPercent: info.resourceLimits?.maxCpuPercent || 100,
+          },
+          resourceUsage: info.resourceUsage || null,
+          healthStatus: info.healthStatus,
+          pid: info.pid,
+          uptime: info.uptime,
+        } : null,
+        liveUrl,
+      });
     } catch {
       return res.status(500).json({ message: "Failed to fetch process status" });
     }
@@ -4167,6 +4205,7 @@ export async function registerRoutes(
       if (deps[0]) {
         await storage.updateDeployment(deps[0].id, { status: "stopped", healthStatus: "unknown" });
       }
+      broadcastToProject(project.id, { type: "deploy_status", status: "stopped" });
       return res.json({ success: true });
     } catch {
       return res.status(500).json({ message: "Stop failed" });
@@ -4179,9 +4218,34 @@ export async function registerRoutes(
       if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const managed = await restartManagedProcess(project.id);
       if (!managed) return res.status(400).json({ message: "No running process to restart" });
-      return res.json({ success: true, port: managed.port });
+      broadcastToProject(project.id, { type: "deploy_status", status: managed.status, port: managed.port });
+      setProcessLogCallback(project.id, (line) => {
+        broadcastToProject(project.id, { type: "deploy_log", line });
+      });
+      return res.json({ success: true, port: managed.port, status: managed.status });
     } catch {
       return res.status(500).json({ message: "Restart failed" });
+    }
+  });
+
+  app.post("/api/projects/:id/deploy/stream-logs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+
+      const existingLogs = getProcessLogs(project.id);
+      if (existingLogs.length > 0) {
+        for (const line of existingLogs) {
+          broadcastToProject(project.id, { type: "deploy_log", line });
+        }
+      }
+
+      setProcessLogCallback(project.id, (line) => {
+        broadcastToProject(project.id, { type: "deploy_log", line });
+      });
+      return res.json({ streaming: true, bufferedLines: existingLogs.length });
+    } catch {
+      return res.status(500).json({ message: "Failed to start log streaming" });
     }
   });
 
@@ -4873,6 +4937,7 @@ export async function registerRoutes(
     if (!deleted) {
       return res.status(404).json({ message: "Project not found or not owned" });
     }
+    await cleanupProjectProcesses(req.params.id);
     return res.json({ message: "Project moved to trash" });
   });
 
