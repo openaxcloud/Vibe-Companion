@@ -7,7 +7,8 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, STORAGE_PLAN_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, STORAGE_PLAN_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES, type SlideData, type SlideTheme } from "@shared/schema";
+import type PptxGenJS from "pptxgenjs";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
 import { executeCode, sendStdinToProcess, killInteractiveProcess, resolveRunCommand } from "./executor";
@@ -9272,7 +9273,7 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
       };
 
       const projectTypeContext = project.projectType === "slides"
-        ? `\n\nThis is a SLIDES project. The user is building a presentation. You have access to the create_slide and edit_slide tools to create/modify slides. Each slide has an id, order, layout, and blocks array. Block types: title, body, image, code, list. You can also set a theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, and accentColor.`
+        ? `\n\nThis is a SLIDES project. The user is building a presentation. You have access to the create_slide and edit_slide tools to create/modify slides. Each slide has an id, order, layout (title|content|two-column|image-full|blank), blocks array, and optional notes (speaker notes string). Block types: title, body, image, code, list. You can also set a theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, and accentColor.\n\nSlide templates available: pitch-deck, tech-talk, portfolio-slides, product-overview, team-update, educational-presentation.\n\nPresenter mode supports speaker notes, next-slide preview, and a timer. Export to PDF and PPTX is available — PPTX produces editable PowerPoint files with speaker notes preserved.`
         : project.projectType === "video"
         ? `\n\nThis is a VIDEO project. The user is creating a video composition. You have access to the create_video_scene and edit_video_scene tools to create/modify video scenes. Each scene has an id, order, duration (seconds), backgroundColor, elements array, and transition type. Element types: text, image, shape, overlay. Each element has position (x, y as %), size (width, height as %), startTime, endTime, style, and animation.`
         : (outputTypeContextMap[(project as any).outputType] || "");
@@ -9483,11 +9484,11 @@ Always cite your sources in your response when using information from web search
             },
             {
               name: "update_slides",
-              description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme.",
+              description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme. Each slide can include speaker notes.",
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  slides: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, layout: { type: Type.STRING }, blocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, content: { type: Type.STRING } }, required: ["id", "type", "content"] } } }, required: ["id", "order", "blocks"] }, description: "Array of slide objects" },
+                  slides: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, layout: { type: Type.STRING, description: "Layout: title, content, two-column, image-full, or blank" }, blocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING, description: "Block type: title, body, image, code, or list" }, content: { type: Type.STRING } }, required: ["id", "type", "content"] } }, notes: { type: Type.STRING, description: "Optional speaker notes for presenter mode" } }, required: ["id", "order", "blocks"] }, description: "Array of slide objects" },
                   theme: { type: Type.OBJECT, properties: { primaryColor: { type: Type.STRING }, secondaryColor: { type: Type.STRING }, backgroundColor: { type: Type.STRING }, textColor: { type: Type.STRING }, fontFamily: { type: Type.STRING }, accentColor: { type: Type.STRING } }, description: "Optional theme object" },
                 },
                 required: ["slides"],
@@ -9495,11 +9496,11 @@ Always cite your sources in your response when using information from web search
             },
             {
               name: "edit_slide",
-              description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme.",
+              description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme. Each slide can include speaker notes.",
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  slides: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, layout: { type: Type.STRING }, blocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING }, content: { type: Type.STRING } }, required: ["id", "type", "content"] } } }, required: ["id", "order", "blocks"] }, description: "Array of slide objects" },
+                  slides: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, order: { type: Type.NUMBER }, layout: { type: Type.STRING, description: "Layout: title, content, two-column, image-full, or blank" }, blocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, type: { type: Type.STRING, description: "Block type: title, body, image, code, or list" }, content: { type: Type.STRING } }, required: ["id", "type", "content"] } }, notes: { type: Type.STRING, description: "Optional speaker notes for presenter mode" } }, required: ["id", "order", "blocks"] }, description: "Array of slide objects" },
                   theme: { type: Type.OBJECT, properties: { primaryColor: { type: Type.STRING }, secondaryColor: { type: Type.STRING }, backgroundColor: { type: Type.STRING }, textColor: { type: Type.STRING }, fontFamily: { type: Type.STRING }, accentColor: { type: Type.STRING } }, description: "Optional theme object" },
                 },
                 required: ["slides"],
@@ -9697,11 +9698,11 @@ Always cite your sources in your response when using information from web search
             type: "function",
             function: {
               name: "create_slide",
-              description: "Create slides for a slides project. Provide the full array of slides and optionally a theme.",
+              description: "Create slides for a slides project. Provide the full array of slides and optionally a theme. Each slide can include speaker notes.",
               parameters: {
                 type: "object",
                 properties: {
-                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout (title|content|two-column|image-full|blank), blocks, and optional notes (speaker notes string)" },
                   theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
                 },
                 required: ["slides"],
@@ -9712,11 +9713,11 @@ Always cite your sources in your response when using information from web search
             type: "function",
             function: {
               name: "edit_slide",
-              description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme.",
+              description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme. Each slide can include speaker notes.",
               parameters: {
                 type: "object",
                 properties: {
-                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout (title|content|two-column|image-full|blank), blocks, and optional notes (speaker notes string)" },
                   theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
                 },
                 required: ["slides"],
@@ -9806,11 +9807,11 @@ Always cite your sources in your response when using information from web search
             type: "function",
             function: {
               name: "update_slides",
-              description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme.",
+              description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme. Each slide can include speaker notes.",
               parameters: {
                 type: "object",
                 properties: {
-                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                  slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout (title|content|two-column|image-full|blank), blocks, and optional notes (speaker notes string)" },
                   theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
                 },
                 required: ["slides"],
@@ -10196,11 +10197,11 @@ Always cite your sources in your response when using information from web search
           },
           {
             name: "update_slides",
-            description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme.",
+            description: "Create or update the slides data for a slides project. Provide the full array of slides and optionally a theme. Each slide can include speaker notes.",
             input_schema: {
               type: "object" as const,
               properties: {
-                slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout (title|content|two-column|image-full|blank), blocks, and optional notes (speaker notes string)" },
                 theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
               },
               required: ["slides"],
@@ -10208,11 +10209,11 @@ Always cite your sources in your response when using information from web search
           },
           {
             name: "edit_slide",
-            description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme.",
+            description: "Edit existing slides in a slides project. Provide the updated full array of slides and optionally a theme. Each slide can include speaker notes.",
             input_schema: {
               type: "object" as const,
               properties: {
-                slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout, and blocks" },
+                slides: { type: "array", items: { type: "object" }, description: "Array of slide objects with id, order, layout (title|content|two-column|image-full|blank), blocks, and optional notes (speaker notes string)" },
                 theme: { type: "object", description: "Optional theme with primaryColor, secondaryColor, backgroundColor, textColor, fontFamily, accentColor" },
               },
               required: ["slides"],
@@ -16614,6 +16615,137 @@ Respond ONLY with the JSON array, no other text.`;
     } catch (err) {
       log(`PDF export error: ${err}`, "error");
       return res.status(500).json({ message: "Failed to export slides" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/slides/export/pptx", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const data = await storage.getSlidesData(projectId);
+      if (!data || !data.slides || data.slides.length === 0) return res.status(400).json({ message: "No slides to export" });
+
+      const PptxGenJS = (await import("pptxgenjs")).default;
+      const pptx = new PptxGenJS();
+      pptx.author = "E-Code IDE";
+      pptx.title = project.name;
+
+      const theme: SlideTheme = (data.theme ?? {}) as SlideTheme;
+      const bgColor = (theme.backgroundColor || "#1a1a2e").replace("#", "");
+      const textColor = (theme.textColor || "#ffffff").replace("#", "");
+      const primaryColor = (theme.primaryColor || "#0079F2").replace("#", "");
+      const accentColor = (theme.accentColor || "#0CCE6B").replace("#", "");
+
+      const sortedSlides: SlideData[] = [...(data.slides as SlideData[])].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+      for (let idx = 0; idx < sortedSlides.length; idx++) {
+        const slideData = sortedSlides[idx];
+        const slide = pptx.addSlide();
+        slide.background = { color: slideData.backgroundColor ? slideData.backgroundColor.replace("#", "") : bgColor };
+
+        if (slideData.notes) {
+          slide.addNotes(slideData.notes);
+        }
+
+        let yPos = 0.8;
+
+        if (slideData.blocks) {
+          for (const block of slideData.blocks) {
+            switch (block.type) {
+              case "title":
+                slide.addText(block.content || "", {
+                  x: 0.5, y: yPos, w: 9, h: 0.8,
+                  fontSize: 32, fontFace: "Arial", color: primaryColor,
+                  bold: true, align: "left", valign: "top",
+                });
+                yPos += 1.0;
+                break;
+              case "body":
+                slide.addText(block.content || "", {
+                  x: 0.5, y: yPos, w: 9, h: 1.0,
+                  fontSize: 16, fontFace: "Arial", color: textColor,
+                  align: "left", valign: "top",
+                });
+                yPos += 1.2;
+                break;
+              case "code": {
+                const codeText = block.content || "";
+                const lineCount = codeText.split("\n").length;
+                const codeHeight = Math.max(0.8, lineCount * 0.28 + 0.4);
+                slide.addShape(pptx.ShapeType.roundRect, {
+                  x: 0.5, y: yPos, w: 9, h: codeHeight,
+                  fill: { color: "2d2d3d" }, rectRadius: 0.1,
+                });
+                slide.addText(codeText, {
+                  x: 0.6, y: yPos + 0.1, w: 8.8, h: codeHeight - 0.2,
+                  fontSize: 11, fontFace: "Courier New", color: "e0e0e0",
+                  align: "left", valign: "top",
+                });
+                yPos += codeHeight + 0.3;
+                break;
+              }
+              case "list": {
+                const listItems = (block.content || "").split("\n").filter((item: string) => item.trim());
+                const listText: PptxGenJS.TextProps[] = listItems.map((item: string) => {
+                  const cleanItem = item.replace(/^[-*•]\s*/, "").trim();
+                  return { text: cleanItem, options: { fontSize: 14, fontFace: "Arial", color: textColor, bullet: { code: "2022", color: accentColor }, paraSpaceAfter: 6 } };
+                });
+                if (listText.length > 0) {
+                  const listHeight = Math.max(0.6, listText.length * 0.35 + 0.2);
+                  slide.addText(listText, {
+                    x: 0.5, y: yPos, w: 9, h: listHeight,
+                    valign: "top",
+                  });
+                  yPos += listHeight + 0.3;
+                }
+                break;
+              }
+              case "image": {
+                const imgUrl = block.imageUrl || block.content || "";
+                if (imgUrl) {
+                  const urlValidation = validateExternalUrl(imgUrl);
+                  if (urlValidation.valid) {
+                    try {
+                      const imgResp = await fetch(imgUrl, { signal: AbortSignal.timeout(8000) });
+                      const contentType = imgResp.headers.get("content-type") || "";
+                      if (imgResp.ok && contentType.startsWith("image/")) {
+                        const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+                        if (imgBuf.length <= 10 * 1024 * 1024) {
+                          const ext = contentType.includes("png") ? "png" : contentType.includes("gif") ? "gif" : "jpeg";
+                          slide.addImage({
+                            data: `data:image/${ext};base64,${imgBuf.toString("base64")}`,
+                            x: 0.5, y: yPos, w: 5, h: 3,
+                            sizing: { type: "contain", w: 5, h: 3 },
+                          });
+                          yPos += 3.3;
+                        }
+                      }
+                    } catch (imgErr) {
+                      log(`PPTX export: failed to embed image "${imgUrl.substring(0, 80)}": ${imgErr}`, "warn");
+                    }
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        slide.addText(`${idx + 1} / ${sortedSlides.length}`, {
+          x: 8, y: 6.8, w: 1.5, h: 0.3,
+          fontSize: 9, fontFace: "Arial", color: "888888",
+          align: "right",
+        });
+      }
+
+      const pptxBuffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+      res.setHeader("Content-Disposition", `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_slides.pptx"`);
+      res.send(pptxBuffer);
+    } catch (err) {
+      log(`PPTX export error: ${err}`, "error");
+      return res.status(500).json({ message: "Failed to export slides as PPTX" });
     }
   });
 

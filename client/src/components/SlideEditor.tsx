@@ -4,12 +4,16 @@ import { Input } from "@/components/ui/input";
 import {
   Plus, Trash2, Copy, ChevronUp, ChevronDown, Maximize2, Minimize2,
   Type, AlignLeft, Image, Code2, List, Palette, Download, Play,
-  GripVertical, X, Loader2, ChevronLeft, ChevronRight, FileText
+  GripVertical, X, Loader2, ChevronLeft, ChevronRight, FileText,
+  Clock, StickyNote, FileDown
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { SlideData, SlideContentBlock, SlideTheme } from "@shared/schema";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const PRESET_THEMES: SlideTheme[] = [
   { name: "Dark Modern", primaryColor: "#0079F2", secondaryColor: "#7C65CB", backgroundColor: "#1a1a2e", textColor: "#ffffff", fontFamily: "Inter, system-ui, sans-serif", accentColor: "#0CCE6B" },
@@ -38,11 +42,18 @@ function createDefaultSlide(order: number): SlideData {
           { id: generateId(), type: "title", content: "Slide Title" },
           { id: generateId(), type: "body", content: "Click to add content" },
         ],
+    notes: "",
   };
 }
 
 interface SlideEditorProps {
   projectId: string;
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function SlideEditor({ projectId }: SlideEditorProps) {
@@ -51,9 +62,12 @@ export default function SlideEditor({ projectId }: SlideEditorProps) {
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
   const [isPresenting, setIsPresenting] = useState(false);
   const [presentSlideIndex, setPresentSlideIndex] = useState(0);
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [presenterTimer, setPresenterTimer] = useState(0);
+  const [showPresenterNotes, setShowPresenterNotes] = useState(true);
   const presentRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const slidesQuery = useQuery<{ slides: SlideData[]; theme: SlideTheme | null }>({
     queryKey: [`/api/projects/${projectId}/slides`],
@@ -179,14 +193,51 @@ export default function SlideEditor({ projectId }: SlideEditorProps) {
     );
   }, [selectedSlideIndex, updateSlides]);
 
+  const updateNotes = useCallback((notes: string) => {
+    updateSlides(slides =>
+      slides.map((s, i) => i === selectedSlideIndex ? { ...s, notes } : s)
+    );
+  }, [selectedSlideIndex, updateSlides]);
+
   const currentSlide = localSlides[selectedSlideIndex];
+
+  useEffect(() => {
+    if (isPresenting) {
+      setPresenterTimer(0);
+      timerRef.current = setInterval(() => {
+        setPresenterTimer(prev => prev + 1);
+      }, 1000);
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  }, [isPresenting]);
 
   useEffect(() => {
     if (!isPresenting) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsPresenting(false);
-      if (e.key === "ArrowRight" || e.key === " ") setPresentSlideIndex(prev => Math.min(prev + 1, localSlides.length - 1));
-      if (e.key === "ArrowLeft") setPresentSlideIndex(prev => Math.max(prev - 1, 0));
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "ArrowDown") {
+        e.preventDefault();
+        setPresentSlideIndex(prev => Math.min(prev + 1, localSlides.length - 1));
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setPresentSlideIndex(prev => Math.max(prev - 1, 0));
+      }
+      if (e.key === "Home") {
+        e.preventDefault();
+        setPresentSlideIndex(0);
+      }
+      if (e.key === "End") {
+        e.preventDefault();
+        setPresentSlideIndex(localSlides.length - 1);
+      }
+      if (e.key === "n" || e.key === "N") {
+        setShowPresenterNotes(prev => !prev);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -283,20 +334,65 @@ export default function SlideEditor({ projectId }: SlideEditorProps) {
 
   if (isPresenting) {
     const presentSlide = localSlides[presentSlideIndex];
+    const nextSlide = localSlides[presentSlideIndex + 1];
+    const slideNotes = presentSlide?.notes || "";
+
     return (
-      <div ref={presentRef} className="fixed inset-0 z-[9999] bg-black flex items-center justify-center cursor-none" onClick={() => setPresentSlideIndex(prev => Math.min(prev + 1, localSlides.length - 1))} data-testid="slides-presentation-mode">
-        {presentSlide && renderSlidePreview(presentSlide, localTheme, "present")}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 opacity-0 hover:opacity-100 transition-opacity cursor-default" onClick={e => e.stopPropagation()}>
-          <Button size="sm" variant="ghost" className="text-white/60 hover:text-white" onClick={() => setPresentSlideIndex(prev => Math.max(prev - 1, 0))} data-testid="button-present-prev">
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-white/60 text-xs">{presentSlideIndex + 1} / {localSlides.length}</span>
-          <Button size="sm" variant="ghost" className="text-white/60 hover:text-white" onClick={() => setPresentSlideIndex(prev => Math.min(prev + 1, localSlides.length - 1))} data-testid="button-present-next">
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-          <Button size="sm" variant="ghost" className="text-white/60 hover:text-white" onClick={() => setIsPresenting(false)} data-testid="button-exit-present">
-            <X className="w-4 h-4" />
-          </Button>
+      <div ref={presentRef} className="fixed inset-0 z-[9999] bg-black flex flex-col" data-testid="slides-presentation-mode">
+        <div className="flex-1 flex min-h-0">
+          <div
+            className="flex-1 flex items-center justify-center cursor-pointer"
+            onClick={() => setPresentSlideIndex(prev => Math.min(prev + 1, localSlides.length - 1))}
+          >
+            {presentSlide && renderSlidePreview(presentSlide, localTheme, "present")}
+          </div>
+
+          {showPresenterNotes && (nextSlide || slideNotes) && (
+            <div className="w-[320px] bg-[#111] border-l border-[#333] flex flex-col" onClick={e => e.stopPropagation()}>
+              {nextSlide && (
+                <div className="p-3 border-b border-[#333]">
+                  <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Next Slide</div>
+                  <div className="flex justify-center">
+                    {renderSlidePreview(nextSlide, localTheme, "thumb")}
+                  </div>
+                </div>
+              )}
+              {slideNotes && (
+                <div className="flex-1 p-3 overflow-y-auto">
+                  <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Speaker Notes</div>
+                  <div className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap" data-testid="text-presenter-notes">
+                    {slideNotes}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2 bg-[#111] border-t border-[#333]" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-white/40" />
+            <span className="text-xs text-white/60 font-mono" data-testid="text-presenter-timer">{formatTime(presenterTimer)}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button size="sm" variant="ghost" className="text-white/60 hover:text-white h-7" onClick={() => setPresentSlideIndex(prev => Math.max(prev - 1, 0))} disabled={presentSlideIndex === 0} data-testid="button-present-prev">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-white/60 text-xs font-mono min-w-[60px] text-center" data-testid="text-slide-counter">
+              {presentSlideIndex + 1} / {localSlides.length}
+            </span>
+            <Button size="sm" variant="ghost" className="text-white/60 hover:text-white h-7" onClick={() => setPresentSlideIndex(prev => Math.min(prev + 1, localSlides.length - 1))} disabled={presentSlideIndex === localSlides.length - 1} data-testid="button-present-next">
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" className={`h-7 text-xs ${showPresenterNotes ? "text-white" : "text-white/40"}`} onClick={() => setShowPresenterNotes(p => !p)} title="Toggle notes (N)" data-testid="button-toggle-presenter-notes">
+              <StickyNote className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="text-white/60 hover:text-white h-7" onClick={() => setIsPresenting(false)} data-testid="button-exit-present">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -316,15 +412,32 @@ export default function SlideEditor({ projectId }: SlideEditorProps) {
           <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setShowThemePanel(!showThemePanel)} data-testid="button-toggle-theme">
             <Palette className="w-3.5 h-3.5" /> Theme
           </Button>
+          <Button size="sm" variant="ghost" className={`h-7 text-xs gap-1 ${showNotesPanel ? "bg-[var(--ide-hover)]" : ""}`} onClick={() => setShowNotesPanel(!showNotesPanel)} data-testid="button-toggle-notes">
+            <StickyNote className="w-3.5 h-3.5" /> Notes
+          </Button>
           <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => { setPresentSlideIndex(selectedSlideIndex); setIsPresenting(true); }} data-testid="button-present">
             <Play className="w-3.5 h-3.5" /> Present
           </Button>
           <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={save} disabled={!isDirty || saveMutation.isPending} data-testid="button-save-slides">
             <Download className="w-3.5 h-3.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => { window.open(`/api/projects/${projectId}/slides/export`, '_blank'); }} data-testid="button-export-slides">
-            <Download className="w-3.5 h-3.5" /> Export
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" data-testid="button-export-slides">
+                <FileDown className="w-3.5 h-3.5" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[160px]">
+              <DropdownMenuItem onClick={() => window.open(`/api/projects/${projectId}/slides/export`, '_blank')} data-testid="button-export-pdf">
+                <FileText className="w-3.5 h-3.5 mr-2 text-red-400" />
+                Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`/api/projects/${projectId}/slides/export/pptx`, '_blank')} data-testid="button-export-pptx">
+                <FileDown className="w-3.5 h-3.5 mr-2 text-orange-400" />
+                Export as PPTX
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -339,6 +452,7 @@ export default function SlideEditor({ projectId }: SlideEditorProps) {
             >
               <div className="relative">
                 <div className="absolute top-1 left-1 text-[8px] font-bold text-[var(--ide-text-secondary)] bg-[var(--ide-bg)]/80 rounded px-1">{index + 1}</div>
+                {slide.notes && <div className="absolute top-1 right-1"><StickyNote className="w-2.5 h-2.5 text-amber-400/60" /></div>}
                 {renderSlidePreview(slide, localTheme, "thumb")}
               </div>
             </div>
@@ -379,6 +493,23 @@ export default function SlideEditor({ projectId }: SlideEditorProps) {
           <div className="flex-1 flex items-center justify-center p-6 overflow-auto bg-[var(--ide-bg)]">
             {currentSlide && renderSlidePreview(currentSlide, localTheme, "main")}
           </div>
+
+          {showNotesPanel && currentSlide && (
+            <div className="border-t border-[var(--ide-border)] bg-[var(--ide-panel)] p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <StickyNote className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Speaker Notes</span>
+              </div>
+              <textarea
+                value={currentSlide.notes || ""}
+                onChange={e => updateNotes(e.target.value)}
+                placeholder="Add speaker notes for this slide..."
+                className="w-full bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded px-3 py-2 text-xs text-[var(--ide-text)] resize-none min-h-[60px]"
+                rows={3}
+                data-testid="input-speaker-notes"
+              />
+            </div>
+          )}
 
           {currentSlide && (
             <div className="border-t border-[var(--ide-border)] bg-[var(--ide-panel)] p-3 max-h-[300px] overflow-y-auto">
