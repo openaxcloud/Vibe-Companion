@@ -13809,6 +13809,58 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     } catch { res.status(500).json({ message: "Failed to load domains" }); }
   });
 
+  app.get("/api/projects/:id/networking/all-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const customDomains = await storage.getProjectCustomDomains(project.id);
+      const purchasedDomains = await storage.getUserPurchasedDomains(req.session.userId!);
+      const projectPurchased = purchasedDomains.filter(d => d.projectId === project.id);
+
+      const unified = [];
+      const seenDomains = new Set<string>();
+
+      for (const pd of projectPurchased) {
+        seenDomains.add(pd.domain);
+        const matchingCustom = customDomains.find(cd => cd.domain === pd.domain);
+        unified.push({
+          domain: pd.domain,
+          source: "purchased" as const,
+          status: pd.status,
+          verified: matchingCustom?.verified ?? true,
+          sslStatus: matchingCustom?.sslStatus ?? "pending",
+          purchasedDomainId: pd.id,
+          customDomainId: matchingCustom?.id ?? null,
+          autoRenew: pd.autoRenew,
+          whoisPrivacy: pd.whoisPrivacy,
+          expiresAt: pd.expiresAt,
+          renewalPrice: pd.renewalPrice,
+        });
+      }
+
+      for (const cd of customDomains) {
+        if (!seenDomains.has(cd.domain)) {
+          unified.push({
+            domain: cd.domain,
+            source: "connected" as const,
+            status: cd.verified ? "active" : "pending",
+            verified: cd.verified,
+            sslStatus: cd.sslStatus,
+            purchasedDomainId: null,
+            customDomainId: cd.id,
+            autoRenew: null,
+            whoisPrivacy: null,
+            expiresAt: null,
+            renewalPrice: null,
+          });
+        }
+      }
+
+      res.json(unified);
+    } catch { res.status(500).json({ message: "Failed to load unified domains" }); }
+  });
+
   app.post("/api/projects/:id/networking/domains", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
@@ -13849,6 +13901,270 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       await storage.deleteCustomDomain(req.params.domainId, req.session.userId!);
       res.json({ deleted: true });
     } catch { res.status(500).json({ message: "Failed to delete domain" }); }
+  });
+
+  app.get("/api/domains/search", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const query = (req.query.q as string || "").trim();
+      if (!query) return res.status(400).json({ message: "Search query required" });
+      const tlds = req.query.tlds ? (req.query.tlds as string).split(",") : [];
+      const { getRegistrar } = await import("./domainRegistrar");
+      const registrar = getRegistrar();
+      const results = await registrar.searchAvailability(query, tlds);
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ message: "Domain search failed" });
+    }
+  });
+
+  app.post("/api/domains/purchase", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { domain, tld, projectId } = req.body;
+      if (!domain || typeof domain !== "string" || !tld || typeof tld !== "string") return res.status(400).json({ message: "Domain and TLD required" });
+      if (projectId && typeof projectId !== "string") return res.status(400).json({ message: "Invalid project ID" });
+      const normalizedDomain = domain.toLowerCase();
+      const existing = await storage.getPurchasedDomainByName(normalizedDomain);
+      if (existing) return res.status(409).json({ message: "Domain already purchased" });
+
+      if (projectId) {
+        const project = await storage.getProject(projectId);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+        if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const { getRegistrar, SUPPORTED_TLDS } = await import("./domainRegistrar");
+      if (!SUPPORTED_TLDS.includes(tld)) return res.status(400).json({ message: "Unsupported TLD" });
+      const registrar = getRegistrar();
+      const searchResults = await registrar.searchAvailability(domain.replace(tld, ""), [tld]);
+      const match = searchResults.find(r => r.domain === normalizedDomain && r.available);
+      if (!match) return res.status(400).json({ message: "Domain is not available" });
+
+      const result = await registrar.purchaseDomain(normalizedDomain, tld, req.session.userId!);
+      if (!result.success) return res.status(500).json({ message: "Purchase failed at registrar" });
+
+      let purchased;
+      try {
+        purchased = await storage.createPurchasedDomain({
+          domain: normalizedDomain,
+          tld,
+          userId: req.session.userId!,
+          projectId: projectId || null,
+          purchasePrice: match.registrationPrice,
+          renewalPrice: match.renewalPrice,
+          status: "active",
+          autoRenew: true,
+          whoisPrivacy: true,
+          expiresAt: result.expiresAt,
+        });
+      } catch (dbErr: unknown) {
+        const errCode = (dbErr as { code?: string }).code;
+        if (errCode === "23505") return res.status(409).json({ message: "Domain already registered" });
+        throw dbErr;
+      }
+
+      const defaultDnsRecords = [
+        { type: "A", name: "@", value: "76.76.21.21", ttl: 3600 },
+        { type: "CNAME", name: "www", value: normalizedDomain, ttl: 3600 },
+      ];
+
+      try {
+        await registrar.configureDns(normalizedDomain, defaultDnsRecords);
+      } catch (dnsErr) {
+        log(`[domain] Warning: failed to configure initial DNS for ${normalizedDomain}: ${dnsErr}`, "domain");
+      }
+
+      for (const rec of defaultDnsRecords) {
+        try {
+          await storage.createDnsRecord({
+            domainId: purchased.id,
+            recordType: rec.type,
+            name: rec.name,
+            value: rec.value,
+            ttl: rec.ttl,
+          });
+        } catch {
+          log(`[domain] Warning: failed to persist default DNS record ${rec.type} for ${normalizedDomain}`, "domain");
+        }
+      }
+
+      if (projectId) {
+        try {
+          const verificationToken = "ecode-verify-" + crypto.randomBytes(16).toString("hex");
+          await storage.createCustomDomain({
+            domain: normalizedDomain,
+            projectId,
+            userId: req.session.userId!,
+            verificationToken,
+          });
+          const customDomain = await storage.getCustomDomainByHostname(normalizedDomain);
+          if (customDomain) {
+            await storage.updateCustomDomain(customDomain.id, {
+              verified: true,
+              verifiedAt: new Date(),
+              sslStatus: "active",
+            });
+            await storage.updateProject(projectId, { customDomain: normalizedDomain });
+          }
+        } catch (linkErr) {
+          log(`[domain] Warning: purchased ${normalizedDomain} but failed to link to project ${projectId}: ${linkErr}`, "domain");
+        }
+      }
+
+      res.status(201).json(purchased);
+    } catch (err: unknown) {
+      const errCode = (err as { code?: string }).code;
+      if (errCode === "23505") return res.status(409).json({ message: "Domain already registered" });
+      log(`[domain] Purchase error: ${err}`, "error");
+      res.status(500).json({ message: "Purchase failed" });
+    }
+  });
+
+  app.get("/api/domains/purchased", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domains = await storage.getUserPurchasedDomains(req.session.userId!);
+      res.json(domains);
+    } catch { res.status(500).json({ message: "Failed to load domains" }); }
+  });
+
+  app.get("/api/domains/purchased/:domainId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domain = await storage.getPurchasedDomain(req.params.domainId);
+      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      const records = await storage.getDomainDnsRecords(domain.id);
+      res.json({ ...domain, dnsRecords: records });
+    } catch { res.status(500).json({ message: "Failed to load domain" }); }
+  });
+
+  app.post("/api/domains/purchased/:domainId/dns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domain = await storage.getPurchasedDomain(req.params.domainId);
+      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      const { recordType, name, value, ttl } = req.body;
+      if (!recordType || typeof recordType !== "string" || !name || typeof name !== "string" || !value || typeof value !== "string") {
+        return res.status(400).json({ message: "Record type, name, and value required" });
+      }
+      if (!["A", "TXT", "MX", "CNAME", "AAAA"].includes(recordType)) return res.status(400).json({ message: "Invalid record type" });
+      const parsedTtl = typeof ttl === "number" && ttl >= 60 && ttl <= 86400 ? ttl : 3600;
+      const record = await storage.createDnsRecord({
+        domainId: domain.id,
+        recordType,
+        name: name.trim(),
+        value: value.trim(),
+        ttl: parsedTtl,
+      });
+
+      const { getRegistrar } = await import("./domainRegistrar");
+      const allRecords = await storage.getDomainDnsRecords(domain.id);
+      await getRegistrar().configureDns(domain.domain, allRecords.map(r => ({
+        type: r.recordType, name: r.name, value: r.value, ttl: r.ttl ?? 3600,
+      })));
+
+      res.status(201).json(record);
+    } catch { res.status(500).json({ message: "Failed to add DNS record" }); }
+  });
+
+  app.put("/api/domains/purchased/:domainId/dns/:recordId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domain = await storage.getPurchasedDomain(req.params.domainId);
+      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      const record = await storage.getDnsRecord(req.params.recordId);
+      if (!record || record.domainId !== domain.id) return res.status(404).json({ message: "Record not found" });
+      const { recordType, name, value, ttl } = req.body;
+      const updateData: Partial<{ recordType: string; name: string; value: string; ttl: number }> = {};
+      if (recordType && typeof recordType === "string") {
+        if (!["A", "TXT", "MX", "CNAME", "AAAA"].includes(recordType)) return res.status(400).json({ message: "Invalid record type" });
+        updateData.recordType = recordType;
+      }
+      if (name && typeof name === "string") updateData.name = name.trim();
+      if (value && typeof value === "string") updateData.value = value.trim();
+      if (typeof ttl === "number" && ttl >= 60 && ttl <= 86400) updateData.ttl = ttl;
+      if (Object.keys(updateData).length === 0) return res.status(400).json({ message: "No valid fields to update" });
+
+      const updated = await storage.updateDnsRecord(req.params.recordId, updateData);
+      if (!updated) return res.status(500).json({ message: "Failed to update record" });
+
+      const { getRegistrar } = await import("./domainRegistrar");
+      const allRecords = await storage.getDomainDnsRecords(domain.id);
+      await getRegistrar().configureDns(domain.domain, allRecords.map(r => ({
+        type: r.recordType, name: r.name, value: r.value, ttl: r.ttl ?? 3600,
+      })));
+
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update DNS record" }); }
+  });
+
+  app.delete("/api/domains/purchased/:domainId/dns/:recordId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domain = await storage.getPurchasedDomain(req.params.domainId);
+      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      const record = await storage.getDnsRecord(req.params.recordId);
+      if (!record || record.domainId !== domain.id) return res.status(404).json({ message: "Record not found" });
+      await storage.deleteDnsRecord(req.params.recordId);
+
+      const { getRegistrar } = await import("./domainRegistrar");
+      const remainingRecords = await storage.getDomainDnsRecords(domain.id);
+      await getRegistrar().configureDns(domain.domain, remainingRecords.map(r => ({
+        type: r.recordType, name: r.name, value: r.value, ttl: r.ttl ?? 3600,
+      })));
+
+      res.json({ deleted: true });
+    } catch { res.status(500).json({ message: "Failed to delete DNS record" }); }
+  });
+
+  app.patch("/api/domains/purchased/:domainId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domain = await storage.getPurchasedDomain(req.params.domainId);
+      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      const { projectId, autoRenew } = req.body;
+      const updates: Partial<{ projectId: string | null; status: string; autoRenew: boolean; expiresAt: Date }> = {};
+      if (typeof autoRenew === "boolean") updates.autoRenew = autoRenew;
+      if (projectId !== undefined) {
+        if (projectId) {
+          const project = await storage.getProject(projectId);
+          if (!project || !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+        }
+        updates.projectId = projectId || null;
+
+        if (projectId && projectId !== domain.projectId) {
+          const existingCustom = await storage.getCustomDomainByHostname(domain.domain);
+          if (!existingCustom) {
+            const verificationToken = "ecode-verify-" + crypto.randomBytes(16).toString("hex");
+            await storage.createCustomDomain({
+              domain: domain.domain,
+              projectId,
+              userId: req.session.userId!,
+              verificationToken,
+            });
+            const newCustom = await storage.getCustomDomainByHostname(domain.domain);
+            if (newCustom) {
+              await storage.updateCustomDomain(newCustom.id, {
+                verified: true,
+                verifiedAt: new Date(),
+                sslStatus: "active",
+              });
+            }
+          } else if (existingCustom.projectId !== projectId) {
+            await storage.updateCustomDomain(existingCustom.id, { projectId });
+          }
+          await storage.updateProject(projectId, { customDomain: domain.domain });
+        }
+
+        if (!projectId && domain.projectId) {
+          const existingCustom = await storage.getCustomDomainByHostname(domain.domain);
+          if (existingCustom) {
+            await storage.deleteCustomDomain(existingCustom.id);
+          }
+          if (domain.projectId) {
+            const project = await storage.getProject(domain.projectId);
+            if (project && project.customDomain === domain.domain) {
+              await storage.updateProject(domain.projectId, { customDomain: null });
+            }
+          }
+        }
+      }
+      const updated = await storage.updatePurchasedDomain(domain.id, updates);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update domain" }); }
   });
 
   // --- REVERSE PROXY FOR PORT FORWARDING ---

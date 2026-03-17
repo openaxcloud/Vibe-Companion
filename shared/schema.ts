@@ -753,6 +753,50 @@ export const insertCustomDomainSchema = createInsertSchema(customDomains).pick({
 export type InsertCustomDomain = z.infer<typeof insertCustomDomainSchema>;
 export type CustomDomain = typeof customDomains.$inferSelect;
 
+export const purchasedDomains = pgTable("purchased_domains", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  domain: text("domain").notNull().unique(),
+  tld: text("tld").notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  projectId: varchar("project_id", { length: 36 }),
+  purchasePrice: integer("purchase_price").notNull(),
+  renewalPrice: integer("renewal_price").notNull(),
+  status: text("status").notNull().default("active"),
+  autoRenew: boolean("auto_renew").notNull().default(true),
+  whoisPrivacy: boolean("whois_privacy").notNull().default(true),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("purchased_domains_user_idx").on(table.userId),
+  index("purchased_domains_project_idx").on(table.projectId),
+]);
+
+export const insertPurchasedDomainSchema = createInsertSchema(purchasedDomains).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPurchasedDomain = z.infer<typeof insertPurchasedDomainSchema>;
+export type PurchasedDomain = typeof purchasedDomains.$inferSelect;
+
+export const dnsRecords = pgTable("dns_records", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  domainId: varchar("domain_id", { length: 36 }).notNull(),
+  recordType: text("record_type").notNull(),
+  name: text("name").notNull(),
+  value: text("value").notNull(),
+  ttl: integer("ttl").notNull().default(3600),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("dns_records_domain_idx").on(table.domainId),
+]);
+
+export const insertDnsRecordSchema = createInsertSchema(dnsRecords).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertDnsRecord = z.infer<typeof insertDnsRecordSchema>;
+export type DnsRecord = typeof dnsRecords.$inferSelect;
+
 export const planConfigs = pgTable("plan_configs", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   plan: text("plan").notNull().unique(),

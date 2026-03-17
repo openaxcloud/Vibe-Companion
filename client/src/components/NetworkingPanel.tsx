@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import DomainPurchasePanel from "./DomainPurchasePanel";
 import {
   Network, Loader2, Plus, Trash2, X, Globe, Lock, Unlock, Copy, Check,
   ExternalLink, ChevronDown, ChevronRight, Wifi, AlertTriangle, Circle,
-  ArrowRightLeft, Search,
+  ArrowRightLeft, Search, ShoppingCart,
 } from "lucide-react";
 
 interface PortConfig {
@@ -56,6 +57,7 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
   const [newPortProtocol, setNewPortProtocol] = useState("http");
   const [newDomain, setNewDomain] = useState("");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [showDomainPurchase, setShowDomainPurchase] = useState(false);
 
   const portsQuery = useQuery<PortConfig[]>({
     queryKey: ["/api/projects", projectId, "networking", "ports"],
@@ -229,13 +231,22 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
     return <span className="text-[9px] text-[var(--ide-text-muted)]">SSL: {status}</span>;
   }
 
+  if (showDomainPurchase) {
+    return <DomainPurchasePanel projectId={projectId} onClose={() => setShowDomainPurchase(false)} />;
+  }
+
   return (
     <div className="flex flex-col h-full" data-testid="networking-panel">
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
         <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Networking</span>
-        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-networking">
-          <X className="w-3.5 h-3.5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setShowDomainPurchase(true)} title="Purchase & manage domains" data-testid="button-open-domain-purchase">
+            <ShoppingCart className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-networking">
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -387,9 +398,14 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
             {domainsOpen ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)]" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />}
             <Globe className="w-3 h-3 text-green-400" />
             <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase">Custom Domains ({domains.length})</span>
-            <Button variant="ghost" size="icon" className="w-5 h-5 ml-auto text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={(e) => { e.stopPropagation(); setAddDomainMode(true); setDomainsOpen(true); }} data-testid="button-add-domain">
-              <Plus className="w-3 h-3" />
-            </Button>
+            <div className="flex items-center gap-0.5 ml-auto">
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={(e) => { e.stopPropagation(); setShowDomainPurchase(true); }} title="Purchase a domain" data-testid="button-purchase-domain">
+                <ShoppingCart className="w-3 h-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={(e) => { e.stopPropagation(); setAddDomainMode(true); setDomainsOpen(true); }} data-testid="button-add-domain">
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
           </button>
 
           {domainsOpen && (

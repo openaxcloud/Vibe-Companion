@@ -8,7 +8,7 @@ import {
   passwordResetTokens, emailVerifications,
   teams, teamMembers, teamInvites,
   analyticsEvents, deployments,
-  customDomains, planConfigs,
+  customDomains, purchasedDomains, dnsRecords, planConfigs,
   securityScans, securityFindings,
   projectCollaborators, projectInviteLinks,
   storageKv, storageObjects,
@@ -52,6 +52,8 @@ import {
   type AnalyticsEvent,
   type Deployment, type InsertDeployment,
   type CustomDomain,
+  type PurchasedDomain, type InsertPurchasedDomain,
+  type DnsRecord, type InsertDnsRecord,
   type PlanConfig,
   type SecurityScan, type InsertSecurityScan,
   type SecurityFinding, type InsertSecurityFinding,
@@ -329,6 +331,20 @@ export interface IStorage {
   getProjectCustomDomains(projectId: string): Promise<CustomDomain[]>;
   updateCustomDomain(id: string, data: Partial<{ verified: boolean; verifiedAt: Date; sslStatus: string; sslExpiresAt: Date }>): Promise<CustomDomain | undefined>;
   deleteCustomDomain(id: string, userId: string): Promise<boolean>;
+
+  createPurchasedDomain(data: InsertPurchasedDomain): Promise<PurchasedDomain>;
+  getPurchasedDomain(id: string): Promise<PurchasedDomain | undefined>;
+  getPurchasedDomainByName(domain: string): Promise<PurchasedDomain | undefined>;
+  getUserPurchasedDomains(userId: string): Promise<PurchasedDomain[]>;
+  getProjectPurchasedDomains(projectId: string): Promise<PurchasedDomain[]>;
+  updatePurchasedDomain(id: string, data: Partial<{ projectId: string | null; status: string; autoRenew: boolean; expiresAt: Date }>): Promise<PurchasedDomain | undefined>;
+  deletePurchasedDomain(id: string): Promise<boolean>;
+
+  createDnsRecord(data: InsertDnsRecord): Promise<DnsRecord>;
+  getDnsRecord(id: string): Promise<DnsRecord | undefined>;
+  getDomainDnsRecords(domainId: string): Promise<DnsRecord[]>;
+  updateDnsRecord(id: string, data: Partial<{ recordType: string; name: string; value: string; ttl: number }>): Promise<DnsRecord | undefined>;
+  deleteDnsRecord(id: string): Promise<boolean>;
 
   getPlanConfig(plan: string): Promise<PlanConfig | undefined>;
   getAllPlanConfigs(): Promise<PlanConfig[]>;
@@ -1963,6 +1979,63 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCustomDomain(id: string, userId: string): Promise<boolean> {
     const result = await db.delete(customDomains).where(and(eq(customDomains.id, id), eq(customDomains.userId, userId))).returning();
+    return result.length > 0;
+  }
+
+  async createPurchasedDomain(data: InsertPurchasedDomain): Promise<PurchasedDomain> {
+    const [domain] = await db.insert(purchasedDomains).values(data).returning();
+    return domain;
+  }
+
+  async getPurchasedDomain(id: string): Promise<PurchasedDomain | undefined> {
+    const [domain] = await db.select().from(purchasedDomains).where(eq(purchasedDomains.id, id)).limit(1);
+    return domain;
+  }
+
+  async getPurchasedDomainByName(domain: string): Promise<PurchasedDomain | undefined> {
+    const [d] = await db.select().from(purchasedDomains).where(eq(purchasedDomains.domain, domain.toLowerCase())).limit(1);
+    return d;
+  }
+
+  async getUserPurchasedDomains(userId: string): Promise<PurchasedDomain[]> {
+    return db.select().from(purchasedDomains).where(eq(purchasedDomains.userId, userId)).orderBy(desc(purchasedDomains.createdAt));
+  }
+
+  async getProjectPurchasedDomains(projectId: string): Promise<PurchasedDomain[]> {
+    return db.select().from(purchasedDomains).where(eq(purchasedDomains.projectId, projectId)).orderBy(desc(purchasedDomains.createdAt));
+  }
+
+  async updatePurchasedDomain(id: string, data: Partial<{ projectId: string | null; status: string; autoRenew: boolean; expiresAt: Date }>): Promise<PurchasedDomain | undefined> {
+    const [domain] = await db.update(purchasedDomains).set(data).where(eq(purchasedDomains.id, id)).returning();
+    return domain;
+  }
+
+  async deletePurchasedDomain(id: string): Promise<boolean> {
+    const result = await db.delete(purchasedDomains).where(eq(purchasedDomains.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async createDnsRecord(data: InsertDnsRecord): Promise<DnsRecord> {
+    const [record] = await db.insert(dnsRecords).values(data).returning();
+    return record;
+  }
+
+  async getDnsRecord(id: string): Promise<DnsRecord | undefined> {
+    const [record] = await db.select().from(dnsRecords).where(eq(dnsRecords.id, id)).limit(1);
+    return record;
+  }
+
+  async getDomainDnsRecords(domainId: string): Promise<DnsRecord[]> {
+    return db.select().from(dnsRecords).where(eq(dnsRecords.domainId, domainId)).orderBy(desc(dnsRecords.createdAt));
+  }
+
+  async updateDnsRecord(id: string, data: Partial<{ recordType: string; name: string; value: string; ttl: number }>): Promise<DnsRecord | undefined> {
+    const [record] = await db.update(dnsRecords).set(data).where(eq(dnsRecords.id, id)).returning();
+    return record;
+  }
+
+  async deleteDnsRecord(id: string): Promise<boolean> {
+    const result = await db.delete(dnsRecords).where(eq(dnsRecords.id, id)).returning();
     return result.length > 0;
   }
 

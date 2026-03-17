@@ -85,6 +85,13 @@
       "when": 1774020000000,
       "tag": "0012_merge_states",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1774030000000,
+      "tag": "0013_domain_purchasing",
+      "breakpoints": true
     }
   ]
 }
