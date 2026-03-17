@@ -572,6 +572,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   });
   const [showSettings, setShowSettings] = useState(false);
   const [userPlan, setUserPlan] = useState<string>("free");
+  const [credentialModes, setCredentialModes] = useState<Record<string, { mode: string; hasApiKey: boolean; configured: boolean }>>({});
+  const [showManagedApproval, setShowManagedApproval] = useState<{ provider: string; providerLabel: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/user/usage", { credentials: "include" })
@@ -591,6 +593,77 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       })
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!projectId) return;
+    fetch(`/api/projects/${projectId}/ai-credentials`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { provider: string; mode: string; hasApiKey: boolean; configured: boolean }[]) => {
+        const map: Record<string, { mode: string; hasApiKey: boolean; configured: boolean }> = {};
+        data.forEach(d => { map[d.provider] = { mode: d.mode, hasApiKey: d.hasApiKey, configured: d.configured }; });
+        setCredentialModes(map);
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  const getCredLabel = (aiModel: AIModel): { text: string; isManaged: boolean } => {
+    const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+    const provider = providerMap[aiModel];
+    const cfg = credentialModes[provider];
+    if (!cfg || cfg.mode === "managed") return { text: "Replit managed", isManaged: true };
+    return { text: cfg.hasApiKey ? "Your key" : "BYOK (no key set)", isManaged: false };
+  };
+
+  const handleApproveManaged = async (provider: string) => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/ai-credentials/${provider}/approve-managed`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+      });
+      if (res.ok) {
+        setCredentialModes(prev => ({ ...prev, [provider]: { mode: "managed", hasApiKey: false, configured: true } }));
+      }
+    } catch {}
+    setShowManagedApproval(null);
+  };
+
+  const [byokKeyInput, setByokKeyInput] = useState("");
+  const BYOK_SECRET_NAMES: Record<string, string> = {
+    openai: "OPENAI_API_KEY",
+    anthropic: "ANTHROPIC_API_KEY",
+    google: "GOOGLE_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+  };
+  const handleDismissManaged = async (provider: string) => {
+    if (!projectId) { setShowManagedApproval(null); return; }
+    try {
+      if (byokKeyInput.trim()) {
+        const secretKey = BYOK_SECRET_NAMES[provider];
+        if (secretKey) {
+          await fetch(`/api/projects/${projectId}/env-vars`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+            body: JSON.stringify({ key: secretKey, value: byokKeyInput.trim() }),
+          });
+        }
+      }
+      const res = await fetch(`/api/projects/${projectId}/ai-credentials/${provider}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        body: JSON.stringify({ mode: "byok" }),
+      });
+      if (res.ok) {
+        const hasKey = !!byokKeyInput.trim();
+        setCredentialModes(prev => ({ ...prev, [provider]: { mode: "byok", hasApiKey: hasKey || prev[provider]?.hasApiKey || false, configured: true } }));
+      }
+    } catch {}
+    setByokKeyInput("");
+    setShowManagedApproval(null);
+  };
+
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
@@ -877,7 +950,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     response: Response,
     assistantId: string,
     isAgent: boolean,
-    setMsgs: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+    setMsgs: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+    currentModel?: AIModel
   ) => {
     const reader = response.body?.getReader();
     if (!reader) throw new Error("No stream");
@@ -1023,11 +1097,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\nError: ${data.message}` } : m)
               );
             }
+            if (data.byokNoKey && currentModel) {
+              const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
+              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+              const cp = providerMap[currentModel];
+              setShowManagedApproval({ provider: cp, providerLabel: providerLabels[cp] || cp });
+            }
           } else {
             if (data.content) {
               setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
               );
+            }
+            if (data.byokNoKey && currentModel) {
+              const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
+              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+              const cp = providerMap[currentModel];
+              setShowManagedApproval({ provider: cp, providerLabel: providerLabels[cp] || cp });
             }
           }
         } catch {}
@@ -1290,7 +1376,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       if (!res.ok) throw new Error("AI request failed");
 
-      await processSSEStream(res, assistantId, isAgent, setMessages);
+      await processSSEStream(res, assistantId, isAgent, setMessages, model);
 
       setMessages((prev) => {
         const assistantMsg = prev.find((m) => m.id === assistantId);
@@ -1366,6 +1452,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
     if (mode === "plan" && !isStreaming) {
       return submitPlanMode();
+    }
+
+    if (projectId) {
+      const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+      const currentProvider = providerMap[model];
+      const cfg = credentialModes[currentProvider];
+      const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
+      if (!cfg || !cfg.configured) {
+        setShowManagedApproval({ provider: currentProvider, providerLabel: providerLabels[currentProvider] || currentProvider });
+        return;
+      }
     }
 
     const content = input.trim();
@@ -1462,7 +1559,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
           if (!res.ok) throw new Error("AI request failed");
-          await processSSEStream(res, assistantId, isAgent, setMessages);
+          await processSSEStream(res, assistantId, isAgent, setMessages, model);
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
             if (assistantMsg && assistantMsg.content) {
@@ -1737,7 +1834,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         signal: abortRef.current.signal,
       });
       if (!res.ok) throw new Error("Search failed");
-      await processSSEStream(res, assistantId, true, setMessages);
+      await processSSEStream(res, assistantId, true, setMessages, model);
       setMessages((prev) => {
         const assistantMsg = prev.find((m) => m.id === assistantId);
         if (assistantMsg?.content) persistMessage("assistant", assistantMsg.content, model);
@@ -2203,7 +2300,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
         if (!agentRes.ok) throw new Error("Agent request failed");
 
-        await processSSEStream(agentRes, assistantId, true, setMessages);
+        await processSSEStream(agentRes, assistantId, true, setMessages, model);
 
         setMessages((prev) => {
           const assistantMsg = prev.find((m) => m.id === assistantId);
@@ -2358,46 +2455,34 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
-                <DropdownMenuItem className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("claude")} data-testid="model-claude">
-                  <div className="w-5 h-5 rounded bg-[#7C65CB]/15 flex items-center justify-center">
-                    <Sparkles className="w-3 h-3 text-[#7C65CB]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-medium">Claude Sonnet</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]">Anthropic</span>
-                  </div>
-                  {model === "claude" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gpt")} data-testid="model-gpt">
-                  <div className="w-5 h-5 rounded bg-[#0CCE6B]/15 flex items-center justify-center">
-                    <Zap className="w-3 h-3 text-[#0CCE6B]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-medium">GPT-4o</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]">OpenAI</span>
-                  </div>
-                  {model === "gpt" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => setModel("gemini")} data-testid="model-gemini">
-                  <div className="w-5 h-5 rounded bg-[#4285F4]/15 flex items-center justify-center">
-                    <Zap className="w-3 h-3 text-[#4285F4]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-medium">Gemini Flash</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]">Google</span>
-                  </div>
-                  {model === "gemini" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setModel("openrouter"); setShowOpenrouterPicker(true); }} data-testid="model-openrouter">
-                  <div className="w-5 h-5 rounded bg-[#E44D26]/15 flex items-center justify-center">
-                    <Globe className="w-3 h-3 text-[#E44D26]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-medium">OpenRouter</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]">200+ Models</span>
-                  </div>
-                  {model === "openrouter" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
-                </DropdownMenuItem>
+                {([
+                  { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles },
+                  { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap },
+                  { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap },
+                  { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe },
+                ]).map(m => {
+                  const cred = getCredLabel(m.key);
+                  const MdlIcon = m.icon;
+                  return (
+                    <DropdownMenuItem key={m.key} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setModel(m.key); if (m.key === "openrouter") setShowOpenrouterPicker(true); }} data-testid={`model-${m.key}`}>
+                      <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${m.color}15` }}>
+                        <MdlIcon className="w-3 h-3" style={{ color: m.color }} />
+                      </div>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium">{m.name}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-[var(--ide-text-muted)]">{m.badge}</span>
+                          {projectId && (
+                            <span className={`text-[9px] px-1 rounded ${cred.isManaged ? "bg-[#0079F2]/10 text-[#0079F2]" : "bg-[#0CCE6B]/10 text-[#0CCE6B]"}`} data-testid={`cred-label-${m.key}`}>
+                              {cred.isManaged ? "Replit managed" : "Your key"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {model === m.key && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
             {model === "openrouter" && (
@@ -3429,6 +3514,55 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           </div>
         )}
       </div>
+
+      {showManagedApproval && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 rounded-xl" data-testid="dialog-managed-approval">
+          <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-5 mx-4 max-w-sm w-full shadow-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-[#0079F2]/15 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-[#0079F2]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--ide-text)]">AI Credentials</h3>
+                <p className="text-[10px] text-[var(--ide-text-muted)]">{showManagedApproval.providerLabel}</p>
+              </div>
+            </div>
+            <p className="text-[12px] text-[var(--ide-text-secondary)] mb-3 leading-relaxed">
+              Choose how to authenticate with <strong>{showManagedApproval.providerLabel}</strong> for this project. Managed credentials are billed to your platform credits at public API prices.
+            </p>
+            <div className="mb-3">
+              <label className="text-[11px] text-[var(--ide-text-muted)] block mb-1">Or enter your own API key (stored in project Secrets):</label>
+              <input
+                type="password"
+                placeholder="sk-..."
+                value={byokKeyInput}
+                onChange={e => setByokKeyInput(e.target.value)}
+                className="w-full h-8 px-2 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[12px] text-[var(--ide-text)] placeholder-[var(--ide-text-muted)] outline-none focus:border-[#0079F2]"
+                data-testid="input-byok-key"
+              />
+              <p className="text-[9px] text-[var(--ide-text-muted)] mt-1">
+                Key will be saved as {BYOK_SECRET_NAMES[showManagedApproval.provider] || "API_KEY"} in Secrets
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="flex-1 h-8 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] font-medium transition-colors"
+                onClick={() => handleApproveManaged(showManagedApproval.provider)}
+                data-testid="button-approve-managed"
+              >
+                Approve
+              </button>
+              <button
+                className="flex-1 h-8 rounded-lg bg-[var(--ide-surface)] hover:bg-[var(--ide-hover)] text-[var(--ide-text-secondary)] text-[12px] font-medium transition-colors border border-[var(--ide-border)]"
+                onClick={() => handleDismissManaged(showManagedApproval.provider)}
+                data-testid="button-dismiss-managed"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

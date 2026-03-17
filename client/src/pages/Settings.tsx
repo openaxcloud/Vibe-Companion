@@ -7,7 +7,7 @@ import { ChevronLeft, Moon, Sun, User, Lock, AlertTriangle, Mail, Pencil, Trash2
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getCsrfToken } from "@/lib/queryClient";
 import { useTheme, BUILTIN_DARK, BUILTIN_LIGHT } from "@/components/ThemeProvider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import KeyboardShortcutsSettings from "@/components/KeyboardShortcutsSettings";
@@ -144,6 +144,304 @@ function KeyboardSettingsSection() {
           <div className="mt-3 p-3 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
             <p className="text-[11px] text-[var(--ide-text-muted)] leading-relaxed">
               When enabled and an external keyboard is detected on a tablet, the workspace switches to a desktop-like layout with wider sidebar panels, full toolbar, and keyboard shortcut hints visible in the status bar.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PROVIDER_COLORS: Record<string, string> = {
+  anthropic: "#7C65CB",
+  openai: "#0CCE6B",
+  google: "#4285F4",
+  openrouter: "#F59E0B",
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google",
+  openrouter: "OpenRouter",
+};
+
+function AiUsageSection() {
+  const [usageData, setUsageData] = useState<{
+    summary: { provider: string; totalInputTokens: number; totalOutputTokens: number; totalCost: number; callCount: number }[];
+    byProject: { projectId: string; provider: string; totalCost: number; callCount: number }[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/ai/usage?days=30", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setUsageData(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const totalCost = usageData?.summary.reduce((sum, s) => sum + s.totalCost, 0) || 0;
+  const totalCalls = usageData?.summary.reduce((sum, s) => sum + s.callCount, 0) || 0;
+
+  return (
+    <div className="space-y-3" data-testid="section-ai-usage">
+      <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider px-1 flex items-center gap-1.5">
+        <Sparkles className="w-3 h-3" /> AI Usage & Costs
+      </h2>
+      <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)]">
+        {loading ? (
+          <div className="p-6 flex items-center justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" />
+          </div>
+        ) : (
+          <div className="divide-y divide-[var(--ide-border)]">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-[var(--ide-text)] font-medium">Last 30 Days</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-ai-total-calls">{totalCalls.toLocaleString()} calls</span>
+                  <span className="text-[11px] font-medium text-[var(--ide-text)]" data-testid="text-ai-total-cost">{(totalCost / 100).toFixed(2)} credits</span>
+                </div>
+              </div>
+              {usageData?.summary && usageData.summary.length > 0 ? (
+                <div className="space-y-2">
+                  {usageData.summary.map(s => {
+                    const color = PROVIDER_COLORS[s.provider] || "#888";
+                    const pct = totalCost > 0 ? (s.totalCost / totalCost) * 100 : 0;
+                    return (
+                      <div key={s.provider} data-testid={`ai-usage-provider-${s.provider}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                            <span className="text-[11px] text-[var(--ide-text)]">{PROVIDER_LABELS[s.provider] || s.provider}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] text-[var(--ide-text-muted)]">{s.callCount} calls</span>
+                            <span className="text-[10px] text-[var(--ide-text-muted)]">
+                              {s.totalInputTokens.toLocaleString()} in / {s.totalOutputTokens.toLocaleString()} out
+                            </span>
+                            <span className="text-[10px] font-medium text-[var(--ide-text)]">{(s.totalCost / 100).toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-[var(--ide-text-muted)] text-center py-3">No AI usage recorded yet</p>
+              )}
+            </div>
+            {usageData?.byProject && usageData.byProject.filter(bp => bp.projectId).length > 0 && (
+              <div className="p-4">
+                <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-2 block">By Project</span>
+                <div className="space-y-1.5">
+                  {usageData.byProject.filter(bp => bp.projectId).slice(0, 10).map((bp, i) => (
+                    <div key={`${bp.projectId}-${bp.provider}-${i}`} className="flex items-center justify-between" data-testid={`ai-usage-project-${bp.projectId}`}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PROVIDER_COLORS[bp.provider] || "#888" }} />
+                        <span className="text-[10px] text-[var(--ide-text)] truncate max-w-[120px]">{bp.projectId?.slice(0, 8) || "Unknown"}...</span>
+                        <span className="text-[9px] text-[var(--ide-text-muted)]">{PROVIDER_LABELS[bp.provider] || bp.provider}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">{bp.callCount} calls</span>
+                        <span className="text-[10px] font-medium text-[var(--ide-text)]">{(bp.totalCost / 100).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="p-4">
+              <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-2 block">Cost per Provider (Public API Prices)</span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: "Anthropic (Claude)", rate: "~$3/M input, ~$15/M output" },
+                  { name: "OpenAI (GPT-4o)", rate: "~$2.50/M input, ~$10/M output" },
+                  { name: "Google (Gemini)", rate: "~$0.075/M input, ~$0.30/M output" },
+                  { name: "OpenRouter", rate: "Varies by model" },
+                ].map(p => (
+                  <div key={p.name} className="p-2 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+                    <span className="text-[10px] font-medium text-[var(--ide-text)]">{p.name}</span>
+                    <p className="text-[9px] text-[var(--ide-text-muted)]">{p.rate}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const BYOK_SECRET_KEY_MAP: Record<string, string> = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+};
+
+function AiCredentialsSection() {
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>("");
+  const [configs, setConfigs] = useState<{ provider: string; mode: string; hasApiKey: boolean; configured: boolean }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetch("/api/projects", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        const p = Array.isArray(data) ? data : [];
+        setProjects(p);
+        if (p.length > 0) setSelectedProject(p[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProject) return;
+    setLoading(true);
+    fetch(`/api/projects/${selectedProject}/ai-credentials`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setConfigs(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [selectedProject]);
+
+  const toggleMode = async (provider: string, currentMode: string) => {
+    const newMode = currentMode === "managed" ? "byok" : "managed";
+    setSaving(provider);
+    try {
+      const ct = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ct) headers["X-CSRF-Token"] = ct;
+      const res = await fetch(`/api/projects/${selectedProject}/ai-credentials/${provider}`, {
+        method: "PUT",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ mode: newMode }),
+      });
+      if (res.ok) {
+        setConfigs(prev => prev.map(c => c.provider === provider ? { ...c, mode: newMode } : c));
+        toast({ title: `${PROVIDER_LABELS[provider] || provider} switched to ${newMode === "byok" ? "BYOK" : "Managed"}` });
+      }
+    } catch {}
+    setSaving(null);
+  };
+
+  const saveByokKey = async (provider: string) => {
+    const key = keyInputs[provider]?.trim();
+    if (!key || !selectedProject) return;
+    setSavingKey(provider);
+    try {
+      const ct = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ct) headers["X-CSRF-Token"] = ct;
+      const secretKey = BYOK_SECRET_KEY_MAP[provider];
+      if (secretKey) {
+        await fetch(`/api/projects/${selectedProject}/env-vars`, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ key: secretKey, value: key }),
+        });
+      }
+      setConfigs(prev => prev.map(c => c.provider === provider ? { ...c, hasApiKey: true } : c));
+      setKeyInputs(prev => ({ ...prev, [provider]: "" }));
+      toast({ title: `API key saved for ${PROVIDER_LABELS[provider] || provider}` });
+    } catch {}
+    setSavingKey(null);
+  };
+
+  return (
+    <div className="space-y-3" data-testid="section-ai-credentials">
+      <h2 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider px-1 flex items-center gap-1.5">
+        <Shield className="w-3 h-3" /> AI Credentials per Project
+      </h2>
+      <div className="rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)]">
+        <div className="p-4">
+          <div className="mb-3">
+            <Label className="text-[11px] text-[var(--ide-text-muted)] mb-1 block">Select Project</Label>
+            <select
+              className="w-full text-xs rounded-md border border-[var(--ide-border)] bg-[var(--ide-bg)] text-[var(--ide-text)] px-2 py-1.5"
+              value={selectedProject}
+              onChange={e => setSelectedProject(e.target.value)}
+              data-testid="select-ai-project"
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" />
+            </div>
+          ) : configs.length === 0 ? (
+            <p className="text-[11px] text-[var(--ide-text-muted)] text-center py-3">No credential configs found for this project</p>
+          ) : (
+            <div className="space-y-2">
+              {configs.map(c => (
+                <div key={c.provider} className="p-2.5 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]" data-testid={`ai-cred-${c.provider}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PROVIDER_COLORS[c.provider] || "#888" }} />
+                      <span className="text-[11px] font-medium text-[var(--ide-text)]">{PROVIDER_LABELS[c.provider] || c.provider}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${c.mode === "byok" ? "bg-amber-500/20 text-amber-400" : "bg-blue-500/20 text-blue-400"}`}>
+                        {c.mode === "byok" ? "BYOK" : "Managed"}
+                      </span>
+                      {c.mode === "byok" && !c.hasApiKey && (
+                        <span className="text-[9px] text-red-400">No key set</span>
+                      )}
+                      {c.mode === "byok" && c.hasApiKey && (
+                        <span className="text-[9px] text-green-400">Key configured</span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] px-2"
+                      disabled={saving === c.provider}
+                      onClick={() => toggleMode(c.provider, c.mode)}
+                      data-testid={`btn-toggle-${c.provider}`}
+                    >
+                      {saving === c.provider ? <Loader2 className="w-3 h-3 animate-spin" /> : `Switch to ${c.mode === "managed" ? "BYOK" : "Managed"}`}
+                    </Button>
+                  </div>
+                  {c.mode === "byok" && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input
+                        type="password"
+                        placeholder={`Enter ${PROVIDER_LABELS[c.provider] || c.provider} API key`}
+                        className="h-7 text-[11px] flex-1"
+                        value={keyInputs[c.provider] || ""}
+                        onChange={e => setKeyInputs(prev => ({ ...prev, [c.provider]: e.target.value }))}
+                        data-testid={`input-key-${c.provider}`}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 text-[10px] px-3"
+                        disabled={!keyInputs[c.provider]?.trim() || savingKey === c.provider}
+                        onClick={() => saveByokKey(c.provider)}
+                        data-testid={`btn-save-key-${c.provider}`}
+                      >
+                        {savingKey === c.provider ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Key"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-3 p-3 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)]">
+            <p className="text-[10px] text-[var(--ide-text-muted)] leading-relaxed">
+              <strong>Managed:</strong> Uses platform credits at public API prices. <strong>BYOK:</strong> Bring Your Own Key — set API keys in the AI panel approval dialog or project Secrets. BYOK calls don't use platform credits.
             </p>
           </div>
         </div>
@@ -744,6 +1042,14 @@ export default function Settings() {
               )}
             </div>
           </div>
+
+          <div className="h-px bg-[var(--ide-surface)]/60" />
+
+          <AiUsageSection />
+
+          <div className="h-px bg-[var(--ide-surface)]/60" />
+
+          <AiCredentialsSection />
 
           <div className="h-px bg-[var(--ide-surface)]/60" />
 

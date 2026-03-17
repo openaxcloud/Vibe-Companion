@@ -138,6 +138,10 @@ import {
   deploymentFeedback,
   type DeploymentFeedback, type InsertDeploymentFeedback,
   type Conversion, type InsertConversion,
+  aiCredentialConfigs,
+  type AiCredentialConfig, type InsertAiCredentialConfig,
+  aiUsageLogs,
+  type AiUsageLog, type InsertAiUsageLog,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -239,7 +243,8 @@ export interface IStorage {
   getUserQuota(userId: string): Promise<UserQuota>;
   incrementExecution(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
   incrementAiCall(userId: string): Promise<{ allowed: boolean; quota: UserQuota }>;
-  deductCredits(userId: string, mode: AgentMode, model: string, endpoint: string): Promise<{ allowed: boolean; quota: UserQuota; creditCost: number }>;
+  checkCreditsAvailable(userId: string, estimatedCost: number): Promise<{ allowed: boolean; quota: UserQuota }>;
+  deductCredits(userId: string, mode: AgentMode, model?: string, endpoint?: string, overrideCost?: number): Promise<{ allowed: boolean; quota: UserQuota; creditCost: number }>;
   getCreditHistory(userId: string, days?: number): Promise<CreditUsage[]>;
   updateAgentPreferences(userId: string, data: Partial<{ agentMode: string; codeOptimizationsEnabled: boolean; creditAlertThreshold: number }>): Promise<UserQuota>;
   checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }>;
@@ -681,6 +686,16 @@ export interface IStorage {
   getDeploymentFeedbackById(id: string): Promise<DeploymentFeedback | undefined>;
   updateDeploymentFeedbackStatus(id: string, projectId: string, status: string): Promise<DeploymentFeedback | undefined>;
   deleteDeploymentFeedback(id: string, projectId: string): Promise<boolean>;
+
+  getAiCredentialConfigs(projectId: string): Promise<AiCredentialConfig[]>;
+  getAiCredentialConfig(projectId: string, provider: string): Promise<AiCredentialConfig | undefined>;
+  upsertAiCredentialConfig(projectId: string, provider: string, mode: string, apiKey?: string | null): Promise<AiCredentialConfig>;
+  deleteAiCredentialConfig(projectId: string, provider: string): Promise<boolean>;
+
+  logAiUsage(data: InsertAiUsageLog): Promise<AiUsageLog>;
+  getAiUsageLogs(userId: string, filters?: { projectId?: string; provider?: string; since?: Date; limit?: number }): Promise<AiUsageLog[]>;
+  getAiUsageSummary(userId: string, since?: Date): Promise<{ provider: string; totalInputTokens: number; totalOutputTokens: number; totalCost: number; callCount: number }[]>;
+  getAiUsageByProject(userId: string, since?: Date): Promise<{ projectId: string; provider: string; totalCost: number; callCount: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -877,6 +892,10 @@ export class DatabaseStorage implements IStorage {
     await db.insert(files).values({ projectId: project.id, filename: defaults.filename, content: defaults.content });
     const { generateEcodeContent, getEcodeFilename } = await import("./ecodeTemplates");
     await db.insert(files).values({ projectId: project.id, filename: getEcodeFilename(), content: generateEcodeContent(data.name, data.language || "javascript") });
+    try {
+      const providers = ["openai", "anthropic", "google", "openrouter"];
+      await db.insert(aiCredentialConfigs).values(providers.map(p => ({ projectId: project.id, provider: p, mode: "managed" })));
+    } catch {}
     return project;
   }
 
@@ -942,6 +961,10 @@ export class DatabaseStorage implements IStorage {
     if (filesToInsert.length > 0) {
       await db.insert(files).values(filesToInsert.map(f => ({ projectId: project.id, filename: f.filename, content: f.content })));
     }
+    try {
+      const providers = ["openai", "anthropic", "google", "openrouter"];
+      await db.insert(aiCredentialConfigs).values(providers.map(p => ({ projectId: project.id, provider: p, mode: "managed" })));
+    } catch {}
     return project;
   }
 
@@ -1310,10 +1333,17 @@ export class DatabaseStorage implements IStorage {
     return { allowed: true, quota: updated };
   }
 
-  async deductCredits(userId: string, mode: AgentMode, model: string, endpoint: string): Promise<{ allowed: boolean; quota: UserQuota; creditCost: number }> {
+  async checkCreditsAvailable(userId: string, estimatedCost: number): Promise<{ allowed: boolean; quota: UserQuota }> {
     const quota = await this.getUserQuota(userId);
     const limits = await this.getPlanLimits(quota.plan || "free");
-    const creditCost = AGENT_MODE_COSTS[mode] || 1;
+    const allowed = (quota.dailyCreditsUsed + estimatedCost) <= limits.dailyCredits;
+    return { allowed, quota };
+  }
+
+  async deductCredits(userId: string, mode: AgentMode, model?: string, endpoint?: string, overrideCost?: number): Promise<{ allowed: boolean; quota: UserQuota; creditCost: number }> {
+    const quota = await this.getUserQuota(userId);
+    const limits = await this.getPlanLimits(quota.plan || "free");
+    const creditCost = overrideCost !== undefined ? Math.max(1, overrideCost) : (AGENT_MODE_COSTS[mode] || 1);
 
     if (mode === "turbo" && (quota.plan === "free" || !quota.plan)) {
       return { allowed: false, quota, creditCost };
@@ -4191,6 +4221,86 @@ export class DatabaseStorage implements IStorage {
   async updateConversion(id: string, data: Partial<{ status: string; artifactId: string; designTokens: Record<string, unknown>; error: string }>): Promise<Conversion | undefined> {
     const [conversion] = await db.update(conversions).set(data).where(eq(conversions.id, id)).returning();
     return conversion;
+  }
+
+
+  async getAiCredentialConfigs(projectId: string): Promise<AiCredentialConfig[]> {
+    return db.select().from(aiCredentialConfigs).where(eq(aiCredentialConfigs.projectId, projectId));
+  }
+
+  async getAiCredentialConfig(projectId: string, provider: string): Promise<AiCredentialConfig | undefined> {
+    const [config] = await db.select().from(aiCredentialConfigs)
+      .where(and(eq(aiCredentialConfigs.projectId, projectId), eq(aiCredentialConfigs.provider, provider)))
+      .limit(1);
+    return config;
+  }
+
+  async upsertAiCredentialConfig(projectId: string, provider: string, mode: string, apiKey?: string | null): Promise<AiCredentialConfig> {
+    const encryptedKey = apiKey ? encrypt(apiKey) : null;
+    const existing = await this.getAiCredentialConfig(projectId, provider);
+    if (existing) {
+      const [updated] = await db.update(aiCredentialConfigs)
+        .set({ mode, apiKey: encryptedKey ?? existing.apiKey, updatedAt: new Date() })
+        .where(eq(aiCredentialConfigs.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(aiCredentialConfigs)
+      .values({ projectId, provider, mode, apiKey: encryptedKey })
+      .returning();
+    return created;
+  }
+
+  async deleteAiCredentialConfig(projectId: string, provider: string): Promise<boolean> {
+    const result = await db.delete(aiCredentialConfigs)
+      .where(and(eq(aiCredentialConfigs.projectId, projectId), eq(aiCredentialConfigs.provider, provider)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async logAiUsage(data: InsertAiUsageLog): Promise<AiUsageLog> {
+    const [log] = await db.insert(aiUsageLogs).values(data).returning();
+    return log;
+  }
+
+  async getAiUsageLogs(userId: string, filters?: { projectId?: string; provider?: string; since?: Date; limit?: number }): Promise<AiUsageLog[]> {
+    const conditions = [eq(aiUsageLogs.userId, userId)];
+    if (filters?.projectId) conditions.push(eq(aiUsageLogs.projectId, filters.projectId));
+    if (filters?.provider) conditions.push(eq(aiUsageLogs.provider, filters.provider));
+    if (filters?.since) conditions.push(gte(aiUsageLogs.createdAt, filters.since));
+    return db.select().from(aiUsageLogs)
+      .where(and(...conditions))
+      .orderBy(desc(aiUsageLogs.createdAt))
+      .limit(filters?.limit ?? 100);
+  }
+
+  async getAiUsageSummary(userId: string, since?: Date): Promise<{ provider: string; totalInputTokens: number; totalOutputTokens: number; totalCost: number; callCount: number }[]> {
+    const conditions = [eq(aiUsageLogs.userId, userId)];
+    if (since) conditions.push(gte(aiUsageLogs.createdAt, since));
+    const rows = await db.select({
+      provider: aiUsageLogs.provider,
+      totalInputTokens: sql<number>`coalesce(sum(${aiUsageLogs.inputTokens}), 0)::int`,
+      totalOutputTokens: sql<number>`coalesce(sum(${aiUsageLogs.outputTokens}), 0)::int`,
+      totalCost: sql<number>`coalesce(sum(${aiUsageLogs.estimatedCost}), 0)::int`,
+      callCount: sql<number>`count(*)::int`,
+    }).from(aiUsageLogs)
+      .where(and(...conditions))
+      .groupBy(aiUsageLogs.provider);
+    return rows;
+  }
+
+  async getAiUsageByProject(userId: string, since?: Date): Promise<{ projectId: string; provider: string; totalCost: number; callCount: number }[]> {
+    const conditions = [eq(aiUsageLogs.userId, userId)];
+    if (since) conditions.push(gte(aiUsageLogs.createdAt, since));
+    const rows = await db.select({
+      projectId: aiUsageLogs.projectId,
+      provider: aiUsageLogs.provider,
+      totalCost: sql<number>`coalesce(sum(${aiUsageLogs.estimatedCost}), 0)::int`,
+      callCount: sql<number>`count(*)::int`,
+    }).from(aiUsageLogs)
+      .where(and(...conditions))
+      .groupBy(aiUsageLogs.projectId, aiUsageLogs.provider);
+    return rows;
   }
 }
 

@@ -7622,6 +7622,54 @@ export async function registerRoutes(
     return `OpenRouter error: ${msg.substring(0, 200)}`;
   }
 
+  const BYOK_SECRET_KEYS: Record<string, string> = {
+    openai: "OPENAI_API_KEY",
+    anthropic: "ANTHROPIC_API_KEY",
+    google: "GOOGLE_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+  };
+
+  async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string; byokNoKey?: boolean }> {
+    if (projectId && userId) {
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== userId) {
+        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "managed" };
+      }
+    }
+    if (projectId) {
+      const cfg = await storage.getAiCredentialConfig(projectId, provider);
+      if (cfg?.mode === "byok") {
+        let apiKey: string | null = null;
+        if (cfg.apiKey) {
+          apiKey = decrypt(cfg.apiKey);
+        } else {
+          const secretKey = BYOK_SECRET_KEYS[provider];
+          if (secretKey) {
+            const envVars = await storage.getProjectEnvVars(projectId);
+            const ev = envVars.find(e => e.key === secretKey);
+            if (ev?.encryptedValue) {
+              apiKey = decrypt(ev.encryptedValue);
+            }
+          }
+        }
+        if (apiKey) {
+          if (provider === "anthropic") {
+            return { anthropicClient: new Anthropic({ apiKey }), openaiClient: openai, geminiClient: gemini, credMode: "byok" };
+          }
+          if (provider === "openai" || provider === "openrouter") {
+            const baseURL = provider === "openrouter" ? "https://openrouter.ai/api/v1" : undefined;
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }), geminiClient: gemini, credMode: "byok" };
+          }
+          if (provider === "google") {
+            return { anthropicClient: anthropic, openaiClient: openai, geminiClient: new GoogleGenAI({ apiKey }), credMode: "byok" };
+          }
+        }
+        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "byok", byokNoKey: true };
+      }
+    }
+    return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "managed" };
+  }
+
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
     try {
       const { prompt, model: requestedModel, outputType: reqOutputType } = req.body;
@@ -8459,20 +8507,42 @@ Any closing remarks...`;
       if (!code || typeof cursorOffset !== "number") {
         return res.status(400).json({ message: "code and cursorOffset required" });
       }
-      const creditResult = await storage.deductCredits(req.session.userId!, "economy", "gpt-4o-mini", "complete");
-      if (!creditResult.allowed) {
-        return res.json({ completion: "" });
+      const { openaiClient: completeOaiClient, credMode: completeCredMode, byokNoKey: completeByokNoKey } = await resolveProviderClients(req.body.projectId, "openai", req.session.userId!);
+      if (completeCredMode === "managed" || completeByokNoKey) {
+        const completePreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
+        if (!completePreCheck.allowed) {
+          return res.json({ completion: "" });
+        }
       }
       const before = code.slice(Math.max(0, cursorOffset - 1500), cursorOffset);
       const after = code.slice(cursorOffset, cursorOffset + 500);
       const prompt = `You are a code completion engine. Given the code context, output ONLY the completion text (no explanation, no markdown). If there is nothing to suggest, respond with an empty string.\n\nLanguage: ${language || "javascript"}\nCode before cursor:\n${before}\n[CURSOR]\nCode after cursor:\n${after}`;
-      const result = await openai.chat.completions.create({
+      const result = await completeOaiClient.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 120,
         temperature: 0.1,
       });
       const completion = result.choices[0]?.message?.content?.trim() || "";
+      const inputTokens = result.usage?.prompt_tokens || 0;
+      const outputTokens = result.usage?.completion_tokens || 0;
+      const completeEstCost = Math.round((inputTokens * 0.00015 / 1000 + outputTokens * 0.0006 / 1000) * 100);
+      const effectiveCompleteCredMode = completeByokNoKey ? "managed" : completeCredMode;
+      if (effectiveCompleteCredMode === "managed") {
+        const completeTokenCredits = Math.max(1, completeEstCost);
+        storage.deductCredits(req.session.userId!, "economy", "gpt-4o-mini", "complete", completeTokenCredits).catch(() => {});
+      }
+      storage.logAiUsage({
+        userId: req.session.userId!,
+        projectId: req.body.projectId || null,
+        provider: "openai",
+        model: "gpt-4o-mini",
+        inputTokens,
+        outputTokens,
+        estimatedCost: completeEstCost,
+        credentialMode: effectiveCompleteCredMode,
+        endpoint: "/api/ai/complete",
+      }).catch(() => {});
       return res.json({ completion });
     } catch (err: any) {
       console.error("AI complete error:", err.message);
@@ -8629,9 +8699,15 @@ Rules:
 - Include all imports, all functions, and all necessary code for the file to work standalone.
 - When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${ecodeContext}${skillsContext}`;
 
-      const chatCreditResult = await storage.deductCredits(req.session.userId!, chatMode, modelId, "chat");
-      if (!chatCreditResult.allowed) {
-        return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
+      const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic" };
+      const chatProvider = chatProviderMap[selectedModel] || selectedModel;
+      const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode, byokNoKey: chatByokNoKey } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!);
+
+      if (chatCredMode === "managed" || chatByokNoKey) {
+        const chatPreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
+        if (!chatPreCheck.allowed) {
+          return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
+        }
       }
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -8639,6 +8715,9 @@ Rules:
       res.setHeader("Connection", "keep-alive");
 
       const turboMaxTokens = resolved.maxTokens;
+
+      let chatInputTokens = 0;
+      let chatOutputTokens = 0;
 
       if (selectedModel === "gemini") {
         const geminiContents = [
@@ -8650,7 +8729,7 @@ Rules:
           })),
         ];
 
-        const stream = await gemini.models.generateContentStream({
+        const stream = await chatGeminiClient.models.generateContentStream({
           model: modelId,
           contents: geminiContents,
           config: { maxOutputTokens: turboMaxTokens },
@@ -8659,19 +8738,23 @@ Rules:
         for await (const chunk of stream) {
           const content = chunk.text || "";
           if (content) {
+            chatOutputTokens += Math.ceil(content.length / 4);
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
-      } else if (selectedModel === "gpt") {
+        chatInputTokens = Math.ceil(JSON.stringify(geminiContents).length / 4);
+      } else if (selectedModel === "gpt" || selectedModel === "openrouter") {
+        const orModelId = selectedModel === "openrouter" ? "openai/gpt-4o" : modelId;
         const gptMessages = [
           { role: "system" as const, content: systemPrompt },
           ...messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
         ];
 
-        const stream = await openai.chat.completions.create({
-          model: modelId,
+        const stream = await chatOpenaiClient.chat.completions.create({
+          model: orModelId,
           messages: gptMessages,
           stream: true,
+          stream_options: { include_usage: true },
           max_completion_tokens: turboMaxTokens,
         });
 
@@ -8679,6 +8762,10 @@ Rules:
           const content = chunk.choices[0]?.delta?.content || "";
           if (content) {
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+          if (chunk.usage) {
+            chatInputTokens = chunk.usage.prompt_tokens || 0;
+            chatOutputTokens = chunk.usage.completion_tokens || 0;
           }
         }
       } else if (selectedModel === "openrouter") {
@@ -8703,8 +8790,9 @@ Rules:
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
+        if (!chatInputTokens) chatInputTokens = Math.ceil(JSON.stringify(gptMessages).length / 4);
       } else {
-        const stream = anthropic.messages.stream({
+        const stream = chatAnthropicClient.messages.stream({
           model: modelId,
           system: systemPrompt,
           messages: messages.map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content })),
@@ -8715,10 +8803,40 @@ Rules:
           res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
         });
 
-        await stream.finalMessage();
+        const finalMsg = await stream.finalMessage();
+        chatInputTokens = finalMsg.usage?.input_tokens || 0;
+        chatOutputTokens = finalMsg.usage?.output_tokens || 0;
       }
 
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      const pricingPerToken: Record<string, { input: number; output: number }> = {
+        anthropic: { input: 0.003, output: 0.015 },
+        openai: { input: 0.0025, output: 0.01 },
+        google: { input: 0.00015, output: 0.0006 },
+        openrouter: { input: 0.0025, output: 0.01 },
+      };
+      const pricing = pricingPerToken[chatProvider] || pricingPerToken.openai;
+      const chatEstimatedCost = Math.round((chatInputTokens * pricing.input / 1000 + chatOutputTokens * pricing.output / 1000) * 100);
+      const effectiveChatCredMode = chatByokNoKey ? "managed" : chatCredMode;
+      const chatLoggedModel = selectedModel === "openrouter" ? "openai/gpt-4o" : modelId;
+      if (effectiveChatCredMode === "managed") {
+        const chatTokenCredits = Math.max(1, chatEstimatedCost);
+        storage.deductCredits(req.session.userId!, chatMode, chatLoggedModel, "chat", chatTokenCredits).catch(() => {});
+      }
+      storage.logAiUsage({
+        userId: req.session.userId!,
+        projectId: req.body.projectId || null,
+        provider: chatProvider,
+        model: chatLoggedModel,
+        inputTokens: chatInputTokens,
+        outputTokens: chatOutputTokens,
+        estimatedCost: chatEstimatedCost,
+        credentialMode: effectiveChatCredMode,
+        endpoint: "/api/ai/chat",
+      }).catch(() => {});
+
+      const donePayload: { done: boolean; byokNoKey?: boolean } = { done: true };
+      if (chatByokNoKey) donePayload.byokNoKey = true;
+      res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error: any) {
       const selectedModel = req.body?.model || "claude";
@@ -9157,9 +9275,15 @@ Rules:
       const agentSelectedModel = requestedModel || "claude";
       const agentModelId = agentResolved.modelId;
 
-      const agentCreditResult = await storage.deductCredits(req.session.userId!, agentModeVal, agentModelId, "agent");
-      if (!agentCreditResult.allowed) {
-        return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
+      const agentProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic" };
+      const agentProvider = agentProviderMap[agentSelectedModel] || agentSelectedModel;
+      const { anthropicClient: agentAnthropicClient, openaiClient: agentOpenaiClient, geminiClient: agentGeminiClient, credMode: agentCredMode, byokNoKey: agentByokNoKey } = await resolveProviderClients(projectId, agentProvider, req.session.userId!);
+
+      if (agentCredMode === "managed" || agentByokNoKey) {
+        const agentPreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
+        if (!agentPreCheck.allowed) {
+          return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
+        }
       }
 
       const existingFiles = await storage.getFiles(projectId);
@@ -9601,7 +9725,7 @@ Always cite your sources in your response when using information from web search
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await gemini.models.generateContent({
+          const response = await agentGeminiClient.models.generateContent({
             model: "gemini-2.5-flash",
             contents: geminiContents,
             config: { maxOutputTokens: 16384, tools: geminiTools },
@@ -9651,7 +9775,8 @@ Always cite your sources in your response when using information from web search
         if (iterations >= MAX_AGENT_ITERATIONS) {
           res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
         }
-      } else if (agentSelectedModel === "gpt") {
+      } else if (agentSelectedModel === "gpt" || agentSelectedModel === "openrouter") {
+        const agentOrModelId = agentSelectedModel === "openrouter" ? "openai/gpt-4o" : agentModelId;
         const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           {
             type: "function",
@@ -9902,8 +10027,8 @@ Always cite your sources in your response when using information from web search
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await openai.chat.completions.create({
-            model: agentModelId,
+          const response = await agentOpenaiClient.chat.completions.create({
+            model: agentOrModelId,
             messages: gptMessages,
             tools: openaiTools,
             max_completion_tokens: agentTurboMaxTokens,
@@ -10307,7 +10432,7 @@ Always cite your sources in your response when using information from web search
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await anthropic.messages.create({
+          const response = await agentAnthropicClient.messages.create({
             model: agentModelId,
             system: agentSystemPrompt,
             messages: currentMessages,
@@ -10381,7 +10506,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         try {
           const reviewModelId = AGENT_MODE_MODELS.economy[agentSelectedModel] || "gpt-4o-mini";
           if (agentSelectedModel === "gemini") {
-            const reviewStream = await gemini.models.generateContentStream({
+            const reviewStream = await agentGeminiClient.models.generateContentStream({
               model: reviewModelId,
               contents: [{ role: "user", parts: [{ text: optimizePrompt }] }],
               config: { maxOutputTokens: 4096 },
@@ -10392,8 +10517,8 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
                 res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
               }
             }
-          } else if (agentSelectedModel === "gpt") {
-            const reviewStream = await openai.chat.completions.create({
+          } else if (agentSelectedModel === "gpt" || agentSelectedModel === "openrouter") {
+            const reviewStream = await agentOpenaiClient.chat.completions.create({
               model: reviewModelId,
               messages: [{ role: "user", content: optimizePrompt }],
               stream: true,
@@ -10421,7 +10546,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
               }
             }
           } else {
-            const reviewStream = anthropic.messages.stream({
+            const reviewStream = agentAnthropicClient.messages.stream({
               model: reviewModelId,
               messages: [{ role: "user", content: optimizePrompt }],
               max_tokens: 4096,
@@ -10443,7 +10568,36 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         agentFileOpsCount.value = 0;
       }
 
-      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      const agentPricing: Record<string, { input: number; output: number }> = {
+        anthropic: { input: 0.003, output: 0.015 },
+        openai: { input: 0.0025, output: 0.01 },
+        google: { input: 0.00015, output: 0.0006 },
+        openrouter: { input: 0.0025, output: 0.01 },
+      };
+      const agentPriceEntry = agentPricing[agentProvider] || agentPricing.openai;
+      const agentEstInputTokens = Math.ceil(JSON.stringify(messages).length / 4);
+      const agentEstOutputTokens = agentModifiedFiles.size * 200;
+      const agentEstCost = Math.round((agentEstInputTokens * agentPriceEntry.input / 1000 + agentEstOutputTokens * agentPriceEntry.output / 1000) * 100);
+      const effectiveAgentCredMode = agentByokNoKey ? "managed" : agentCredMode;
+      if (effectiveAgentCredMode === "managed") {
+        const agentTokenCredits = Math.max(1, agentEstCost);
+        storage.deductCredits(req.session.userId!, agentModeVal, agentModelId, "agent", agentTokenCredits).catch(() => {});
+      }
+      storage.logAiUsage({
+        userId: req.session.userId!,
+        projectId: projectId || null,
+        provider: agentProvider,
+        model: agentSelectedModel === "openrouter" ? "openai/gpt-4o" : agentModelId,
+        inputTokens: agentEstInputTokens,
+        outputTokens: agentEstOutputTokens,
+        estimatedCost: agentEstCost,
+        credentialMode: effectiveAgentCredMode,
+        endpoint: "/api/ai/agent",
+      }).catch(() => {});
+
+      const agentDonePayload: { type: string; byokNoKey?: boolean } = { type: "done" };
+      if (agentByokNoKey) agentDonePayload.byokNoKey = true;
+      res.write(`data: ${JSON.stringify(agentDonePayload)}\n\n`);
       res.end();
     } catch (error: any) {
       const agentModel = req.body?.model || "claude";
@@ -10480,13 +10634,20 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      const liteAiQuota = await storage.incrementAiCall(req.session.userId!);
-      if (!liteAiQuota.allowed) {
-        return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
-      }
-      const liteCreditResult = await storage.deductCredits(req.session.userId!, "economy");
-      if (!liteCreditResult.allowed) {
-        return res.status(429).json({ message: liteCreditResult.reason || "Daily credit limit reached" });
+      const liteSelectedModel = requestedModel || "claude";
+      const liteProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic" };
+      const liteProvider = liteProviderMap[liteSelectedModel] || liteSelectedModel;
+      const { anthropicClient: liteAnthropicClient, openaiClient: liteOpenaiClient, geminiClient: liteGeminiClient, credMode: liteCredMode, byokNoKey: liteByokNoKey } = await resolveProviderClients(projectId, liteProvider, req.session.userId!);
+
+      if (liteCredMode === "managed" || liteByokNoKey) {
+        const liteAiQuota = await storage.incrementAiCall(req.session.userId!);
+        if (!liteAiQuota.allowed) {
+          return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
+        }
+        const litePreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
+        if (!litePreCheck.allowed) {
+          return res.status(429).json({ message: "Daily credit limit reached" });
+        }
       }
 
       const existingFiles = await storage.getFiles(projectId);
@@ -10554,7 +10715,7 @@ Rules:
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await gemini.models.generateContent({
+          const response = await liteGeminiClient.models.generateContent({
             model: "gemini-2.5-flash",
             contents: geminiContents,
             config: { maxOutputTokens: 8192, tools: geminiTools },
@@ -10587,7 +10748,8 @@ Rules:
             continueLoop = false;
           }
         }
-      } else if (requestedModel === "gpt") {
+      } else if (requestedModel === "gpt" || requestedModel === "openrouter") {
+        const liteOrModelId = requestedModel === "openrouter" ? "openai/gpt-4o" : "gpt-4o";
         const openaiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           { type: "function", function: { name: "create_file", description: "Create a new file", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
           { type: "function", function: { name: "edit_file", description: "Replace file content", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
@@ -10603,8 +10765,8 @@ Rules:
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+          const response = await liteOpenaiClient.chat.completions.create({
+            model: liteOrModelId,
             messages: gptMessages,
             tools: openaiTools,
             max_completion_tokens: 8192,
@@ -10707,7 +10869,7 @@ Rules:
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await anthropic.messages.create({
+          const response = await liteAnthropicClient.messages.create({
             model: "claude-sonnet-4-6",
             system: liteSystemPrompt,
             messages: currentMessages,
@@ -10736,7 +10898,36 @@ Rules:
         }
       }
 
-      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      const litePricing: Record<string, { input: number; output: number }> = {
+        anthropic: { input: 0.003, output: 0.015 },
+        openai: { input: 0.0025, output: 0.01 },
+        google: { input: 0.00015, output: 0.0006 },
+        openrouter: { input: 0.0025, output: 0.01 },
+      };
+      const litePriceEntry = litePricing[liteProvider] || litePricing.openai;
+      const liteEstInputTokens = Math.ceil(JSON.stringify(messages).length / 4);
+      const liteEstOutputTokens = liteModifiedFiles.size * 150;
+      const liteEstCost = Math.round((liteEstInputTokens * litePriceEntry.input / 1000 + liteEstOutputTokens * litePriceEntry.output / 1000) * 100);
+      const effectiveLiteCredMode = liteByokNoKey ? "managed" : liteCredMode;
+      if (effectiveLiteCredMode === "managed") {
+        const liteTokenCredits = Math.max(1, liteEstCost);
+        storage.deductCredits(req.session.userId!, "economy", undefined, "lite", liteTokenCredits).catch(() => {});
+      }
+      storage.logAiUsage({
+        userId: req.session.userId!,
+        projectId: projectId || null,
+        provider: liteProvider,
+        model: requestedModel === "openrouter" ? "openai/gpt-4o" : (requestedModel || "claude-sonnet-4-6"),
+        inputTokens: liteEstInputTokens,
+        outputTokens: liteEstOutputTokens,
+        estimatedCost: liteEstCost,
+        credentialMode: effectiveLiteCredMode,
+        endpoint: "/api/ai/lite",
+      }).catch(() => {});
+
+      const liteDonePayload: { type: string; byokNoKey?: boolean } = { type: "done" };
+      if (liteByokNoKey) liteDonePayload.byokNoKey = true;
+      res.write(`data: ${JSON.stringify(liteDonePayload)}\n\n`);
       res.end();
     } catch (error: any) {
       const liteModel = req.body?.model || "claude";
@@ -17661,6 +17852,108 @@ export default function App() {
       return res.json({ message: "Feedback deleted" });
     } catch {
       return res.status(500).json({ message: "Failed to delete feedback" });
+    }
+  });
+
+  // --- AI CREDENTIAL CONFIGS ---
+  app.get("/api/projects/:projectId/ai-credentials", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const configs = await storage.getAiCredentialConfigs(req.params.projectId);
+      const envVars = await storage.getProjectEnvVars(req.params.projectId);
+      const providers = ["openai", "anthropic", "google", "openrouter"];
+      const result = providers.map(p => {
+        const cfg = configs.find(c => c.provider === p);
+        const secretKey = BYOK_SECRET_KEYS[p];
+        const hasSecretKey = secretKey ? envVars.some(ev => ev.key === secretKey) : false;
+        return { provider: p, mode: cfg?.mode || "managed", hasApiKey: !!cfg?.apiKey || hasSecretKey, configured: !!cfg };
+      });
+      return res.json(result);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch AI credential configs" });
+    }
+  });
+
+  app.put("/api/projects/:projectId/ai-credentials/:provider", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { provider } = req.params;
+      const validProviders = ["openai", "anthropic", "google", "openrouter"];
+      if (!validProviders.includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+      const { mode, apiKey } = z.object({
+        mode: z.enum(["managed", "byok"]),
+        apiKey: z.string().optional(),
+      }).parse(req.body);
+      if (mode === "byok" && apiKey) {
+        const config = await storage.upsertAiCredentialConfig(req.params.projectId, provider, mode, apiKey);
+        return res.json({ provider: config.provider, mode: config.mode, hasApiKey: !!config.apiKey });
+      }
+      const config = await storage.upsertAiCredentialConfig(req.params.projectId, provider, mode);
+      return res.json({ provider: config.provider, mode: config.mode, hasApiKey: !!config.apiKey });
+    } catch (err: any) {
+      if (err.name === "ZodError") return res.status(400).json({ message: "Invalid request body" });
+      return res.status(500).json({ message: "Failed to update AI credential config" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/ai-credentials/:provider/approve-managed", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { provider } = req.params;
+      const validProviders = ["openai", "anthropic", "google", "openrouter"];
+      if (!validProviders.includes(provider)) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+      const config = await storage.upsertAiCredentialConfig(req.params.projectId, provider, "managed");
+      return res.json({ provider: config.provider, mode: config.mode, approved: true });
+    } catch {
+      return res.status(500).json({ message: "Failed to approve managed credentials" });
+    }
+  });
+
+  // --- AI USAGE TRACKING ---
+  app.get("/api/ai/usage", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const { projectId, provider, days } = req.query as { projectId?: string; provider?: string; days?: string };
+      const since = new Date();
+      since.setDate(since.getDate() - (parseInt(days || "30") || 30));
+      let summary = await storage.getAiUsageSummary(userId, since);
+      let byProject = await storage.getAiUsageByProject(userId, since);
+      if (provider) {
+        summary = summary.filter(s => s.provider === provider);
+        byProject = byProject.filter(b => b.provider === provider);
+      }
+      if (projectId) {
+        byProject = byProject.filter(b => b.projectId === projectId);
+      }
+      return res.json({ summary, byProject, since: since.toISOString() });
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch AI usage" });
+    }
+  });
+
+  app.get("/api/ai/usage/logs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const { projectId, provider, limit } = req.query as { projectId?: string; provider?: string; limit?: string };
+      const logs = await storage.getAiUsageLogs(userId, {
+        projectId, provider, limit: parseInt(limit || "50") || 50,
+      });
+      return res.json(logs);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch AI usage logs" });
     }
   });
 

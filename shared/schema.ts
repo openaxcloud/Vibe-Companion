@@ -2325,3 +2325,48 @@ export const insertDeploymentFeedbackSchema = createInsertSchema(deploymentFeedb
 });
 export type InsertDeploymentFeedback = z.infer<typeof insertDeploymentFeedbackSchema>;
 export type DeploymentFeedback = typeof deploymentFeedback.$inferSelect;
+
+export const AI_PROVIDERS = ["openai", "anthropic", "google", "openrouter"] as const;
+export type AiProvider = typeof AI_PROVIDERS[number];
+
+export const AI_CREDENTIAL_MODES = ["managed", "byok"] as const;
+export type AiCredentialMode = typeof AI_CREDENTIAL_MODES[number];
+
+export const aiCredentialConfigs = pgTable("ai_credential_configs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  provider: text("provider").notNull(),
+  mode: text("mode").notNull().default("managed"),
+  apiKey: text("api_key"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("ai_cred_configs_project_idx").on(table.projectId),
+  uniqueIndex("ai_cred_configs_project_provider_unique").on(table.projectId, table.provider),
+]);
+
+export const insertAiCredentialConfigSchema = createInsertSchema(aiCredentialConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiCredentialConfig = z.infer<typeof insertAiCredentialConfigSchema>;
+export type AiCredentialConfig = typeof aiCredentialConfigs.$inferSelect;
+
+export const aiUsageLogs = pgTable("ai_usage_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  projectId: varchar("project_id", { length: 36 }),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  estimatedCost: integer("estimated_cost").notNull().default(0),
+  credentialMode: text("credential_mode").notNull().default("managed"),
+  endpoint: text("endpoint"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("ai_usage_logs_user_idx").on(table.userId),
+  index("ai_usage_logs_project_idx").on(table.projectId),
+  index("ai_usage_logs_created_idx").on(table.createdAt),
+]);
+
+export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({ id: true, createdAt: true });
+export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
