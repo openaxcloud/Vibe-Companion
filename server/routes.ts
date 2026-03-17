@@ -7694,7 +7694,7 @@ export async function registerRoutes(
         "slides": "Generate an HTML-based slide presentation using Reveal.js (include CDN). Create multiple slides with navigation, transitions, and speaker notes. Include a title slide and content slides.",
         "animation": "Generate a Canvas/CSS/SVG animation with controls (play/pause/speed). Use requestAnimationFrame for smooth rendering. Include interactive controls to adjust animation parameters.",
         "design": "Generate a design tool/canvas with interactive elements. Include color pickers, drawing tools (pen, shapes, text), canvas element, and export functionality. Use Canvas API or SVG.",
-        "data-visualization": "Generate a data visualization dashboard using Chart.js (include CDN). Create multiple chart types (bar, line, pie) with real sample data. Include interactive filters and responsive layout.",
+        "data-visualization": "Generate a data visualization dashboard using Chart.js (include CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js). Include: multiple chart types (bar, line, pie, doughnut, scatter, area), KPI cards with key metrics and trend indicators, interactive filters (date range, dropdowns, search input), auto-refresh with configurable interval (5s/30s/1m/5m), light/dark mode toggle using CSS custom properties and data-theme attribute, CSV export per chart and for the full dashboard, PDF export using html2canvas + jsPDF (include CDNs), and an AI analysis summary section. Use responsive grid layout. Include real sample data.",
         "automation": "Generate a Node.js automation script. Include file processing, scheduling (cron-like with setInterval), logging, and error handling. Make it a complete working script with clear console output.",
         "3d-game": "Generate a 3D game using Three.js (include CDN). Include camera controls, basic physics/collision detection, a game loop with requestAnimationFrame, scoring, and keyboard/mouse input handling.",
         "document": "Generate a rich text editor or Markdown editor. Include a toolbar with formatting options (bold, italic, headers, lists), live preview panel, and export to HTML functionality. Use contentEditable or textarea with parsing.",
@@ -9410,7 +9410,7 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         "mobile": "\n\nThis project's output type is MOBILE APP (React Native/Expo). Generate React Native code with native components (View, Text, TouchableOpacity, FlatList, etc.), StyleSheet.create() for styling, Expo Router for navigation, and proper Expo config files. Preview runs via Expo Web, device testing via Expo Go QR code.",
         "animation": "\n\nThis project's output type is ANIMATION. Generate Canvas/CSS/SVG animations with play/pause/speed controls. Use requestAnimationFrame for smooth rendering and include interactive parameter controls.",
         "design": "\n\nThis project's output type is DESIGN. Generate design tools with canvas elements, color pickers, drawing tools (pen, shapes, text), layers, and export functionality. Use Canvas API or SVG.",
-        "data-visualization": "\n\nThis project's output type is DATA VISUALIZATION. Generate dashboards with Chart.js or D3.js (via CDN). Create multiple chart types with real sample data, interactive filters, and responsive layout.",
+        "data-visualization": "\n\nThis project's output type is DATA VISUALIZATION. Generate dashboards using Chart.js (via CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js). Include:\n- Multiple chart types (bar, line, pie, doughnut, scatter, polar area) with real sample data\n- KPI cards showing key metrics with trend arrows and percentage changes\n- Interactive filters (date range selectors, dropdown filters, text search) that update all charts in real-time\n- Auto-refresh mechanism with configurable intervals (5s, 30s, 1m, 5m) using setInterval\n- Light/dark mode toggle using CSS custom properties (:root and [data-theme='light']) with localStorage persistence\n- CSV export buttons for individual charts and the full dashboard data\n- PDF export using html2canvas (CDN: https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js) and jsPDF (CDN: https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js)\n- An AI analysis summary section that dynamically generates insights from the data\n- Responsive grid layout that adapts to mobile screens\nUse CSS Grid for layout with auto-fit and minmax for responsiveness.",
         "automation": "\n\nThis project's output type is AUTOMATION. Generate Node.js automation scripts with file processing, scheduling (setInterval/cron patterns), logging, error handling, and clear console output.",
         "3d-game": "\n\nThis project's output type is 3D GAME. Generate Three.js games (via CDN) with camera controls, physics/collision, game loop, scoring, and keyboard/mouse input. Include a game over/restart mechanism.",
         "document": "\n\nThis project's output type is DOCUMENT. Generate rich text or Markdown editors with formatting toolbars (bold, italic, headers, lists), live preview, and export to HTML. Use contentEditable or textarea with parsing.",
@@ -16958,6 +16958,257 @@ Respond ONLY with the JSON array, no other text.`;
     } catch (err) {
       log(`PPTX export error: ${err}`, "error");
       return res.status(500).json({ message: "Failed to export slides as PPTX" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/dashboard/csv-export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const { data, filename, columns } = req.body;
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ message: "Data array is required" });
+      }
+      if (data.length > 10000) {
+        return res.status(400).json({ message: "Data too large (max 10,000 rows)" });
+      }
+
+      const sanitizeCsvCell = (val: string): string => {
+        if (/^[=+\-@\t\r]/.test(val)) val = "'" + val;
+        if (val.includes(",") || val.includes('"') || val.includes("\n"))
+          return `"${val.replace(/"/g, '""')}"`;
+        return val;
+      };
+
+      const headers = columns || (data[0] ? Object.keys(data[0]) : []);
+      if (headers.length > 200) {
+        return res.status(400).json({ message: "Too many columns (max 200)" });
+      }
+      let csv = headers.map((h: string) => sanitizeCsvCell(String(h))).join(",") + "\n";
+      for (const row of data) {
+        const values = headers.map((h: string) => {
+          const val = row[h] !== undefined ? String(row[h]) : "";
+          return sanitizeCsvCell(val);
+        });
+        csv += values.join(",") + "\n";
+      }
+
+      const safeName = (filename || "dashboard_export").replace(/[^a-zA-Z0-9_-]/g, "_");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}.csv"`);
+      res.send(csv);
+    } catch (err) {
+      log(`Dashboard CSV export error: ${err}`, "error");
+      return res.status(500).json({ message: "Failed to export CSV" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/dashboard/pdf-export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const { title, kpis, charts, summary } = req.body;
+      if (title && typeof title !== "string") return res.status(400).json({ message: "Invalid title" });
+      if (kpis && (!Array.isArray(kpis) || kpis.length > 50)) return res.status(400).json({ message: "Invalid KPIs (max 50)" });
+      if (charts && (!Array.isArray(charts) || charts.length > 20)) return res.status(400).json({ message: "Invalid charts (max 20)" });
+
+      const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 40 });
+
+      doc.fontSize(22).font("Helvetica-Bold").fillColor("#1e293b")
+        .text(String(title || "Dashboard Report").slice(0, 200), { align: "center" });
+      doc.moveDown(0.5);
+      doc.fontSize(10).font("Helvetica").fillColor("#64748b")
+        .text(`Generated on ${new Date().toLocaleString()}`, { align: "center" });
+      doc.moveDown(1.5);
+
+      if (kpis && Array.isArray(kpis) && kpis.length > 0) {
+        doc.fontSize(14).font("Helvetica-Bold").fillColor("#1e293b").text("Key Metrics");
+        doc.moveDown(0.5);
+        for (const kpi of kpis) {
+          doc.fontSize(11).font("Helvetica-Bold").fillColor("#334155")
+            .text(`${kpi.label}: `, { continued: true })
+            .font("Helvetica").fillColor("#0f172a")
+            .text(`${kpi.value}${kpi.change ? ` (${kpi.change})` : ""}`);
+        }
+        doc.moveDown(1);
+      }
+
+      if (charts && Array.isArray(charts) && charts.length > 0) {
+        doc.fontSize(14).font("Helvetica-Bold").fillColor("#1e293b").text("Charts Data");
+        doc.moveDown(0.5);
+        for (const chart of charts) {
+          doc.fontSize(12).font("Helvetica-Bold").fillColor("#334155").text(chart.title || "Chart");
+          doc.moveDown(0.3);
+          if (chart.data && Array.isArray(chart.data)) {
+            const headers = chart.columns || (chart.data[0] ? Object.keys(chart.data[0]) : []);
+            if (headers.length > 0 && chart.data.length > 0) {
+              const colWidth = Math.min(120, (doc.page.width - 80) / headers.length);
+              let y = doc.y;
+              doc.fontSize(9).font("Helvetica-Bold").fillColor("#64748b");
+              headers.forEach((h: string, i: number) => {
+                doc.text(h, 40 + i * colWidth, y, { width: colWidth, align: "left" });
+              });
+              y += 16;
+              doc.font("Helvetica").fillColor("#1e293b").fontSize(9);
+              for (const row of chart.data.slice(0, 20)) {
+                if (y > doc.page.height - 60) { doc.addPage(); y = 40; }
+                headers.forEach((h: string, i: number) => {
+                  doc.text(String(row[h] ?? ""), 40 + i * colWidth, y, { width: colWidth, align: "left" });
+                });
+                y += 14;
+              }
+              doc.y = y;
+            }
+          }
+          doc.moveDown(1);
+        }
+      }
+
+      if (summary) {
+        if (doc.y > doc.page.height - 100) doc.addPage();
+        doc.fontSize(14).font("Helvetica-Bold").fillColor("#1e293b").text("Analysis Summary");
+        doc.moveDown(0.5);
+        doc.fontSize(10).font("Helvetica").fillColor("#334155").text(String(summary), { width: doc.page.width - 80 });
+      }
+
+      const safeName = (title || "dashboard").replace(/[^a-zA-Z0-9]/g, "_");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}_report.pdf"`);
+      doc.pipe(res);
+      doc.end();
+    } catch (err) {
+      log(`Dashboard PDF export error: ${err}`, "error");
+      return res.status(500).json({ message: "Failed to export PDF" });
+    }
+  });
+
+  const dashboardDataUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+  });
+
+  app.post("/api/projects/:projectId/dashboard/upload-data", requireAuth, dashboardDataUpload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+      const ext = file.originalname.split(".").pop()?.toLowerCase();
+      const content = file.buffer.toString("utf-8");
+      let parsedData: any[] = [];
+      let columns: string[] = [];
+
+      if (ext === "csv") {
+        const lines = content.split("\n").map(l => l.trim()).filter(l => l);
+        if (lines.length > 0) {
+          columns = lines[0].split(",").map(c => c.replace(/^"|"$/g, "").trim());
+          for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(",").map(v => v.replace(/^"|"$/g, "").trim());
+            const row: Record<string, string | number> = {};
+            columns.forEach((col, idx) => {
+              const val = values[idx] || "";
+              const num = Number(val);
+              row[col] = isNaN(num) || val === "" ? val : num;
+            });
+            parsedData.push(row);
+          }
+        }
+      } else if (ext === "json") {
+        try {
+          const parsed = JSON.parse(content);
+          parsedData = Array.isArray(parsed) ? parsed : parsed.data || [parsed];
+          if (parsedData.length > 0) {
+            columns = Object.keys(parsedData[0]);
+          }
+        } catch {
+          return res.status(400).json({ message: "Invalid JSON format" });
+        }
+      } else {
+        return res.status(400).json({ message: "Unsupported file format. Use CSV or JSON." });
+      }
+
+      res.json({
+        filename: file.originalname,
+        rows: parsedData.length,
+        columns,
+        data: parsedData.slice(0, 1000),
+        truncated: parsedData.length > 1000,
+      });
+    } catch (err) {
+      log(`Dashboard data upload error: ${err}`, "error");
+      return res.status(500).json({ message: "Failed to parse uploaded data" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/dashboard/fetch-data", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const { url } = req.body;
+      if (!url || typeof url !== "string") return res.status(400).json({ message: "URL is required" });
+
+      const urlValidation = validateExternalUrl(url);
+      if (!urlValidation.valid) return res.status(400).json({ message: urlValidation.error });
+
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: { "Accept": "application/json, text/csv, text/plain" },
+      });
+
+      if (!response.ok) return res.status(400).json({ message: `Failed to fetch: HTTP ${response.status}` });
+
+      const contentType = response.headers.get("content-type") || "";
+      const body = await response.text();
+      let parsedData: any[] = [];
+      let columns: string[] = [];
+
+      if (contentType.includes("json") || body.trim().startsWith("[") || body.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(body);
+          parsedData = Array.isArray(parsed) ? parsed : parsed.data || parsed.results || [parsed];
+          if (parsedData.length > 0) columns = Object.keys(parsedData[0]);
+        } catch {
+          return res.status(400).json({ message: "Response is not valid JSON" });
+        }
+      } else {
+        const lines = body.split("\n").map(l => l.trim()).filter(l => l);
+        if (lines.length > 0) {
+          columns = lines[0].split(",").map(c => c.replace(/^"|"$/g, "").trim());
+          for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(",").map(v => v.replace(/^"|"$/g, "").trim());
+            const row: Record<string, string | number> = {};
+            columns.forEach((col, idx) => {
+              const val = values[idx] || "";
+              const num = Number(val);
+              row[col] = isNaN(num) || val === "" ? val : num;
+            });
+            parsedData.push(row);
+          }
+        }
+      }
+
+      res.json({
+        source: url,
+        rows: parsedData.length,
+        columns,
+        data: parsedData.slice(0, 1000),
+        truncated: parsedData.length > 1000,
+      });
+    } catch (err: any) {
+      if (err.name === "TimeoutError" || err.name === "AbortError") {
+        return res.status(408).json({ message: "Request timed out" });
+      }
+      log(`Dashboard fetch-data error: ${err}`, "error");
+      return res.status(500).json({ message: "Failed to fetch external data" });
     }
   });
 
