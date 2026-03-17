@@ -1421,7 +1421,7 @@ export async function registerRoutes(
       const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
       const configured = await isStripeConfigured();
       if (!configured) {
-        return res.json({ url: null, message: "Stripe is not configured yet. Connect Stripe to enable payments." });
+        return res.status(503).json({ url: null, message: "Payment processing is not configured. Please contact the administrator to enable billing." });
       }
       const stripeClient = await getUncachableStripeClient();
       const user = await storage.getUser(req.session.userId!);
@@ -1492,7 +1492,7 @@ export async function registerRoutes(
     try {
       const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
       const configured = await isStripeConfigured();
-      if (!configured) return res.json({ url: null, message: "Stripe is not configured yet." });
+      if (!configured) return res.status(503).json({ url: null, message: "Billing management is not configured. Please contact the administrator." });
       const stripeClient = await getUncachableStripeClient();
       const quota = await storage.getUserQuota(req.session.userId!);
       if (!quota.stripeCustomerId) return res.json({ url: null, message: "No billing account found." });
@@ -2118,8 +2118,11 @@ export async function registerRoutes(
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await storage.createEmailVerification(user.id, token, expiresAt);
-      await sendVerificationEmail(user.email, token);
+      const sent = await sendVerificationEmail(user.email, token);
       log(`[auth] Email verification requested for ${user.email}`, "info");
+      if (!sent) {
+        return res.status(503).json({ message: "Email delivery is not configured. Please contact the administrator." });
+      }
       return res.json({ message: "Verification email sent" });
     } catch {
       return res.status(500).json({ message: "Failed to send verification" });
@@ -2452,8 +2455,11 @@ export async function registerRoutes(
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const invite = await storage.createTeamInvite(team.id, email, role, req.session.userId!, token, expiresAt);
       const inviter = await storage.getUser(req.session.userId!);
-      await sendTeamInviteEmail(email, team.name, inviter?.displayName || inviter?.email || "Someone", token);
+      const emailSent = await sendTeamInviteEmail(email, team.name, inviter?.displayName || inviter?.email || "Someone", token);
       log(`[teams] Invite for ${email} to team ${team.name}: /invite/${token}`, "info");
+      if (!emailSent) {
+        log(`[teams] Warning: invite email could not be sent to ${email} (SMTP not configured)`, "info");
+      }
       const invitedUser = await storage.getUserByEmail(email);
       if (invitedUser) {
         createAndBroadcastNotification(invitedUser.id, {
@@ -2660,14 +2666,14 @@ export async function registerRoutes(
   // --- PACKAGE MANAGEMENT ---
   async function runProjectCommand(projectId: string, command: string, args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     const workspace = await storage.getWorkspaceByProject(projectId);
-    if (!workspace) {
-      throw new Error("No project workspace available. Open the project in the workspace first to manage packages.");
+    if (workspace) {
+      const result = await runnerClient.execInWorkspace(workspace.id, command, args);
+      if (result) return result;
     }
-    const result = await runnerClient.execInWorkspace(workspace.id, command, args);
-    if (!result) {
-      throw new Error("Workspace runner is not available. Please try again later.");
-    }
-    return result;
+
+    const path = await import("path");
+    const localDir = path.join(process.cwd(), "project-workspaces", projectId);
+    return runnerClient.execLocal(localDir, command, args);
   }
 
   async function getProjectPackageManager(projectId: string): Promise<"npm" | "pip" | "poetry" | "none"> {
@@ -6517,20 +6523,9 @@ export async function registerRoutes(
           createdAt: new Date().toISOString(),
         });
       }
-      if (branchList.length === 0) {
-        branchList.push({
-          id: "git-branch-main",
-          projectId: req.params.projectId,
-          name: "main",
-          headCommitId: null,
-          isDefault: true,
-          current: true,
-          createdAt: new Date().toISOString(),
-        });
-      }
       return res.json(branchList);
     } catch {
-      return res.json([{ id: "git-branch-main", projectId: req.params.projectId, name: "main", headCommitId: null, isDefault: true, current: true, createdAt: new Date().toISOString() }]);
+      return res.json([]);
     }
   });
 
@@ -6724,7 +6719,7 @@ export async function registerRoutes(
       await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
       const url = `https://github.com/${githubRepo}.git`;
       const httpTransport = github.createGitHttpTransport();
-      const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+      const currentBranch = await gitService.getCurrentBranch(req.params.projectId) || "main";
       const status = await gitService.getRemoteStatus(req.params.projectId, url, { httpTransport, branch: currentBranch });
       ahead = status.ahead;
       behind = status.behind;
@@ -6754,7 +6749,7 @@ export async function registerRoutes(
       const url = `https://github.com/${githubRepo}.git`;
       const httpTransport = github.createGitHttpTransport();
 
-      const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+      const currentBranch = await gitService.getCurrentBranch(req.params.projectId) || "main";
       const result = await gitService.pushToRemote(req.params.projectId, url, {
         httpTransport,
         branch: currentBranch,
@@ -6798,7 +6793,7 @@ export async function registerRoutes(
       const authorName = user?.displayName || user?.email || "User";
       const authorEmail = user?.email || "user@ide.local";
 
-      const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+      const currentBranch = await gitService.getCurrentBranch(req.params.projectId) || "main";
       const result = await gitService.pullFromRemoteWithConflicts(req.params.projectId, url, {
         httpTransport,
         authorName,
@@ -7008,7 +7003,7 @@ export async function registerRoutes(
 
       try {
         const git = (await import("isomorphic-git")).default;
-        const currentBranch = await gitService.getCurrentBranch(req.params.projectId);
+        const currentBranch = await gitService.getCurrentBranch(req.params.projectId) || "main";
         await git.checkout({ fs: fsModule.default, dir, ref: currentBranch, force: true });
       } catch {}
 
@@ -11761,6 +11756,23 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
       const { sql: sqlQuery, confirm, env } = req.body;
       if (!sqlQuery || typeof sqlQuery !== "string") return res.status(400).json({ error: "SQL query required" });
+
+      const allowedTables = ["files", "project_runs", "commits", "git_branches", "project_integrations", "project_env_vars", "project_ports", "custom_domains", "deployments", "deployment_versions", "security_scans", "project_guests"];
+      const sqlLower = sqlQuery.toLowerCase().replace(/\s+/g, " ");
+
+      const fromMatches = sqlLower.match(/\bfrom\s+([a-z_][a-z0-9_]*)/g) || [];
+      const joinMatches = sqlLower.match(/\bjoin\s+([a-z_][a-z0-9_]*)/g) || [];
+      const allTableRefs = [...fromMatches, ...joinMatches].map(m => m.replace(/^(from|join)\s+/i, "").trim());
+
+      for (const tableRef of allTableRefs) {
+        if (!allowedTables.includes(tableRef)) {
+          return res.status(403).json({ error: `Access denied: table '${tableRef}' is not accessible. You can only query project-specific tables: ${allowedTables.slice(0, 5).join(", ")}, etc.` });
+        }
+      }
+
+      if (allTableRefs.length === 0 && !trimmed.startsWith("SHOW") && !trimmed.startsWith("EXPLAIN")) {
+        return res.status(400).json({ error: "Could not determine target tables. Please use a standard SELECT ... FROM table query." });
+      }
 
       const { pool } = await import("./db");
       const schema = await ensureProjectSchema(pool, project.id, env);

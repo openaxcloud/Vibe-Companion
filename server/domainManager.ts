@@ -468,7 +468,7 @@ async function provisionSSL(record: CustomDomainRecord) {
       sslStatus: "self-signed",
       sslExpiresAt: expiresAt,
     });
-    log(`[ssl] Self-signed SSL provisioned for ${record.domain}. For production HTTPS, configure Let's Encrypt by setting ACME_EMAIL env var and ensuring port 80 is accessible.`, "domain");
+    log(`[ssl] Self-signed SSL provisioned for ${record.domain} (development verification only). Production HTTPS requires external TLS termination (Cloudflare, load balancer, or reverse proxy). Self-signed certificates should not be used in production.`, "domain");
   } catch (err: any) {
     log(`[ssl] Failed to provision SSL for ${record.domain}: ${err.message}`, "domain");
     await storage.updateCustomDomain(record.id, {

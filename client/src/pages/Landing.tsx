@@ -252,10 +252,10 @@ const features = [
 ];
 
 const defaultStats = [
-  { value: "10+", label: "Languages" },
-  { value: "3", label: "AI Models" },
-  { value: "< 1s", label: "Deploy Time" },
-  { value: "99.9%", label: "Uptime" },
+  { value: "—", label: "Languages" },
+  { value: "—", label: "AI Models" },
+  { value: "—", label: "Developers" },
+  { value: "—", label: "Projects" },
 ];
 
 export default function Landing() {

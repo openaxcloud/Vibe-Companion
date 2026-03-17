@@ -666,16 +666,32 @@ export async function buildAndDeploy(
       addLog(`[build] Node.js project detected`);
       addLog(`[build] Bundling for deployment...`);
       if (entryFile) {
-        const wrapperHtml = generateAppWrapper(projectName, language, entryFile.filename);
-        await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
-        addLog(`[build] Generated static deployment page`);
+        let executionOutput = "";
+        try {
+          const execResult = await captureEntryFileOutput(language, entryFile.filename, outputDir);
+          executionOutput = execResult;
+          addLog(`[build] Captured execution output (${executionOutput.length} chars)`);
+        } catch (err: any) {
+          addLog(`[build] Execution capture failed: ${err.message}`);
+        }
+        const outputHtml = generateOutputPage(projectName, language, entryFile.filename, executionOutput);
+        await writeFile(join(outputDir, "index.html"), outputHtml, "utf-8");
+        addLog(`[build] Generated deployment page with execution output`);
       }
     } else if (language === "python") {
       addLog(`[build] Python project detected`);
       addLog(`[build] Preparing for deployment...`);
       if (entryFile) {
-        const wrapperHtml = generateAppWrapper(projectName, language, entryFile.filename);
-        await writeFile(join(outputDir, "index.html"), wrapperHtml, "utf-8");
+        let executionOutput = "";
+        try {
+          const execResult = await captureEntryFileOutput(language, entryFile.filename, outputDir);
+          executionOutput = execResult;
+          addLog(`[build] Captured execution output (${executionOutput.length} chars)`);
+        } catch (err: any) {
+          addLog(`[build] Execution capture failed: ${err.message}`);
+        }
+        const outputHtml = generateOutputPage(projectName, language, entryFile.filename, executionOutput);
+        await writeFile(join(outputDir, "index.html"), outputHtml, "utf-8");
       }
     } else if (deploymentType === "reserved-vm") {
       const appType = config?.appType || "web_server";
@@ -828,6 +844,99 @@ export async function buildAndDeploy(
     log(`Deployment failed for ${projectId}: ${err.message}`, "deploy");
     return build;
   }
+}
+
+async function captureEntryFileOutput(language: string, entryFile: string, cwd: string): Promise<string> {
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
+
+  let cmd: string;
+  let args: string[];
+
+  if (language === "python") {
+    cmd = "python3";
+    args = [entryFile];
+  } else if (language === "typescript") {
+    cmd = "npx";
+    args = ["tsx", entryFile];
+  } else {
+    cmd = "node";
+    args = [entryFile];
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync(cmd, args, {
+      cwd,
+      timeout: 30000,
+      maxBuffer: 1024 * 1024,
+      env: { ...process.env, NODE_ENV: "production" },
+    });
+    const output = [stdout, stderr].filter(Boolean).join("\n").trim();
+    return output || "(no output)";
+  } catch (err: any) {
+    const output = [err.stdout, err.stderr].filter(Boolean).join("\n").trim();
+    return output || `Exit code: ${err.code ?? "unknown"}`;
+  }
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function generateOutputPage(projectName: string, language: string, entryFile: string, executionOutput: string): string {
+  const langColors: Record<string, string> = {
+    javascript: "#F7DF1E", typescript: "#3178C6", python: "#3776AB",
+    go: "#00ADD8", rust: "#CE412B", java: "#ED8B00",
+  };
+  const safeName = escapeHtml(projectName);
+  const safeLang = escapeHtml(language);
+  const safeEntry = escapeHtml(entryFile);
+  const color = langColors[language] || "#0079F2";
+  const escapedOutput = escapeHtml(executionOutput);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${safeName} — E-Code</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0E1525; color: #F5F9FC; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { padding: 16px 24px; border-bottom: 1px solid #2B3245; display: flex; align-items: center; gap: 12px; background: #1C2333; }
+    .logo { width: 28px; height: 28px; border-radius: 6px; background: #F26522; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; color: white; }
+    .title { font-size: 14px; font-weight: 600; }
+    .badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: ${color}20; color: ${color}; border: 1px solid ${color}40; font-weight: 600; text-transform: uppercase; }
+    .live-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #0CCE6B20; color: #0CCE6B; border: 1px solid #0CCE6B40; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #0CCE6B; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .content { flex: 1; padding: 24px; max-width: 960px; margin: 0 auto; width: 100%; }
+    .output-label { font-size: 12px; color: #9DA2B0; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .output-label .file { font-family: 'JetBrains Mono', monospace; color: ${color}; }
+    .output { background: #1C2333; border: 1px solid #2B3245; border-radius: 12px; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: #C8CDD8; overflow-x: auto; min-height: 120px; }
+    .footer { padding: 12px 24px; border-top: 1px solid #2B3245; text-align: center; font-size: 11px; color: #4A5068; background: #1C2333; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">E</div>
+    <span class="title">${safeName}</span>
+    <span class="badge">${safeLang}</span>
+    <span class="live-badge"><span class="live-dot"></span> Live</span>
+  </div>
+  <div class="content">
+    <div class="output-label">Execution output from <span class="file">${safeEntry}</span></div>
+    <div class="output">${escapedOutput}</div>
+  </div>
+  <div class="footer">&copy; ${new Date().getFullYear()} E-Code &mdash; Cloud IDE &amp; Deployment Platform</div>
+</body>
+</html>`;
 }
 
 function generateAppWrapper(projectName: string, language: string, entryFile: string): string {

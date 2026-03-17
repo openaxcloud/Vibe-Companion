@@ -224,7 +224,7 @@ export async function getLog(projectId: string, branch?: string, depth: number =
   if (!fs.existsSync(gitDir)) return [];
 
   try {
-    const ref = branch || "main";
+    const ref = branch || await getCurrentBranch(projectId) || "HEAD";
     let logs;
     try {
       logs = await git.log({ fs, dir, ref, depth });
@@ -251,32 +251,32 @@ export async function getLog(projectId: string, branch?: string, depth: number =
 export async function listBranches(projectId: string): Promise<Array<{ name: string; current: boolean }>> {
   const dir = getProjectDir(projectId);
   const gitDir = path.join(dir, ".git");
-  if (!fs.existsSync(gitDir)) return [{ name: "main", current: true }];
+  if (!fs.existsSync(gitDir)) return [];
 
   try {
     const branches = await git.listBranches({ fs, dir });
-    let currentBranch = "main";
-    try {
-      currentBranch = await git.currentBranch({ fs, dir }) || "main";
-    } catch {}
+    if (branches.length === 0) return [];
 
-    if (branches.length === 0) return [{ name: "main", current: true }];
+    let currentBranch: string | undefined;
+    try {
+      currentBranch = await git.currentBranch({ fs, dir }) || undefined;
+    } catch {}
 
     return branches.map(name => ({
       name,
       current: name === currentBranch,
     }));
   } catch {
-    return [{ name: "main", current: true }];
+    return [];
   }
 }
 
-export async function getCurrentBranch(projectId: string): Promise<string> {
+export async function getCurrentBranch(projectId: string): Promise<string | null> {
   const dir = getProjectDir(projectId);
   try {
-    return await git.currentBranch({ fs, dir }) || "main";
+    return await git.currentBranch({ fs, dir }) || null;
   } catch {
-    return "main";
+    return null;
   }
 }
 
@@ -343,11 +343,11 @@ export async function getDiff(projectId: string, branch?: string): Promise<{
   hasCommits: boolean;
 }> {
   const dir = getProjectDir(projectId);
-  const branchName = branch || "main";
   const gitDir = path.join(dir, ".git");
   if (!fs.existsSync(gitDir)) {
-    return { branch: branchName, changes: [], hasCommits: false };
+    return { branch: branch || "", changes: [], hasCommits: false };
   }
+  const branchName = branch || await getCurrentBranch(projectId) || "";
 
   let hasCommits = false;
   try {

@@ -170,3 +170,30 @@ export async function execInWorkspace(workspaceId: string, command: string, args
     return null;
   }
 }
+
+export async function execLocal(projectDir: string, command: string, args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
+  const fs = await import("fs");
+
+  if (!fs.existsSync(projectDir)) {
+    fs.mkdirSync(projectDir, { recursive: true });
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync(command, args, {
+      cwd: projectDir,
+      timeout: 60000,
+      maxBuffer: 5 * 1024 * 1024,
+      env: { ...process.env, HOME: projectDir },
+    });
+    return { exitCode: 0, stdout: stdout || "", stderr: stderr || "" };
+  } catch (err: any) {
+    return {
+      exitCode: err.code ?? 1,
+      stdout: err.stdout || "",
+      stderr: err.stderr || err.message || "Command failed",
+    };
+  }
+}

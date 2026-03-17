@@ -463,7 +463,7 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                         </div>
                         {d.sslStatus === "self-signed" && (
                           <p className="text-[8px] text-yellow-400/70 mt-1" data-testid={`ssl-note-${d.id}`}>
-                            Development certificate only. Production SSL requires external infrastructure (Let's Encrypt).
+                            Development verification only — not suitable for production. For production HTTPS, configure external TLS termination (e.g. Cloudflare, load balancer, or reverse proxy with Let's Encrypt).
                           </p>
                         )}
                       </div>

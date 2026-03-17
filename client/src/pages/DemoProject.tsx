@@ -57,7 +57,7 @@ export default function DemoProject() {
     setIsRunning(true);
     setTerminalVisible(true);
     setBottomTab("terminal");
-    setLogs([{ id: Date.now(), text: "Executing in sandbox...", type: "info" }]);
+    setLogs([{ id: Date.now(), text: `━━━ Run started at ${new Date().toLocaleTimeString()} ━━━`, type: "info" }]);
 
     try {
       const res = await fetch("/api/demo/run", {

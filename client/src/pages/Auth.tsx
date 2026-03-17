@@ -201,7 +201,7 @@ export default function Auth() {
                 if (providers.google) {
                   window.location.href = "/api/auth/google";
                 } else {
-                  toast({ title: "Google Sign-In", description: "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables." });
+                  toast({ title: "Google Sign-In", description: "Google Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
               }}
             >
@@ -217,7 +217,7 @@ export default function Auth() {
                 if (providers.apple) {
                   window.location.href = "/api/auth/apple";
                 } else {
-                  toast({ title: "Apple Sign-In", description: "Apple OAuth is not configured. Set APPLE_CLIENT_ID and APPLE_CLIENT_SECRET environment variables." });
+                  toast({ title: "Apple Sign-In", description: "Apple Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
               }}
             >
@@ -233,7 +233,7 @@ export default function Auth() {
                 if (providers.twitter) {
                   window.location.href = "/api/auth/twitter";
                 } else {
-                  toast({ title: "X Sign-In", description: "X/Twitter OAuth is not configured. Set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET environment variables." });
+                  toast({ title: "X Sign-In", description: "X Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
               }}
             >

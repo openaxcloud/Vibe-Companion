@@ -2255,12 +2255,19 @@ export class DatabaseStorage implements IStorage {
     const [{ value: userCount }] = await db.select({ value: count() }).from(users);
     const [{ value: projectCount }] = await db.select({ value: count() }).from(projects);
     const languageRows = await db.selectDistinct({ language: projects.language }).from(projects);
-    const languageCount = languageRows.length || 10;
+    const languageCount = languageRows.length;
+
+    const configuredAiModels: string[] = [];
+    if (process.env.OPENAI_API_KEY) configuredAiModels.push("openai");
+    if (process.env.ANTHROPIC_API_KEY) configuredAiModels.push("anthropic");
+    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY) configuredAiModels.push("gemini");
+    const aiModelCount = configuredAiModels.length;
+
     return [
-      { value: `${languageCount}+`, label: "Languages" },
-      { value: "3", label: "AI Models" },
-      { value: `${userCount}+`, label: "Developers" },
-      { value: `${projectCount}+`, label: "Projects" },
+      { value: languageCount > 0 ? `${languageCount}+` : "0", label: "Languages" },
+      { value: aiModelCount > 0 ? `${aiModelCount}` : "0", label: "AI Models" },
+      { value: userCount > 0 ? `${userCount}+` : "0", label: "Developers" },
+      { value: projectCount > 0 ? `${projectCount}+` : "0", label: "Projects" },
     ];
   }
 
