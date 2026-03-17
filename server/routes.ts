@@ -701,6 +701,9 @@ async function testIntegrationConnection(
         });
         return hexRes.ok ? { success: true, message: "Connected to Hex" } : { success: false, message: `HTTP ${hexRes.status}` };
       }
+      case "Replit Auth": {
+        return { success: true, message: "Replit Auth is a zero-setup managed integration — no API keys required" };
+      }
       default: {
         const hasValues = Object.values(config).some(v => v && v.trim().length > 0);
         return hasValues
@@ -908,6 +911,8 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/apple/callback",
   "/api/auth/twitter",
   "/api/auth/twitter/callback",
+  "/api/auth/replit",
+  "/api/auth/replit/callback",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
   "/api/auth/send-verification",
@@ -1214,6 +1219,7 @@ export async function registerRoutes(
         google: !!(process.env.GOOGLE_CLIENT_ID),
         apple: !!(process.env.APPLE_CLIENT_ID),
         twitter: !!(process.env.TWITTER_CLIENT_ID),
+        replit: !!(process.env.REPLIT_CLIENT_ID),
       },
     });
   });
@@ -2070,6 +2076,63 @@ export async function registerRoutes(
       return res.redirect("/dashboard");
     } catch {
       return res.redirect("/auth?error=twitter_failed");
+    }
+  });
+
+  // --- REPLIT OAUTH ---
+  app.get("/api/auth/replit", (req: Request, res: Response) => {
+    const clientId = process.env.REPLIT_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ message: "Replit Auth not configured" });
+    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/replit/callback`;
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.oauthState = state;
+    const url = `https://replit.com/auth_with_repl_site?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("openid profile email")}&state=${state}`;
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/replit/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query;
+      if (!code) return res.redirect("/auth?error=no_code");
+      const savedState = req.session.oauthState;
+      delete req.session.oauthState;
+      if (!state || !savedState || state !== savedState) return res.redirect("/auth?error=invalid_state");
+      const clientId = process.env.REPLIT_CLIENT_ID;
+      const clientSecret = process.env.REPLIT_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
+      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/replit/callback`;
+      const tokenRes = await fetch("https://replit.com/api/v1/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `code=${code}&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&grant_type=authorization_code`,
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string };
+      if (!tokenData.access_token) return res.redirect("/auth?error=token_failed");
+      const userRes = await fetch("https://replit.com/api/v1/user", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: "application/json" },
+      });
+      const replitUser = await userRes.json() as { id: number; username: string; email?: string; profileImageUrl?: string; firstName?: string; lastName?: string };
+      const replitId = String(replitUser.id);
+      let user = await storage.getUserByReplitId(replitId);
+      if (!user) {
+        const email = replitUser.email || `replit-${replitId}@users.replit.com`;
+        const existing = await storage.getUserByEmail(email);
+        if (existing) {
+          await storage.updateUser(existing.id, { replitId, avatarUrl: replitUser.profileImageUrl || existing.avatarUrl });
+          user = (await storage.getUser(existing.id))!;
+        } else {
+          const displayName = [replitUser.firstName, replitUser.lastName].filter(Boolean).join(" ") || replitUser.username || email.split("@")[0];
+          user = await storage.createUser({ email, password: "", displayName, replitId, avatarUrl: replitUser.profileImageUrl, emailVerified: true });
+        }
+      }
+      if (user.isBanned) return res.redirect("/auth?error=banned");
+      req.session.userId = user.id;
+      req.session.csrfToken = generateCsrfToken();
+      const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
+      await storage.recordLogin(user.id, ip, "replit", req.headers["user-agent"] || null);
+      return res.redirect("/dashboard");
+    } catch {
+      return res.redirect("/auth?error=replit_failed");
     }
   });
 

@@ -157,8 +157,9 @@ export interface IStorage {
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   getUserByAppleId(appleId: string): Promise<User | undefined>;
   getUserByTwitterId(twitterId: string): Promise<User | undefined>;
-  createUser(user: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
-  updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined>;
+  getUserByReplitId(replitId: string): Promise<User | undefined>;
+  createUser(user: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; replitId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
+  updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; replitId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined>;
   getUserPreferences(userId: string): Promise<UserPreferences>;
   updateUserPreferences(userId: string, prefs: Partial<UserPreferencesStored>): Promise<UserPreferences>;
   getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>>;
@@ -734,7 +735,12 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async createUser(data: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User> {
+  async getUserByReplitId(replitId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.replitId, replitId)).limit(1);
+    return user;
+  }
+
+  async createUser(data: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; replitId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User> {
     const [user] = await db.insert(users).values({
       email: data.email,
       password: data.password || "",
@@ -743,13 +749,14 @@ export class DatabaseStorage implements IStorage {
       googleId: data.googleId,
       appleId: data.appleId,
       twitterId: data.twitterId,
+      replitId: data.replitId,
       avatarUrl: data.avatarUrl,
       emailVerified: data.emailVerified || false,
     }).returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; replitId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }
@@ -2630,6 +2637,7 @@ export class DatabaseStorage implements IStorage {
       { name: "Segment", category: "Analytics", description: "Customer data platform for event tracking and routing", icon: "git-branch", envVarKeys: ["SEGMENT_WRITE_KEY"] },
       { name: "Hex", category: "Data", description: "Collaborative data workspace for notebooks and queries", icon: "hexagon", envVarKeys: ["HEX_API_TOKEN"] },
       { name: "Figma", category: "Design", description: "Design extraction, screenshots, and code generation via Figma MCP", icon: "figma", envVarKeys: ["FIGMA_CLIENT_ID", "FIGMA_CLIENT_SECRET"] },
+      { name: "Replit Auth", category: "Authentication", description: "Sign in with Replit — zero-setup OAuth for deployed apps", icon: "user-check", envVarKeys: [] },
     ];
     for (const entry of entries) {
       await db.insert(integrationCatalog).values(entry).onConflictDoUpdate({

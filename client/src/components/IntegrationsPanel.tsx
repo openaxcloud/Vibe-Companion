@@ -9,7 +9,7 @@ import {
   Database, Sparkles, CreditCard, Cloud, Mail, Phone, Flame, Zap, Github, Plug,
   MessageSquare, MessageCircle, Send, Smartphone, BookOpen, Table2, Calendar,
   Users, Music, Layout, ClipboardList, RefreshCw, CheckCircle2, XCircle, AlertCircle,
-  Warehouse, BarChart, GitBranch, Hexagon, Shield, Globe, Link2, ExternalLink, Figma,
+  Warehouse, BarChart, GitBranch, Hexagon, Shield, Globe, Link2, ExternalLink, Figma, UserCheck,
 } from "lucide-react";
 import type { McpServer, McpTool } from "@shared/schema";
 
@@ -66,6 +66,7 @@ const iconMap: Record<string, typeof Plug> = {
   "git-branch": GitBranch,
   hexagon: Hexagon,
   figma: Figma,
+  "user-check": UserCheck,
 };
 
 function IntegrationIcon({ icon, className, style }: { icon: string; className?: string; style?: React.CSSProperties }) {
@@ -89,6 +90,7 @@ const categoryColors: Record<string, string> = {
   "Analytics": "#06B6D4",
   "Data": "#6366F1",
   "Design": "#A259FF",
+  "Authentication": "#14B8A6",
 };
 
 export default function IntegrationsPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {

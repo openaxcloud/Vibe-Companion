@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Eye, Github } from "lucide-react";
+import { Loader2, Eye, Github, UserCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -88,6 +88,8 @@ export default function Auth() {
         google_failed: "Google authentication failed.",
         apple_failed: "Apple authentication failed.",
         twitter_failed: "X/Twitter authentication failed.",
+        replit_failed: "Replit authentication failed.",
+        invalid_state: "Authentication failed - invalid security state. Please try again.",
       };
       toast({ title: "Authentication Error", description: messages[error] || "Authentication failed.", variant: "destructive" });
     }
@@ -167,6 +169,22 @@ export default function Auth() {
 
         <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-7 shadow-lg">
           <div className="space-y-3 mb-6">
+            <Button
+              type="button"
+              variant="outline"
+              className={socialButtonClass}
+              data-testid="button-replit-login"
+              onClick={() => {
+                if (providers.replit) {
+                  window.location.href = "/api/auth/replit";
+                } else {
+                  toast({ title: "Replit Sign-In", description: "Replit Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
+                }
+              }}
+            >
+              <UserCheck className="w-5 h-5" />
+              Continue with Replit
+            </Button>
             <Button
               type="button"
               variant="outline"

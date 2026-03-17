@@ -146,6 +146,7 @@ export const users = pgTable("users", {
   googleId: text("google_id"),
   appleId: text("apple_id"),
   twitterId: text("twitter_id"),
+  replitId: text("replit_id"),
   isBanned: boolean("is_banned").notNull().default(false),
   bannedAt: timestamp("banned_at"),
   banReason: text("ban_reason"),
