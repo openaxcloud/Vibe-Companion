@@ -4784,7 +4784,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/badge/:caption?", (req: Request, res: Response) => {
+  const badgeHandler = (req: Request, res: Response) => {
     const caption = req.params.caption || "Open in E-Code";
     const sanitizedCaption = caption.replace(/[<>&"']/g, "").slice(0, 100);
     const width = Math.max(160, sanitizedCaption.length * 8 + 80);
@@ -4801,7 +4801,9 @@ export async function registerRoutes(
     res.setHeader("Content-Type", "image/svg+xml");
     res.setHeader("Cache-Control", "public, max-age=86400");
     return res.send(svg);
-  });
+  };
+  app.get("/badge/:caption", badgeHandler);
+  app.get("/badge", badgeHandler);
 
   app.get("/api/landing-stats", async (_req: Request, res: Response) => {
     try {
