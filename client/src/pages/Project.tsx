@@ -43,7 +43,7 @@ import type { UserPreferences, MergeConflictFile, MergeResolution } from "@share
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
 import MergeConflictPanel from "@/components/MergeConflictPanel";
 import FileHistoryPanel from "@/components/FileHistoryPanel";
-import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml, useDevicePresetPersistence } from "@/components/PreviewDevTools";
+import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml, useDevicePresetPersistence, ArtifactTypeIcon, ArtifactTypeControls, getArtifactTypeMeta } from "@/components/PreviewDevTools";
 import VisualEditorPanel, { injectVisualEditorScript, activateVisualEditor, deactivateVisualEditor, VE_OVERLAY_SCRIPT, type SelectedElement, type VisualEdit } from "@/components/VisualEditor";
 import type { DevicePreset } from "@/components/PreviewDevTools";
 import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
@@ -1057,15 +1057,63 @@ function _projectPage() {
       return res.json();
     },
   });
-  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem(`project-${projectId}-active-artifact`);
+      return saved || null;
+    } catch { return null; }
+  });
   const projectArtifacts = artifactsQuery.data || [];
   const activeArtifact = projectArtifacts.find(a => a.id === activeArtifactId) || projectArtifacts[0] || null;
 
-  useEffect(() => {
-    if (projectArtifacts.length > 0 && !activeArtifactId) {
-      setActiveArtifactId(projectArtifacts[0].id);
+  const setActiveArtifactIdPersisted = useCallback((id: string | null) => {
+    setActiveArtifactId(id);
+    if (projectId) {
+      try {
+        if (id) { localStorage.setItem(`project-${projectId}-active-artifact`, id); }
+        else { localStorage.removeItem(`project-${projectId}-active-artifact`); }
+      } catch {}
     }
-  }, [projectArtifacts, activeArtifactId]);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectArtifacts.length === 0) return;
+    if (!activeArtifactId) {
+      setActiveArtifactIdPersisted(projectArtifacts[0].id);
+    } else if (!projectArtifacts.find(a => a.id === activeArtifactId)) {
+      setActiveArtifactIdPersisted(projectArtifacts[0].id);
+    }
+  }, [projectArtifacts, activeArtifactId, setActiveArtifactIdPersisted]);
+
+  const artifactPreviewUrl = useMemo(() => {
+    if (!activeArtifact) return null;
+    const artType = activeArtifact.type;
+    const entryFile = activeArtifact.entryFile;
+    if (artType === "web-app" || artType === "mobile-app") {
+      return null;
+    }
+    if (entryFile && wsStatus === "running" && livePreviewUrl) {
+      const base = livePreviewUrl.replace(/\/$/, "");
+      return `${base}/${entryFile.replace(/^\//, "")}`;
+    }
+    return null;
+  }, [activeArtifact, wsStatus, livePreviewUrl]);
+
+  const artifactPreviewHtml = useMemo(() => {
+    if (!activeArtifact) return null;
+    const artType = activeArtifact.type;
+    if (artType === "web-app" || artType === "mobile-app") return null;
+    const entryFile = activeArtifact.entryFile;
+    if (!entryFile || !filesQuery.data) return null;
+    const file = filesQuery.data.find(f => f.filename === entryFile || f.id === entryFile);
+    if (!file) return null;
+    const content = fileContents[file.id] !== undefined ? fileContents[file.id] : file.content;
+    if (file.filename.endsWith(".html")) return content;
+    return null;
+  }, [activeArtifact, filesQuery.data, fileContents]);
+
+  const isWebArtifact = !activeArtifact || activeArtifact.type === "web-app" || activeArtifact.type === "mobile-app";
+  const showUrlBar = isWebArtifact || activeArtifact?.type === "data-viz" || activeArtifact?.type === "3d-game";
 
   const [addArtifactDialogOpen, setAddArtifactDialogOpen] = useState(false);
   const [newArtifactName, setNewArtifactName] = useState("");
@@ -1078,7 +1126,7 @@ function _projectPage() {
     },
     onSuccess: (artifact: Artifact) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "artifacts"] });
-      setActiveArtifactId(artifact.id);
+      setActiveArtifactIdPersisted(artifact.id);
       setAddArtifactDialogOpen(false);
       setNewArtifactName("");
       setNewArtifactType("web-app");
@@ -1093,7 +1141,7 @@ function _projectPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "artifacts"] });
-      setActiveArtifactId(null);
+      setActiveArtifactIdPersisted(null);
       toast({ title: "Artifact deleted" });
     },
     onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
@@ -8581,38 +8629,47 @@ function _projectPage() {
                   </div>
                   <div className="overflow-hidden flex flex-col" style={{ width: `${previewPanelWidth}%` }}>
                     {projectArtifacts.length > 0 && (
-                      <div className="flex items-center gap-1 px-1.5 h-7 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0 overflow-x-auto" data-testid="artifact-switcher">
-                        {projectArtifacts.map((art) => (
-                          <button
-                            key={art.id}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap transition-all ${activeArtifact?.id === art.id ? "bg-[#0079F2]/15 text-[#0079F2] border border-[#0079F2]/30" : "text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
-                            onClick={() => setActiveArtifactId(art.id)}
-                            data-testid={`artifact-tab-${art.id}`}
-                          >
-                            <Layers className="w-2.5 h-2.5" />
-                            {art.name}
-                            <span className="text-[8px] opacity-60">{art.type}</span>
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-0.5 px-1 h-7 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0 overflow-x-auto scrollbar-none" data-testid="artifact-switcher">
+                        {projectArtifacts.map((art) => {
+                          const meta = getArtifactTypeMeta(art.type);
+                          const isActive = activeArtifact?.id === art.id;
+                          return (
+                            <button
+                              key={art.id}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-all ${isActive ? `bg-[${meta.color}]/10 border border-[${meta.color}]/25` : "text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
+                              style={isActive ? { backgroundColor: `${meta.color}15`, borderColor: `${meta.color}40`, color: meta.color } : undefined}
+                              onClick={() => setActiveArtifactIdPersisted(art.id)}
+                              data-testid={`artifact-tab-${art.id}`}
+                            >
+                              <ArtifactTypeIcon type={art.type} className="w-3 h-3" />
+                              <span className="max-w-[80px] truncate">{art.name}</span>
+                            </button>
+                          );
+                        })}
                         <button
-                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)] transition-all"
+                          className="flex items-center justify-center w-5 h-5 rounded text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)] transition-all ml-0.5"
                           onClick={() => setAddArtifactDialogOpen(true)}
+                          title="Add artifact"
                           data-testid="button-add-artifact"
                         >
-                          <Plus className="w-2.5 h-2.5" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
                     )}
                     <div className="flex items-center gap-1 px-1.5 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
-                        onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.back(); } }}
-                        title="Back" data-testid="button-preview-panel-back"><ArrowLeft className="w-3 h-3" /></Button>
-                      <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
-                        onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.forward(); } }}
-                        title="Forward" data-testid="button-preview-panel-forward"><ArrowRight className="w-3 h-3" /></Button>
+                      {showUrlBar && (
+                        <>
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
+                            onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.back(); } }}
+                            title="Back" data-testid="button-preview-panel-back"><ArrowLeft className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
+                            onClick={() => { const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement; if (iframe?.contentWindow) { iframe.contentWindow.history.forward(); } }}
+                            title="Forward" data-testid="button-preview-panel-forward"><ArrowRight className="w-3 h-3" /></Button>
+                        </>
+                      )}
                       <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded shrink-0"
                         onClick={() => {
-                          if (wsStatus === "running" && livePreviewUrl) {
+                          if (artifactPreviewUrl || (wsStatus === "running" && livePreviewUrl)) {
                             const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
                             if (iframe) iframe.src = iframe.src;
                           } else {
@@ -8621,37 +8678,63 @@ function _projectPage() {
                           }
                         }}
                         title="Refresh" data-testid="button-preview-panel-refresh"><RefreshCw className="w-3 h-3" /></Button>
-                      <div className="flex-1 min-w-0">
-                        <form className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70" onSubmit={(e) => {
-                          e.preventDefault();
-                          if (webviewUrlInput.trim()) {
-                            const url = webviewUrlInput.startsWith("http://") || webviewUrlInput.startsWith("https://") ? webviewUrlInput : `https://${webviewUrlInput}`;
-                            const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
-                            if (iframe) iframe.src = url;
-                          }
-                        }}>
-                          <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
-                          <input
-                            className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0 cursor-pointer"
-                            value={webviewUrlInput || (livePreviewUrl ? (devUrl || livePreviewUrl) : (previewHtml ? "HTML Preview" : "localhost:3000"))}
-                            onChange={(e) => setWebviewUrlInput(e.target.value)}
-                            onFocus={() => setWebviewUrlInput(livePreviewUrl || "")}
-                            onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
-                            onClick={() => { if (devUrl && livePreviewUrl && !webviewUrlInput) { navigator.clipboard.writeText(fullDevUrl || ""); toast({ title: "Development URL copied" }); } }}
-                            data-testid="input-preview-panel-url"
-                          />
-                        </form>
-                      </div>
+                      {showUrlBar ? (
+                        <div className="flex-1 min-w-0">
+                          <form className="flex items-center gap-2 h-[24px] px-3 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70" onSubmit={(e) => {
+                            e.preventDefault();
+                            if (webviewUrlInput.trim()) {
+                              const url = webviewUrlInput.startsWith("http://") || webviewUrlInput.startsWith("https://") ? webviewUrlInput : `https://${webviewUrlInput}`;
+                              const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
+                              if (iframe) iframe.src = url;
+                            }
+                          }}>
+                            <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
+                            <input
+                              className="flex-1 bg-transparent text-[10px] text-[var(--ide-text-secondary)] font-mono outline-none placeholder:text-[var(--ide-text-muted)] min-w-0 cursor-pointer"
+                              value={webviewUrlInput || (artifactPreviewUrl || livePreviewUrl ? (devUrl || artifactPreviewUrl || livePreviewUrl || "") : (previewHtml ? "HTML Preview" : "localhost:3000"))}
+                              onChange={(e) => setWebviewUrlInput(e.target.value)}
+                              onFocus={() => setWebviewUrlInput(artifactPreviewUrl || livePreviewUrl || "")}
+                              onBlur={() => { if (!webviewUrlInput.trim()) setWebviewUrlInput(""); }}
+                              onClick={() => { if (devUrl && livePreviewUrl && !webviewUrlInput) { navigator.clipboard.writeText(fullDevUrl || ""); toast({ title: "Development URL copied" }); } }}
+                              data-testid="input-preview-panel-url"
+                            />
+                          </form>
+                        </div>
+                      ) : (
+                        <div className="flex-1 min-w-0 flex items-center gap-2 px-2">
+                          {activeArtifact && (
+                            <>
+                              <ArtifactTypeIcon type={activeArtifact.type} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="text-[10px] font-medium text-[var(--ide-text-secondary)] truncate">{activeArtifact.name}</span>
+                              {activeArtifact.entryFile && (
+                                <span className="text-[9px] text-[var(--ide-text-muted)] font-mono truncate">{activeArtifact.entryFile}</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-0.5 shrink-0">
+                        <ArtifactTypeControls
+                          artifactType={activeArtifact?.type || null}
+                          onRefresh={() => {
+                            const iframe = document.getElementById("preview-panel-iframe") as HTMLIFrameElement;
+                            if (iframe) iframe.src = iframe.src;
+                          }}
+                        />
                         <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
                         <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
                         <Button variant="ghost" size="icon" className={`w-6 h-6 rounded shrink-0 transition-colors ${visualEditorActive && visualEditorIframeId === "preview-panel-iframe" ? "text-[#7C65CB] bg-[#7C65CB]/15 hover:bg-[#7C65CB]/25" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`}
                           onClick={() => handleVisualEditorToggle("preview-panel-iframe")}
                           title={visualEditorActive ? "Disable Visual Editor" : "Enable Visual Editor"}
                           data-testid="button-visual-editor-preview"><MousePointer2 className="w-3 h-3" /></Button>
-                        {(livePreviewUrl || previewHtml) && (
+                        {(livePreviewUrl || previewHtml || artifactPreviewUrl || artifactPreviewHtml) && (
                           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
-                            onClick={() => { if (livePreviewUrl) window.open(fullDevUrl || livePreviewUrl, "_blank"); else if (previewHtml) { const blob = new Blob([previewHtml], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); } }}
+                            onClick={() => {
+                              const url = artifactPreviewUrl || livePreviewUrl;
+                              const html = artifactPreviewHtml || previewHtml;
+                              if (url) window.open(artifactPreviewUrl ? artifactPreviewUrl : (fullDevUrl || url), "_blank");
+                              else if (html) { const blob = new Blob([html], { type: "text/html" }); window.open(URL.createObjectURL(blob), "_blank"); }
+                            }}
                             title="Open in new tab" data-testid="button-preview-panel-newtab"><ExternalLink className="w-3 h-3" /></Button>
                         )}
                         <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
@@ -8662,18 +8745,33 @@ function _projectPage() {
                     <div className="flex-1 flex overflow-hidden">
                       <div className="flex-1 overflow-hidden">
                         <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight} className="bg-white">
-                          {wsStatus === "running" && livePreviewUrl ? (
+                          {artifactPreviewUrl ? (
+                            <iframe id="preview-panel-iframe" src={artifactPreviewUrl} className="w-full h-full border-0" title={`${activeArtifact?.name || "Artifact"} Preview`} loading="lazy" data-testid="iframe-preview-panel" />
+                          ) : artifactPreviewHtml ? (
+                            <iframe id="preview-panel-iframe" srcDoc={injectErudaIntoHtml(artifactPreviewHtml, devToolsActive)} className="w-full h-full border-0" sandbox="allow-scripts" title={`${activeArtifact?.name || "Artifact"} Preview`} loading="lazy" data-testid="iframe-preview-panel-html" />
+                          ) : wsStatus === "running" && livePreviewUrl ? (
                             <iframe id="preview-panel-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
                           ) : previewHtml ? (
                             <iframe id="preview-panel-iframe" srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-preview-panel-html" />
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] text-[var(--ide-text-muted)] gap-3">
-                              <Globe className="w-8 h-8" />
-                              <p className="text-xs text-center max-w-[200px]">{hasHtmlFile ? "Click Run to preview your HTML" : "Run your app to see the preview"}</p>
-                              {hasHtmlFile && (
-                                <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5" onClick={handlePreview} data-testid="button-preview-panel-start">
-                                  <Eye className="w-3 h-3" /> Preview HTML
-                                </Button>
+                              {activeArtifact && !isWebArtifact ? (
+                                <>
+                                  <ArtifactTypeIcon type={activeArtifact.type} className="w-8 h-8" />
+                                  <p className="text-xs text-center max-w-[200px]">
+                                    {activeArtifact.entryFile ? `Set entry file "${activeArtifact.entryFile}" and run to preview` : `Configure an entry file for this ${getArtifactTypeMeta(activeArtifact.type).label} artifact`}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <Globe className="w-8 h-8" />
+                                  <p className="text-xs text-center max-w-[200px]">{hasHtmlFile ? "Click Run to preview your HTML" : "Run your app to see the preview"}</p>
+                                  {hasHtmlFile && (
+                                    <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5" onClick={handlePreview} data-testid="button-preview-panel-start">
+                                      <Eye className="w-3 h-3" /> Preview HTML
+                                    </Button>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}
@@ -9446,18 +9544,27 @@ function _projectPage() {
                 data-testid="input-artifact-name"
               />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label className="text-[11px] text-[var(--ide-text-secondary)]">Type</Label>
-              <select
-                value={newArtifactType}
-                onChange={(e) => setNewArtifactType(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg text-sm bg-[var(--ide-bg)] border border-[var(--ide-border)] text-[var(--ide-text)]"
-                data-testid="select-artifact-type"
-              >
-                {ARTIFACT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <div className="grid grid-cols-5 gap-1.5" data-testid="select-artifact-type">
+                {ARTIFACT_TYPES.map((t) => {
+                  const meta = getArtifactTypeMeta(t);
+                  const selected = newArtifactType === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg border text-[9px] font-medium transition-all ${selected ? "border-[var(--ide-text)] bg-[var(--ide-surface)]" : "border-[var(--ide-border)] hover:border-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/50"}`}
+                      style={selected ? { borderColor: meta.color, backgroundColor: `${meta.color}10` } : undefined}
+                      onClick={() => setNewArtifactType(t)}
+                      data-testid={`artifact-type-${t}`}
+                    >
+                      <ArtifactTypeIcon type={t} className="w-4 h-4" />
+                      <span className={`leading-tight text-center ${selected ? "" : "text-[var(--ide-text-muted)]"}`} style={selected ? { color: meta.color } : undefined}>{meta.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex gap-2">
               <Button type="button" variant="ghost" className="flex-1 h-9 text-xs text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] rounded-lg" onClick={() => setAddArtifactDialogOpen(false)}>

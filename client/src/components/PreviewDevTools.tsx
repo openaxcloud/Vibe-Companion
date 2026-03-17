@@ -4,11 +4,12 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Smartphone, Tablet, Monitor, Wrench, ChevronDown, Settings2 } from "lucide-react";
+import { Smartphone, Tablet, Monitor, Wrench, ChevronDown, Settings2, Globe, Presentation, Film, BarChart3, Gamepad2, FileText, Table2, Palette, Zap, ChevronLeft, ChevronRight, Download, RefreshCw, Play, Pause, SkipBack, SkipForward, Maximize2 } from "lucide-react";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import { getCsrfToken } from "@/lib/queryClient";
+import type { ArtifactType } from "@shared/schema";
 
 export interface DevicePreset {
   id: string;
@@ -390,6 +391,7 @@ export function DeviceFrame({
   let frameWidth: number | null = null;
   let frameHeight: number | null = null;
   let frameLabel = preset?.label || "Responsive";
+  let deviceType: "phone" | "tablet" | "desktop" = preset?.icon || "desktop";
 
   if (selectedPreset === "custom" && customWidth && customHeight) {
     frameWidth = customWidth;
@@ -404,6 +406,97 @@ export function DeviceFrame({
 
   if (!isConstrained) {
     return <div className={`flex-1 overflow-hidden ${className || ""}`} data-testid="device-frame-responsive">{children}</div>;
+  }
+
+  const isPhone = deviceType === "phone";
+  const isTablet = deviceType === "tablet";
+  const hasDynamicIsland = isPhone && (selectedPreset.includes("14") || selectedPreset.includes("15") || selectedPreset.includes("pro"));
+  const isAndroid = selectedPreset.includes("galaxy") || selectedPreset.includes("pixel");
+
+  if (isPhone) {
+    return (
+      <div className={`flex-1 overflow-auto flex items-start justify-center bg-[var(--ide-bg)] p-4 ${className || ""}`} data-testid="device-frame-container">
+        <div
+          className="relative shrink-0"
+          style={{ maxWidth: "100%", maxHeight: "100%" }}
+          data-testid="device-frame"
+        >
+          <div className="relative bg-[#1a1a1a] rounded-[40px] p-3 shadow-2xl" style={{ width: `${frameWidth! + 24}px` }}>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
+              {hasDynamicIsland && !isAndroid ? (
+                <div className="w-[90px] h-[25px] bg-black rounded-b-[14px] flex items-center justify-center gap-2" data-testid="device-notch-dynamic-island">
+                  <div className="w-[8px] h-[8px] rounded-full bg-[#1a1a2e] ring-1 ring-[#2a2a3e]" />
+                </div>
+              ) : !isAndroid ? (
+                <div className="w-[150px] h-[28px] bg-black rounded-b-[16px] flex items-center justify-center gap-2" data-testid="device-notch">
+                  <div className="w-[10px] h-[10px] rounded-full bg-[#1a1a2e] ring-1 ring-[#2a2a3e]" />
+                  <div className="w-[40px] h-[4px] rounded-full bg-[#1a1a2e]" />
+                </div>
+              ) : null}
+            </div>
+            {isAndroid && (
+              <div className="absolute top-[6px] left-1/2 -translate-x-1/2 z-20" data-testid="device-camera-punch">
+                <div className="w-[10px] h-[10px] rounded-full bg-[#1a1a2e] ring-1 ring-[#2a2a3e]" />
+              </div>
+            )}
+            <div className="relative overflow-hidden rounded-[28px] bg-white" style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}>
+              <div className="absolute top-0 left-0 right-0 h-[44px] bg-black/5 backdrop-blur-sm flex items-center justify-between px-6 z-10 pointer-events-none" data-testid="device-status-bar">
+                <span className="text-[10px] font-semibold text-black/70">9:41</span>
+                <div className="flex items-center gap-1">
+                  <svg width="15" height="10" viewBox="0 0 15 10" fill="none"><rect x="0" y="3" width="3" height="7" rx="0.5" fill="black" fillOpacity="0.7"/><rect x="4" y="2" width="3" height="8" rx="0.5" fill="black" fillOpacity="0.7"/><rect x="8" y="1" width="3" height="9" rx="0.5" fill="black" fillOpacity="0.7"/><rect x="12" y="0" width="3" height="10" rx="0.5" fill="black" fillOpacity="0.7"/></svg>
+                  <svg width="22" height="10" viewBox="0 0 22 10" fill="none"><rect x="0.5" y="0.5" width="19" height="9" rx="2" stroke="black" strokeOpacity="0.35"/><rect x="2" y="2" width="14" height="6" rx="1" fill="black" fillOpacity="0.7"/><rect x="21" y="3" width="1.5" height="4" rx="0.5" fill="black" fillOpacity="0.35"/></svg>
+                </div>
+              </div>
+              <div className="w-full h-full overflow-hidden">
+                {children}
+              </div>
+            </div>
+            <div className="flex items-center justify-center mt-1" data-testid="device-home-indicator">
+              <div className="w-[100px] h-[4px] rounded-full bg-white/30" />
+            </div>
+          </div>
+          <div className="text-center mt-2">
+            <span className="text-[8px] text-[var(--ide-text-muted)] font-mono">{frameLabel} — {frameWidth}×{frameHeight}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isTablet) {
+    return (
+      <div className={`flex-1 overflow-auto flex items-start justify-center bg-[var(--ide-bg)] p-4 ${className || ""}`} data-testid="device-frame-container">
+        <div
+          className="relative shrink-0"
+          style={{ maxWidth: "100%", maxHeight: "100%" }}
+          data-testid="device-frame"
+        >
+          <div className="relative bg-[#2a2a2a] rounded-[20px] p-3 shadow-2xl" style={{ width: `${frameWidth! + 24}px` }}>
+            <div className="absolute top-[10px] left-1/2 -translate-x-1/2 z-20" data-testid="device-tablet-camera">
+              <div className="w-[8px] h-[8px] rounded-full bg-[#1a1a2e] ring-1 ring-[#2a2a3e]" />
+            </div>
+            <div className="relative overflow-hidden rounded-[8px] bg-white" style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}>
+              <div className="absolute top-0 left-0 right-0 h-[24px] bg-black/5 backdrop-blur-sm flex items-center justify-between px-5 z-10 pointer-events-none" data-testid="device-status-bar">
+                <span className="text-[9px] font-medium text-black/60">9:41</span>
+                <div className="flex items-center gap-1">
+                  <svg width="14" height="9" viewBox="0 0 15 10" fill="none"><rect x="0" y="3" width="3" height="7" rx="0.5" fill="black" fillOpacity="0.5"/><rect x="4" y="2" width="3" height="8" rx="0.5" fill="black" fillOpacity="0.5"/><rect x="8" y="1" width="3" height="9" rx="0.5" fill="black" fillOpacity="0.5"/><rect x="12" y="0" width="3" height="10" rx="0.5" fill="black" fillOpacity="0.5"/></svg>
+                  <svg width="20" height="9" viewBox="0 0 22 10" fill="none"><rect x="0.5" y="0.5" width="19" height="9" rx="2" stroke="black" strokeOpacity="0.3"/><rect x="2" y="2" width="14" height="6" rx="1" fill="black" fillOpacity="0.5"/><rect x="21" y="3" width="1.5" height="4" rx="0.5" fill="black" fillOpacity="0.3"/></svg>
+                </div>
+              </div>
+              <div className="w-full h-full overflow-hidden">
+                {children}
+              </div>
+            </div>
+            <div className="flex items-center justify-center mt-1" data-testid="device-home-indicator">
+              <div className="w-[80px] h-[4px] rounded-full bg-white/25" />
+            </div>
+          </div>
+          <div className="text-center mt-2">
+            <span className="text-[8px] text-[var(--ide-text-muted)] font-mono">{frameLabel} — {frameWidth}×{frameHeight}</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -427,6 +520,109 @@ export function DeviceFrame({
       </div>
     </div>
   );
+}
+
+const ARTIFACT_TYPE_META: Record<string, { icon: typeof Globe; color: string; label: string }> = {
+  "web-app": { icon: Globe, color: "#0079F2", label: "Web App" },
+  "mobile-app": { icon: Smartphone, color: "#0CCE6B", label: "Mobile App" },
+  "slides": { icon: Presentation, color: "#7C65CB", label: "Slides" },
+  "animation": { icon: Film, color: "#F26522", label: "Animation" },
+  "data-viz": { icon: BarChart3, color: "#00B4D8", label: "Data Viz" },
+  "3d-game": { icon: Gamepad2, color: "#E63946", label: "3D Game" },
+  "document": { icon: FileText, color: "#8B8B8B", label: "Document" },
+  "spreadsheet": { icon: Table2, color: "#2D9B4E", label: "Spreadsheet" },
+  "design": { icon: Palette, color: "#E040FB", label: "Design" },
+  "automation": { icon: Zap, color: "#FFB800", label: "Automation" },
+};
+
+export function ArtifactTypeIcon({ type, className }: { type: string; className?: string }) {
+  const meta = ARTIFACT_TYPE_META[type] || ARTIFACT_TYPE_META["web-app"];
+  const Icon = meta.icon;
+  return <Icon className={className} style={{ color: meta.color }} />;
+}
+
+export function getArtifactTypeMeta(type: string) {
+  return ARTIFACT_TYPE_META[type] || ARTIFACT_TYPE_META["web-app"];
+}
+
+export function ArtifactTypeControls({
+  artifactType,
+  onRefresh,
+  onExport,
+}: {
+  artifactType: string | null;
+  onRefresh?: () => void;
+  onExport?: () => void;
+}) {
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [totalSlides] = useState(10);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  useEffect(() => {
+    if (!autoRefresh || !onRefresh) return;
+    const timer = setInterval(onRefresh, 5000);
+    return () => clearInterval(timer);
+  }, [autoRefresh, onRefresh]);
+
+  if (!artifactType) return null;
+
+  if (artifactType === "slides") {
+    return (
+      <div className="flex items-center gap-1" data-testid="controls-slides">
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+          onClick={() => setSlideIndex(Math.max(0, slideIndex - 1))}
+          disabled={slideIndex === 0}
+          title="Previous slide" data-testid="button-slide-prev"><ChevronLeft className="w-3 h-3" /></Button>
+        <span className="text-[9px] text-[var(--ide-text-secondary)] font-mono tabular-nums min-w-[28px] text-center" data-testid="text-slide-index">{slideIndex + 1}/{totalSlides}</span>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+          onClick={() => setSlideIndex(Math.min(totalSlides - 1, slideIndex + 1))}
+          disabled={slideIndex >= totalSlides - 1}
+          title="Next slide" data-testid="button-slide-next"><ChevronRight className="w-3 h-3" /></Button>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+          title="Present fullscreen" data-testid="button-slide-present"><Maximize2 className="w-3 h-3" /></Button>
+      </div>
+    );
+  }
+
+  if (artifactType === "animation") {
+    return (
+      <div className="flex items-center gap-1" data-testid="controls-animation">
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+          onClick={() => setIsPlaying(!isPlaying)}
+          title={isPlaying ? "Pause" : "Play"} data-testid="button-anim-play">{isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}</Button>
+        <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+          title="Restart" data-testid="button-anim-restart"><SkipBack className="w-3 h-3" /></Button>
+        {onExport && (
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+            onClick={onExport}
+            title="Export" data-testid="button-anim-export"><Download className="w-3 h-3" /></Button>
+        )}
+      </div>
+    );
+  }
+
+  if (artifactType === "data-viz") {
+    return (
+      <div className="flex items-center gap-1" data-testid="controls-dataviz">
+        <Button variant="ghost" size="icon" className={`w-6 h-6 rounded transition-colors ${autoRefresh ? "text-[#00B4D8] bg-[#00B4D8]/10 hover:bg-[#00B4D8]/20" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"}`}
+          onClick={() => setAutoRefresh(!autoRefresh)}
+          title={autoRefresh ? "Disable auto-refresh" : "Enable auto-refresh (5s)"} data-testid="button-dataviz-autorefresh"><RefreshCw className="w-3 h-3" /></Button>
+        {onRefresh && (
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+            onClick={onRefresh}
+            title="Refresh now" data-testid="button-dataviz-refresh"><SkipForward className="w-3 h-3" /></Button>
+        )}
+        {onExport && (
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+            onClick={onExport}
+            title="Export data" data-testid="button-dataviz-export"><Download className="w-3 h-3" /></Button>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export function useDevicePresetPersistence(projectId: string | undefined) {
