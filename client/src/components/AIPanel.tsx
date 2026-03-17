@@ -1319,6 +1319,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   } : m)
                 );
               }
+            } else if (data.type === "tavily_search_results") {
+              const mappedResults = (data.results || []).map((r: { title: string; url: string; content: string }) => ({
+                title: r.title,
+                url: r.url,
+                snippet: r.content,
+              }));
+              if (mappedResults.length > 0 || data.answer) {
+                setMessages((prev) =>
+                  prev.map((m) => m.id === assistantId ? {
+                    ...m,
+                    ...(mappedResults.length > 0 ? { webSearchResults: [...(m.webSearchResults || []), ...mappedResults] } : {}),
+                    ...(data.answer ? { tavilyAnswer: data.answer } : {}),
+                  } : m)
+                );
+              }
             } else if (data.type === "tts_audio_generated") {
               setMessages((prev) =>
                 prev.map((m) => m.id === assistantId ? {

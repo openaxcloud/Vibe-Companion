@@ -48,7 +48,7 @@ import { getConnectorKey, getSupportedConnectors, getConnectorOperations, execut
 import path, { posix as pathPosix } from "path";
 import { generateImageBuffer, editImages } from "./replit_integrations/image/client";
 import { registerImageRoutes } from "./replit_integrations/image";
-import { searchBraveImages, BRAVE_CREDIT_COST, generateSpeech, AVAILABLE_VOICES, TTS_CREDIT_COST, generateNanoBananaImage, NANOBANANA_CREDIT_COST } from "./agentServices";
+import { searchBraveImages, BRAVE_CREDIT_COST, generateSpeech, AVAILABLE_VOICES, TTS_CREDIT_COST, generateNanoBananaImage, NANOBANANA_CREDIT_COST, generateDalleImage, DALLE_CREDIT_COST, searchTavily, TAVILY_CREDIT_COST } from "./agentServices";
 import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "./fileGeneration";
 import PDFDocument from "pdfkit";
 import * as fs from "fs";
@@ -9309,39 +9309,100 @@ Rules:
       if (toolName === "generate_ai_image") {
         const prompt = toolInput.prompt || toolInput.content || "";
         if (!prompt) return "Error: prompt is required for image generation";
-        const rawWidth = Number(toolInput.width);
-        const rawHeight = Number(toolInput.height);
-        const width = Number.isFinite(rawWidth) && rawWidth >= 64 ? Math.min(Math.floor(rawWidth), 2048) : 1024;
-        const height = Number.isFinite(rawHeight) && rawHeight >= 64 ? Math.min(Math.floor(rawHeight), 2048) : 1024;
-        let result;
+        const sizeMap: Record<string, "1024x1024" | "1792x1024" | "1024x1792"> = {
+          "square": "1024x1024", "1024x1024": "1024x1024",
+          "landscape": "1792x1024", "1792x1024": "1792x1024", "wide": "1792x1024",
+          "portrait": "1024x1792", "1024x1792": "1024x1792", "tall": "1024x1792",
+        };
+        const size = sizeMap[toolInput.size || ""] || "1024x1024";
+        const quality = toolInput.quality === "hd" ? "hd" as const : "standard" as const;
+        const style = toolInput.style === "natural" ? "natural" as const : "vivid" as const;
+        let imageUrl: string;
+        let revisedPrompt: string;
+        let model: string;
+        let creditCost: number;
         try {
-          result = await generateNanoBananaImage(prompt, width, height);
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : "AI image generation failed";
-          res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
-          return `Error: ${msg}`;
+          const dalleResult = await generateDalleImage(prompt, size, quality, style);
+          imageUrl = dalleResult.imageUrl;
+          revisedPrompt = dalleResult.revisedPrompt;
+          model = "dall-e-3";
+          creditCost = DALLE_CREDIT_COST;
+        } catch (dalleErr: unknown) {
+          try {
+            const rawWidth = Number(toolInput.width);
+            const rawHeight = Number(toolInput.height);
+            const width = Number.isFinite(rawWidth) && rawWidth >= 64 ? Math.min(Math.floor(rawWidth), 2048) : 1024;
+            const height = Number.isFinite(rawHeight) && rawHeight >= 64 ? Math.min(Math.floor(rawHeight), 2048) : 1024;
+            const nbResult = await generateNanoBananaImage(prompt, width, height);
+            await storage.deductCredits(req.session.userId!, "economy", "nanobanana", "agent-service", NANOBANANA_CREDIT_COST);
+            const imageDataUri = `data:${nbResult.mimeType};base64,${nbResult.imageBase64}`;
+            const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
+            const safeName = sanitizeAIFilename(filename);
+            if (safeName) {
+              const existingFile = existingFiles.find(f => f.filename === safeName);
+              if (existingFile) {
+                const file = await storage.updateFileContent(existingFile.id, imageDataUri);
+                res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
+                broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+              } else {
+                const file = await storage.createFile(projectId, { filename: safeName, content: imageDataUri });
+                existingFiles.push(file);
+                res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
+                broadcastToProject(projectId, { type: "file_created", filename: safeName });
+              }
+              if (modifiedFiles) modifiedFiles.add(safeName);
+            }
+            res.write(`data: ${JSON.stringify({ type: "ai_image_generated", prompt, imageDataUri, width: nbResult.width, height: nbResult.height, model: nbResult.model, filename: safeName || filename })}\n\n`);
+            await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "nanobanana_fallback", projectId, prompt: prompt.slice(0, 200), creditCost: NANOBANANA_CREDIT_COST });
+            return `AI image generated (${nbResult.width}x${nbResult.height}) using ${nbResult.model}${safeName ? ` and saved as ${safeName}` : ""}`;
+          } catch (fallbackErr: unknown) {
+            const dalleMsg = dalleErr instanceof Error ? dalleErr.message : "DALL-E 3 failed";
+            const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : "Fallback also failed";
+            const msg = `AI image generation failed: ${dalleMsg}. Fallback: ${fallbackMsg}`;
+            res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
+            return `Error: ${msg}`;
+          }
         }
-        await storage.deductCredits(req.session.userId!, "economy", "nanobanana", "agent-service", NANOBANANA_CREDIT_COST);
-        const imageDataUri = `data:${result.mimeType};base64,${result.imageBase64}`;
+        await storage.deductCredits(req.session.userId!, "economy", "dalle-3", "agent-service", creditCost);
         const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
         const safeName = sanitizeAIFilename(filename);
         if (safeName) {
           const existingFile = existingFiles.find(f => f.filename === safeName);
           if (existingFile) {
-            const file = await storage.updateFileContent(existingFile.id, imageDataUri);
-            res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
+            const file = await storage.updateFileContent(existingFile.id, imageUrl);
+            res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: imageUrl })}\n\n`);
             broadcastToProject(projectId, { type: "file_updated", filename: safeName });
           } else {
-            const file = await storage.createFile(projectId, { filename: safeName, content: imageDataUri });
+            const file = await storage.createFile(projectId, { filename: safeName, content: imageUrl });
             existingFiles.push(file);
-            res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: imageUrl })}\n\n`);
             broadcastToProject(projectId, { type: "file_created", filename: safeName });
           }
           if (modifiedFiles) modifiedFiles.add(safeName);
         }
-        res.write(`data: ${JSON.stringify({ type: "ai_image_generated", prompt, imageDataUri, width: result.width, height: result.height, model: result.model, filename: safeName || filename })}\n\n`);
-        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "nanobanana", projectId, prompt: prompt.slice(0, 200), width, height, creditCost: NANOBANANA_CREDIT_COST });
-        return `AI image generated (${result.width}x${result.height}) using ${result.model}${safeName ? ` and saved as ${safeName}` : ""}`;
+        res.write(`data: ${JSON.stringify({ type: "ai_image_generated", prompt, imageDataUri: imageUrl, width: 1024, height: 1024, model, revisedPrompt, filename: safeName || filename })}\n\n`);
+        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "dalle-3", projectId, prompt: prompt.slice(0, 200), size, quality, creditCost });
+        return `AI image generated using DALL-E 3 (${size}, ${quality}, ${style})${revisedPrompt !== prompt ? ` — revised prompt: "${revisedPrompt.slice(0, 100)}..."` : ""}${safeName ? ` and saved as ${safeName}` : ""}`;
+      }
+      if (toolName === "tavily_search") {
+        const query = toolInput.query || toolInput.content || "";
+        if (!query) return "Error: search query is required";
+        const depth = toolInput.depth === "advanced" ? "advanced" as const : "basic" as const;
+        let tavilyResult;
+        try {
+          tavilyResult = await searchTavily(query, { searchDepth: depth, maxResults: 5, includeAnswer: true });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Tavily search failed";
+          res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
+          return `Error: ${msg}`;
+        }
+        await storage.deductCredits(req.session.userId!, "economy", "tavily-search", "agent-service", TAVILY_CREDIT_COST);
+        res.write(`data: ${JSON.stringify({ type: "tavily_search_results", query, results: tavilyResult.results, answer: tavilyResult.answer, responseTime: tavilyResult.responseTime })}\n\n`);
+        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "tavily_search", projectId, query, creditCost: TAVILY_CREDIT_COST });
+        let response = "";
+        if (tavilyResult.answer) response += `Answer: ${tavilyResult.answer}\n\n`;
+        response += "Sources:\n" + tavilyResult.results.map((r, i) => `${i + 1}. ${r.title} (${r.url}): ${r.content.slice(0, 200)}`).join("\n");
+        return response || "No results found.";
       }
       if (toolName === "web_search") {
         const query = toolInput.query || toolInput.content || "";
@@ -9853,7 +9914,9 @@ When the user asks you to find or search for images on the web (e.g. product pho
 
 When the user asks for text-to-speech, voice narration, or audio generation from text, use the text_to_speech tool. Available voices: ${AVAILABLE_VOICES.map(v => `${v.name} (${v.description})`).join(", ")}.
 
-When the user asks to generate an AI image (illustrations, art, hero images, concept art — NOT photos from the web), use the generate_ai_image tool with NanoBanana. This is different from generate_image (DALL-E) — use generate_ai_image for open-source model generation.
+When the user asks to generate an AI image (illustrations, art, hero images, concept art — NOT photos from the web), use the generate_ai_image tool with DALL-E 3. Supports size (square/landscape/portrait), quality (standard/hd), and style (vivid/natural).
+
+When the user asks you to research a topic, find information, or answer questions requiring up-to-date knowledge, use the tavily_search tool. It provides AI-powered web search with answer synthesis and source attribution.
 
 Always write complete, working code. Never use placeholders or TODOs.${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
 
@@ -10111,16 +10174,29 @@ Always cite your sources in your response when using information from web search
             },
             {
               name: "generate_ai_image",
-              description: "Generate an AI image using NanoBanana (open-source models like Stable Diffusion). Use for illustrations, concept art, hero images, and creative AI-generated visuals.",
+              description: "Generate an AI image using DALL-E 3. Use for illustrations, concept art, hero images, and creative AI-generated visuals. Supports size (square/landscape/portrait), quality (standard/hd), style (vivid/natural).",
               parameters: {
                 type: Type.OBJECT,
                 properties: {
                   prompt: { type: Type.STRING, description: "A detailed description of the image to generate" },
                   filename: { type: Type.STRING, description: "Filename to save the image as (e.g. 'assets/hero.png')" },
-                  width: { type: Type.NUMBER, description: "Image width in pixels (default 1024, max 2048)" },
-                  height: { type: Type.NUMBER, description: "Image height in pixels (default 1024, max 2048)" },
+                  size: { type: Type.STRING, description: "Image size: square, landscape, or portrait" },
+                  quality: { type: Type.STRING, description: "Image quality: standard or hd" },
+                  style: { type: Type.STRING, description: "Image style: vivid or natural" },
                 },
                 required: ["prompt"],
+              },
+            },
+            {
+              name: "tavily_search",
+              description: "AI-powered web search with answer synthesis. Use for research, fact-checking, finding up-to-date information, and getting sourced answers.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  query: { type: Type.STRING, description: "The search query" },
+                  depth: { type: Type.STRING, description: "Search depth: basic (fast) or advanced (thorough)" },
+                },
+                required: ["query"],
               },
             },
         ];
@@ -10195,7 +10271,7 @@ Always cite your sources in your response when using information from web search
               const fn = part.functionCall;
               const toolInput = fn.args as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
@@ -10447,8 +10523,16 @@ Always cite your sources in your response when using information from web search
             type: "function",
             function: {
               name: "generate_ai_image",
-              description: "Generate an AI image using NanoBanana (open-source models). Use for illustrations, concept art, hero images, and creative AI-generated visuals.",
-              parameters: { type: "object", properties: { prompt: { type: "string", description: "A detailed description of the image to generate" }, filename: { type: "string", description: "Filename to save as" }, width: { type: "number", description: "Image width (default 1024, max 2048)" }, height: { type: "number", description: "Image height (default 1024, max 2048)" } }, required: ["prompt"] },
+              description: "Generate an AI image using DALL-E 3. Use for illustrations, concept art, hero images, and creative AI-generated visuals. Supports size (square/landscape/portrait), quality (standard/hd), style (vivid/natural).",
+              parameters: { type: "object", properties: { prompt: { type: "string", description: "A detailed description of the image to generate" }, filename: { type: "string", description: "Filename to save as" }, size: { type: "string", description: "Image size: square, landscape, or portrait" }, quality: { type: "string", description: "Image quality: standard or hd" }, style: { type: "string", description: "Image style: vivid or natural" } }, required: ["prompt"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "tavily_search",
+              description: "AI-powered web search with answer synthesis. Use for research, fact-checking, finding up-to-date information, and getting sourced answers.",
+              parameters: { type: "object", properties: { query: { type: "string", description: "The search query" }, depth: { type: "string", description: "Search depth: basic (fast) or advanced (thorough)" } }, required: ["query"] },
             },
           },
           ...mcpToolDefinitions.map(t => ({
@@ -10521,7 +10605,7 @@ Always cite your sources in your response when using information from web search
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as any;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
@@ -10618,7 +10702,8 @@ Always cite your sources in your response when using information from web search
           },
           { type: "function", function: { name: "brave_image_search", description: "Search the web for images using Brave Image Search", parameters: { type: "object", properties: { query: { type: "string" }, count: { type: "number" } }, required: ["query"] } } },
           { type: "function", function: { name: "text_to_speech", description: "Generate text-to-speech audio using ElevenLabs", parameters: { type: "object", properties: { text: { type: "string" }, voice_id: { type: "string" } }, required: ["text"] } } },
-          { type: "function", function: { name: "generate_ai_image", description: "Generate an AI image using NanoBanana (open-source models)", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, width: { type: "number" }, height: { type: "number" } }, required: ["prompt"] } } },
+          { type: "function", function: { name: "generate_ai_image", description: "Generate an AI image using DALL-E 3. Supports size (square/landscape/portrait), quality (standard/hd), style (vivid/natural).", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, size: { type: "string" }, quality: { type: "string" }, style: { type: "string" } }, required: ["prompt"] } } },
+          { type: "function", function: { name: "tavily_search", description: "AI-powered web search with answer synthesis and source attribution", parameters: { type: "object", properties: { query: { type: "string" }, depth: { type: "string" } }, required: ["query"] } } },
           ...mcpToolDefinitions.map(t => ({
             type: "function" as const,
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
@@ -10664,7 +10749,7 @@ Always cite your sources in your response when using information from web search
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as Record<string, unknown>;
 
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : undefined;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
@@ -10960,16 +11045,29 @@ Always cite your sources in your response when using information from web search
           },
           {
             name: "generate_ai_image",
-            description: "Generate an AI image using NanoBanana (open-source models). Use for illustrations, concept art, hero images, and creative AI-generated visuals.",
+            description: "Generate an AI image using DALL-E 3. Use for illustrations, concept art, hero images, and creative AI-generated visuals. Supports size (square/landscape/portrait), quality (standard/hd), style (vivid/natural).",
             input_schema: {
               type: "object" as const,
               properties: {
                 prompt: { type: "string", description: "A detailed description of the image to generate" },
                 filename: { type: "string", description: "Filename to save the image as" },
-                width: { type: "number", description: "Image width (default 1024, max 2048)" },
-                height: { type: "number", description: "Image height (default 1024, max 2048)" },
+                size: { type: "string", description: "Image size: square, landscape, or portrait" },
+                quality: { type: "string", description: "Image quality: standard or hd" },
+                style: { type: "string", description: "Image style: vivid or natural" },
               },
               required: ["prompt"],
+            },
+          },
+          {
+            name: "tavily_search",
+            description: "AI-powered web search with answer synthesis. Use for research, fact-checking, finding up-to-date information, and getting sourced answers.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                query: { type: "string", description: "The search query" },
+                depth: { type: "string", description: "Search depth: basic (fast) or advanced (thorough)" },
+              },
+              required: ["query"],
             },
           },
           ...mcpToolDefinitions.map(t => ({
@@ -11030,7 +11128,7 @@ Always cite your sources in your response when using information from web search
             } else if (block.type === "tool_use") {
               const input = block.input as any;
 
-              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : block.name === "brave_image_search" ? "Searching for images" : block.name === "text_to_speech" ? "Generating speech" : block.name === "generate_ai_image" ? "Generating AI image" : undefined;
+              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : block.name === "brave_image_search" ? "Searching for images" : block.name === "text_to_speech" ? "Generating speech" : block.name === "generate_ai_image" ? "Generating AI image" : block.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
               const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
