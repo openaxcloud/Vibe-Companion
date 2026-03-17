@@ -71,6 +71,7 @@ import AIPanel from "@/components/AIPanel";
 import { playNotificationSound, sendPushNotification } from "@/lib/notifications";
 import ConsolePanel from "@/components/ConsolePanel";
 import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
+import { LSPClient, detectLSPLanguage, type LSPLanguage } from "@/lib/lspClient";
 import WorkspaceTerminal, { type WorkspaceTerminalHandle } from "@/components/WorkspaceTerminal";
 import CommandPalette from "@/components/CommandPalette";
 import EnvVarsPanel from "@/components/EnvVarsPanel";
@@ -245,7 +246,7 @@ function _projectPage() {
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"terminal" | "shell" | "problems">("terminal");
+  const [bottomTab, setBottomTab] = useState<"terminal" | "shell" | "problems" | "references">("terminal");
   const [runDropdownOpen, setRunDropdownOpen] = useState(false);
   const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
@@ -2775,6 +2776,219 @@ function _projectPage() {
   const currentCode = (activeFileId && !activeIsSpecial && !activeFileIsBinary) ? fileContents[activeFileId] ?? "" : "";
   const editorLanguage = activeFileName ? detectLanguage(activeFileName) : "javascript";
 
+  const lspClientsRef = useRef<Map<LSPLanguage, LSPClient>>(new Map());
+  const [activeLspClient, setActiveLspClient] = useState<LSPClient | null>(null);
+  const [lspConnected, setLspConnected] = useState(false);
+  const lspClientRef = useRef<LSPClient | null>(null);
+
+  const activeLspLang = useMemo<LSPLanguage | null>(() => {
+    return activeFileName ? detectLSPLanguage(activeFileName) : null;
+  }, [activeFileName]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    return () => {
+      for (const client of lspClientsRef.current.values()) {
+        client.disconnect();
+      }
+      lspClientsRef.current.clear();
+      setActiveLspClient(null);
+      lspClientRef.current = null;
+      setLspConnected(false);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || !activeLspLang) {
+      setActiveLspClient(null);
+      lspClientRef.current = null;
+      setLspConnected(false);
+      return;
+    }
+
+    const existingClient = lspClientsRef.current.get(activeLspLang);
+    if (existingClient && existingClient.isConnected()) {
+      setActiveLspClient(existingClient);
+      lspClientRef.current = existingClient;
+      setLspConnected(true);
+      return;
+    }
+
+    const client = new LSPClient(projectId, activeLspLang);
+    lspClientsRef.current.set(activeLspLang, client);
+    setActiveLspClient(client);
+    lspClientRef.current = client;
+
+    const unsubConn = client.onConnectionChange((connected) => {
+      if (lspClientRef.current === client) {
+        setLspConnected(connected);
+      }
+    });
+
+    client.connect();
+
+    return () => {
+      unsubConn();
+    };
+  }, [projectId, activeLspLang]);
+
+  const handleGoToDefinition = useCallback((uri: string, line: number, character: number) => {
+    let filename = uri;
+    if (filename.startsWith("file://")) {
+      filename = filename.replace("file://", "");
+      const projectRoot = `/home/runner/workspace/`;
+      if (filename.startsWith(projectRoot)) {
+        filename = filename.slice(projectRoot.length);
+      } else {
+        filename = filename.replace(/^\/+/, "");
+      }
+    }
+    const file = filesQuery.data?.find(f => f.filename === filename);
+    if (file) {
+      if (!openTabs.includes(file.id)) {
+        setOpenTabs(prev => [...prev, file.id]);
+      }
+      setActiveFileId(file.id);
+      expandParentFolders(file.filename);
+
+      setTimeout(() => {
+        const editorView = collabEditorRef.current?.view;
+        if (editorView) {
+          const targetLine = Math.min(line + 1, editorView.state.doc.lines);
+          const lineObj = editorView.state.doc.line(targetLine);
+          const pos = lineObj.from + Math.min(character, lineObj.text.length);
+          editorView.dispatch({
+            selection: { anchor: pos },
+            scrollIntoView: true,
+          });
+          editorView.focus();
+        }
+      }, 200);
+    }
+  }, [filesQuery.data, openTabs]);
+
+  const [referencesResults, setReferencesResults] = useState<Array<{ uri: string; line: number; character: number; filename: string }>>([]);
+  const [referencesOpen, setReferencesOpen] = useState(false);
+
+  const handleFindReferences = useCallback(async (uri: string, line: number, character: number) => {
+    const client = lspClientRef.current;
+    if (!client || !client.isReady()) return;
+
+    try {
+      const locations = await client.references(uri, line, character);
+      const projectRoot = `/home/runner/workspace/`;
+      const results = locations.map(loc => {
+        let fname = loc.uri;
+        if (fname.startsWith("file://")) {
+          fname = fname.replace("file://", "");
+          if (fname.startsWith(projectRoot)) {
+            fname = fname.slice(projectRoot.length);
+          } else {
+            fname = fname.replace(/^\/+/, "");
+          }
+        }
+        return {
+          uri: loc.uri,
+          line: loc.range.start.line,
+          character: loc.range.start.character,
+          filename: fname,
+        };
+      });
+      setReferencesResults(results);
+      setReferencesOpen(true);
+      setBottomTab("references");
+      setTerminalVisible(true);
+    } catch {}
+  }, []);
+
+  const handleRenameSymbol = useCallback(async (uri: string, line: number, character: number) => {
+    const newName = window.prompt("New name:");
+    if (!newName) return;
+
+    const client = lspClientRef.current;
+    if (!client || !client.isReady()) return;
+
+    try {
+      const result = await client.rename(uri, line, character, newName);
+      if (!result) return;
+
+      const projectRoot = `/home/runner/workspace/`;
+      const resolveFilename = (u: string) => {
+        let f = u;
+        if (f.startsWith("file://")) {
+          f = f.replace("file://", "");
+          if (f.startsWith(projectRoot)) f = f.slice(projectRoot.length);
+          else f = f.replace(/^\/+/, "");
+        }
+        return f;
+      };
+
+      interface LSPTextEdit {
+        range: { start: { line: number; character: number }; end: { line: number; character: number } };
+        newText: string;
+      }
+      const touchedFiles: Array<{ id: string; content: string }> = [];
+      const applyEditsToFile = (fileUri: string, edits: LSPTextEdit[]) => {
+        const fname = resolveFilename(fileUri);
+        const file = filesQuery.data?.find(f => f.filename === fname);
+        if (!file) return;
+
+        let content = fileContents[file.id] ?? file.content ?? "";
+        const sortedEdits = [...edits].sort((a, b) => {
+          if (a.range.start.line !== b.range.start.line) return b.range.start.line - a.range.start.line;
+          return b.range.start.character - a.range.start.character;
+        });
+
+        const lines = content.split("\n");
+        for (const edit of sortedEdits) {
+          const startLine = Math.min(edit.range.start.line, lines.length - 1);
+          const endLine = Math.min(edit.range.end.line, lines.length - 1);
+          const startChar = edit.range.start.character;
+          const endChar = edit.range.end.character;
+
+          if (startLine === endLine) {
+            const l = lines[startLine];
+            lines[startLine] = l.substring(0, startChar) + edit.newText + l.substring(endChar);
+          } else {
+            const prefix = lines[startLine].substring(0, startChar);
+            const suffix = lines[endLine].substring(endChar);
+            const newTextLines = edit.newText.split("\n");
+            newTextLines[0] = prefix + newTextLines[0];
+            newTextLines[newTextLines.length - 1] = newTextLines[newTextLines.length - 1] + suffix;
+            lines.splice(startLine, endLine - startLine + 1, ...newTextLines);
+          }
+        }
+
+        const newContent = lines.join("\n");
+        setFileContents(prev => ({ ...prev, [file.id]: newContent }));
+        setDirtyFiles(prev => new Set(prev).add(file.id));
+        touchedFiles.push({ id: file.id, content: newContent });
+      };
+
+      if (result.changes) {
+        for (const [fileUri, edits] of Object.entries(result.changes)) {
+          applyEditsToFile(fileUri, edits as LSPTextEdit[]);
+        }
+      }
+
+      if (result.documentChanges) {
+        for (const docChange of result.documentChanges) {
+          const dc = docChange as { textDocument?: { uri: string }; edits?: LSPTextEdit[] };
+          if (dc.textDocument && dc.edits) {
+            applyEditsToFile(dc.textDocument.uri, dc.edits);
+          }
+        }
+      }
+
+      for (const touched of touchedFiles) {
+        saveMutation.mutate({ fileId: touched.id, content: touched.content });
+      }
+    } catch (err) {
+      console.error("[LSP] Rename failed:", err);
+    }
+  }, [filesQuery.data, fileContents, projectId]);
+
   const generateHtmlPreview = useCallback(() => {
     const files = filesQuery.data;
     if (!files || files.length === 0) return null;
@@ -4573,7 +4787,58 @@ function _projectPage() {
                     </div>
                   </div>
                 ) : (
-                  <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={userPrefs.aiCodeCompletion} autoCloseBrackets={userPrefs.autoCloseBrackets} indentationChar={userPrefs.indentationChar} minimap={userPrefs.minimap} indentOnInput={userPrefs.indentationDetection} multiselectModifier={userPrefs.multiselectModifier} semanticTokens={userPrefs.semanticTokens} formatPastedText={userPrefs.formatPastedText} acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit} editorRef={collabEditorRef as React.MutableRefObject<import("@uiw/react-codemirror").ReactCodeMirrorRef | null>} ytext={activeYtext} remoteAwareness={remoteAwareness} />
+                  <ContextMenu>
+                    <ContextMenuTrigger className="w-full h-full" data-testid="editor-context-trigger">
+                      <CodeEditor value={currentCode} onChange={handleCodeChange} language={editorLanguage} onCursorChange={handleCursorChange} fontSize={editorFontSize} tabSize={editorTabSize} wordWrap={editorWordWrap} blameData={blameEnabled ? blameQuery.data?.blame : undefined} aiCompletions={userPrefs.aiCodeCompletion} autoCloseBrackets={userPrefs.autoCloseBrackets} indentationChar={userPrefs.indentationChar} minimap={userPrefs.minimap} indentOnInput={userPrefs.indentationDetection} multiselectModifier={userPrefs.multiselectModifier} semanticTokens={userPrefs.semanticTokens} formatPastedText={userPrefs.formatPastedText} acceptSuggestionOnCommit={userPrefs.acceptSuggestionOnCommit} editorRef={collabEditorRef as React.MutableRefObject<import("@uiw/react-codemirror").ReactCodeMirrorRef | null>} ytext={activeYtext} remoteAwareness={remoteAwareness} lspClient={activeLspClient} filename={activeFileName} projectId={projectId} onGoToDefinition={handleGoToDefinition} onFindReferences={handleFindReferences} onRenameSymbol={handleRenameSymbol} />
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="bg-[var(--ide-bg)] border-[var(--ide-border)] rounded-lg shadow-xl min-w-[200px] p-1" data-testid="editor-context-menu">
+                      <ContextMenuItem
+                        className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                        data-testid="context-go-to-definition"
+                        onClick={() => {
+                          const view = collabEditorRef.current?.view;
+                          if (!view || !lspClientRef.current || !activeFileName) return;
+                          const pos = view.state.selection.main.head;
+                          const line = view.state.doc.lineAt(pos);
+                          const uri = lspClientRef.current.makeUri(activeFileName);
+                          lspClientRef.current.definition(uri, line.number - 1, pos - line.from).then(locs => {
+                            if (locs.length > 0) handleGoToDefinition(locs[0].uri, locs[0].range.start.line, locs[0].range.start.character);
+                          });
+                        }}
+                      >
+                        <Code2 className="w-3.5 h-3.5" /> Go to Definition <span className="ml-auto text-[9px] opacity-50">F12</span>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                        data-testid="context-find-references"
+                        onClick={() => {
+                          const view = collabEditorRef.current?.view;
+                          if (!view || !lspClientRef.current || !activeFileName) return;
+                          const pos = view.state.selection.main.head;
+                          const line = view.state.doc.lineAt(pos);
+                          const uri = lspClientRef.current.makeUri(activeFileName);
+                          handleFindReferences(uri, line.number - 1, pos - line.from);
+                        }}
+                      >
+                        <Search className="w-3.5 h-3.5" /> Find All References <span className="ml-auto text-[9px] opacity-50">⇧F12</span>
+                      </ContextMenuItem>
+                      <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
+                      <ContextMenuItem
+                        className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                        data-testid="context-rename-symbol"
+                        onClick={() => {
+                          const view = collabEditorRef.current?.view;
+                          if (!view || !lspClientRef.current || !activeFileName) return;
+                          const pos = view.state.selection.main.head;
+                          const line = view.state.doc.lineAt(pos);
+                          const uri = lspClientRef.current.makeUri(activeFileName);
+                          handleRenameSymbol(uri, line.number - 1, pos - line.from);
+                        }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Rename Symbol <span className="ml-auto text-[9px] opacity-50">F2</span>
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 )}
               </div>
               {splitEditorFileId && (
@@ -4935,6 +5200,11 @@ function _projectPage() {
           <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "problems" ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`} onClick={() => setBottomTab("problems")} data-testid="tab-problems">
             <AlertCircle className="w-3 h-3" /> Problems <span className="text-[9px] px-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">0</span>
           </button>
+          {referencesResults.length > 0 && (
+            <button className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium border-b-2 hover-transition transition-colors duration-150 shrink-0 ${bottomTab === "references" ? "text-[var(--ide-text)] border-[#0079F2]" : "text-[var(--ide-text-muted)] border-transparent hover:text-[var(--ide-text-secondary)]"}`} onClick={() => setBottomTab("references")} data-testid="tab-references">
+              <Search className="w-3 h-3" /> References <span className="text-[9px] px-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text-muted)]">{referencesResults.length}</span>
+            </button>
+          )}
           {shellSessions.map((session, idx) => (
             <button
               key={session.sessionId}
@@ -4984,6 +5254,30 @@ function _projectPage() {
             <p className="text-xs font-medium text-[var(--ide-text-secondary)] mb-1">No problems detected</p>
             <p className="text-[10px]">Code analysis is active and monitoring your files</p>
           </div>
+        </div>
+      ) : bottomTab === "references" ? (
+        <div className="flex-1 overflow-y-auto px-1 py-1 animate-fade-in" data-testid="references-panel">
+          {referencesResults.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-[var(--ide-text-muted)]">
+              <Search className="w-6 h-6 mb-2 opacity-40" />
+              <p className="text-xs font-medium text-[var(--ide-text-secondary)]">No references found</p>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {referencesResults.map((ref, idx) => (
+                <button
+                  key={idx}
+                  className="w-full flex items-center gap-2 px-2 py-1 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded transition-colors text-left"
+                  data-testid={`reference-item-${idx}`}
+                  onClick={() => handleGoToDefinition(ref.uri, ref.line, ref.character)}
+                >
+                  <FileCode2 className="w-3 h-3 shrink-0 text-[var(--ide-text-muted)]" />
+                  <span className="truncate font-medium">{ref.filename}</span>
+                  <span className="text-[var(--ide-text-muted)] shrink-0">:{ref.line + 1}:{ref.character + 1}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ) : terminalContent}
     </div>

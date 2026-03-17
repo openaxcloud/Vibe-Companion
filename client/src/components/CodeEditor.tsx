@@ -10,19 +10,21 @@ import { go } from "@codemirror/lang-go";
 import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
 import { rust } from "@codemirror/lang-rust";
-import { EditorView, gutter, GutterMarker, keymap, Decoration, WidgetType, type DecorationSet } from "@codemirror/view";
+import { EditorView, gutter, GutterMarker, keymap, Decoration, WidgetType, type DecorationSet, hoverTooltip, showTooltip, type Tooltip } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap, openSearchPanel } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
 import { useRef, useEffect } from "react";
-import { StateField, StateEffect, RangeSetBuilder, RangeSet, type Range } from "@codemirror/state";
+import { StateField, StateEffect, RangeSetBuilder, RangeSet, type Range, type Extension } from "@codemirror/state";
 import { autocompletion, type CompletionContext, type Completion } from "@codemirror/autocomplete";
-import { linter, type Diagnostic } from "@codemirror/lint";
+import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
+import { Prec } from "@codemirror/state";
 import { inlineAICompletion } from "./AICompletions";
 import { useTheme, type ThemeData } from "./ThemeProvider";
 import type { SyntaxColors, GlobalColors } from "@shared/schema";
 import type { AwarenessState } from "@/hooks/use-collaboration";
+import { LSPClient } from "@/lib/lspClient";
 import * as Y from "yjs";
 import { yCollab } from "y-codemirror.next";
 
@@ -56,6 +58,12 @@ interface CodeEditorProps {
   editorRef?: React.MutableRefObject<ReactCodeMirrorRef | null>;
   ytext?: Y.Text | null;
   remoteAwareness?: Map<string, AwarenessState>;
+  lspClient?: LSPClient | null;
+  filename?: string;
+  projectId?: string;
+  onGoToDefinition?: (uri: string, line: number, character: number) => void;
+  onFindReferences?: (uri: string, line: number, character: number) => void;
+  onRenameSymbol?: (uri: string, line: number, character: number) => void;
 }
 
 function buildHighlightStyle(sc: SyntaxColors): HighlightStyle {
@@ -891,6 +899,268 @@ function createPythonLinter() {
   });
 }
 
+const setLSPDiagnosticsEffect = StateEffect.define<Diagnostic[]>();
+
+const lspDiagnosticsField = StateField.define<Diagnostic[]>({
+  create() { return []; },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setLSPDiagnosticsEffect)) return e.value;
+    }
+    return value;
+  },
+});
+
+function createLSPLinter() {
+  return linter((view) => {
+    return view.state.field(lspDiagnosticsField, false) || [];
+  }, { delay: 100 });
+}
+
+function createLSPHoverExtension(lspClient: LSPClient, filename: string) {
+  return hoverTooltip(async (view, pos) => {
+    if (!lspClient.isReady()) return null;
+
+    const line = view.state.doc.lineAt(pos);
+    const lineNum = line.number - 1;
+    const character = pos - line.from;
+    const uri = lspClient.makeUri(filename);
+
+    const result = await lspClient.hover(uri, lineNum, character);
+    if (!result) return null;
+
+    return {
+      pos,
+      end: pos,
+      above: true,
+      create() {
+        const dom = document.createElement("div");
+        dom.className = "cm-lsp-hover";
+        dom.style.cssText = "max-width: 500px; max-height: 300px; overflow: auto; padding: 8px 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;";
+
+        const codeBlock = result.match(/```[\s\S]*?\n([\s\S]*?)```/);
+        if (codeBlock) {
+          const pre = document.createElement("pre");
+          pre.style.cssText = "margin: 0; padding: 4px 0;";
+          const code = document.createElement("code");
+          code.textContent = codeBlock[1].trim();
+          pre.appendChild(code);
+          dom.appendChild(pre);
+
+          const rest = result.replace(/```[\s\S]*?```/, "").trim();
+          if (rest) {
+            const p = document.createElement("div");
+            p.style.cssText = "margin-top: 6px; opacity: 0.8; font-size: 11px;";
+            p.textContent = rest;
+            dom.appendChild(p);
+          }
+        } else {
+          dom.textContent = result;
+        }
+
+        return { dom };
+      },
+    };
+  }, { hideOnChange: true, hoverTime: 300 });
+}
+
+function createLSPCompletionSource(lspClient: LSPClient, filename: string) {
+  return async (context: CompletionContext) => {
+    if (!lspClient.isReady()) return null;
+
+    const pos = context.pos;
+    const line = context.state.doc.lineAt(pos);
+    const lineNum = line.number - 1;
+    const character = pos - line.from;
+    const uri = lspClient.makeUri(filename);
+
+    const before = context.matchBefore(/[\w.]+/);
+    if (!before && !context.explicit) return null;
+
+    try {
+      const completions = await lspClient.completion(uri, lineNum, character);
+      if (completions.length === 0) return null;
+
+      return {
+        from: before ? before.from : pos,
+        options: completions,
+        validFor: /^[\w]*$/,
+      };
+    } catch {
+      return null;
+    }
+  };
+}
+
+function createLSPKeybindings(
+  lspClient: LSPClient,
+  filename: string,
+  onGoToDefinition?: (uri: string, line: number, character: number) => void,
+  onFindReferences?: (uri: string, line: number, character: number) => void,
+  onRenameSymbol?: (uri: string, line: number, character: number) => void,
+) {
+  return Prec.high(keymap.of([
+    {
+      key: "F12",
+      run(view) {
+        if (!lspClient.isReady()) return false;
+        const pos = view.state.selection.main.head;
+        const line = view.state.doc.lineAt(pos);
+        const lineNum = line.number - 1;
+        const character = pos - line.from;
+        const uri = lspClient.makeUri(filename);
+
+        lspClient.definition(uri, lineNum, character).then((locations) => {
+          if (locations.length > 0 && onGoToDefinition) {
+            const loc = locations[0];
+            onGoToDefinition(loc.uri, loc.range.start.line, loc.range.start.character);
+          }
+        });
+        return true;
+      },
+    },
+    {
+      key: "Shift-F12",
+      run(view) {
+        if (!lspClient.isReady()) return false;
+        const pos = view.state.selection.main.head;
+        const line = view.state.doc.lineAt(pos);
+        const lineNum = line.number - 1;
+        const character = pos - line.from;
+        const uri = lspClient.makeUri(filename);
+
+        if (onFindReferences) {
+          onFindReferences(uri, lineNum, character);
+        }
+        return true;
+      },
+    },
+    {
+      key: "F2",
+      run(view) {
+        if (!lspClient.isReady()) return false;
+        const pos = view.state.selection.main.head;
+        const line = view.state.doc.lineAt(pos);
+        const lineNum = line.number - 1;
+        const character = pos - line.from;
+        const uri = lspClient.makeUri(filename);
+
+        if (onRenameSymbol) {
+          onRenameSymbol(uri, lineNum, character);
+        }
+        return true;
+      },
+    },
+  ]));
+}
+
+function createCtrlClickHandler(
+  lspClient: LSPClient,
+  filename: string,
+  onGoToDefinition?: (uri: string, line: number, character: number) => void,
+) {
+  return EditorView.domEventHandlers({
+    click(event: MouseEvent, view: EditorView) {
+      if (!(event.ctrlKey || event.metaKey)) return false;
+      if (!lspClient.isReady() || !onGoToDefinition) return false;
+
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (pos === null) return false;
+
+      const line = view.state.doc.lineAt(pos);
+      const lineNum = line.number - 1;
+      const character = pos - line.from;
+      const uri = lspClient.makeUri(filename);
+
+      event.preventDefault();
+      lspClient.definition(uri, lineNum, character).then((locations) => {
+        if (locations.length > 0) {
+          const loc = locations[0];
+          onGoToDefinition(loc.uri, loc.range.start.line, loc.range.start.character);
+        }
+      });
+
+      return true;
+    },
+  });
+}
+
+const setSignatureTooltipEffect = StateEffect.define<Tooltip | null>();
+
+const signatureHelpTooltipField = StateField.define<Tooltip | null>({
+  create() { return null; },
+  update(tooltip, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setSignatureTooltipEffect)) return e.value;
+    }
+    if (tr.docChanged) return null;
+    return tooltip;
+  },
+  provide: f => showTooltip.from(f),
+});
+
+function createSignatureHelpExtension(lspClient: LSPClient, filename: string) {
+  const triggerSignatureHelp = EditorView.updateListener.of((update) => {
+    if (!update.docChanged || !lspClient.isReady()) return;
+
+    const pos = update.state.selection.main.head;
+    const line = update.state.doc.lineAt(pos);
+    const charBefore = pos > line.from ? update.state.doc.sliceString(pos - 1, pos) : "";
+
+    if (charBefore === "(" || charBefore === ",") {
+      const lineNum = line.number - 1;
+      const character = pos - line.from;
+      const uri = lspClient.makeUri(filename);
+
+      lspClient.signatureHelp(uri, lineNum, character).then((result) => {
+        if (!result || !result.signatures || result.signatures.length === 0) {
+          update.view.dispatch({ effects: setSignatureTooltipEffect.of(null) });
+          return;
+        }
+
+        const sig = result.signatures[result.activeSignature ?? 0];
+        if (!sig) return;
+
+        const tooltip: Tooltip = {
+          pos,
+          above: true,
+          create() {
+            const dom = document.createElement("div");
+            dom.className = "cm-lsp-signature";
+            dom.style.cssText = "max-width: 500px; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5;";
+
+            const label = document.createElement("div");
+            label.style.cssText = "font-weight: 500;";
+            label.textContent = sig.label;
+            dom.appendChild(label);
+
+            if (sig.documentation) {
+              const docEl = document.createElement("div");
+              docEl.style.cssText = "margin-top: 4px; opacity: 0.8; font-size: 11px;";
+              docEl.textContent = typeof sig.documentation === "string"
+                ? sig.documentation
+                : sig.documentation.value || "";
+              dom.appendChild(docEl);
+            }
+
+            return { dom };
+          },
+        };
+
+        update.view.dispatch({
+          effects: setSignatureTooltipEffect.of(tooltip),
+        });
+      }).catch(() => {});
+    } else if (charBefore === ")") {
+      update.view.dispatch({
+        effects: setSignatureTooltipEffect.of(null),
+      });
+    }
+  });
+
+  return triggerSignatureHelp;
+}
+
 const COMMIT_CHARS = [".", "(", ")", ";", ",", "[", "]", "{", "}", "'", '"', "`"];
 
 function wrapWithCommitChars(source: (ctx: CompletionContext) => any, acceptOnCommit: boolean) {
@@ -1170,11 +1440,14 @@ const remoteCursorTheme = EditorView.theme({
   },
 });
 
-export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false, autoCloseBrackets: autoCloseBracketsEnabled = true, indentationChar = "spaces", minimap: showMinimap = true, indentOnInput: indentOnInputProp = true, multiselectModifier = "Alt", semanticTokens = true, formatPastedText = true, acceptSuggestionOnCommit = true, editorRef: externalEditorRef, ytext, remoteAwareness }: CodeEditorProps) {
+export default function CodeEditor({ value, onChange, language, readOnly = false, onCursorChange, fontSize = 14, tabSize = 2, wordWrap = false, blameData, aiCompletions = false, autoCloseBrackets: autoCloseBracketsEnabled = true, indentationChar = "spaces", minimap: showMinimap = true, indentOnInput: indentOnInputProp = true, multiselectModifier = "Alt", semanticTokens = true, formatPastedText = true, acceptSuggestionOnCommit = true, editorRef: externalEditorRef, ytext, remoteAwareness, lspClient, filename, projectId, onGoToDefinition, onFindReferences, onRenameSymbol }: CodeEditorProps) {
   const internalEditorRef = useRef<ReactCodeMirrorRef>(null);
   const editorRef = externalEditorRef || internalEditorRef;
   const onCursorChangeRef = useRef(onCursorChange);
   onCursorChangeRef.current = onCursorChange;
+  const lspClientRef = useRef(lspClient);
+  lspClientRef.current = lspClient;
+  const docVersionRef = useRef(0);
 
   const cursorTracker = useMemo(() => {
     return EditorView.updateListener.of((update) => {
@@ -1185,6 +1458,92 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       }
     });
   }, []);
+
+  const lspDocSync = useMemo(() => {
+    if (!lspClient || !filename) return [];
+
+    return [
+      EditorView.updateListener.of((update) => {
+        const client = lspClientRef.current;
+        if (!client || !client.isReady() || !filename) return;
+
+        if (update.docChanged) {
+          docVersionRef.current++;
+          const uri = client.makeUri(filename);
+          const fullText = update.state.doc.toString();
+
+          const contentChanges: Array<{
+            range: { start: { line: number; character: number }; end: { line: number; character: number } };
+            rangeLength: number;
+            text: string;
+          }> = [];
+
+          update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+            const startLine = update.startState.doc.lineAt(fromA);
+            const endLine = update.startState.doc.lineAt(toA);
+            contentChanges.push({
+              range: {
+                start: { line: startLine.number - 1, character: fromA - startLine.from },
+                end: { line: endLine.number - 1, character: toA - endLine.from },
+              },
+              rangeLength: toA - fromA,
+              text: inserted.toString(),
+            });
+          });
+
+          client.didChange(uri, docVersionRef.current, fullText, contentChanges.length > 0 ? contentChanges : undefined);
+        }
+      }),
+    ];
+  }, [lspClient, filename]);
+
+  useEffect(() => {
+    if (!lspClient || !filename) return;
+
+    const langId = language === "typescript" ? "typescript" :
+      language === "javascript" ? "javascript" :
+      language === "python" ? "python" :
+      language === "go" ? "go" : "plaintext";
+
+    const openDoc = () => {
+      if (!lspClient.isReady()) return;
+      const uri = lspClient.makeUri(filename);
+      docVersionRef.current++;
+      lspClient.didOpen(uri, langId, docVersionRef.current, editorRef.current?.view?.state.doc.toString() || value || "");
+    };
+
+    if (lspClient.isReady()) {
+      openDoc();
+    }
+
+    const unsubReady = lspClient.onReady(() => {
+      openDoc();
+    });
+
+    return () => {
+      unsubReady();
+      if (lspClient.isReady() && filename) {
+        lspClient.didClose(lspClient.makeUri(filename));
+      }
+    };
+  }, [lspClient, filename]);
+
+  useEffect(() => {
+    if (!lspClient || !filename) return;
+
+    const unsubscribe = lspClient.onDiagnostics((uri, diagnostics) => {
+      const view = editorRef.current?.view;
+      if (!view) return;
+
+      const expectedUri = lspClient.makeUri(filename);
+      if (uri !== expectedUri) return;
+
+      const cmDiagnostics = LSPClient.lspDiagnosticsToCodeMirror(diagnostics, view.state.doc);
+      view.dispatch({ effects: setLSPDiagnosticsEffect.of(cmDiagnostics) });
+    });
+
+    return unsubscribe;
+  }, [lspClient, filename]);
 
   const showBlame = blameData && blameData.length > 0;
 
@@ -1205,11 +1564,40 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     return [yCollab(ytext, null, { undoManager: false })];
   }, [ytext]);
 
+  const hasLSP = !!(lspClient && filename);
+
+  const lspExtensions = useMemo(() => {
+    if (!lspClient || !filename) return [];
+
+    const ext: Extension[] = [
+      lspDiagnosticsField,
+      createLSPLinter(),
+      lintGutter(),
+      createLSPHoverExtension(lspClient, filename),
+      createLSPKeybindings(lspClient, filename, onGoToDefinition, onFindReferences, onRenameSymbol),
+      createCtrlClickHandler(lspClient, filename, onGoToDefinition),
+      signatureHelpTooltipField,
+      createSignatureHelpExtension(lspClient, filename),
+    ];
+
+    return ext;
+  }, [lspClient, filename, onGoToDefinition, onFindReferences, onRenameSymbol]);
+
   const extensions = useMemo(() => {
     const indentStr = indentationChar === "tabs" ? "\t" : " ".repeat(tabSize);
-    const ext = [
+
+    const autocompleteSources: ((ctx: CompletionContext) => Promise<{ from: number; options: Completion[]; validFor?: RegExp } | null>)[] = [];
+    if (hasLSP && lspClient && filename) {
+      autocompleteSources.push(createLSPCompletionSource(lspClient, filename));
+    }
+
+    const staticAutoComplete = getAutocompleteExtension(language, acceptSuggestionOnCommit);
+
+    const ext: Extension[] = [
       getLanguageExtension(language),
-      ...getAutocompleteExtension(language, acceptSuggestionOnCommit),
+      ...(hasLSP && autocompleteSources.length > 0
+        ? [autocompletion({ override: autocompleteSources })]
+        : staticAutoComplete),
       replitTheme,
       ...(semanticTokens ? [syntaxHighlighting(replitHighlight)] : []),
       indentUnit.of(indentStr),
@@ -1220,6 +1608,8 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       search({ top: true }),
       keymap.of(searchKeymap),
       ...collabExtension,
+      ...lspExtensions,
+      ...lspDocSync,
     ];
     if (showBlame) ext.push(blameGutter);
     if (wordWrap) ext.push(EditorView.lineWrapping);
@@ -1230,7 +1620,7 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       ext.push(EditorView.mouseSelectionStyle.of(() => null));
     }
     return ext;
-  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, indentationChar, multiselectModifier, semanticTokens, formatPastedText, acceptSuggestionOnCommit, collabExtension]);
+  }, [language, readOnly, cursorTracker, tabSize, wordWrap, showBlame, aiCompletions, indentationChar, multiselectModifier, semanticTokens, formatPastedText, acceptSuggestionOnCommit, collabExtension, lspExtensions, lspDocSync, hasLSP]);
 
   useEffect(() => {
     const view = editorRef.current?.view;
@@ -1269,4 +1659,6 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
     />
   );
 }
+
+export { setLSPDiagnosticsEffect, lspDiagnosticsField };
 

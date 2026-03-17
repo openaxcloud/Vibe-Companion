@@ -50,6 +50,7 @@ import { generateFile, getMimeType, type FileGenerationInput, type FileSection }
 import PDFDocument from "pdfkit";
 import * as fs from "fs";
 import { importFromGitHub, importFromZip, importFromFigma, importFromVercel, importFromBolt, importFromLovable, validateImportSource, startAsyncImport, startAsyncZipImport, getImportJob, validateZipBuffer, fetchFigmaDesignContext } from "./importService";
+import { handleLSPConnection } from "./lspBridge";
 
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
@@ -10597,6 +10598,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
   const wss = new WebSocketServer({ noServer: true });
   const terminalWss = new WebSocketServer({ noServer: true });
   const collabWss = new WebSocketServer({ noServer: true });
+  const lspWss = new WebSocketServer({ noServer: true });
 
   setFilePersister(async (fileId: string, content: string) => {
     try {
@@ -10697,7 +10699,37 @@ Based on the search results above, provide a comprehensive answer to the user's 
           socket.destroy();
         });
       });
+    } else if (pathname === "/ws/lsp") {
+      sessionMiddleware(req, {} as any, () => {
+        const url = new URL(req.url || "/", `http://${req.headers.host}`);
+        const projectId = url.searchParams.get("projectId");
+        if (!req.session?.userId || !projectId) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        storage.getProject(projectId).then(async (project) => {
+          if (!project || !(await canAccessProject(req.session.userId, project))) {
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          lspWss.handleUpgrade(req, socket, head, (ws) => {
+            lspWss.emit("connection", ws, req);
+          });
+        }).catch(() => {
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+        });
+      });
     }
+  });
+
+  lspWss.on("connection", (ws: WebSocket, req) => {
+    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    const projectId = url.searchParams.get("projectId") || "";
+    const userId = req.session?.userId || "";
+    handleLSPConnection(ws, projectId, userId);
   });
 
   wss.on("connection", (ws: WebSocket & { isAlive?: boolean; __userId?: string }, req) => {
