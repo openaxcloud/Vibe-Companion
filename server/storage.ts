@@ -1,4 +1,4 @@
-import { eq, desc, and, or, sql, inArray, notInArray, count, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, notInArray, count, gte, lte, like, type SQL } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
@@ -11,7 +11,7 @@ import {
   customDomains, purchasedDomains, dnsRecords, planConfigs,
   securityScans, securityFindings,
   projectCollaborators, projectInviteLinks,
-  storageKv, storageObjects, storageBandwidth,
+  storageKv, storageObjects, storageBandwidth, storageBuckets, bucketAccess,
   projectAuthConfig, projectAuthUsers,
   integrationCatalog, projectIntegrations, integrationLogs, userConnections, oauthStates,
   automations, automationRuns,
@@ -61,6 +61,8 @@ import {
   type ProjectInviteLink, type InsertProjectInviteLink,
   type StorageKv, type InsertStorageKv,
   type StorageObject, type InsertStorageObject,
+  type StorageBucket, type InsertStorageBucket,
+  type BucketAccess, type InsertBucketAccess,
   type ProjectAuthConfig,
   type LoginHistory,
   loginHistory,
@@ -417,9 +419,28 @@ export interface IStorage {
   getStorageObject(id: string): Promise<StorageObject | undefined>;
   createStorageObject(data: InsertStorageObject): Promise<StorageObject>;
   deleteStorageObject(id: string): Promise<boolean>;
-  getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }>;
+  getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number; planLimit: number; bucketUsage: Array<{ bucketId: string; bucketName: string; objectCount: number; sizeBytes: number }> }>;
   trackBandwidth(projectId: string, bytes: number): Promise<void>;
   getProjectBandwidth(projectId: string): Promise<{ bytesDownloaded: number; downloadCount: number; periodStart: string; periodEnd: string }>;
+
+  createBucket(name: string, ownerUserId: string): Promise<StorageBucket>;
+  getBucket(id: string): Promise<StorageBucket | undefined>;
+  listBuckets(userId: string): Promise<StorageBucket[]>;
+  listProjectBuckets(projectId: string): Promise<StorageBucket[]>;
+  deleteBucket(id: string): Promise<boolean>;
+  renameBucket(id: string, newName: string): Promise<StorageBucket | undefined>;
+  grantBucketAccess(bucketId: string, projectId: string): Promise<BucketAccess>;
+  revokeBucketAccess(bucketId: string, projectId: string): Promise<boolean>;
+  getBucketAccessList(bucketId: string): Promise<BucketAccess[]>;
+  copyObject(objectId: string, destFolderPath: string, destFilename: string): Promise<StorageObject>;
+  moveObject(objectId: string, destFolderPath: string): Promise<StorageObject | undefined>;
+  objectExists(bucketId: string, folderPath: string, filename: string): Promise<boolean>;
+  listObjectsFiltered(bucketId: string, options: { prefix?: string; matchGlob?: string; maxResults?: number; startOffset?: number; endOffset?: number; folderPath?: string }): Promise<StorageObject[]>;
+  getObjectsByFolder(bucketId: string, folderPath: string): Promise<StorageObject[]>;
+  createFolder(bucketId: string, folderPath: string): Promise<StorageObject>;
+  deleteFolder(bucketId: string, folderPath: string): Promise<boolean>;
+  getOrCreateDefaultBucket(projectId: string, userId: string): Promise<StorageBucket>;
+  backfillStorageBuckets(): Promise<void>;
 
   getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined>;
   upsertProjectAuthConfig(projectId: string, data: Partial<{ enabled: boolean; providers: string[]; requireEmailVerification: boolean; sessionDurationHours: number; allowedDomains: string[]; appName: string | null; appIconUrl: string | null }>): Promise<ProjectAuthConfig>;
@@ -2490,14 +2511,50 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number }> {
+  async getProjectStorageUsage(projectId: string): Promise<{ kvCount: number; kvSizeBytes: number; objectCount: number; objectSizeBytes: number; totalBytes: number; planLimit: number; bucketUsage: Array<{ bucketId: string; bucketName: string; objectCount: number; sizeBytes: number }> }> {
     const kvEntries = await db.select().from(storageKv).where(eq(storageKv.projectId, projectId));
     const kvCount = kvEntries.length;
     const kvSizeBytes = kvEntries.reduce((sum, e) => sum + Buffer.byteLength(e.key + e.value, "utf-8"), 0);
-    const objects = await db.select().from(storageObjects).where(eq(storageObjects.projectId, projectId));
-    const objectCount = objects.length;
-    const objectSizeBytes = objects.reduce((sum, o) => sum + o.sizeBytes, 0);
-    return { kvCount, kvSizeBytes, objectCount, objectSizeBytes, totalBytes: kvSizeBytes + objectSizeBytes };
+
+    const projectBuckets = await this.listProjectBuckets(projectId);
+    const bucketIds = projectBuckets.map(b => b.id);
+
+    let allObjects: (typeof storageObjects.$inferSelect)[] = [];
+    if (bucketIds.length > 0) {
+      allObjects = await db.select().from(storageObjects).where(
+        and(
+          inArray(storageObjects.bucketId, bucketIds),
+          sql`${storageObjects.mimeType} != 'application/x-directory'`
+        )
+      );
+    }
+    const legacyObjects = await db.select().from(storageObjects).where(
+      and(
+        eq(storageObjects.projectId, projectId),
+        sql`${storageObjects.bucketId} IS NULL`,
+        sql`${storageObjects.mimeType} != 'application/x-directory'`
+      )
+    );
+    const combinedObjects = [...allObjects, ...legacyObjects];
+    const objectCount = combinedObjects.length;
+    const objectSizeBytes = combinedObjects.reduce((sum, o) => sum + o.sizeBytes, 0);
+
+    const project = await this.getProject(projectId);
+    let planLimit = 50 * 1024 * 1024;
+    if (project) {
+      const quota = await this.getUserQuota(project.userId);
+      const plan = (quota?.plan || "free") as "free" | "pro" | "team";
+      const { STORAGE_PLAN_LIMITS } = await import("@shared/schema");
+      const limits = STORAGE_PLAN_LIMITS[plan] || STORAGE_PLAN_LIMITS.free;
+      planLimit = limits.storageMb * 1024 * 1024;
+    }
+
+    const bucketUsage: Array<{ bucketId: string; bucketName: string; objectCount: number; sizeBytes: number }> = [];
+    for (const b of projectBuckets) {
+      const bucketObjs = allObjects.filter(o => o.bucketId === b.id);
+      bucketUsage.push({ bucketId: b.id, bucketName: b.name, objectCount: bucketObjs.length, sizeBytes: bucketObjs.reduce((s, o) => s + o.sizeBytes, 0) });
+    }
+    return { kvCount, kvSizeBytes, objectCount, objectSizeBytes, totalBytes: kvSizeBytes + objectSizeBytes, planLimit, bucketUsage };
   }
 
   async trackBandwidth(projectId: string, bytes: number): Promise<void> {
@@ -2553,6 +2610,215 @@ export class DatabaseStorage implements IStorage {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
     };
+  }
+
+  async createBucket(name: string, ownerUserId: string): Promise<StorageBucket> {
+    const [bucket] = await db.insert(storageBuckets).values({ name, ownerUserId }).returning();
+    return bucket;
+  }
+
+  async getBucket(id: string): Promise<StorageBucket | undefined> {
+    const [bucket] = await db.select().from(storageBuckets).where(eq(storageBuckets.id, id)).limit(1);
+    return bucket;
+  }
+
+  async listBuckets(userId: string): Promise<StorageBucket[]> {
+    return db.select().from(storageBuckets).where(eq(storageBuckets.ownerUserId, userId)).orderBy(desc(storageBuckets.createdAt));
+  }
+
+  async listProjectBuckets(projectId: string): Promise<StorageBucket[]> {
+    const accessRows = await db.select().from(bucketAccess).where(eq(bucketAccess.projectId, projectId));
+    if (accessRows.length === 0) return [];
+    const bucketIds = accessRows.map(a => a.bucketId);
+    return db.select().from(storageBuckets).where(inArray(storageBuckets.id, bucketIds)).orderBy(desc(storageBuckets.createdAt));
+  }
+
+  async deleteBucket(id: string): Promise<boolean> {
+    const objects = await db.select().from(storageObjects).where(eq(storageObjects.bucketId, id));
+    const { unlink, rm } = await import("fs/promises");
+    for (const obj of objects) {
+      try { await unlink(obj.storagePath); } catch {}
+    }
+    await db.delete(storageObjects).where(eq(storageObjects.bucketId, id));
+    await db.delete(bucketAccess).where(eq(bucketAccess.bucketId, id));
+    const result = await db.delete(storageBuckets).where(eq(storageBuckets.id, id)).returning();
+    const bucketDir = (await import("path")).join(process.cwd(), ".storage", "buckets", id);
+    try { await rm(bucketDir, { recursive: true, force: true }); } catch {}
+    return result.length > 0;
+  }
+
+  async renameBucket(id: string, newName: string): Promise<StorageBucket | undefined> {
+    const [bucket] = await db.update(storageBuckets).set({ name: newName }).where(eq(storageBuckets.id, id)).returning();
+    return bucket;
+  }
+
+  async grantBucketAccess(bucketId: string, projectId: string): Promise<BucketAccess> {
+    const existing = await db.select().from(bucketAccess).where(and(eq(bucketAccess.bucketId, bucketId), eq(bucketAccess.projectId, projectId))).limit(1);
+    if (existing.length > 0) return existing[0];
+    const [access] = await db.insert(bucketAccess).values({ bucketId, projectId }).returning();
+    return access;
+  }
+
+  async revokeBucketAccess(bucketId: string, projectId: string): Promise<boolean> {
+    const result = await db.delete(bucketAccess).where(and(eq(bucketAccess.bucketId, bucketId), eq(bucketAccess.projectId, projectId))).returning();
+    return result.length > 0;
+  }
+
+  async getBucketAccessList(bucketId: string): Promise<BucketAccess[]> {
+    return db.select().from(bucketAccess).where(eq(bucketAccess.bucketId, bucketId));
+  }
+
+  async copyObject(objectId: string, destFolderPath: string, destFilename: string): Promise<StorageObject> {
+    const obj = await this.getStorageObject(objectId);
+    if (!obj) throw new Error("Object not found");
+    const { copyFile, mkdir } = await import("fs/promises");
+    const path = await import("path");
+    const destDir = path.join(process.cwd(), ".storage", "buckets", obj.bucketId || "default", destFolderPath);
+    await mkdir(destDir, { recursive: true });
+    const safeName = destFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const destPath = path.join(destDir, `${Date.now()}_${safeName}`);
+    await copyFile(obj.storagePath, destPath);
+    const [newObj] = await db.insert(storageObjects).values({
+      projectId: obj.projectId,
+      bucketId: obj.bucketId,
+      folderPath: destFolderPath,
+      filename: destFilename,
+      mimeType: obj.mimeType,
+      sizeBytes: obj.sizeBytes,
+      storagePath: destPath,
+    }).returning();
+    return newObj;
+  }
+
+  async moveObject(objectId: string, destFolderPath: string): Promise<StorageObject | undefined> {
+    const obj = await this.getStorageObject(objectId);
+    if (!obj) return undefined;
+    const { rename, mkdir } = await import("fs/promises");
+    const path = await import("path");
+    const destDir = path.join(process.cwd(), ".storage", "buckets", obj.bucketId || "default", destFolderPath);
+    await mkdir(destDir, { recursive: true });
+    const basename = path.basename(obj.storagePath);
+    const destPath = path.join(destDir, basename);
+    try { await rename(obj.storagePath, destPath); } catch {
+      const { copyFile, unlink } = await import("fs/promises");
+      await copyFile(obj.storagePath, destPath);
+      try { await unlink(obj.storagePath); } catch {}
+    }
+    const [updated] = await db.update(storageObjects).set({ folderPath: destFolderPath, storagePath: destPath }).where(eq(storageObjects.id, objectId)).returning();
+    return updated;
+  }
+
+  async objectExists(bucketId: string, folderPath: string, filename: string): Promise<boolean> {
+    const [obj] = await db.select().from(storageObjects).where(and(
+      eq(storageObjects.bucketId, bucketId),
+      eq(storageObjects.folderPath, folderPath),
+      eq(storageObjects.filename, filename)
+    )).limit(1);
+    return !!obj;
+  }
+
+  async listObjectsFiltered(bucketId: string, options: { prefix?: string; matchGlob?: string; maxResults?: number; startOffset?: number; endOffset?: number; folderPath?: string }): Promise<StorageObject[]> {
+    const conditions: SQL[] = [eq(storageObjects.bucketId, bucketId)];
+    if (options.folderPath !== undefined) {
+      conditions.push(eq(storageObjects.folderPath, options.folderPath));
+    }
+    if (options.prefix) {
+      conditions.push(like(storageObjects.filename, `${options.prefix}%`));
+    }
+
+    let query = db.select().from(storageObjects)
+      .where(and(...conditions))
+      .orderBy(storageObjects.filename);
+
+    const start = options.startOffset || 0;
+    if (start > 0) {
+      query = query.offset(start) as typeof query;
+    }
+    const limit = options.maxResults || (options.endOffset ? options.endOffset - start : undefined);
+    if (limit) {
+      query = query.limit(limit) as typeof query;
+    }
+
+    let results = await query;
+
+    if (options.matchGlob) {
+      const globToRegex = (glob: string) => new RegExp("^" + glob.replace(/\*/g, ".*").replace(/\?/g, ".") + "$");
+      const re = globToRegex(options.matchGlob);
+      results = results.filter(o => re.test(o.filename));
+    }
+
+    return results;
+  }
+
+  async getObjectsByFolder(bucketId: string, folderPath: string): Promise<StorageObject[]> {
+    return db.select().from(storageObjects).where(and(
+      eq(storageObjects.bucketId, bucketId),
+      eq(storageObjects.folderPath, folderPath)
+    )).orderBy(storageObjects.filename);
+  }
+
+  async createFolder(bucketId: string, folderPath: string): Promise<StorageObject> {
+    const { mkdir } = await import("fs/promises");
+    const path = await import("path");
+    const dirPath = path.join(process.cwd(), ".storage", "buckets", bucketId, folderPath);
+    await mkdir(dirPath, { recursive: true });
+    const parentFolder = folderPath.includes("/") ? folderPath.substring(0, folderPath.lastIndexOf("/")) : "";
+    const folderName = folderPath.includes("/") ? folderPath.substring(folderPath.lastIndexOf("/") + 1) : folderPath;
+    const [obj] = await db.insert(storageObjects).values({
+      projectId: "__folder__",
+      bucketId,
+      folderPath: parentFolder,
+      filename: folderName,
+      mimeType: "application/x-directory",
+      sizeBytes: 0,
+      storagePath: dirPath,
+    }).returning();
+    return obj;
+  }
+
+  async deleteFolder(bucketId: string, folderPath: string): Promise<boolean> {
+    const allObjects = await db.select().from(storageObjects).where(eq(storageObjects.bucketId, bucketId));
+    const { unlink, rm } = await import("fs/promises");
+    const path = await import("path");
+    const toDelete = allObjects.filter(o =>
+      o.folderPath === folderPath ||
+      o.folderPath.startsWith(folderPath + "/") ||
+      (o.mimeType === "application/x-directory" && o.folderPath === (folderPath.includes("/") ? folderPath.substring(0, folderPath.lastIndexOf("/")) : "") && o.filename === (folderPath.includes("/") ? folderPath.substring(folderPath.lastIndexOf("/") + 1) : folderPath))
+    );
+    for (const obj of toDelete) {
+      if (obj.mimeType !== "application/x-directory") {
+        try { await unlink(obj.storagePath); } catch {}
+      }
+      await db.delete(storageObjects).where(eq(storageObjects.id, obj.id));
+    }
+    const dirPath = path.join(process.cwd(), ".storage", "buckets", bucketId, folderPath);
+    try { await rm(dirPath, { recursive: true, force: true }); } catch {}
+    return toDelete.length > 0;
+  }
+
+  async getOrCreateDefaultBucket(projectId: string, userId: string): Promise<StorageBucket> {
+    const projectBuckets = await this.listProjectBuckets(projectId);
+    if (projectBuckets.length > 0) return projectBuckets[0];
+    const bucket = await this.createBucket("default", userId);
+    await this.grantBucketAccess(bucket.id, projectId);
+    return bucket;
+  }
+
+  async backfillStorageBuckets(): Promise<void> {
+    const orphanObjects = await db.select().from(storageObjects).where(
+      sql`${storageObjects.bucketId} IS NULL`
+    );
+    if (orphanObjects.length === 0) return;
+    const projectIds = [...new Set(orphanObjects.map(o => o.projectId))];
+    for (const pid of projectIds) {
+      if (pid === "__folder__") continue;
+      const project = await this.getProject(pid);
+      if (!project) continue;
+      const bucket = await this.getOrCreateDefaultBucket(pid, project.userId);
+      await db.update(storageObjects).set({ bucketId: bucket.id }).where(
+        and(eq(storageObjects.projectId, pid), sql`${storageObjects.bucketId} IS NULL`)
+      );
+    }
   }
 
   async getProjectAuthConfig(projectId: string): Promise<ProjectAuthConfig | undefined> {

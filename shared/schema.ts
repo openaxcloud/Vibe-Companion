@@ -687,6 +687,11 @@ export const UPLOAD_LIMITS = {
   objectStorage: 10 * 1024 * 1024,
   projectFiles: 2 * 1024 * 1024,
   maxProjectFiles: 10,
+  objectStorageByPlan: {
+    free: 10 * 1024 * 1024,
+    pro: 50 * 1024 * 1024,
+    team: 100 * 1024 * 1024,
+  },
 } as const;
 
 export const PLAN_LIMITS = {
@@ -1199,9 +1204,40 @@ export const insertStorageKvSchema = createInsertSchema(storageKv).pick({
 export type InsertStorageKv = z.infer<typeof insertStorageKvSchema>;
 export type StorageKv = typeof storageKv.$inferSelect;
 
+export const storageBuckets = pgTable("storage_buckets", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  ownerUserId: varchar("owner_user_id", { length: 36 }).notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertStorageBucketSchema = createInsertSchema(storageBuckets).pick({
+  name: true,
+  ownerUserId: true,
+});
+export type InsertStorageBucket = z.infer<typeof insertStorageBucketSchema>;
+export type StorageBucket = typeof storageBuckets.$inferSelect;
+
+export const bucketAccess = pgTable("bucket_access", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  bucketId: varchar("bucket_id", { length: 36 }).notNull().references(() => storageBuckets.id, { onDelete: "cascade" }),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  grantedAt: timestamp("granted_at").notNull().defaultNow(),
+}, (table) => [
+  index("bucket_access_bucket_idx").on(table.bucketId),
+  index("bucket_access_project_idx").on(table.projectId),
+]);
+export const insertBucketAccessSchema = createInsertSchema(bucketAccess).pick({
+  bucketId: true,
+  projectId: true,
+});
+export type InsertBucketAccess = z.infer<typeof insertBucketAccessSchema>;
+export type BucketAccess = typeof bucketAccess.$inferSelect;
+
 export const storageObjects = pgTable("storage_objects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
+  bucketId: varchar("bucket_id", { length: 36 }).references(() => storageBuckets.id),
+  folderPath: text("folder_path").notNull().default(""),
   filename: text("filename").notNull(),
   mimeType: text("mime_type").notNull(),
   sizeBytes: integer("size_bytes").notNull(),
@@ -1209,9 +1245,12 @@ export const storageObjects = pgTable("storage_objects", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("storage_objects_project_idx").on(table.projectId),
-])
+  index("storage_objects_bucket_idx").on(table.bucketId),
+]);
 export const insertStorageObjectSchema = createInsertSchema(storageObjects).pick({
   projectId: true,
+  bucketId: true,
+  folderPath: true,
   filename: true,
   mimeType: true,
   sizeBytes: true,

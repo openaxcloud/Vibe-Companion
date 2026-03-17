@@ -99,6 +99,13 @@
       "when": 1774040000000,
       "tag": "0014_ai_credentials_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1774050000000,
+      "tag": "0015_storage_buckets_v2",
+      "breakpoints": true
     }
   ]
 }

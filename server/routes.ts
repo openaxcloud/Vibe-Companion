@@ -14170,168 +14170,643 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   // --- APP STORAGE: KEY-VALUE ---
   app.get("/api/projects/:id/storage/kv", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const entries = await storage.getStorageKvEntries(req.params.id);
       res.json(entries);
     } catch {
-      res.status(500).json({ message: "Failed to fetch KV entries" });
+      res.status(500).json({ error: "Failed to fetch KV entries", code: "INTERNAL_ERROR" });
     }
   });
 
   app.put("/api/projects/:id/storage/kv", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const { key, value } = req.body;
       if (!key || typeof key !== "string" || typeof value !== "string") {
-        return res.status(400).json({ message: "Key and value are required strings" });
+        return res.status(400).json({ error: "Key and value are required strings", code: "INVALID_INPUT" });
       }
-      if (key.length > 256) return res.status(400).json({ message: "Key too long (max 256 chars)" });
-      if (value.length > 65536) return res.status(400).json({ message: "Value too long (max 64KB)" });
+      if (key.length > 256) return res.status(400).json({ error: "Key too long (max 256 chars)", code: "INVALID_INPUT" });
+      if (value.length > 65536) return res.status(400).json({ error: "Value too long (max 64KB)", code: "INVALID_INPUT" });
       const entry = await storage.setStorageKvEntry(req.params.id, key, value);
       res.json(entry);
-    } catch (err: any) {
-      res.status(500).json({ message: "Failed to set KV entry" });
+    } catch {
+      res.status(500).json({ error: "Failed to set KV entry", code: "INTERNAL_ERROR" });
     }
   });
 
   app.delete("/api/projects/:id/storage/kv/:key", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const key = decodeURIComponent(req.params.key);
       const deleted = await storage.deleteStorageKvEntry(req.params.id, key);
-      if (!deleted) return res.status(404).json({ message: "Key not found" });
+      if (!deleted) return res.status(404).json({ error: "Key not found", code: "NOT_FOUND" });
       res.json({ message: "Deleted" });
     } catch {
-      res.status(500).json({ message: "Failed to delete KV entry" });
+      res.status(500).json({ error: "Failed to delete KV entry", code: "INTERNAL_ERROR" });
     }
   });
 
   // --- APP STORAGE: OBJECTS ---
   const PERSISTENT_STORAGE_DIR = path.join(process.cwd(), ".storage", "objects");
+  const BUCKET_STORAGE_DIR = path.join(process.cwd(), ".storage", "buckets");
   const STORAGE_UPLOAD_TEMP = path.join(process.cwd(), ".storage", "tmp");
-  const storageUpload = multer({
-    dest: STORAGE_UPLOAD_TEMP,
-    limits: { fileSize: UPLOAD_LIMITS.objectStorage },
+  function getUploadLimitForPlan(plan: string): number {
+    const planKey = plan as keyof typeof UPLOAD_LIMITS.objectStorageByPlan;
+    return UPLOAD_LIMITS.objectStorageByPlan[planKey] || UPLOAD_LIMITS.objectStorageByPlan.free;
+  }
+
+  const maxUploadLimit = Math.max(...Object.values(UPLOAD_LIMITS.objectStorageByPlan));
+  const storageUpload = multer({ dest: STORAGE_UPLOAD_TEMP, limits: { fileSize: maxUploadLimit } });
+  const storageMultiUpload = multer({ dest: STORAGE_UPLOAD_TEMP, limits: { fileSize: maxUploadLimit, files: 50 } });
+
+  async function getProjectUploadLimit(projectId: string): Promise<number> {
+    const project = await storage.getProject(projectId);
+    if (!project) return UPLOAD_LIMITS.objectStorageByPlan.free;
+    const user = await storage.getUser(project.userId);
+    if (!user) return UPLOAD_LIMITS.objectStorageByPlan.free;
+    return getUploadLimitForPlan(user.plan || "free");
+  }
+
+  async function validateFileSizeForPlan(req: Request, res: Response, files: Express.Multer.File[]): Promise<boolean> {
+    const limit = await getProjectUploadLimit(req.params.id);
+    const oversized = files.filter(f => f.size > limit);
+    if (oversized.length > 0) {
+      const { unlink } = await import("fs/promises");
+      for (const f of files) {
+        try { await unlink(f.path); } catch {}
+      }
+      res.status(413).json({
+        error: `File size exceeds plan limit of ${Math.round(limit / 1024 / 1024)}MB`,
+        code: "FILE_TOO_LARGE",
+        maxBytes: limit,
+      });
+      return false;
+    }
+    return true;
+  }
+
+  function sanitizeFolderPath(fp: string): string {
+    const normalized = path.posix.normalize(fp).replace(/\\/g, "/");
+    if (normalized.startsWith("/") || normalized.includes("..")) return "";
+    return normalized.replace(/^\.\//, "").replace(/\/$/, "");
+  }
+
+  async function verifyBucketAccess(bucketId: string, projectId: string): Promise<boolean> {
+    const buckets = await storage.listProjectBuckets(projectId);
+    return buckets.some(b => b.id === bucketId);
+  }
+
+  async function verifyBucketOwnership(bucketId: string, userId: string): Promise<boolean> {
+    const bucket = await storage.getBucket(bucketId);
+    if (!bucket) return false;
+    return bucket.ownerUserId === userId;
+  }
+
+  // --- BUCKET MANAGEMENT ---
+  app.post("/api/projects/:id/storage/buckets", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || name.trim().length === 0) return res.status(400).json({ error: "Bucket name is required", code: "INVALID_INPUT" });
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ error: "Project not found", code: "PROJECT_NOT_FOUND" });
+      const bucket = await storage.createBucket(name.trim(), project.userId);
+      await storage.grantBucketAccess(bucket.id, req.params.id);
+      res.json(bucket);
+    } catch {
+      res.status(500).json({ error: "Failed to create bucket", code: "INTERNAL_ERROR" });
+    }
   });
 
+  app.get("/api/projects/:id/storage/buckets", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      const buckets = await storage.listProjectBuckets(req.params.id);
+      res.json(buckets);
+    } catch {
+      res.status(500).json({ error: "Failed to list buckets", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/buckets/owned", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      const allBuckets = await storage.listBuckets(req.session.userId!);
+      const projectBuckets = await storage.listProjectBuckets(req.params.id);
+      const projectBucketIds = new Set(projectBuckets.map(b => b.id));
+      const unlinked = allBuckets.filter(b => !projectBucketIds.has(b.id));
+      res.json(unlinked);
+    } catch {
+      res.status(500).json({ error: "Failed to list owned buckets", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/buckets/:bucketId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible to this project", code: "FORBIDDEN" });
+      const bucket = await storage.getBucket(req.params.bucketId);
+      if (!bucket) return res.status(404).json({ error: "Bucket not found", code: "BUCKET_NOT_FOUND" });
+      const accessList = await storage.getBucketAccessList(bucket.id);
+      res.json({ ...bucket, accessList });
+    } catch {
+      res.status(500).json({ error: "Failed to get bucket", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.delete("/api/projects/:id/storage/buckets/:bucketId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketOwnership(req.params.bucketId, req.session.userId!)) return res.status(403).json({ error: "Only bucket owner can delete", code: "FORBIDDEN" });
+      await storage.deleteBucket(req.params.bucketId);
+      res.json({ message: "Bucket deleted" });
+    } catch {
+      res.status(500).json({ error: "Failed to delete bucket", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.put("/api/projects/:id/storage/buckets/:bucketId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketOwnership(req.params.bucketId, req.session.userId!)) return res.status(403).json({ error: "Only bucket owner can rename", code: "FORBIDDEN" });
+      const { name } = req.body;
+      if (!name || typeof name !== "string") return res.status(400).json({ error: "Name is required", code: "INVALID_INPUT" });
+      const bucket = await storage.renameBucket(req.params.bucketId, name.trim());
+      if (!bucket) return res.status(404).json({ error: "Bucket not found", code: "BUCKET_NOT_FOUND" });
+      res.json(bucket);
+    } catch {
+      res.status(500).json({ error: "Failed to rename bucket", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/grant", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketOwnership(req.params.bucketId, req.session.userId!)) return res.status(403).json({ error: "Only bucket owner can grant access", code: "FORBIDDEN" });
+      const { projectId } = req.body;
+      if (!projectId) return res.status(400).json({ error: "projectId is required", code: "INVALID_INPUT" });
+      const access = await storage.grantBucketAccess(req.params.bucketId, projectId);
+      res.json(access);
+    } catch {
+      res.status(500).json({ error: "Failed to grant access", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/revoke", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      const { projectId: targetProjectId } = req.body;
+      if (!targetProjectId) return res.status(400).json({ error: "projectId is required", code: "INVALID_INPUT" });
+      if (targetProjectId === req.params.id) {
+        await storage.revokeBucketAccess(req.params.bucketId, targetProjectId);
+        return res.json({ message: "Access revoked" });
+      }
+      if (!await verifyBucketOwnership(req.params.bucketId, req.session.userId!)) {
+        return res.status(403).json({ error: "Only bucket owner can revoke other projects' access", code: "FORBIDDEN" });
+      }
+      await storage.revokeBucketAccess(req.params.bucketId, targetProjectId);
+      res.json({ message: "Access revoked" });
+    } catch {
+      res.status(500).json({ error: "Failed to revoke access", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/add-existing", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      const { bucketId } = req.body;
+      if (!bucketId) return res.status(400).json({ error: "bucketId is required", code: "INVALID_INPUT" });
+      const bucket = await storage.getBucket(bucketId);
+      if (!bucket) return res.status(404).json({ error: "Bucket not found", code: "BUCKET_NOT_FOUND" });
+      if (bucket.ownerUserId !== req.session.userId!) return res.status(403).json({ error: "Only bucket owner can add it to projects", code: "FORBIDDEN" });
+      const access = await storage.grantBucketAccess(bucketId, req.params.id);
+      res.json({ bucket, access });
+    } catch {
+      res.status(500).json({ error: "Failed to add bucket", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  // --- BUCKET OBJECT OPERATIONS ---
+  app.get("/api/projects/:id/storage/buckets/:bucketId/objects", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const { prefix, match_glob, max_results, start_offset, end_offset, folder_path } = req.query;
+      const fp = folder_path !== undefined ? sanitizeFolderPath(folder_path as string) : undefined;
+      const objects = await storage.listObjectsFiltered(req.params.bucketId, {
+        prefix: prefix as string | undefined,
+        matchGlob: match_glob as string | undefined,
+        maxResults: max_results ? parseInt(max_results as string) : undefined,
+        startOffset: start_offset ? parseInt(start_offset as string) : undefined,
+        endOffset: end_offset ? parseInt(end_offset as string) : undefined,
+        folderPath: fp,
+      });
+      res.json(objects);
+    } catch {
+      res.status(500).json({ error: "Failed to list objects", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/objects/upload", requireAuth, storageMultiUpload.array("files", 20), async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const uploadedFiles = req.files as Express.Multer.File[] || [];
+      if (uploadedFiles.length === 0) return res.status(400).json({ error: "No files uploaded", code: "INVALID_INPUT" });
+      if (!await validateFileSizeForPlan(req, res, uploadedFiles)) return;
+
+      const projectId = req.params.id;
+      const bucketId = req.params.bucketId;
+      const folderPath = sanitizeFolderPath((req.body.folderPath as string) || "");
+
+      const currentUsage = await storage.getProjectStorageUsage(projectId);
+      const totalNewSize = uploadedFiles.reduce((sum, f) => sum + f.size, 0);
+      if (currentUsage.totalBytes + totalNewSize > currentUsage.planLimit) {
+        const { unlink: unlinkFile } = await import("fs/promises");
+        for (const f of uploadedFiles) { try { await unlinkFile(f.path); } catch {} }
+        return res.status(413).json({ error: "Storage quota exceeded", code: "STORAGE_LIMIT_EXCEEDED" });
+      }
+
+      const { mkdir, rename } = await import("fs/promises");
+      const storageDir = path.join(BUCKET_STORAGE_DIR, bucketId, folderPath);
+      await mkdir(storageDir, { recursive: true });
+      const results = [];
+      for (const file of uploadedFiles) {
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".");
+        const storagePath = path.join(storageDir, `${Date.now()}_${safeName}`);
+        await rename(file.path, storagePath);
+        const obj = await storage.createStorageObject({
+          projectId, bucketId, folderPath,
+          filename: file.originalname,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+          storagePath,
+        });
+        results.push(obj);
+      }
+      res.json(results);
+    } catch {
+      res.status(500).json({ error: "Upload failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/objects/upload-folder", requireAuth, storageMultiUpload.array("files", 50), async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const uploadedFiles = req.files as Express.Multer.File[] || [];
+      if (uploadedFiles.length === 0) return res.status(400).json({ error: "No files uploaded", code: "INVALID_INPUT" });
+      if (!await validateFileSizeForPlan(req, res, uploadedFiles)) return;
+
+      const projectId = req.params.id;
+      const bucketId = req.params.bucketId;
+
+      const currentUsage = await storage.getProjectStorageUsage(projectId);
+      const totalNewSize = uploadedFiles.reduce((sum, f) => sum + f.size, 0);
+      if (currentUsage.totalBytes + totalNewSize > currentUsage.planLimit) {
+        const { unlink: unlinkFile } = await import("fs/promises");
+        for (const f of uploadedFiles) { try { await unlinkFile(f.path); } catch {} }
+        return res.status(413).json({ error: "Storage quota exceeded", code: "STORAGE_LIMIT_EXCEEDED" });
+      }
+
+      const { mkdir, rename } = await import("fs/promises");
+      const results = [];
+      const relativePaths = req.body.relativePaths ? (Array.isArray(req.body.relativePaths) ? req.body.relativePaths : [req.body.relativePaths]) : [];
+
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        const relativePath = relativePaths[i] || file.originalname;
+        const parts = relativePath.split("/");
+        const filename = parts.pop() || file.originalname;
+        const folderPath = sanitizeFolderPath(parts.join("/"));
+
+        const storageDir = path.join(BUCKET_STORAGE_DIR, bucketId, folderPath);
+        await mkdir(storageDir, { recursive: true });
+        const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".");
+        const storagePath = path.join(storageDir, `${Date.now()}_${safeName}`);
+        await rename(file.path, storagePath);
+        const obj = await storage.createStorageObject({
+          projectId, bucketId, folderPath,
+          filename, mimeType: file.mimetype, sizeBytes: file.size, storagePath,
+        });
+        results.push(obj);
+      }
+      res.json(results);
+    } catch {
+      res.status(500).json({ error: "Folder upload failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/objects/upload-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const { objectName, contents, folderPath: fp } = req.body;
+      if (!objectName || typeof contents !== "string") return res.status(400).json({ error: "objectName and contents are required", code: "INVALID_INPUT" });
+      const folderPath = sanitizeFolderPath(fp || "");
+
+      const currentUsage = await storage.getProjectStorageUsage(req.params.id);
+      const sizeBytes = Buffer.byteLength(contents, "utf-8");
+      if (currentUsage.totalBytes + sizeBytes > currentUsage.planLimit) {
+        return res.status(413).json({ error: "Storage quota exceeded", code: "STORAGE_LIMIT_EXCEEDED" });
+      }
+
+      const { mkdir, writeFile } = await import("fs/promises");
+      const storageDir = path.join(BUCKET_STORAGE_DIR, req.params.bucketId, folderPath);
+      await mkdir(storageDir, { recursive: true });
+      const safeName = objectName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = path.join(storageDir, `${Date.now()}_${safeName}`);
+      await writeFile(storagePath, contents, "utf-8");
+      const obj = await storage.createStorageObject({
+        projectId: req.params.id, bucketId: req.params.bucketId, folderPath,
+        filename: objectName, mimeType: "text/plain", sizeBytes, storagePath,
+      });
+      res.json(obj);
+    } catch {
+      res.status(500).json({ error: "Text upload failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/objects/upload-bytes", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const { objectName, contents, folderPath: fp } = req.body;
+      if (!objectName || typeof contents !== "string") return res.status(400).json({ error: "objectName and base64 contents are required", code: "INVALID_INPUT" });
+      const folderPath = sanitizeFolderPath(fp || "");
+
+      const buffer = Buffer.from(contents, "base64");
+      const currentUsage = await storage.getProjectStorageUsage(req.params.id);
+      if (currentUsage.totalBytes + buffer.length > currentUsage.planLimit) {
+        return res.status(413).json({ error: "Storage quota exceeded", code: "STORAGE_LIMIT_EXCEEDED" });
+      }
+
+      const { mkdir, writeFile } = await import("fs/promises");
+      const storageDir = path.join(BUCKET_STORAGE_DIR, req.params.bucketId, folderPath);
+      await mkdir(storageDir, { recursive: true });
+      const safeName = objectName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = path.join(storageDir, `${Date.now()}_${safeName}`);
+      await writeFile(storagePath, buffer);
+      const obj = await storage.createStorageObject({
+        projectId: req.params.id, bucketId: req.params.bucketId, folderPath,
+        filename: objectName, mimeType: "application/octet-stream", sizeBytes: buffer.length, storagePath,
+      });
+      res.json(obj);
+    } catch {
+      res.status(500).json({ error: "Bytes upload failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/buckets/:bucketId/objects/:objId/download", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const obj = await storage.getStorageObject(req.params.objId);
+      if (!obj || obj.bucketId !== req.params.bucketId) return res.status(404).json({ error: "Object not found", code: "OBJECT_NOT_FOUND" });
+
+      const { createReadStream } = await import("fs");
+      const { stat, readFile } = await import("fs/promises");
+      try { await stat(obj.storagePath); } catch { return res.status(404).json({ error: "File not found on disk", code: "OBJECT_NOT_FOUND" }); }
+
+      const mode = req.query.mode as string;
+      storage.trackBandwidth(req.params.id, obj.sizeBytes).catch(() => {});
+
+      if (mode === "text") {
+        const content = await readFile(obj.storagePath, "utf-8");
+        res.setHeader("Content-Type", "text/plain");
+        return res.send(content);
+      }
+      if (mode === "bytes") {
+        const buffer = await readFile(obj.storagePath);
+        res.setHeader("Content-Type", "application/octet-stream");
+        return res.send(buffer);
+      }
+      if (mode === "stream") {
+        res.setHeader("Content-Type", obj.mimeType);
+        res.setHeader("Transfer-Encoding", "chunked");
+        return createReadStream(obj.storagePath).pipe(res);
+      }
+
+      res.setHeader("Content-Type", obj.mimeType);
+      const encodedFilename = encodeURIComponent(obj.filename).replace(/'/g, "%27");
+      res.setHeader("Content-Disposition", `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
+      createReadStream(obj.storagePath).pipe(res);
+    } catch {
+      res.status(500).json({ error: "Download failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/objects/:objId/copy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const srcObj = await storage.getStorageObject(req.params.objId);
+      if (!srcObj || srcObj.bucketId !== req.params.bucketId) return res.status(404).json({ error: "Object not found in this bucket", code: "OBJECT_NOT_FOUND" });
+      const { destObjectName, destFolderPath } = req.body;
+      if (!destObjectName) return res.status(400).json({ error: "destObjectName is required", code: "INVALID_INPUT" });
+      const currentUsage = await storage.getProjectStorageUsage(req.params.id);
+      if (currentUsage.totalBytes + srcObj.sizeBytes > currentUsage.planLimit) {
+        return res.status(413).json({ error: "Storage quota exceeded", code: "STORAGE_LIMIT_EXCEEDED" });
+      }
+      const copied = await storage.copyObject(req.params.objId, sanitizeFolderPath(destFolderPath || ""), destObjectName);
+      res.json(copied);
+    } catch {
+      res.status(500).json({ error: "Copy failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.get("/api/projects/:id/storage/buckets/:bucketId/objects/exists/:objectName", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const folderPath = sanitizeFolderPath((req.query.folder_path as string) || "");
+      const exists = await storage.objectExists(req.params.bucketId, folderPath, decodeURIComponent(req.params.objectName));
+      res.json({ exists });
+    } catch {
+      res.status(500).json({ error: "Check failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.delete("/api/projects/:id/storage/buckets/:bucketId/objects/:objId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const obj = await storage.getStorageObject(req.params.objId);
+      if (!obj || obj.bucketId !== req.params.bucketId) return res.status(404).json({ error: "Object not found", code: "OBJECT_NOT_FOUND" });
+      try { const { unlink } = await import("fs/promises"); await unlink(obj.storagePath); } catch {}
+      await storage.deleteStorageObject(req.params.objId);
+      res.json({ message: "Deleted" });
+    } catch {
+      res.status(500).json({ error: "Failed to delete object", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  app.put("/api/projects/:id/storage/buckets/:bucketId/objects/:objId/move", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const srcObj = await storage.getStorageObject(req.params.objId);
+      if (!srcObj || srcObj.bucketId !== req.params.bucketId) return res.status(404).json({ error: "Object not found in this bucket", code: "OBJECT_NOT_FOUND" });
+      const { destFolderPath } = req.body;
+      if (destFolderPath === undefined) return res.status(400).json({ error: "destFolderPath is required", code: "INVALID_INPUT" });
+      const moved = await storage.moveObject(req.params.objId, sanitizeFolderPath(destFolderPath));
+      if (!moved) return res.status(404).json({ error: "Object not found", code: "OBJECT_NOT_FOUND" });
+      res.json(moved);
+    } catch {
+      res.status(500).json({ error: "Move failed", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  // --- FOLDER OPERATIONS ---
+  app.post("/api/projects/:id/storage/buckets/:bucketId/folders", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const { folderPath } = req.body;
+      if (!folderPath || typeof folderPath !== "string") return res.status(400).json({ error: "folderPath is required", code: "INVALID_INPUT" });
+      const safePath = sanitizeFolderPath(folderPath.trim());
+      if (!safePath) return res.status(400).json({ error: "Invalid folder path", code: "INVALID_INPUT" });
+      const folder = await storage.createFolder(req.params.bucketId, safePath);
+      res.json(folder);
+    } catch {
+      res.status(500).json({ error: "Failed to create folder", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  async function handleFolderDelete(req: Request, res: Response, folderPath: string) {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      if (!folderPath || typeof folderPath !== "string") return res.status(400).json({ error: "folderPath is required", code: "INVALID_INPUT" });
+      const safePath = sanitizeFolderPath(folderPath);
+      if (!safePath) return res.status(400).json({ error: "Invalid folder path", code: "INVALID_INPUT" });
+      const deleted = await storage.deleteFolder(req.params.bucketId, safePath);
+      if (!deleted) return res.status(404).json({ error: "Folder not found", code: "OBJECT_NOT_FOUND" });
+      res.json({ message: "Folder deleted" });
+    } catch {
+      res.status(500).json({ error: "Failed to delete folder", code: "INTERNAL_ERROR" });
+    }
+  }
+
+  app.delete("/api/projects/:id/storage/buckets/:bucketId/folders/*folderPath", requireAuth, async (req: Request, res: Response) => {
+    const folderPath = (req.params as Record<string, string>).folderPath || "";
+    return handleFolderDelete(req, res, folderPath);
+  });
+
+  app.post("/api/projects/:id/storage/buckets/:bucketId/folders/delete", requireAuth, async (req: Request, res: Response) => {
+    return handleFolderDelete(req, res, req.body.folderPath);
+  });
+
+  app.get("/api/projects/:id/storage/buckets/:bucketId/folders", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
+      const folderPath = sanitizeFolderPath((req.query.path as string) || "");
+      const allObjects = await storage.getObjectsByFolder(req.params.bucketId, folderPath);
+      const foldersOnly = allObjects.filter(obj => obj.mimeType === "application/x-directory");
+      res.json(foldersOnly);
+    } catch {
+      res.status(500).json({ error: "Failed to list folders", code: "INTERNAL_ERROR" });
+    }
+  });
+
+  // --- LEGACY OBJECT ROUTES (backwards compat) ---
   app.get("/api/projects/:id/storage/objects", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const objects = await storage.getStorageObjects(req.params.id);
       res.json(objects);
     } catch {
-      res.status(500).json({ message: "Failed to fetch objects" });
+      res.status(500).json({ error: "Failed to fetch objects", code: "INTERNAL_ERROR" });
     }
   });
 
   app.post("/api/projects/:id/storage/objects", requireAuth, storageUpload.single("file"), async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const file = (req as any).file;
-      if (!file) return res.status(400).json({ message: "No file uploaded" });
-      if (file.size === 0) return res.status(400).json({ message: "Empty file (0 bytes) cannot be uploaded" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ error: "No file uploaded", code: "INVALID_INPUT" });
+      if (file.size === 0) return res.status(400).json({ error: "Empty file (0 bytes) cannot be uploaded", code: "INVALID_INPUT" });
+      if (!await validateFileSizeForPlan(req, res, [file])) return;
 
       const projectId = req.params.id;
       const project = await storage.getProject(projectId);
-      if (project) {
-        const userQuota = await storage.getUserQuota(project.userId);
-        const plan = (userQuota?.plan || "free") as keyof typeof STORAGE_PLAN_LIMITS;
-        const planLimits = STORAGE_PLAN_LIMITS[plan] || STORAGE_PLAN_LIMITS.free;
-        const limitBytes = planLimits.storageMb * 1024 * 1024;
-        const currentUsage = await storage.getProjectStorageUsage(projectId);
-        if (currentUsage.totalBytes + file.size > limitBytes) {
-          const { unlink } = await import("fs/promises");
-          try { await unlink(file.path); } catch {}
-          return res.status(413).json({
-            message: `Storage quota exceeded. Current usage: ${(currentUsage.totalBytes / 1024 / 1024).toFixed(1)} MB, limit: ${planLimits.storageMb} MB (${plan} plan). Upgrade your plan for more storage.`,
-          });
-        }
+      if (!project) return res.status(404).json({ error: "Project not found", code: "NOT_FOUND" });
+      const defaultBucket = await storage.getOrCreateDefaultBucket(projectId, project.userId);
+
+      const currentUsage = await storage.getProjectStorageUsage(projectId);
+      if (currentUsage.totalBytes + file.size > currentUsage.planLimit) {
+        const { unlink } = await import("fs/promises");
+        try { await unlink(file.path); } catch {}
+        return res.status(413).json({ error: "Storage quota exceeded", code: "STORAGE_LIMIT_EXCEEDED" });
       }
 
       const { mkdir, rename } = await import("fs/promises");
-
-      const storageDir = path.join(PERSISTENT_STORAGE_DIR, projectId);
+      const storageDir = path.join(BUCKET_STORAGE_DIR, defaultBucket.id);
       await mkdir(storageDir, { recursive: true });
       const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".");
       const storagePath = path.join(storageDir, `${Date.now()}_${safeName}`);
       await rename(file.path, storagePath);
 
       const obj = await storage.createStorageObject({
-        projectId,
-        filename: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        storagePath,
+        projectId, bucketId: defaultBucket.id, folderPath: "",
+        filename: file.originalname, mimeType: file.mimetype, sizeBytes: file.size, storagePath,
       });
       res.json(obj);
-    } catch (err: any) {
-      res.status(500).json({ message: "Upload failed" });
+    } catch {
+      res.status(500).json({ error: "Upload failed", code: "INTERNAL_ERROR" });
     }
   });
 
   app.get("/api/projects/:id/storage/objects/:objId/download", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const obj = await storage.getStorageObject(req.params.objId);
-      if (!obj || obj.projectId !== req.params.id) return res.status(404).json({ message: "Object not found" });
-
+      if (!obj || obj.projectId !== req.params.id) return res.status(404).json({ error: "Object not found", code: "NOT_FOUND" });
       const { createReadStream } = await import("fs");
       const { stat } = await import("fs/promises");
-
-      try {
-        await stat(obj.storagePath);
-      } catch {
-        return res.status(404).json({ message: "File not found on disk" });
-      }
-
+      try { await stat(obj.storagePath); } catch { return res.status(404).json({ error: "File not found on disk", code: "NOT_FOUND" }); }
       res.setHeader("Content-Type", obj.mimeType);
       const encodedFilename = encodeURIComponent(obj.filename).replace(/'/g, "%27");
       res.setHeader("Content-Disposition", `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
-
       storage.trackBandwidth(req.params.id, obj.sizeBytes).catch(() => {});
-
       createReadStream(obj.storagePath).pipe(res);
     } catch {
-      res.status(500).json({ message: "Download failed" });
+      res.status(500).json({ error: "Download failed", code: "INTERNAL_ERROR" });
     }
   });
 
   app.delete("/api/projects/:id/storage/objects/:objId", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const obj = await storage.getStorageObject(req.params.objId);
-      if (!obj || obj.projectId !== req.params.id) return res.status(404).json({ message: "Object not found" });
-
-      try {
-        const { unlink } = await import("fs/promises");
-        await unlink(obj.storagePath);
-      } catch {}
-
+      if (!obj || obj.projectId !== req.params.id) return res.status(404).json({ error: "Object not found", code: "NOT_FOUND" });
+      try { const { unlink } = await import("fs/promises"); await unlink(obj.storagePath); } catch {}
       const deleted = await storage.deleteStorageObject(req.params.objId);
-      if (!deleted) return res.status(404).json({ message: "Object not found" });
+      if (!deleted) return res.status(404).json({ error: "Object not found", code: "NOT_FOUND" });
       res.json({ message: "Deleted" });
     } catch {
-      res.status(500).json({ message: "Failed to delete object" });
+      res.status(500).json({ error: "Failed to delete object", code: "INTERNAL_ERROR" });
     }
   });
 
   app.get("/api/projects/:id/storage/usage", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const usage = await storage.getProjectStorageUsage(req.params.id);
       res.json(usage);
     } catch {
-      res.status(500).json({ message: "Failed to fetch usage" });
+      res.status(500).json({ error: "Failed to fetch usage", code: "INTERNAL_ERROR" });
     }
   });
 
   app.get("/api/projects/:id/storage/bandwidth", requireAuth, async (req: Request, res: Response) => {
     try {
-      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       const bandwidth = await storage.getProjectBandwidth(req.params.id);
       res.json(bandwidth);
     } catch {
-      res.status(500).json({ message: "Failed to fetch bandwidth" });
+      res.status(500).json({ error: "Failed to fetch bandwidth", code: "INTERNAL_ERROR" });
     }
   });
 
@@ -19605,6 +20080,13 @@ export default function App() {
   log("Official frameworks seeded", "seed");
   await storage.seedArtifactTemplates();
   log("Artifact templates seeded", "seed");
+
+  try {
+    await storage.backfillStorageBuckets();
+    log("Storage buckets backfilled", "seed");
+  } catch (err: any) {
+    log(`Storage bucket backfill error: ${err.message}`, "seed");
+  }
 
   const { setExpressApp } = await import("./slackBot");
   setExpressApp(app);
