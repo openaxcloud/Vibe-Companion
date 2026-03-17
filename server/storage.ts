@@ -132,11 +132,12 @@ import {
   type Artifact, type InsertArtifact,
   desktopReleases, desktopDownloads,
   type DesktopRelease, type InsertDesktopRelease,
-  canvasFrames, canvasAnnotations,
+  canvasFrames, canvasAnnotations, conversions,
   type CanvasFrame, type InsertCanvasFrame,
   type CanvasAnnotation, type InsertCanvasAnnotation,
   deploymentFeedback,
   type DeploymentFeedback, type InsertDeploymentFeedback,
+  type Conversion, type InsertConversion,
   PLAN_LIMITS,
   AGENT_MODE_COSTS,
   type UserPreferences, type UserPreferencesStored,
@@ -663,6 +664,11 @@ export interface IStorage {
   createCanvasFrame(data: InsertCanvasFrame): Promise<CanvasFrame>;
   updateCanvasFrame(id: string, projectId: string, data: Partial<{ name: string; htmlContent: string; x: number; y: number; width: number; height: number; zIndex: number }>): Promise<CanvasFrame | undefined>;
   deleteCanvasFrame(id: string, projectId: string): Promise<boolean>;
+
+  getConversions(projectId: string): Promise<Conversion[]>;
+  getConversion(id: string): Promise<Conversion | undefined>;
+  createConversion(data: InsertConversion): Promise<Conversion>;
+  updateConversion(id: string, data: Partial<{ status: string; artifactId: string; designTokens: Record<string, unknown>; error: string }>): Promise<Conversion | undefined>;
 
   getCanvasAnnotations(projectId: string): Promise<CanvasAnnotation[]>;
   getCanvasAnnotation(id: string): Promise<CanvasAnnotation | undefined>;
@@ -4166,6 +4172,25 @@ export class DatabaseStorage implements IStorage {
   async deleteDeploymentFeedback(id: string, projectId: string): Promise<boolean> {
     const result = await db.delete(deploymentFeedback).where(and(eq(deploymentFeedback.id, id), eq(deploymentFeedback.projectId, projectId))).returning();
     return result.length > 0;
+  }
+
+  async getConversions(projectId: string): Promise<Conversion[]> {
+    return db.select().from(conversions).where(eq(conversions.projectId, projectId)).orderBy(desc(conversions.createdAt));
+  }
+
+  async getConversion(id: string): Promise<Conversion | undefined> {
+    const [conversion] = await db.select().from(conversions).where(eq(conversions.id, id)).limit(1);
+    return conversion;
+  }
+
+  async createConversion(data: InsertConversion): Promise<Conversion> {
+    const [conversion] = await db.insert(conversions).values(data).returning();
+    return conversion;
+  }
+
+  async updateConversion(id: string, data: Partial<{ status: string; artifactId: string; designTokens: Record<string, unknown>; error: string }>): Promise<Conversion | undefined> {
+    const [conversion] = await db.update(conversions).set(data).where(eq(conversions.id, id)).returning();
+    return conversion;
   }
 }
 

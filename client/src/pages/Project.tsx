@@ -43,7 +43,7 @@ import type { UserPreferences, MergeConflictFile, MergeResolution } from "@share
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
 import MergeConflictPanel from "@/components/MergeConflictPanel";
 import FileHistoryPanel from "@/components/FileHistoryPanel";
-import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml } from "@/components/PreviewDevTools";
+import { DevicePresetSelector, DevToolsToggle, DeviceFrame, useErudaInjection, injectErudaIntoHtml, useDevicePresetPersistence } from "@/components/PreviewDevTools";
 import type { DevicePreset } from "@/components/PreviewDevTools";
 import MobilePreview, { isMobileAppProject } from "@/components/MobilePreview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -81,6 +81,7 @@ import GitHubPanel from "@/components/GitHubPanel";
 import SlideEditor from "@/components/SlideEditor";
 import VideoEditor from "@/components/VideoEditor";
 import DesignCanvas from "@/components/DesignCanvas";
+import ConversionDialog from "@/components/ConversionDialog";
 import {
   usePaneLayout, PaneOptionsMenu, ResizeHandle, FloatingPaneWrapper,
   useWorkspaceBroadcast, savePaneLayout, loadPaneLayout,
@@ -254,9 +255,15 @@ function _projectPage() {
   const [previewPanelWidth, setPreviewPanelWidth] = useState(40);
   const [webviewUrlInput, setWebviewUrlInput] = useState("");
   const [selectedDevicePreset, setSelectedDevicePreset] = useState("responsive");
+  const [customDeviceWidth, setCustomDeviceWidth] = useState<number | null>(null);
+  const [customDeviceHeight, setCustomDeviceHeight] = useState<number | null>(null);
   const [devToolsActive, setDevToolsActive] = useState(false);
   const [newFileDialogOpen, setNewFileDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
+  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
+  const [conversionFrameId, setConversionFrameId] = useState("");
+  const [conversionFrameName, setConversionFrameName] = useState("");
+  const [conversionTargetType, setConversionTargetType] = useState<string | undefined>(undefined);
   const [newFileParentFolder, setNewFileParentFolder] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
@@ -382,8 +389,22 @@ function _projectPage() {
   useErudaInjection("preview-panel-iframe", devToolsActive && !previewProxyUrl, previewHtml, livePreviewUrl);
   useErudaInjection("live-preview-iframe", devToolsActive && !previewProxyUrl, previewHtml, livePreviewUrl);
 
+  const { savedPreset, savedCustomWidth, savedCustomHeight, loaded: presetLoaded } = useDevicePresetPersistence(projectId);
+
+  useEffect(() => {
+    if (presetLoaded) {
+      setSelectedDevicePreset(savedPreset);
+      setCustomDeviceWidth(savedCustomWidth);
+      setCustomDeviceHeight(savedCustomHeight);
+    }
+  }, [presetLoaded, savedPreset, savedCustomWidth, savedCustomHeight]);
+
   const handleDevicePresetSelect = useCallback((preset: DevicePreset) => {
     setSelectedDevicePreset(preset.id);
+    if (preset.id === "custom" && preset.width && preset.height) {
+      setCustomDeviceWidth(preset.width);
+      setCustomDeviceHeight(preset.height);
+    }
   }, []);
 
   const handleMobileTabChange = useCallback((newTab: typeof mobileTab) => {
@@ -1776,6 +1797,25 @@ function _projectPage() {
     if (userPrefs.agentAudioNotification) playNotificationSound();
     if (userPrefs.agentPushNotification) sendPushNotification("AI Agent", "Your AI agent has finished responding.");
   }, [userPrefs.agentAudioNotification, userPrefs.agentPushNotification]);
+
+  const canvasFramesQuery = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/projects", projectId, "canvas", "frames"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/canvas/frames`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!projectId,
+    staleTime: 30000,
+  });
+
+  const handleConvertFrame = useCallback((frameId: string, frameName: string, targetType: string) => {
+    const typeMap: Record<string, string> = { react: "web", web: "web", native: "mobile", mobile: "mobile", "react native": "mobile" };
+    setConversionFrameId(frameId);
+    setConversionFrameName(frameName);
+    setConversionTargetType(typeMap[targetType.toLowerCase()] || targetType);
+    setConversionDialogOpen(true);
+  }, []);
 
   const handleCanvasFrameCreate = useCallback(async (htmlContent: string, name?: string) => {
     if (!projectId) return;
@@ -4144,7 +4184,7 @@ function _projectPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+          <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
           <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
           {livePreviewUrl && (
             <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
@@ -4156,7 +4196,7 @@ function _projectPage() {
       {isMobileProject ? (
         <MobilePreview previewUrl={wsStatus === "running" && livePreviewUrl ? (effectivePreviewUrl || livePreviewUrl) : null} previewHtml={previewHtml} projectName={project?.name} expoGoUrl={expoGoUrl} />
       ) : (
-        <DeviceFrame selectedPreset={selectedDevicePreset}>
+        <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight}>
           <div className="relative w-full h-full">
             {wsStatus === "running" && livePreviewUrl ? (
               <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
@@ -5241,7 +5281,7 @@ function _projectPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-              <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+              <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
               <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
               <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
                 onClick={() => { const iframe = document.getElementById("live-preview-iframe") as HTMLIFrameElement; if (iframe) iframe.src = effectivePreviewUrl || livePreviewUrl; }}
@@ -5250,7 +5290,7 @@ function _projectPage() {
                 onClick={() => window.open(fullDevUrl || livePreviewUrl, "_blank")} data-testid="button-preview-new-tab"><ExternalLink className="w-3 h-3" /> Open</Button>
             </div>
           </div>
-          <DeviceFrame selectedPreset={selectedDevicePreset}>
+          <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight}>
             <iframe id="live-preview-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
           </DeviceFrame>
         </>
@@ -5262,14 +5302,14 @@ function _projectPage() {
               <span className="text-[11px] text-[var(--ide-text-secondary)] truncate">HTML Preview</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+              <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
               <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
               <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]"
                 onClick={() => { const html = generateHtmlPreview(); if (html) setPreviewHtml(html); }}
                 title="Refresh" data-testid="button-preview-refresh-html"><RefreshCw className="w-3 h-3" /></Button>
             </div>
           </div>
-          <DeviceFrame selectedPreset={selectedDevicePreset}>
+          <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight}>
             <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
           </DeviceFrame>
         </>
@@ -5907,7 +5947,7 @@ function _projectPage() {
                           data-testid="input-webview-url"
                         />
                       </form>
-                      <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+                      <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
                       <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
                       {livePreviewUrl && (
                         <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors" onClick={() => window.open(livePreviewUrl, "_blank")} data-testid="button-webview-external"><ExternalLink className="w-3.5 h-3.5" /></button>
@@ -5928,6 +5968,8 @@ function _projectPage() {
                     onPendingMessageConsumed={() => setPendingAIMessage(null)}
                     onAgentComplete={handleAgentComplete}
                     onCanvasFrameCreate={handleCanvasFrameCreate}
+                    onConvertFrame={handleConvertFrame}
+                    canvasFrames={canvasFramesQuery.data}
                     onFileCreated={(file) => {
                       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                       setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
@@ -6820,6 +6862,8 @@ function _projectPage() {
                   onPendingMessageConsumed={() => setPendingAIMessage(null)}
                   onAgentComplete={handleAgentComplete}
                   onCanvasFrameCreate={handleCanvasFrameCreate}
+                  onConvertFrame={handleConvertFrame}
+                  canvasFrames={canvasFramesQuery.data}
                   onFileCreated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setOpenTabs((prev) => prev.includes(file.id) ? prev : [...prev, file.id]);
@@ -8427,7 +8471,7 @@ function _projectPage() {
                         </form>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
-                        <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} />
+                        <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
                         <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
                         {(livePreviewUrl || previewHtml) && (
                           <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
@@ -8439,7 +8483,7 @@ function _projectPage() {
                           title="Close preview" data-testid="button-preview-panel-close"><X className="w-3 h-3" /></Button>
                       </div>
                     </div>
-                    <DeviceFrame selectedPreset={selectedDevicePreset} className="bg-white">
+                    <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight} className="bg-white">
                       {wsStatus === "running" && livePreviewUrl ? (
                         <iframe id="preview-panel-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0" title="Live Preview" loading="lazy" data-testid="iframe-preview-panel" />
                       ) : previewHtml ? (
@@ -8654,6 +8698,17 @@ function _projectPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {projectId && (
+        <ConversionDialog
+          open={conversionDialogOpen}
+          onOpenChange={setConversionDialogOpen}
+          projectId={projectId}
+          frameId={conversionFrameId}
+          frameName={conversionFrameName}
+          initialTargetType={conversionTargetType}
+        />
+      )}
 
       <SpotlightOverlay
         projectId={projectId}

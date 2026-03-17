@@ -2258,6 +2258,28 @@ export const insertSystemDepSchema = createInsertSchema(systemDeps).pick({
 export type InsertSystemDep = z.infer<typeof insertSystemDepSchema>;
 export type SystemDep = typeof systemDeps.$inferSelect;
 
+export const CONVERSION_STATUSES = ["pending", "analyzing", "generating", "complete", "failed"] as const;
+export type ConversionStatus = typeof CONVERSION_STATUSES[number];
+
+export const conversions = pgTable("conversions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  frameId: varchar("frame_id", { length: 36 }).notNull(),
+  targetArtifactType: text("target_artifact_type").notNull(),
+  artifactId: varchar("artifact_id", { length: 36 }),
+  status: text("status").notNull().default("pending"),
+  designTokens: json("design_tokens").$type<Record<string, unknown>>(),
+  error: text("error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("conversions_project_idx").on(table.projectId),
+  index("conversions_frame_idx").on(table.frameId),
+]);
+
+export const insertConversionSchema = createInsertSchema(conversions).omit({ id: true, createdAt: true });
+export type InsertConversion = z.infer<typeof insertConversionSchema>;
+export type Conversion = typeof conversions.$inferSelect;
+
 export const artifactTemplates = pgTable("artifact_templates", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   outputType: text("output_type").notNull(),

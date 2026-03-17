@@ -2,10 +2,11 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import {
   Plus, StickyNote, Type, Image, ZoomIn, ZoomOut, Maximize2,
   Grid3x3, Move, Trash2, Copy, Pencil, X, MoreHorizontal, Frame,
-  ChevronDown, Minus, RotateCcw
+  ChevronDown, Minus, RotateCcw, Sparkles
 } from "lucide-react";
 import type { CanvasFrame, CanvasAnnotation } from "@shared/schema";
 import { apiRequest, getCsrfToken } from "@/lib/queryClient";
+import ConversionDialog from "./ConversionDialog";
 
 interface CanvasMessage {
   type: string;
@@ -52,6 +53,8 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: "frame" | "annotation"; id: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [toolMode, setToolMode] = useState<"select" | "pan">("select");
+  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
+  const [conversionFrame, setConversionFrame] = useState<{ id: string; name: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -813,6 +816,21 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
                 </button>
                 <div className="h-px bg-[var(--ide-border)] my-1" />
                 <button
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-[#7C65CB] hover:bg-[#7C65CB]/10"
+                  onClick={() => {
+                    const f = frames.find(f => f.id === contextMenu.id);
+                    if (f) {
+                      setConversionFrame({ id: f.id, name: f.name });
+                      setConversionDialogOpen(true);
+                    }
+                    setContextMenu(null);
+                  }}
+                  data-testid="button-ctx-convert-to-app"
+                >
+                  <Sparkles className="w-3 h-3" /> Convert to App
+                </button>
+                <div className="h-px bg-[var(--ide-border)] my-1" />
+                <button
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-red-400 hover:bg-red-500/10"
                   onClick={() => { deleteFrame(contextMenu.id); setContextMenu(null); }}
                   data-testid="button-ctx-delete"
@@ -874,6 +892,16 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
           </div>
         )}
       </div>
+
+      {conversionFrame && (
+        <ConversionDialog
+          open={conversionDialogOpen}
+          onOpenChange={setConversionDialogOpen}
+          projectId={projectId}
+          frameId={conversionFrame.id}
+          frameName={conversionFrame.name}
+        />
+      )}
     </div>
   );
 }

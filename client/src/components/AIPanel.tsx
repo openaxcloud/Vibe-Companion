@@ -103,6 +103,8 @@ interface AIPanelProps {
   onPendingMessageConsumed?: () => void;
   onAgentComplete?: () => void;
   onCanvasFrameCreate?: (htmlContent: string, name?: string) => void;
+  onConvertFrame?: (frameId: string, frameName: string, targetType: string) => void;
+  canvasFrames?: { id: string; name: string }[];
 }
 
 type AIModel = "claude" | "gpt" | "gemini" | "openrouter";
@@ -526,7 +528,7 @@ function parsePlanFromResponse(content: string): { title: string; tasks: PlanTas
   }
 }
 
-function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete, onCanvasFrameCreate }: AIPanelProps) {
+function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete, onCanvasFrameCreate, onConvertFrame, canvasFrames }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -1202,6 +1204,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         return `[Attached file: ${a.name} (${formatFileSize(a.size)})]`;
       });
       fullContent = (fullContent ? fullContent + "\n\n" : "") + attachmentDescriptions.join("\n\n");
+    }
+
+    if (onConvertFrame && canvasFrames && canvasFrames.length > 0) {
+      const convertMatch = content.match(/convert\s+(?:this\s+)?(?:frame\s+)?(?:["']?(.+?)["']?\s+)?(?:to|into)\s+(?:a\s+|an\s+)?(\w[\w\s]*)/i);
+      if (convertMatch) {
+        const targetType = convertMatch[2]?.trim().toLowerCase().replace(/\s+app$/, "") || "react";
+        const frameName = convertMatch[1]?.trim();
+        const frame = frameName
+          ? canvasFrames.find(f => f.name.toLowerCase().includes(frameName.toLowerCase()))
+          : canvasFrames[canvasFrames.length - 1];
+        if (frame) {
+          onConvertFrame(frame.id, frame.name, targetType);
+          const confirmMsg: ChatMessage = { id: Date.now().toString(), role: "assistant", content: `Starting conversion of frame "${frame.name}" to a ${targetType} app. The conversion dialog should now be open.` };
+          setMessages((prev) => [...prev, { id: (Date.now() - 1).toString(), role: "user", content }, confirmMsg]);
+          return;
+        }
+      }
     }
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: fullContent, attachments: currentAttachments.length > 0 ? currentAttachments : undefined };

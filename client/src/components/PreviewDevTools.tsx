@@ -1,9 +1,14 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Smartphone, Tablet, Monitor, Wrench, ChevronDown } from "lucide-react";
+import { Smartphone, Tablet, Monitor, Wrench, ChevronDown, Settings2 } from "lucide-react";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import { getCsrfToken } from "@/lib/queryClient";
 
 export interface DevicePreset {
   id: string;
@@ -24,7 +29,9 @@ export const DEVICE_PRESETS: DevicePreset[] = [
   { id: "ipad-air", label: "iPad Air", width: 820, height: 1180, icon: "tablet" },
   { id: "ipad-pro", label: "iPad Pro 12.9\"", width: 1024, height: 1366, icon: "tablet" },
   { id: "desktop-1280", label: "Desktop 1280px", width: 1280, height: 800, icon: "desktop" },
+  { id: "desktop-1440", label: "Desktop 1440px", width: 1440, height: 900, icon: "desktop" },
   { id: "desktop-1920", label: "Desktop 1920px", width: 1920, height: 1080, icon: "desktop" },
+  { id: "custom", label: "Custom", width: null, height: null, icon: "desktop" },
 ];
 
 interface ErudaWindow extends Window {
@@ -45,49 +52,169 @@ function DeviceIcon({ type, className }: { type: "phone" | "tablet" | "desktop";
 export function DevicePresetSelector({
   selectedPreset,
   onSelect,
+  projectId,
+  customWidth,
+  customHeight,
+  onCustomSizeChange,
 }: {
   selectedPreset: string;
   onSelect: (preset: DevicePreset) => void;
+  projectId?: string;
+  customWidth?: number | null;
+  customHeight?: number | null;
+  onCustomSizeChange?: (width: number, height: number) => void;
 }) {
   const current = DEVICE_PRESETS.find(p => p.id === selectedPreset) || DEVICE_PRESETS[0];
+  const [customW, setCustomW] = useState(customWidth || 800);
+  const [customH, setCustomH] = useState(customHeight || 600);
+  const [customOpen, setCustomOpen] = useState(false);
+
+  useEffect(() => {
+    if (customWidth) setCustomW(customWidth);
+    if (customHeight) setCustomH(customHeight);
+  }, [customWidth, customHeight]);
+
+  const displayDimensions = selectedPreset === "custom"
+    ? `${customW}×${customH}`
+    : current.width && current.height
+      ? `${current.width}×${current.height}`
+      : null;
+
+  const handlePresetSelect = (preset: DevicePreset) => {
+    if (preset.id === "custom") {
+      setCustomOpen(true);
+      const customPreset = { ...preset, width: customW, height: customH };
+      onSelect(customPreset);
+      persistPreset(preset.id, customW, customH);
+    } else {
+      onSelect(preset);
+      persistPreset(preset.id);
+    }
+  };
+
+  const persistPreset = (presetId: string, w?: number, h?: number) => {
+    if (!projectId) return;
+    fetch(`/api/projects/${projectId}/device-preset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+      credentials: "include",
+      body: JSON.stringify({ preset: presetId, customWidth: w || null, customHeight: h || null }),
+    }).catch(() => {});
+  };
+
+  const applyCustomSize = () => {
+    const w = Math.max(100, Math.min(3840, customW));
+    const h = Math.max(100, Math.min(2160, customH));
+    setCustomW(w);
+    setCustomH(h);
+    const customPreset: DevicePreset = { id: "custom", label: "Custom", width: w, height: h, icon: "desktop" };
+    onSelect(customPreset);
+    onCustomSizeChange?.(w, h);
+    persistPreset("custom", w, h);
+    setCustomOpen(false);
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-1.5 text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded gap-1"
-          title="Device preset"
-          data-testid="button-device-preset"
-        >
-          <DeviceIcon type={current.icon} className="w-3 h-3" />
-          <span className="hidden sm:inline max-w-[80px] truncate">{current.label}</span>
-          <ChevronDown className="w-2.5 h-2.5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)]">
-        {DEVICE_PRESETS.map((preset, i) => {
-          const showSep = i > 0 && DEVICE_PRESETS[i - 1].icon !== preset.icon;
-          return (
-            <div key={preset.id}>
-              {showSep && <DropdownMenuSeparator />}
-              <DropdownMenuItem
-                className={`text-xs gap-2 cursor-pointer ${selectedPreset === preset.id ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text-secondary)]"}`}
-                onClick={() => onSelect(preset)}
-                data-testid={`device-preset-${preset.id}`}
+    <div className="flex items-center gap-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-1.5 text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded gap-1"
+            title="Device preset"
+            data-testid="button-device-preset"
+          >
+            <DeviceIcon type={current.icon} className="w-3 h-3" />
+            <span className="hidden sm:inline max-w-[100px] truncate">{current.label}</span>
+            {displayDimensions && (
+              <span className="hidden sm:inline text-[8px] text-[var(--ide-text-muted)] font-mono">{displayDimensions}</span>
+            )}
+            <ChevronDown className="w-2.5 h-2.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)]">
+          {DEVICE_PRESETS.map((preset, i) => {
+            const showSep = i > 0 && DEVICE_PRESETS[i - 1].icon !== preset.icon;
+            return (
+              <div key={preset.id}>
+                {showSep && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  className={`text-xs gap-2 cursor-pointer ${selectedPreset === preset.id ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text-secondary)]"}`}
+                  onClick={() => handlePresetSelect(preset)}
+                  data-testid={`device-preset-${preset.id}`}
+                >
+                  {preset.id === "custom" ? (
+                    <Settings2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <DeviceIcon type={preset.icon} className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span className="flex-1">{preset.label}</span>
+                  {preset.width && preset.height && (
+                    <span className="text-[9px] text-[var(--ide-text-muted)] font-mono">{preset.width}×{preset.height}</span>
+                  )}
+                </DropdownMenuItem>
+              </div>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {selectedPreset === "custom" && (
+        <Popover open={customOpen} onOpenChange={setCustomOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1 text-[9px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded"
+              data-testid="button-custom-size-edit"
+            >
+              <Settings2 className="w-3 h-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 bg-[var(--ide-panel)] border-[var(--ide-border)] p-3" align="start">
+            <div className="space-y-2">
+              <div className="text-[10px] font-semibold text-[var(--ide-text)] uppercase tracking-wider">Custom Size</div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <label className="text-[9px] text-[var(--ide-text-muted)] block mb-0.5">Width</label>
+                  <Input
+                    type="number"
+                    min={100}
+                    max={3840}
+                    value={customW}
+                    onChange={(e) => setCustomW(Number(e.target.value))}
+                    className="h-6 text-[11px] bg-[var(--ide-bg)] border-[var(--ide-border)]"
+                    data-testid="input-custom-width"
+                  />
+                </div>
+                <span className="text-[var(--ide-text-muted)] text-xs mt-3">×</span>
+                <div className="flex-1">
+                  <label className="text-[9px] text-[var(--ide-text-muted)] block mb-0.5">Height</label>
+                  <Input
+                    type="number"
+                    min={100}
+                    max={2160}
+                    value={customH}
+                    onChange={(e) => setCustomH(Number(e.target.value))}
+                    className="h-6 text-[11px] bg-[var(--ide-bg)] border-[var(--ide-border)]"
+                    data-testid="input-custom-height"
+                  />
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="w-full h-6 text-[10px]"
+                onClick={applyCustomSize}
+                data-testid="button-apply-custom-size"
               >
-                <DeviceIcon type={preset.icon} className="w-3.5 h-3.5 shrink-0" />
-                <span className="flex-1">{preset.label}</span>
-                {preset.width && preset.height && (
-                  <span className="text-[9px] text-[var(--ide-text-muted)] font-mono">{preset.width}×{preset.height}</span>
-                )}
-              </DropdownMenuItem>
+                Apply
+              </Button>
             </div>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
   );
 }
 
@@ -249,13 +376,31 @@ export function DeviceFrame({
   children,
   selectedPreset,
   className,
+  customWidth,
+  customHeight,
 }: {
   children: React.ReactNode;
   selectedPreset: string;
   className?: string;
+  customWidth?: number | null;
+  customHeight?: number | null;
 }) {
   const preset = DEVICE_PRESETS.find(p => p.id === selectedPreset);
-  const isConstrained = preset && preset.width !== null && preset.height !== null;
+
+  let frameWidth: number | null = null;
+  let frameHeight: number | null = null;
+  let frameLabel = preset?.label || "Responsive";
+
+  if (selectedPreset === "custom" && customWidth && customHeight) {
+    frameWidth = customWidth;
+    frameHeight = customHeight;
+    frameLabel = "Custom";
+  } else if (preset && preset.width !== null && preset.height !== null) {
+    frameWidth = preset.width;
+    frameHeight = preset.height;
+  }
+
+  const isConstrained = frameWidth !== null && frameHeight !== null;
 
   if (!isConstrained) {
     return <div className={`flex-1 overflow-hidden ${className || ""}`} data-testid="device-frame-responsive">{children}</div>;
@@ -266,15 +411,15 @@ export function DeviceFrame({
       <div
         className="relative bg-white border-2 border-[var(--ide-border)] rounded-lg shadow-lg overflow-hidden shrink-0"
         style={{
-          width: `${preset!.width}px`,
-          height: `${preset!.height}px`,
+          width: `${frameWidth}px`,
+          height: `${frameHeight}px`,
           maxWidth: "100%",
           maxHeight: "100%",
         }}
         data-testid="device-frame"
       >
         <div className="absolute top-0 left-0 right-0 h-5 bg-[var(--ide-surface)] border-b border-[var(--ide-border)] flex items-center justify-center z-10">
-          <span className="text-[8px] text-[var(--ide-text-muted)] font-mono">{preset!.label} — {preset!.width}×{preset!.height}</span>
+          <span className="text-[8px] text-[var(--ide-text-muted)] font-mono">{frameLabel} — {frameWidth}×{frameHeight}</span>
         </div>
         <div className="w-full h-full pt-5 overflow-hidden">
           {children}
@@ -282,4 +427,28 @@ export function DeviceFrame({
       </div>
     </div>
   );
+}
+
+export function useDevicePresetPersistence(projectId: string | undefined) {
+  const [savedPreset, setSavedPreset] = useState<string>("responsive");
+  const [savedCustomWidth, setSavedCustomWidth] = useState<number | null>(null);
+  const [savedCustomHeight, setSavedCustomHeight] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    fetch(`/api/projects/${projectId}/device-preset`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setSavedPreset(data.preset || "responsive");
+          setSavedCustomWidth(data.customWidth || null);
+          setSavedCustomHeight(data.customHeight || null);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [projectId]);
+
+  return { savedPreset, savedCustomWidth, savedCustomHeight, loaded };
 }

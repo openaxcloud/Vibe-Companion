@@ -17314,6 +17314,184 @@ Respond ONLY with the JSON array, no other text.`;
     }
   });
 
+  app.get("/api/projects/:projectId/conversions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const conversionsList = await storage.getConversions(req.params.projectId);
+      return res.json(conversionsList);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch conversions" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/conversions/:conversionId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const conversion = await storage.getConversion(req.params.conversionId);
+      if (!conversion || conversion.projectId !== req.params.projectId) return res.status(404).json({ message: "Conversion not found" });
+      return res.json(conversion);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch conversion" });
+    }
+  });
+
+  const conversionCreateSchema = z.object({
+    frameId: z.string().min(1),
+    targetArtifactType: z.string().min(1),
+  });
+
+  app.post("/api/projects/:projectId/conversions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const parsed = conversionCreateSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid conversion data", errors: parsed.error.errors });
+
+      const frame = await storage.getCanvasFrame(parsed.data.frameId);
+      if (!frame || frame.projectId !== req.params.projectId) return res.status(404).json({ message: "Frame not found" });
+
+      const conversion = await storage.createConversion({
+        projectId: req.params.projectId,
+        frameId: parsed.data.frameId,
+        targetArtifactType: parsed.data.targetArtifactType,
+        status: "analyzing",
+      });
+
+      (async () => {
+        try {
+          const htmlContent = frame.htmlContent || "";
+
+          const colorMatches = htmlContent.match(/#[0-9a-fA-F]{3,8}|rgb\([^)]+\)|rgba\([^)]+\)|hsl\([^)]+\)/g) || [];
+          const fontMatches = htmlContent.match(/font-family:\s*([^;}"]+)/g) || [];
+          const fonts = fontMatches.map(f => f.replace("font-family:", "").trim().replace(/['"]/g, ""));
+
+          const sectionMatches: string[] = [];
+          const sectionPatterns = [/header/i, /nav/i, /hero/i, /main/i, /section/i, /footer/i, /aside/i, /article/i];
+          for (const pat of sectionPatterns) {
+            if (pat.test(htmlContent)) sectionMatches.push(pat.source.replace(/\/i$/, ""));
+          }
+
+          const designTokens: Record<string, unknown> = {
+            colors: [...new Set(colorMatches)].slice(0, 20),
+            fonts: [...new Set(fonts)].slice(0, 10),
+            sections: sectionMatches,
+            frameName: frame.name,
+            frameWidth: frame.width,
+            frameHeight: frame.height,
+          };
+
+          await storage.updateConversion(conversion.id, { status: "generating", designTokens });
+
+          const artifact = await storage.createArtifact({
+            projectId: req.params.projectId,
+            type: parsed.data.targetArtifactType,
+            name: `${frame.name} — ${parsed.data.targetArtifactType}`,
+            settings: { convertedFromFrame: frame.id, designTokens },
+          });
+
+          const entryFilename = parsed.data.targetArtifactType === "web-app" ? "index.html" : "App.tsx";
+          const generatedContent = generateConvertedContent(htmlContent, parsed.data.targetArtifactType, designTokens);
+
+          await storage.createFile(req.params.projectId, {
+            filename: entryFilename,
+            content: generatedContent,
+            artifactId: artifact.id,
+          });
+
+          await storage.updateArtifact(artifact.id, { entryFile: entryFilename });
+          await storage.updateConversion(conversion.id, { status: "complete", artifactId: artifact.id });
+          broadcastToProject(req.params.projectId, { type: "conversion_complete", conversionId: conversion.id, artifactId: artifact.id });
+        } catch (err: any) {
+          await storage.updateConversion(conversion.id, { status: "failed", error: err.message || "Conversion failed" });
+          broadcastToProject(req.params.projectId, { type: "conversion_failed", conversionId: conversion.id, error: err.message });
+        }
+      })();
+
+      return res.status(201).json(conversion);
+    } catch {
+      return res.status(500).json({ message: "Failed to start conversion" });
+    }
+  });
+
+  function generateConvertedContent(htmlContent: string, targetType: string, designTokens: Record<string, unknown>): string {
+    const colors = (designTokens.colors as string[]) || [];
+    const fonts = (designTokens.fonts as string[]) || [];
+    const primaryColor = colors[0] || "#0079F2";
+    const bgColor = colors.find(c => c.startsWith("#1") || c.startsWith("#2") || c.startsWith("#0")) || "#1a1a2e";
+    const fontFamily = fonts[0] || "system-ui, sans-serif";
+
+    if (targetType === "web-app") {
+      return htmlContent || `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${designTokens.frameName || "Converted App"}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: ${fontFamily}; background: ${bgColor}; color: #fff; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    a { color: ${primaryColor}; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>${designTokens.frameName || "My App"}</h1>
+    <p>Converted from canvas frame design.</p>
+  </div>
+</body>
+</html>`;
+    }
+
+    return `import React from "react";
+
+export default function App() {
+  return (
+    <div style={{ fontFamily: "${fontFamily}", background: "${bgColor}", color: "#fff", minHeight: "100vh", padding: "2rem" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <h1>${designTokens.frameName || "My App"}</h1>
+        <p>Converted from canvas frame design.</p>
+      </div>
+    </div>
+  );
+}`;
+  }
+
+  app.post("/api/projects/:projectId/device-preset", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const { preset, customWidth, customHeight } = req.body;
+      if (!preset || typeof preset !== "string") return res.status(400).json({ message: "Invalid preset" });
+      const settings = { ...(project.description ? {} : {}), devicePreset: preset, customWidth, customHeight };
+      const storageKey = `device-preset:${req.params.projectId}`;
+      await storage.setStorageKvEntry(req.params.projectId, storageKey, JSON.stringify(settings));
+      return res.json({ success: true, preset, customWidth, customHeight });
+    } catch {
+      return res.status(500).json({ message: "Failed to save device preset" });
+    }
+  });
+
+  app.get("/api/projects/:projectId/device-preset", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      const storageKey = `device-preset:${req.params.projectId}`;
+      const entry = await storage.getStorageKvEntry(req.params.projectId, storageKey);
+      if (!entry) return res.json({ preset: "responsive", customWidth: null, customHeight: null });
+      try {
+        const parsed = JSON.parse(entry.value);
+        return res.json({ preset: parsed.devicePreset || "responsive", customWidth: parsed.customWidth || null, customHeight: parsed.customHeight || null });
+      } catch {
+        return res.json({ preset: "responsive", customWidth: null, customHeight: null });
+      }
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch device preset" });
+    }
+  });
+
   try {
     const { pool: dbPool } = await import("./db");
     await dbPool.query(`
@@ -17330,8 +17508,25 @@ Respond ONLY with the JSON array, no other text.`;
       CREATE INDEX IF NOT EXISTS storage_bandwidth_period_idx ON storage_bandwidth (project_id, period_start);
     `);
     log("storage_bandwidth table ensured", "seed");
+
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS conversions (
+        id varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id varchar(36) NOT NULL,
+        frame_id varchar(36) NOT NULL,
+        target_artifact_type text NOT NULL,
+        artifact_id varchar(36),
+        status text NOT NULL DEFAULT 'pending',
+        design_tokens json,
+        error text,
+        created_at timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS conversions_project_idx ON conversions (project_id);
+      CREATE INDEX IF NOT EXISTS conversions_frame_idx ON conversions (frame_id);
+    `);
+    log("conversions table ensured", "seed");
   } catch (e: any) {
-    log(`storage_bandwidth migration: ${e.message}`, "seed");
+    log(`storage_bandwidth/conversions migration: ${e.message}`, "seed");
   }
 
   // --- DEPLOYMENT FEEDBACK ---
