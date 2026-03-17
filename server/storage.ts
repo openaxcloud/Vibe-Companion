@@ -1,4 +1,4 @@
-import { eq, desc, and, or, sql, inArray, count, gte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, count, gte, lte } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, projects, files, runs, workspaces, workspaceSessions,
@@ -80,6 +80,9 @@ import {
   type Skill, type InsertSkill,
   type PortConfig, type InsertPortConfig,
   type DeploymentAnalytic, type InsertDeploymentAnalytic,
+  type DeploymentLog, type InsertDeploymentLog,
+  type ResourceSnapshot, type InsertResourceSnapshot,
+  deploymentLogs, resourceSnapshots,
   type FrameworkUpdate, type InsertFrameworkUpdate,
   type Checkpoint, type InsertCheckpoint, type CheckpointPosition,
   type AccountEnvVar, type AccountEnvVarLink,
@@ -328,6 +331,24 @@ export interface IStorage {
   createDeploymentAnalytic(data: InsertDeploymentAnalytic): Promise<DeploymentAnalytic>;
   getDeploymentAnalytics(projectId: string, since?: Date): Promise<DeploymentAnalytic[]>;
   getDeploymentAnalyticsSummary(projectId: string, since?: Date): Promise<{ pageViews: number; uniqueVisitors: number; topReferrers: { referrer: string; count: number }[]; trafficByDay: { date: string; views: number }[] }>;
+  getDeploymentAnalyticsAggregated(projectId: string, since?: Date): Promise<{
+    pageViews: number;
+    uniqueVisitors: number;
+    topUrls: { url: string; count: number }[];
+    topReferrers: { referrer: string; count: number }[];
+    statusDistribution: { status: number; count: number }[];
+    durationHistogram: { bucket: string; count: number }[];
+    topBrowsers: { browser: string; count: number }[];
+    topDevices: { device: string; count: number }[];
+    topCountries: { country: string; count: number }[];
+    trafficByDay: { date: string; views: number }[];
+  }>;
+
+  createDeploymentLog(data: InsertDeploymentLog): Promise<DeploymentLog>;
+  getDeploymentLogs(projectId: string, options?: { errorsOnly?: boolean; search?: string; since?: Date; until?: Date; limit?: number }): Promise<DeploymentLog[]>;
+
+  createResourceSnapshot(data: InsertResourceSnapshot): Promise<ResourceSnapshot>;
+  getResourceSnapshots(projectId: string, since?: Date, limit?: number): Promise<ResourceSnapshot[]>;
 
   createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain>;
   getCustomDomain(id: string): Promise<CustomDomain | undefined>;
@@ -1968,6 +1989,137 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return { pageViews, uniqueVisitors, topReferrers, trafficByDay };
+  }
+
+  async getDeploymentAnalyticsAggregated(projectId: string, since?: Date): Promise<{
+    pageViews: number;
+    uniqueVisitors: number;
+    topUrls: { url: string; count: number }[];
+    topReferrers: { referrer: string; count: number }[];
+    statusDistribution: { status: number; count: number }[];
+    durationHistogram: { bucket: string; count: number }[];
+    topBrowsers: { browser: string; count: number }[];
+    topDevices: { device: string; count: number }[];
+    topCountries: { country: string; count: number }[];
+    trafficByDay: { date: string; views: number }[];
+  }> {
+    const sinceDate = since || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sinceStr = sinceDate.toISOString();
+
+    const totalsResult = await db.execute(sql`
+      SELECT COUNT(*)::int AS page_views,
+             COUNT(DISTINCT COALESCE(visitor_id, ip_hash))::int AS unique_visitors
+      FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp
+    `);
+    const totalsRows = Array.isArray(totalsResult) ? totalsResult : (totalsResult as any).rows ?? [];
+    const totals = totalsRows[0] as { page_views: number; unique_visitors: number } | undefined;
+
+    const pageViews = totals?.page_views || 0;
+    const uniqueVisitors = totals?.unique_visitors || 0;
+
+    const topUrlRows = await db.execute(sql`
+      SELECT path AS url, COUNT(*)::int AS count FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp
+      GROUP BY path ORDER BY count DESC LIMIT 10
+    `);
+
+    const topReferrerRows = await db.execute(sql`
+      SELECT referrer, COUNT(*)::int AS count FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp AND referrer IS NOT NULL AND referrer != ''
+      GROUP BY referrer ORDER BY count DESC LIMIT 10
+    `);
+
+    const statusRows = await db.execute(sql`
+      SELECT status_code AS status, COUNT(*)::int AS count FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp AND status_code IS NOT NULL
+      GROUP BY status_code ORDER BY count DESC
+    `);
+
+    const durationRows = await db.execute(sql`
+      SELECT
+        CASE
+          WHEN duration_ms < 100 THEN '0-100ms'
+          WHEN duration_ms < 500 THEN '100-500ms'
+          WHEN duration_ms < 1000 THEN '500ms-1s'
+          WHEN duration_ms < 3000 THEN '1-3s'
+          ELSE '3s+'
+        END AS bucket,
+        COUNT(*)::int AS count
+      FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp AND duration_ms IS NOT NULL
+      GROUP BY bucket ORDER BY MIN(duration_ms)
+    `);
+
+    const browserRows = await db.execute(sql`
+      SELECT browser, COUNT(*)::int AS count FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp AND browser IS NOT NULL
+      GROUP BY browser ORDER BY count DESC LIMIT 10
+    `);
+
+    const deviceRows = await db.execute(sql`
+      SELECT device, COUNT(*)::int AS count FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp AND device IS NOT NULL
+      GROUP BY device ORDER BY count DESC LIMIT 10
+    `);
+
+    const countryRows = await db.execute(sql`
+      SELECT country, COUNT(*)::int AS count FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp AND country IS NOT NULL
+      GROUP BY country ORDER BY count DESC LIMIT 10
+    `);
+
+    const trafficRows = await db.execute(sql`
+      SELECT created_at::date::text AS date, COUNT(*)::int AS views FROM deployment_analytics
+      WHERE project_id = ${projectId} AND created_at >= ${sinceStr}::timestamp
+      GROUP BY created_at::date ORDER BY date
+    `);
+
+    const asArray = (rows: unknown): Record<string, unknown>[] => Array.isArray(rows) ? rows : (rows as { rows?: Record<string, unknown>[] })?.rows || [];
+
+    return {
+      pageViews,
+      uniqueVisitors,
+      topUrls: asArray(topUrlRows).map((r: Record<string, unknown>) => ({ url: String(r.url || ""), count: Number(r.count) })),
+      topReferrers: asArray(topReferrerRows).map((r: Record<string, unknown>) => ({ referrer: String(r.referrer || ""), count: Number(r.count) })),
+      statusDistribution: asArray(statusRows).map((r: Record<string, unknown>) => ({ status: Number(r.status), count: Number(r.count) })),
+      durationHistogram: asArray(durationRows).map((r: Record<string, unknown>) => ({ bucket: String(r.bucket || ""), count: Number(r.count) })),
+      topBrowsers: asArray(browserRows).map((r: Record<string, unknown>) => ({ browser: String(r.browser || ""), count: Number(r.count) })),
+      topDevices: asArray(deviceRows).map((r: Record<string, unknown>) => ({ device: String(r.device || ""), count: Number(r.count) })),
+      topCountries: asArray(countryRows).map((r: Record<string, unknown>) => ({ country: String(r.country || ""), count: Number(r.count) })),
+      trafficByDay: asArray(trafficRows).map((r: Record<string, unknown>) => ({ date: String(r.date || ""), views: Number(r.views) })),
+    };
+  }
+
+  async createDeploymentLog(data: InsertDeploymentLog): Promise<DeploymentLog> {
+    const [log] = await db.insert(deploymentLogs).values(data).returning();
+    return log;
+  }
+
+  async getDeploymentLogs(projectId: string, options?: { errorsOnly?: boolean; search?: string; since?: Date; until?: Date; limit?: number }): Promise<DeploymentLog[]> {
+    const conditions = [eq(deploymentLogs.projectId, projectId)];
+    if (options?.errorsOnly) conditions.push(eq(deploymentLogs.level, "error"));
+    if (options?.since) conditions.push(gte(deploymentLogs.createdAt, options.since));
+    if (options?.until) {
+      conditions.push(lte(deploymentLogs.createdAt, options.until));
+    }
+    if (options?.search) {
+      conditions.push(sql`${deploymentLogs.message} ILIKE ${'%' + options.search + '%'}`);
+    }
+    return db.select().from(deploymentLogs).where(and(...conditions)).orderBy(desc(deploymentLogs.createdAt)).limit(options?.limit || 200);
+  }
+
+  async createResourceSnapshot(data: InsertResourceSnapshot): Promise<ResourceSnapshot> {
+    const [snap] = await db.insert(resourceSnapshots).values(data).returning();
+    return snap;
+  }
+
+  async getResourceSnapshots(projectId: string, since?: Date, limit = 200): Promise<ResourceSnapshot[]> {
+    const sinceDate = since || new Date(Date.now() - 6 * 60 * 60 * 1000);
+    return db.select().from(resourceSnapshots)
+      .where(and(eq(resourceSnapshots.projectId, projectId), gte(resourceSnapshots.recordedAt, sinceDate)))
+      .orderBy(resourceSnapshots.recordedAt)
+      .limit(limit);
   }
 
   async createCustomDomain(data: { domain: string; projectId: string; userId: string; verificationToken: string }): Promise<CustomDomain> {

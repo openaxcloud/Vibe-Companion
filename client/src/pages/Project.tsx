@@ -29,6 +29,7 @@ import AutomationsPanel from "@/components/AutomationsPanel";
 import AgentAutomationsPane from "@/components/AgentAutomationsPane";
 import WorkflowsPanel from "@/components/WorkflowsPanel";
 import MonitoringPanel from "@/components/MonitoringPanel";
+import PublishingPanel from "@/components/PublishingPanel";
 import ThreadsPanel from "@/components/ThreadsPanel";
 import NetworkingPanel from "@/components/NetworkingPanel";
 import SkillsPanel from "@/components/SkillsPanel";
@@ -425,7 +426,7 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh" | "inbox";
+  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "publishing" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh" | "inbox";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -442,6 +443,7 @@ function _projectPage() {
     { id: "agentAutomations", label: "Agents & Automations", icon: Zap, color: "#F5A623" },
     { id: "workflows", label: "Workflows", icon: GitMerge, color: "#0079F2" },
     { id: "monitoring", label: "Monitoring", icon: Activity, color: "#10B981" },
+    { id: "publishing", label: "Publishing", icon: Rocket, color: "#0079F2" },
     { id: "threads", label: "Threads", icon: MessageSquare, color: "#8B5CF6" },
     { id: "networking", label: "Networking", icon: Network, color: "#06B6D4" },
     { id: "skills", label: "Skills", icon: Brain, color: "#7C65CB" },
@@ -8217,6 +8219,12 @@ function _projectPage() {
             {activePanelTab === "monitoring" && (
               <div className="flex-1 flex flex-col" data-testid="monitoring-sidebar">
                 <MonitoringPanel projectId={projectId} onClose={() => closePanel("monitoring")} />
+              </div>
+            )}
+
+            {activePanelTab === "publishing" && (
+              <div className="flex-1 flex flex-col" data-testid="publishing-sidebar">
+                <PublishingPanel projectId={projectId} onClose={() => closePanel("publishing")} />
               </div>
             )}
 

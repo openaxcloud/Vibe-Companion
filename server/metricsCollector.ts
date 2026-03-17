@@ -135,6 +135,7 @@ export function resetUptimeTracker(projectId: string) {
 }
 
 let autoCollectorInterval: NodeJS.Timeout | null = null;
+let resourceSnapshotInterval: NodeJS.Timeout | null = null;
 
 export function startAutoMetricsCollector(
   getActiveProjectIds: () => string[],
@@ -179,10 +180,46 @@ export function startAutoMetricsCollector(
   log(`[metrics-collector] Auto-collection started (interval: ${intervalMs}ms)`, "metrics");
 }
 
+export function startResourceSnapshotCollector(
+  getActiveProjectIds: () => string[],
+  recordSnapshot: (projectId: string, cpuPercent: number, memoryMb: number, heapMb: number) => Promise<any>,
+  intervalMs = 30000,
+) {
+  if (resourceSnapshotInterval) {
+    clearInterval(resourceSnapshotInterval);
+  }
+
+  resourceSnapshotInterval = setInterval(async () => {
+    const projectIds = getActiveProjectIds();
+    if (projectIds.length === 0) return;
+
+    const realMetrics = getRealMetrics();
+    for (const projectId of projectIds) {
+      try {
+        await recordSnapshot(
+          projectId,
+          Math.round(realMetrics.cpuPercent),
+          realMetrics.memoryMb,
+          realMetrics.heapMb,
+        );
+      } catch (err: any) {
+        log(`[metrics-collector] Failed to record resource snapshot for ${projectId}: ${err.message}`, "metrics");
+      }
+    }
+  }, intervalMs);
+
+  log(`[metrics-collector] Resource snapshot collection started (interval: ${intervalMs}ms)`, "metrics");
+}
+
 export function stopAutoMetricsCollector() {
   if (autoCollectorInterval) {
     clearInterval(autoCollectorInterval);
     autoCollectorInterval = null;
     log("[metrics-collector] Auto-collection stopped", "metrics");
+  }
+  if (resourceSnapshotInterval) {
+    clearInterval(resourceSnapshotInterval);
+    resourceSnapshotInterval = null;
+    log("[metrics-collector] Resource snapshot collection stopped", "metrics");
   }
 }

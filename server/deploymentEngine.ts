@@ -5,7 +5,7 @@ import { log } from "./index";
 import { randomUUID } from "crypto";
 import { exec, spawn, ChildProcess } from "child_process";
 import { promisify } from "util";
-import express, { Request, Response, Router } from "express";
+import express, { Request, Response, NextFunction, Router } from "express";
 import { storage } from "./storage";
 import { validateCronExpression } from "./automationScheduler";
 import http from "http";
@@ -395,6 +395,13 @@ export async function buildAndDeploy(
   const addLog = (line: string) => {
     build.buildLog += line + "\n";
     onLog?.(line);
+    storage.createDeploymentLog({
+      projectId,
+      deploymentId,
+      level: line.includes("[error]") || line.includes("failed") || line.includes("Failed") ? "error" : "info",
+      message: line,
+      source: "build",
+    }).catch(() => {});
   };
 
   try {
@@ -1140,38 +1147,118 @@ a{color:#0079F2;text-decoration:none}a:hover{text-decoration:underline}
 </style></head><body><div class="c"><h1>404</h1><p>The page you're looking for doesn't exist.</p><a href="/deployed/${slug}/">Back to Home</a></div></body></html>`;
 }
 
-async function trackAnalytics(slug: string, req: Request): Promise<void> {
+export function parseUaBrowser(ua: string): string {
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/OPR\//i.test(ua) || /Opera/i.test(ua)) return "Opera";
+  if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return "Chrome";
+  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "Safari";
+  if (/Firefox\//i.test(ua)) return "Firefox";
+  if (/MSIE|Trident/i.test(ua)) return "IE";
+  return "Other";
+}
+
+export function parseUaDevice(ua: string): string {
+  if (/Mobile|Android.*Mobile|iPhone|iPod/i.test(ua)) return "Mobile";
+  if (/Tablet|iPad|Android(?!.*Mobile)/i.test(ua)) return "Tablet";
+  if (/bot|crawl|spider|slurp/i.test(ua)) return "Bot";
+  return "Desktop";
+}
+
+export function parseUaOs(ua: string): string {
+  if (/Windows NT/i.test(ua)) return "Windows";
+  if (/Mac OS X/i.test(ua)) return "macOS";
+  if (/Android/i.test(ua)) return "Android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+  if (/Linux/i.test(ua)) return "Linux";
+  if (/CrOS/i.test(ua)) return "ChromeOS";
+  return "Other";
+}
+
+const slugToProjectCache = new Map<string, { projectId: string; deploymentId: string; expiresAt: number }>();
+
+async function resolveSlugToProject(slug: string): Promise<{ projectId: string; deploymentId: string } | null> {
+  const cached = slugToProjectCache.get(slug);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { projectId: cached.projectId, deploymentId: cached.deploymentId };
+  }
+
   try {
     const { db } = await import("./db");
-    const { deployments } = await import("@shared/schema");
-    const { eq } = await import("drizzle-orm");
-    const deps = await db.select().from(deployments)
-      .where(eq(deployments.status, "live"))
-      .limit(100);
-    for (const dep of deps) {
-      const project = await storage.getProject(dep.projectId);
-      if (project) {
-        const depSlug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
-        if (depSlug === slug) {
-          const crypto = await import("crypto");
-          const ip = (req.headers["x-forwarded-for"] as string || req.ip || "unknown").split(",")[0].trim();
-          const ipHash = crypto.createHash("sha256").update(ip + dep.projectId).digest("hex").slice(0, 16);
-          const visitorId = crypto.createHash("sha256").update(ip + (req.headers["user-agent"] || "")).digest("hex").slice(0, 16);
-          await storage.createDeploymentAnalytic({
-            projectId: dep.projectId,
-            deploymentId: dep.id,
-            path: req.path,
-            referrer: (req.headers.referer || req.headers.referrer || "") as string,
-            userAgent: (req.headers["user-agent"] || "") as string,
-            visitorId,
-            ipHash,
-          });
-          return;
-        }
+    const { deployments: deploymentsTable, projects: projectsTable } = await import("@shared/schema");
+    const { eq, and } = await import("drizzle-orm");
+
+    const results = await db.select({
+      projectId: projectsTable.id,
+      projectName: projectsTable.name,
+      publishedSlug: projectsTable.publishedSlug,
+      deploymentId: deploymentsTable.id,
+    }).from(deploymentsTable)
+      .innerJoin(projectsTable, eq(deploymentsTable.projectId, projectsTable.id))
+      .where(eq(deploymentsTable.status, "live"))
+      .limit(200);
+
+    for (const row of results) {
+      const computedSlug = row.publishedSlug || row.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + row.projectId.slice(0, 8);
+      slugToProjectCache.set(computedSlug, { projectId: row.projectId, deploymentId: row.deploymentId, expiresAt: Date.now() + 60000 });
+      if (computedSlug === slug) {
+        return { projectId: row.projectId, deploymentId: row.deploymentId };
       }
     }
-  } catch {
-  }
+  } catch {}
+  return null;
+}
+
+function trackAnalyticsOnFinish(slug: string, req: Request, res: Response, startTime: number): void {
+  res.on("finish", () => {
+    (async () => {
+      try {
+        const resolved = await resolveSlugToProject(slug);
+        if (!resolved) return;
+
+        const crypto = await import("crypto");
+        const ip = (req.headers["x-forwarded-for"] as string || req.ip || "unknown").split(",")[0].trim();
+        const ipHash = crypto.createHash("sha256").update(ip + resolved.projectId).digest("hex").slice(0, 16);
+        const userAgentStr = ((req.headers["user-agent"] || "") as string).slice(0, 1024);
+        const visitorId = crypto.createHash("sha256").update(ip + userAgentStr).digest("hex").slice(0, 16);
+        let browser = "Unknown", device = "Desktop", osName = "Unknown";
+        try {
+          browser = parseUaBrowser(userAgentStr);
+          device = parseUaDevice(userAgentStr);
+          osName = parseUaOs(userAgentStr);
+        } catch {}
+        const durationMs = Date.now() - startTime;
+
+        let country: string | null = null;
+        try {
+          const geoip = await import("geoip-lite");
+          const geo = geoip.lookup(ip);
+          if (geo?.country) {
+            country = geo.country;
+          }
+        } catch {}
+        if (!country) {
+          const acceptLang = (req.headers["accept-language"] || "") as string;
+          country = acceptLang.split(",")[0]?.split("-")[1]?.toUpperCase() || null;
+        }
+
+        await storage.createDeploymentAnalytic({
+          projectId: resolved.projectId,
+          deploymentId: resolved.deploymentId,
+          path: req.path,
+          statusCode: res.statusCode,
+          durationMs,
+          referrer: ((req.headers.referer || req.headers.referrer || "") as string).slice(0, 2048) || null,
+          userAgent: userAgentStr,
+          browser,
+          device,
+          os: osName,
+          country,
+          visitorId,
+          ipHash,
+        });
+      } catch {}
+    })();
+  });
 }
 
 function findProcessForSlug(slug: string): PMProcess | undefined {
@@ -1309,6 +1396,15 @@ export function createDeploymentRouter(): Router {
     return serve404(baseDir, slug, res);
   }
 
+  router.use("/deployed/:slug", (req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    const slug = String(req.params.slug || "");
+    if (/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)) {
+      trackAnalyticsOnFinish(slug, req, res, startTime);
+    }
+    next();
+  });
+
   router.all("/deployed/:slug/{*filePath}", async (req: Request, res: Response) => {
     const slug = String(req.params.slug || "");
     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
@@ -1318,8 +1414,6 @@ export function createDeploymentRouter(): Router {
     const settings = await getDeploymentSettings(slug);
 
     if (!await handlePrivateCheck(slug, req, res, settings)) return;
-
-    trackAnalytics(slug, req).catch(() => {});
 
     const managedProc = findProcessForSlug(slug);
     if (managedProc) {
@@ -1338,8 +1432,6 @@ export function createDeploymentRouter(): Router {
     const settings = await getDeploymentSettings(slug);
 
     if (!await handlePrivateCheck(slug, req, res, settings)) return;
-
-    trackAnalytics(slug, req).catch(() => {});
 
     const managedProc = findProcessForSlug(slug);
     if (managedProc) {

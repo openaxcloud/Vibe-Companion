@@ -4075,26 +4075,6 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/projects/:id/deploy/track", async (req: Request, res: Response) => {
-    try {
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      const { path, referrer, visitorId } = req.body || {};
-      const ip = req.ip || req.socket.remoteAddress || "unknown";
-      const ipHash = crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
-      await storage.createDeploymentAnalytic({
-        projectId: project.id,
-        path: path || "/",
-        referrer: referrer || null,
-        userAgent: req.headers["user-agent"] || null,
-        visitorId: visitorId || null,
-        ipHash,
-      });
-      return res.json({ tracked: true });
-    } catch {
-      return res.status(500).json({ message: "Tracking failed" });
-    }
-  });
 
   app.post("/api/deploy/schedule-to-cron", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -14018,6 +13998,81 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     } catch (err: any) {
       log(`[monitoring] Failed to delete alert ${req.params.alertId}: ${err.message}`, "error");
       res.status(500).json({ message: "Failed to delete alert" });
+    }
+  });
+
+  // ===================== PUBLISHING ANALYTICS & LOGS =====================
+  app.get("/api/projects/:id/publishing/analytics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const since = req.query.since ? new Date(req.query.since as string) : undefined;
+      const data = await storage.getDeploymentAnalyticsAggregated(project.id, since);
+      res.json(data);
+    } catch (err: any) {
+      log(`[publishing] Failed to load analytics: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load analytics" });
+    }
+  });
+
+  app.get("/api/projects/:id/publishing/logs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const options: { errorsOnly?: boolean; search?: string; since?: Date; until?: Date; limit?: number } = {};
+      if (req.query.errorsOnly === "true") options.errorsOnly = true;
+      if (req.query.search) options.search = req.query.search as string;
+      if (req.query.since) options.since = new Date(req.query.since as string);
+      if (req.query.until) options.until = new Date(req.query.until as string);
+      if (req.query.limit) options.limit = parseInt(req.query.limit as string);
+      const logs = await storage.getDeploymentLogs(project.id, options);
+      res.json(logs);
+    } catch (err: any) {
+      log(`[publishing] Failed to load logs: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load logs" });
+    }
+  });
+
+  app.get("/api/projects/:id/publishing/resources", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const since = req.query.since ? new Date(req.query.since as string) : undefined;
+      const snapshots = await storage.getResourceSnapshots(project.id, since);
+      const realMetrics = getRealMetrics();
+      res.json({ snapshots, current: realMetrics });
+    } catch (err: any) {
+      log(`[publishing] Failed to load resources: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load resources" });
+    }
+  });
+
+  app.get("/api/projects/:id/publishing/overview", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const deployments = await storage.getProjectDeployments(project.id);
+      const liveDeployment = deployments.find(d => d.status === "live");
+      const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + project.id.slice(0, 8);
+      const processStatus = liveDeployment ? getProcessStatus(project.id) : null;
+      res.json({
+        isPublished: project.isPublished,
+        slug,
+        url: liveDeployment?.url || `/deployed/${slug}/`,
+        deploymentType: liveDeployment?.deploymentType || "static",
+        status: liveDeployment?.status || "none",
+        version: liveDeployment?.version || 0,
+        createdAt: liveDeployment?.createdAt,
+        healthStatus: processStatus?.healthStatus || liveDeployment?.healthStatus || "unknown",
+        processStatus: processStatus?.status || null,
+      });
+    } catch (err: any) {
+      log(`[publishing] Failed to load overview: ${err.message}`, "error");
+      res.status(500).json({ message: "Failed to load overview" });
     }
   });
 

@@ -1555,8 +1555,14 @@ export const deploymentAnalytics = pgTable("deployment_analytics", {
   projectId: varchar("project_id", { length: 36 }).notNull(),
   deploymentId: varchar("deployment_id", { length: 36 }),
   path: text("path").notNull().default("/"),
+  statusCode: integer("status_code"),
+  durationMs: integer("duration_ms"),
   referrer: text("referrer"),
   userAgent: text("user_agent"),
+  browser: text("browser"),
+  device: text("device"),
+  os: text("os"),
+  country: text("country"),
   visitorId: text("visitor_id"),
   ipHash: text("ip_hash"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1568,13 +1574,61 @@ export const insertDeploymentAnalyticSchema = createInsertSchema(deploymentAnaly
   projectId: true,
   deploymentId: true,
   path: true,
+  statusCode: true,
+  durationMs: true,
   referrer: true,
   userAgent: true,
+  browser: true,
+  device: true,
+  os: true,
+  country: true,
   visitorId: true,
   ipHash: true,
 });
 export type InsertDeploymentAnalytic = z.infer<typeof insertDeploymentAnalyticSchema>;
 export type DeploymentAnalytic = typeof deploymentAnalytics.$inferSelect;
+
+export const deploymentLogs = pgTable("deployment_logs", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  deploymentId: varchar("deployment_id", { length: 36 }),
+  level: text("level").notNull().default("info"),
+  message: text("message").notNull(),
+  source: text("source").default("runtime"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("deployment_logs_project_idx").on(table.projectId),
+  index("deployment_logs_created_idx").on(table.createdAt),
+]);
+export const insertDeploymentLogSchema = createInsertSchema(deploymentLogs).pick({
+  projectId: true,
+  deploymentId: true,
+  level: true,
+  message: true,
+  source: true,
+});
+export type InsertDeploymentLog = z.infer<typeof insertDeploymentLogSchema>;
+export type DeploymentLog = typeof deploymentLogs.$inferSelect;
+
+export const resourceSnapshots = pgTable("resource_snapshots", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  cpuPercent: integer("cpu_percent").notNull().default(0),
+  memoryMb: integer("memory_mb").notNull().default(0),
+  heapMb: integer("heap_mb"),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+}, (table) => [
+  index("resource_snapshots_project_idx").on(table.projectId),
+  index("resource_snapshots_recorded_idx").on(table.recordedAt),
+]);
+export const insertResourceSnapshotSchema = createInsertSchema(resourceSnapshots).pick({
+  projectId: true,
+  cpuPercent: true,
+  memoryMb: true,
+  heapMb: true,
+});
+export type InsertResourceSnapshot = z.infer<typeof insertResourceSnapshotSchema>;
+export type ResourceSnapshot = typeof resourceSnapshots.$inferSelect;
 
 export interface CheckpointStateSnapshot {
   files: { filename: string; content: string }[];

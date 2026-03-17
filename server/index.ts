@@ -8,7 +8,7 @@ import { createServer } from "http";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
-import { startAutoMetricsCollector } from "./metricsCollector";
+import { startAutoMetricsCollector, startResourceSnapshotCollector } from "./metricsCollector";
 import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from "./deploymentEngine";
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
@@ -241,6 +241,13 @@ async function initStripe() {
           return { healthy: result.healthy, status: result.status };
         },
         60000,
+      );
+
+      startResourceSnapshotCollector(
+        () => Array.from(getAllManagedProcesses().keys()),
+        (projectId, cpuPercent, memoryMb, heapMb) =>
+          storage.createResourceSnapshot({ projectId, cpuPercent, memoryMb, heapMb }),
+        30000,
       );
 
       setInterval(async () => {
