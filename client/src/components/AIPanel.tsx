@@ -131,7 +131,7 @@ interface AIPanelProps {
   canvasFrames?: { id: string; name: string }[];
 }
 
-type AIModel = "claude" | "gpt" | "gemini" | "openrouter";
+type AIModel = "claude" | "gpt" | "gemini" | "openrouter" | "perplexity" | "mistral";
 type AIMode = "chat" | "agent" | "plan";
 type TopMode = "plan" | "build";
 type AgentMode = "economy" | "power" | "turbo";
@@ -162,6 +162,8 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   gpt: { name: "GPT-4o", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
   gemini: { name: "Gemini Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
   openrouter: { name: "OpenRouter", badge: "200+ Models", color: "text-[#E44D26] bg-[#E44D26]/10", icon: Globe },
+  perplexity: { name: "Perplexity", badge: "Search AI", color: "text-[#20808D] bg-[#20808D]/10", icon: Search },
+  mistral: { name: "Mistral", badge: "Mistral AI", color: "text-[#FF7000] bg-[#FF7000]/10", icon: Zap },
 };
 
 const TOP_AGENT_MODE_LABELS: Record<TopAgentMode, { name: string; icon: typeof Zap; color: string; bg: string; description: string }> = {
@@ -820,7 +822,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   }, [projectId]);
 
   const getCredLabel = (aiModel: AIModel): { text: string; isManaged: boolean } => {
-    const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+    const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
     const provider = providerMap[aiModel];
     const cfg = credentialModes[provider];
     if (!cfg || cfg.mode === "managed") return { text: "Replit managed", isManaged: true };
@@ -1431,7 +1433,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             }
             if (data.byokNoKey && currentModel) {
               const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
-              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
               const cp = providerMap[currentModel];
               setShowManagedApproval({ provider: cp, providerLabel: providerLabels[cp] || cp });
             }
@@ -1443,7 +1445,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             }
             if (data.byokNoKey && currentModel) {
               const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
-              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
               const cp = providerMap[currentModel];
               setShowManagedApproval({ provider: cp, providerLabel: providerLabels[cp] || cp });
             }
@@ -1800,7 +1802,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
 
     if (projectId) {
-      const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter" };
+      const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
       const currentProvider = providerMap[model];
       const cfg = credentialModes[currentProvider];
       const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
@@ -3060,11 +3062,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                 {([
-                  { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles },
-                  { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap },
-                  { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap },
-                  { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe },
-                ]).map(m => {
+                  { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles, byokOnly: false },
+                  { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap, byokOnly: false },
+                  { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap, byokOnly: false },
+                  { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe, byokOnly: false },
+                  { key: "perplexity" as AIModel, name: "Perplexity", badge: "Search AI (BYOK)", color: "#20808D", icon: Search, byokOnly: true },
+                  { key: "mistral" as AIModel, name: "Mistral", badge: "Mistral AI (BYOK)", color: "#FF7000", icon: Zap, byokOnly: true },
+                ]).filter(m => {
+                  if (!m.byokOnly) return true;
+                  const cred = getCredLabel(m.key);
+                  return !cred.isManaged || (credentialModes[m.key]?.hasApiKey);
+                }).map(m => {
                   const cred = getCredLabel(m.key);
                   const MdlIcon = m.icon;
                   return (

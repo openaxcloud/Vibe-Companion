@@ -2647,10 +2647,12 @@ export class DatabaseStorage implements IStorage {
       { name: "RevenueCat", category: "Payments", description: "In-app subscription and purchase management", icon: "credit-card", envVarKeys: ["REVENUECAT_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://revenuecat.com" },
       { name: "Stripe", category: "Payments", description: "Payment processing, subscriptions, and billing", icon: "credit-card", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://connect.stripe.com/oauth/authorize", tokenUrl: "https://connect.stripe.com/oauth/token", scopes: ["read_write"] }, providerUrl: "https://stripe.com" },
 
-      // AI & Media (3 connectors)
+      // AI & Media (5 connectors)
       { name: "ElevenLabs", category: "AI & Media", description: "AI voice synthesis and text-to-speech", icon: "sparkles", envVarKeys: ["ELEVENLABS_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://elevenlabs.io" },
       { name: "OpenAI", category: "AI & Media", description: "GPT models and embeddings API", icon: "sparkles", envVarKeys: ["OPENAI_API_KEY"], connectorType: "managed" as const, connectionLevel: "project" as const, providerUrl: "https://openai.com" },
       { name: "Anthropic", category: "AI & Media", description: "Claude AI assistant API", icon: "sparkles", envVarKeys: ["ANTHROPIC_API_KEY"], connectorType: "managed" as const, connectionLevel: "project" as const, providerUrl: "https://anthropic.com" },
+      { name: "Perplexity AI", category: "AI & Media", description: "AI-powered search and answer engine with citations", icon: "sparkles", envVarKeys: ["PERPLEXITY_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://perplexity.ai" },
+      { name: "Mistral AI", category: "AI & Media", description: "Fast, efficient language models for NLP tasks", icon: "sparkles", envVarKeys: ["MISTRAL_API_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://mistral.ai" },
 
       // Productivity (3 connectors)
       { name: "Notion", category: "Productivity", description: "All-in-one workspace for notes, docs, and databases", icon: "book-open", envVarKeys: [], connectorType: "oauth" as const, connectionLevel: "account" as const, oauthConfig: { authUrl: "https://api.notion.com/v1/oauth/authorize", tokenUrl: "https://api.notion.com/v1/oauth/token", scopes: [] }, providerUrl: "https://notion.so" },
@@ -2666,7 +2668,7 @@ export class DatabaseStorage implements IStorage {
       { name: "Firebase", category: "Backend Services", description: "Authentication, database, and hosting", icon: "flame", envVarKeys: ["FIREBASE_API_KEY", "FIREBASE_PROJECT_ID"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://firebase.google.com" },
       { name: "Supabase", category: "Backend Services", description: "Open source Firebase alternative", icon: "zap", envVarKeys: ["SUPABASE_URL", "SUPABASE_ANON_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://supabase.com" },
 
-      // Authentication (from main)
+      // Authentication
       { name: "Replit Auth", category: "Authentication", description: "Sign in with Replit — zero-setup OAuth for deployed apps", icon: "user-check", envVarKeys: [] },
     ];
     for (const entry of entries) {

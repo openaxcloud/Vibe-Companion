@@ -231,6 +231,13 @@ async function testIntegrationConnection(
         });
         return res.status !== 401 ? { success: true, message: "API key accepted" } : { success: false, message: "Invalid API key" };
       }
+      case "Mistral AI": {
+        const res = await fetch("https://api.mistral.ai/v1/models", {
+          headers: { Authorization: `Bearer ${config.MISTRAL_API_KEY}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        return res.ok ? { success: true, message: "API key valid" } : { success: false, message: `HTTP ${res.status}` };
+      }
       case "Notion": {
         const res = await fetch("https://api.notion.com/v1/users/me", {
           headers: { Authorization: `Bearer ${config.NOTION_API_KEY}`, "Notion-Version": "2022-06-28" },
@@ -7668,6 +7675,16 @@ export async function registerRoutes(
     },
   });
 
+  const perplexityClient = new OpenAI({
+    apiKey: process.env.PERPLEXITY_API_KEY || "",
+    baseURL: "https://api.perplexity.ai",
+  });
+
+  const mistralClient = new OpenAI({
+    apiKey: process.env.MISTRAL_API_KEY || "",
+    baseURL: "https://api.mistral.ai/v1",
+  });
+
   const OPENROUTER_PRIVACY_BODY = {
     provider: {
       data_collection: "deny",
@@ -7680,6 +7697,21 @@ export async function registerRoutes(
     headers: { "X-OpenRouter-Privacy": "1" },
   };
 
+
+  function validateExternalAIKey(model: string): string | null {
+    if (model === "perplexity" && !process.env.PERPLEXITY_API_KEY) {
+      return "Perplexity API key not configured. Add PERPLEXITY_API_KEY in your project's Integrations panel.";
+    }
+    if (model === "mistral" && !process.env.MISTRAL_API_KEY) {
+      return "Mistral API key not configured. Add MISTRAL_API_KEY in your project's Integrations panel.";
+    }
+    return null;
+  }
+
+  function formatPerplexityCitations(response: any): string {
+    if (!response?.citations || !Array.isArray(response.citations) || response.citations.length === 0) return "";
+    return "\n\n---\n**Sources:**\n" + response.citations.map((url: string, i: number) => `${i + 1}. ${url}`).join("\n");
+  }
 
   function formatOpenRouterError(error: any): string {
     if (!error) return "OpenRouter request failed";
@@ -7698,6 +7730,8 @@ export async function registerRoutes(
     anthropic: "ANTHROPIC_API_KEY",
     google: "GOOGLE_API_KEY",
     openrouter: "OPENROUTER_API_KEY",
+    perplexity: "PERPLEXITY_API_KEY",
+    mistral: "MISTRAL_API_KEY",
   };
 
   async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string; byokNoKey?: boolean }> {
@@ -7734,6 +7768,12 @@ export async function registerRoutes(
           if (provider === "google") {
             return { anthropicClient: anthropic, openaiClient: openai, geminiClient: new GoogleGenAI({ apiKey }), credMode: "byok" };
           }
+          if (provider === "perplexity") {
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.perplexity.ai" }), geminiClient: gemini, credMode: "byok" };
+          }
+          if (provider === "mistral") {
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.mistral.ai/v1" }), geminiClient: gemini, credMode: "byok" };
+          }
         }
         return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "byok", byokNoKey: true };
       }
@@ -7749,6 +7789,10 @@ export async function registerRoutes(
       }
       if (prompt.length > MAX_PROMPT_LENGTH) {
         return res.status(400).json({ message: `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)` });
+      }
+      const genKeyError = validateExternalAIKey(requestedModel);
+      if (genKeyError) {
+        return res.status(400).json({ message: genKeyError });
       }
 
       const genProjectLimit = await storage.checkProjectLimit(req.session.userId!);
@@ -7818,6 +7862,26 @@ ${formatInstruction}`;
           max_completion_tokens: 16384,
         });
         text = gptResponse.choices[0]?.message?.content || "";
+      } else if (requestedModel === "perplexity") {
+        const pplxResponse = await perplexityClient.chat.completions.create({
+          model: "sonar-pro",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt.trim() },
+          ],
+          max_tokens: 16384,
+        });
+        text = pplxResponse.choices[0]?.message?.content || "";
+      } else if (requestedModel === "mistral") {
+        const mistralResponse = await mistralClient.chat.completions.create({
+          model: "mistral-large-latest",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt.trim() },
+          ],
+          max_tokens: 16384,
+        });
+        text = mistralResponse.choices[0]?.message?.content || "";
       } else {
         const message = await anthropic.messages.create({
           model: "claude-sonnet-4-6",
@@ -8361,6 +8425,10 @@ ${formatInstruction}`;
       if (msgError) {
         return res.status(400).json({ message: msgError });
       }
+      const planKeyError = validateExternalAIKey(requestedModel);
+      if (planKeyError) {
+        return res.status(400).json({ message: planKeyError });
+      }
 
       if (typeof projectId !== "string" || projectId.length > 100) {
         return res.status(400).json({ message: "Invalid projectId" });
@@ -8485,6 +8553,42 @@ Any closing remarks...`;
           ...OPENROUTER_PRIVACY_BODY,
         } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & Record<string, unknown>, OPENROUTER_REQUEST_OPTS);
 
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            fullContent += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } else if (requestedModel === "perplexity") {
+        const pplxPlanMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: planSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+        const stream = await perplexityClient.chat.completions.create({
+          model: "sonar-pro",
+          messages: pplxPlanMessages,
+          stream: true,
+          max_tokens: 16384,
+        });
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            fullContent += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+      } else if (requestedModel === "mistral") {
+        const mistralPlanMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: planSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+        const stream = await mistralClient.chat.completions.create({
+          model: "mistral-large-latest",
+          messages: mistralPlanMessages,
+          stream: true,
+          max_tokens: 16384,
+        });
         for await (const chunk of stream) {
           const content = chunk.choices[0]?.delta?.content || "";
           if (content) {
@@ -8878,7 +8982,7 @@ Rules:
 - Include all imports, all functions, and all necessary code for the file to work standalone.
 - When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${ecodeContext}${skillsContext}`;
 
-      const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic" };
+      const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", perplexity: "perplexity", mistral: "mistral" };
       const chatProvider = chatProviderMap[selectedModel] || selectedModel;
       const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode, byokNoKey: chatByokNoKey } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!);
 
@@ -8969,7 +9073,51 @@ Rules:
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
-        if (!chatInputTokens) chatInputTokens = Math.ceil(JSON.stringify(gptMessages).length / 4);
+        if (!chatInputTokens) chatInputTokens = Math.ceil(JSON.stringify(orMessages).length / 4);
+      } else if (selectedModel === "perplexity") {
+        const pplxMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        const stream = await chatOpenaiClient.chat.completions.create({
+          model: modelId,
+          messages: pplxMessages,
+          stream: true,
+          max_tokens: turboMaxTokens,
+        });
+
+        let pplxFullContent = "";
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            pplxFullContent += content;
+            chatOutputTokens += Math.ceil(content.length / 4);
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+        chatInputTokens = Math.ceil(JSON.stringify(pplxMessages).length / 4);
+      } else if (selectedModel === "mistral") {
+        const mistralMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        const stream = await chatOpenaiClient.chat.completions.create({
+          model: modelId,
+          messages: mistralMessages,
+          stream: true,
+          max_tokens: turboMaxTokens,
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            chatOutputTokens += Math.ceil(content.length / 4);
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+        chatInputTokens = Math.ceil(JSON.stringify(mistralMessages).length / 4);
       } else {
         const stream = chatAnthropicClient.messages.stream({
           model: modelId,
@@ -8992,6 +9140,8 @@ Rules:
         openai: { input: 0.0025, output: 0.01 },
         google: { input: 0.00015, output: 0.0006 },
         openrouter: { input: 0.0025, output: 0.01 },
+        perplexity: { input: 0.001, output: 0.005 },
+        mistral: { input: 0.001, output: 0.003 },
       };
       const pricing = pricingPerToken[chatProvider] || pricingPerToken.openai;
       const chatEstimatedCost = Math.round((chatInputTokens * pricing.input / 1000 + chatOutputTokens * pricing.output / 1000) * 100);
@@ -9529,7 +9679,7 @@ Rules:
       const agentSelectedModel = requestedModel || "claude";
       const agentModelId = agentResolved.modelId;
 
-      const agentProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic" };
+      const agentProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", perplexity: "perplexity", mistral: "mistral" };
       const agentProvider = agentProviderMap[agentSelectedModel] || agentSelectedModel;
       const { anthropicClient: agentAnthropicClient, openaiClient: agentOpenaiClient, geminiClient: agentGeminiClient, credMode: agentCredMode, byokNoKey: agentByokNoKey } = await resolveProviderClients(projectId, agentProvider, req.session.userId!);
 
@@ -10547,6 +10697,76 @@ Always cite your sources in your response when using information from web search
         if (iterations >= MAX_AGENT_ITERATIONS) {
           res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
         }
+      } else if (agentSelectedModel === "perplexity" || agentSelectedModel === "mistral") {
+        const extClient = agentOpenaiClient;
+        const extTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+          { type: "function", function: { name: "create_file", description: "Create a new file in the project with the given filename and content", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+          { type: "function", function: { name: "edit_file", description: "Replace the entire content of an existing file", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+          { type: "function", function: { name: "create_skill", description: "Create a reusable skill", parameters: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, content: { type: "string" } }, required: ["name", "content"] } } },
+          { type: "function", function: { name: "generate_image", description: "Generate an AI image and save it as a project file", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, size: { type: "string", enum: ["1024x1024", "1024x1536", "1536x1024", "auto"] } }, required: ["prompt", "filename"] } } },
+          { type: "function", function: { name: "generate_file", description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV)", parameters: { type: "object", properties: { format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv", "pptx"] }, filename: { type: "string" }, title: { type: "string" }, sections: { type: "array", items: { type: "object" } } }, required: ["format", "filename", "sections"] } } },
+          ...mcpToolDefinitions.map(t => ({ type: "function" as const, function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
+        ];
+        if (webSearchEnabled) {
+          extTools.push(
+            { type: "function", function: { name: "web_search", description: "Search the web for current information", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } },
+            { type: "function", function: { name: "fetch_url", description: "Fetch and read the content of a specific web page URL", parameters: { type: "object", properties: { url: { type: "string" } }, required: ["url"] } } },
+          );
+        }
+
+        let extMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: agentSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await extClient.chat.completions.create({
+            model: agentModelId,
+            messages: extMessages,
+            tools: extTools,
+            max_tokens: agentTurboMaxTokens,
+          });
+
+          const choice = response.choices[0];
+          const message = choice.message;
+
+          if (message.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          }
+
+          if (agentSelectedModel === "perplexity") {
+            const pplxCitations = formatPerplexityCitations(response as any);
+            if (pplxCitations) {
+              res.write(`data: ${JSON.stringify({ type: "text", content: pplxCitations })}\n\n`);
+            }
+          }
+
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            for (const toolCall of message.tool_calls) {
+              if (toolCall.type !== "function") continue;
+              const fn = toolCall.function;
+              const toolInput = JSON.parse(fn.arguments) as any;
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+              toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: result || "Done" });
+            }
+            extMessages = [...extMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
+          }
+
+          if (choice.finish_reason !== "tool_calls") {
+            continueLoop = false;
+          }
+        }
+
+        if (iterations >= MAX_AGENT_ITERATIONS) {
+          res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
+        }
       } else {
         const tools: Anthropic.Messages.Tool[] = [
           {
@@ -10908,6 +11128,20 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
                 res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
               }
             }
+          } else if (agentSelectedModel === "perplexity" || agentSelectedModel === "mistral") {
+            const extReviewClient = agentOpenaiClient;
+            const reviewStream = await extReviewClient.chat.completions.create({
+              model: reviewModelId,
+              messages: [{ role: "user", content: optimizePrompt }],
+              stream: true,
+              max_tokens: 4096,
+            });
+            for await (const chunk of reviewStream) {
+              const content = chunk.choices[0]?.delta?.content || "";
+              if (content) {
+                res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+              }
+            }
           } else {
             const reviewStream = agentAnthropicClient.messages.stream({
               model: reviewModelId,
@@ -10986,6 +11220,10 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       const msgError = validateAIMessages(messages);
       if (msgError) {
         return res.status(400).json({ message: msgError });
+      }
+      const liteKeyError = validateExternalAIKey(requestedModel);
+      if (liteKeyError) {
+        return res.status(400).json({ message: liteKeyError });
       }
 
       if (typeof projectId !== "string" || projectId.length > 100) {
@@ -11210,6 +11448,56 @@ Rules:
             };
 
             orLiteMessages = [...orLiteMessages, liteAssistantMsg, ...toolResultMessages];
+          }
+
+          if (choice.finish_reason !== "tool_calls") {
+            continueLoop = false;
+          }
+        }
+      } else if (requestedModel === "perplexity" || requestedModel === "mistral") {
+        const extLiteClient = requestedModel === "perplexity" ? perplexityClient : mistralClient;
+        const extLiteModelId = requestedModel === "perplexity" ? "sonar" : "mistral-small-latest";
+
+        const extLiteTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+          { type: "function", function: { name: "create_file", description: "Create a new file", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+          { type: "function", function: { name: "edit_file", description: "Replace file content", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+        ];
+
+        let extLiteMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: liteSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await extLiteClient.chat.completions.create({
+            model: extLiteModelId,
+            messages: extLiteMessages,
+            tools: extLiteTools,
+            max_tokens: 8192,
+          });
+
+          const choice = response.choices[0];
+          const message = choice.message;
+
+          if (message.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          }
+
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            for (const toolCall of message.tool_calls) {
+              if (toolCall.type !== "function") continue;
+              const fn = toolCall.function;
+              const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
+            }
+            extLiteMessages = [...extLiteMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
           }
 
           if (choice.finish_reason !== "tool_calls") {
@@ -11580,6 +11868,10 @@ Rules:
       if (query.length > 1000) {
         return res.status(400).json({ message: "Query too long (max 1000 characters)" });
       }
+      const wsKeyError = validateExternalAIKey(requestedModel);
+      if (wsKeyError) {
+        return res.status(400).json({ message: wsKeyError });
+      }
 
       const searchQuota = await storage.incrementAiCall(req.session.userId!);
       if (!searchQuota.allowed) {
@@ -11634,6 +11926,32 @@ Based on the search results above, provide a comprehensive answer to the user's 
           messages: [{ role: "system", content: "You are a helpful search assistant that synthesizes web search results into clear, cited answers." }, { role: "user", content: searchPrompt }],
           stream: true,
           max_completion_tokens: 4096,
+        });
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+          }
+        }
+      } else if (requestedModel === "perplexity") {
+        const stream = await perplexityClient.chat.completions.create({
+          model: "sonar-pro",
+          messages: [{ role: "system", content: "You are a helpful search assistant that synthesizes web search results into clear, cited answers." }, { role: "user", content: searchPrompt }],
+          stream: true,
+          max_tokens: 4096,
+        });
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+          }
+        }
+      } else if (requestedModel === "mistral") {
+        const stream = await mistralClient.chat.completions.create({
+          model: "mistral-large-latest",
+          messages: [{ role: "system", content: "You are a helpful search assistant that synthesizes web search results into clear, cited answers." }, { role: "user", content: searchPrompt }],
+          stream: true,
+          max_tokens: 4096,
         });
         for await (const chunk of stream) {
           const content = chunk.choices[0]?.delta?.content || "";
@@ -19184,7 +19502,7 @@ export default function App() {
       }
       const configs = await storage.getAiCredentialConfigs(req.params.projectId);
       const envVars = await storage.getProjectEnvVars(req.params.projectId);
-      const providers = ["openai", "anthropic", "google", "openrouter"];
+      const providers = ["openai", "anthropic", "google", "openrouter", "perplexity", "mistral"];
       const result = providers.map(p => {
         const cfg = configs.find(c => c.provider === p);
         const secretKey = BYOK_SECRET_KEYS[p];
@@ -19204,7 +19522,7 @@ export default function App() {
         return res.status(403).json({ message: "Access denied" });
       }
       const { provider } = req.params;
-      const validProviders = ["openai", "anthropic", "google", "openrouter"];
+      const validProviders = ["openai", "anthropic", "google", "openrouter", "perplexity", "mistral"];
       if (!validProviders.includes(provider)) {
         return res.status(400).json({ message: "Invalid provider" });
       }
@@ -19231,7 +19549,7 @@ export default function App() {
         return res.status(403).json({ message: "Access denied" });
       }
       const { provider } = req.params;
-      const validProviders = ["openai", "anthropic", "google", "openrouter"];
+      const validProviders = ["openai", "anthropic", "google", "openrouter", "perplexity", "mistral"];
       if (!validProviders.includes(provider)) {
         return res.status(400).json({ message: "Invalid provider" });
       }
