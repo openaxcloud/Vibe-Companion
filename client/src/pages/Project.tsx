@@ -81,6 +81,7 @@ import EnvVarsPanel from "@/components/EnvVarsPanel";
 import GitHubPanel from "@/components/GitHubPanel";
 import SlideEditor from "@/components/SlideEditor";
 import VideoEditor from "@/components/VideoEditor";
+import AnimationPreview from "@/components/AnimationPreview";
 import DesignCanvas from "@/components/DesignCanvas";
 import ConversionDialog from "@/components/ConversionDialog";
 import {
@@ -273,6 +274,7 @@ function _projectPage() {
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [animationExportOpen, setAnimationExportOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
@@ -3008,6 +3010,7 @@ function _projectPage() {
     if (!fileList) return false;
     return isMobileAppProject(fileList.map(f => ({ filename: f.filename, content: f.content })));
   }, [project?.projectType, (project as any)?.outputType, filesQuery.data]);
+  const isAnimationProject = (project as any)?.outputType === "animation" || project?.projectType === "animation";
   const activeIsSpecial = activeFileId ? isSpecialTab(activeFileId) : false;
   const isRunnerTab = !activeIsSpecial && activeFileId?.startsWith("runner:");
   const activeFile = (isRunnerTab || activeIsSpecial) ? null : filesQuery.data?.find((f) => f.id === activeFileId);
@@ -4305,6 +4308,13 @@ function _projectPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+          {isAnimationProject && (
+            <Button variant="ghost" size="sm" className="h-6 px-2 gap-1 text-[9px] font-medium text-[#7C65CB] hover:text-[#7C65CB] hover:bg-[#7C65CB]/10 rounded"
+              onClick={() => setAnimationExportOpen(true)}
+              title="Export animation as MP4" data-testid="button-animation-export-toolbar">
+              <Download className="w-2.5 h-2.5" /> Export MP4
+            </Button>
           )}
           <DevicePresetSelector selectedPreset={selectedDevicePreset} onSelect={handleDevicePresetSelect} projectId={projectId} customWidth={customDeviceWidth} customHeight={customDeviceHeight} onCustomSizeChange={(w, h) => { setCustomDeviceWidth(w); setCustomDeviceHeight(h); }} />
           <DevToolsToggle active={devToolsActive} onToggle={() => setDevToolsActive(!devToolsActive)} />
@@ -9197,6 +9207,16 @@ function _projectPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {isAnimationProject && projectId && (
+        <AnimationPreview
+          projectId={projectId}
+          previewUrl={livePreviewUrl}
+          previewHtml={previewHtml}
+          exportDialogOpen={animationExportOpen}
+          onExportDialogClose={() => setAnimationExportOpen(false)}
+        />
+      )}
 
       <CommandPalette
         open={commandPaletteOpen}

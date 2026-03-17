@@ -204,7 +204,7 @@ export const projects = pgTable("projects", {
   index("projects_user_id_idx").on(table.userId),
 ]);
 
-export const projectTypeEnum = z.enum(["web-app", "slides", "video"]);
+export const projectTypeEnum = z.enum(["web-app", "slides", "video", "animation"]);
 export type ProjectType = z.infer<typeof projectTypeEnum>;
 
 export const outputTypeEnum = z.enum(OUTPUT_TYPES);

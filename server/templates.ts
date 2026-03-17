@@ -2598,11 +2598,11 @@ const styles = StyleSheet.create({
     ],
   },
   {
-    id: "financial-dashboard",
-    name: "Financial Dashboard",
-    description: "Financial metrics dashboard with P&L charts, expense tracking, and export capabilities",
-    language: "javascript",
-    projectType: "web-app",
+    id: "animation-product-promo",
+    name: "Product Promo Animation",
+    description: "Animated product promo with scene transitions, motion graphics, and call-to-action",
+    language: "typescript",
+    projectType: "animation",
     files: [
       {
         filename: "index.html",
@@ -2611,117 +2611,207 @@ const styles = StyleSheet.create({
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Financial Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\/script>
+  <title>Product Promo Animation</title>
   <style>
-    :root { --bg: #0f172a; --surface: #1e293b; --border: #334155; --text: #e2e8f0; --text-secondary: #94a3b8; --accent: #8b5cf6; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; }
-    [data-theme="light"] { --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0; --text: #1e293b; --text-secondary: #64748b; --accent: #7c3aed; --success: #16a34a; --warning: #d97706; --danger: #dc2626; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    .dashboard { max-width: 1400px; margin: 0 auto; padding: 20px; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
-    .header h1 { font-size: 24px; font-weight: 700; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; transition: all 0.2s; }
-    .btn:hover { border-color: var(--accent); color: var(--accent); }
-    select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; }
-    .filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-    .filters label { font-size: 12px; color: var(--text-secondary); }
-    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-    .kpi .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .kpi .val { font-size: 26px; font-weight: 700; }
-    .kpi .delta { font-size: 12px; margin-top: 4px; }
-    .kpi .delta.pos { color: var(--success); }
-    .kpi .delta.neg { color: var(--danger); }
-    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-    .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; }
-    .card h3 .csv-btn { font-size: 11px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); background: transparent; }
-    .card h3 .csv-btn:hover { color: var(--accent); border-color: var(--accent); }
-    .chart-box { position: relative; height: 280px; }
-    .summary { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .summary h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
-    .summary p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
-    .tbl { width: 100%; border-collapse: collapse; }
-    .tbl th, .tbl td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .tbl th { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; font-weight: 600; }
-    .refresh-bar { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-    .dot-live { width: 6px; height: 6px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+    body { background: #0a0a1a; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+    #root { width: 100vw; height: 100vh; }
   </style>
 </head>
 <body>
-  <div class="dashboard" id="dashboard">
-    <div class="header">
-      <h1>Financial Dashboard</h1>
-      <div class="actions">
-        <div class="refresh-bar"><span class="dot-live"></span> Auto-refresh: <select id="refreshInt" onchange="setRefresh(this.value)"><option value="0">Off</option><option value="5000">5s</option><option value="30000" selected>30s</option><option value="60000">1m</option><option value="300000">5m</option></select></div>
-        <button class="btn" onclick="csvAll()">CSV Export</button>
-        <button class="btn" onclick="pdfAll()">PDF Export</button>
-        <button class="btn" onclick="toggleTheme()">Theme</button>
-      </div>
-    </div>
-    <div class="filters">
-      <div><label>Period</label><br><select id="period" onchange="refresh()"><option value="month">This Month</option><option value="quarter" selected>This Quarter</option><option value="year">This Year</option></select></div>
-      <div><label>Department</label><br><select id="dept" onchange="refresh()"><option value="all">All</option><option value="engineering">Engineering</option><option value="marketing">Marketing</option><option value="sales">Sales</option><option value="operations">Operations</option></select></div>
-    </div>
-    <div class="kpi-row" id="kpis"></div>
-    <div class="grid2">
-      <div class="card"><h3>Revenue vs Expenses <button class="csv-btn" onclick="csvChart('pnl')">CSV</button></h3><div class="chart-box"><canvas id="pnlChart"></canvas></div></div>
-      <div class="card"><h3>Expense Breakdown <button class="csv-btn" onclick="csvChart('expense')">CSV</button></h3><div class="chart-box"><canvas id="expenseChart"></canvas></div></div>
-      <div class="card"><h3>Cash Flow <button class="csv-btn" onclick="csvChart('cashflow')">CSV</button></h3><div class="chart-box"><canvas id="cashflowChart"></canvas></div></div>
-      <div class="card"><h3>Profit Margin Trend <button class="csv-btn" onclick="csvChart('margin')">CSV</button></h3><div class="chart-box"><canvas id="marginChart"></canvas></div></div>
-    </div>
-    <div class="summary"><h3>Financial Analysis</h3><p id="analysisTxt">Loading analysis...</p></div>
-    <div class="card"><h3>Budget vs Actual</h3><table class="tbl"><thead><tr><th>Category</th><th>Budget</th><th>Actual</th><th>Variance</th></tr></thead><tbody id="budgetBody"></tbody></table></div>
-  </div>
-  <script>
-    let ch = {}, timer = null, theme = localStorage.getItem("fin-theme") || "dark";
-    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const finData = {
-      monthly: months.map((m,i) => ({month:m, revenue: 120000+Math.round(Math.random()*80000), expenses: 80000+Math.round(Math.random()*40000), dept: ["engineering","marketing","sales","operations"][i%4]})),
-      expenses: [{cat:"Salaries",amount:450000},{cat:"Marketing",amount:120000},{cat:"Infrastructure",amount:85000},{cat:"Operations",amount:65000},{cat:"R&D",amount:95000},{cat:"Other",amount:35000}],
-      budget: [{cat:"Salaries",budget:460000,actual:450000},{cat:"Marketing",budget:130000,actual:120000},{cat:"Infrastructure",budget:80000,actual:85000},{cat:"Operations",budget:70000,actual:65000},{cat:"R&D",budget:100000,actual:95000}]
-    };
-    function filtered() { const d = document.getElementById("dept").value; let m = finData.monthly; if (d !== "all") m = m.filter(x=>x.dept===d); return m; }
-    function renderKPIs(d) {
-      const rev = d.reduce((s,x)=>s+x.revenue,0), exp = d.reduce((s,x)=>s+x.expenses,0), profit = rev-exp, margin = rev>0?((profit/rev)*100).toFixed(1):0;
-      document.getElementById("kpis").innerHTML = [{l:"Revenue",v:"$"+(rev/1000).toFixed(0)+"K",d:"+14.2%",p:true},{l:"Expenses",v:"$"+(exp/1000).toFixed(0)+"K",d:"+6.8%",p:false},{l:"Net Profit",v:"$"+(profit/1000).toFixed(0)+"K",d:"+22.1%",p:true},{l:"Profit Margin",v:margin+"%",d:"+3.5%",p:true},{l:"Burn Rate",v:"$"+(exp/d.length/1000).toFixed(0)+"K/mo",d:"-4.2%",p:true}].map(k=>\`<div class="kpi"><div class="label">\${k.l}</div><div class="val">\${k.v}</div><div class="delta \${k.p?'pos':'neg'}">\${k.p?'\\u2191':'\\u2193'} \${k.d}</div></div>\`).join("");
-    }
-    function renderCharts(d) {
-      const tc = theme==="dark"?"#94a3b8":"#64748b", gc = theme==="dark"?"rgba(148,163,184,0.1)":"rgba(100,116,139,0.1)";
-      Chart.defaults.color = tc;
-      if(ch.pnl)ch.pnl.destroy();
-      ch.pnl = new Chart(document.getElementById("pnlChart"),{type:"bar",data:{labels:d.map(x=>x.month),datasets:[{label:"Revenue",data:d.map(x=>x.revenue),backgroundColor:"rgba(139,92,246,0.7)",borderRadius:6},{label:"Expenses",data:d.map(x=>x.expenses),backgroundColor:"rgba(239,68,68,0.5)",borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{grid:{color:gc},ticks:{callback:v=>"$"+(v/1000)+"K"}},x:{grid:{display:false}}}}});
-      if(ch.expense)ch.expense.destroy();
-      ch.expense = new Chart(document.getElementById("expenseChart"),{type:"pie",data:{labels:finData.expenses.map(e=>e.cat),datasets:[{data:finData.expenses.map(e=>e.amount),backgroundColor:["#8b5cf6","#3b82f6","#22c55e","#f59e0b","#ef4444","#6366f1"]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{boxWidth:12,padding:14}}}}});
-      if(ch.cashflow)ch.cashflow.destroy();
-      ch.cashflow = new Chart(document.getElementById("cashflowChart"),{type:"line",data:{labels:d.map(x=>x.month),datasets:[{label:"Cash Flow",data:d.map(x=>x.revenue-x.expenses),borderColor:"#22c55e",backgroundColor:"rgba(34,197,94,0.1)",fill:true,tension:0.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc},ticks:{callback:v=>"$"+(v/1000)+"K"}},x:{grid:{display:false}}}}});
-      if(ch.margin)ch.margin.destroy();
-      ch.margin = new Chart(document.getElementById("marginChart"),{type:"line",data:{labels:d.map(x=>x.month),datasets:[{label:"Margin %",data:d.map(x=>((x.revenue-x.expenses)/x.revenue*100).toFixed(1)),borderColor:"#f59e0b",backgroundColor:"rgba(245,158,11,0.1)",fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc},ticks:{callback:v=>v+"%"}},x:{grid:{display:false}}}}});
-    }
-    function renderBudget() {
-      document.getElementById("budgetBody").innerHTML = finData.budget.map(b=>{const v=b.actual-b.budget;return \`<tr><td>\${b.cat}</td><td>$\${b.budget.toLocaleString()}</td><td>$\${b.actual.toLocaleString()}</td><td style="color:\${v<=0?'var(--success)':'var(--danger)'}">\${v>0?'+':''}$\${v.toLocaleString()}</td></tr>\`;}).join("");
-    }
-    function analyze(d) {
-      const rev = d.reduce((s,x)=>s+x.revenue,0), exp = d.reduce((s,x)=>s+x.expenses,0);
-      document.getElementById("analysisTxt").textContent = \`Total revenue stands at $\${(rev/1000).toFixed(0)}K against expenses of $\${(exp/1000).toFixed(0)}K, yielding a net profit of $\${((rev-exp)/1000).toFixed(0)}K. Salaries represent the largest expense category at $450K (53% of total). Infrastructure spending is slightly over budget by $5K. Overall profit margin is \${((rev-exp)/rev*100).toFixed(1)}%, trending positively compared to last quarter.\`;
-    }
-    function refresh() { const d = filtered(); renderKPIs(d); renderCharts(d); renderBudget(); analyze(d); }
-    function setRefresh(ms) { if(timer)clearInterval(timer); if(parseInt(ms)>0) timer=setInterval(()=>{finData.monthly.forEach(m=>{m.revenue=Math.round(m.revenue*(0.97+Math.random()*0.06));m.expenses=Math.round(m.expenses*(0.97+Math.random()*0.06));});refresh();},parseInt(ms)); }
-    function toggleTheme() { theme=theme==="dark"?"light":"dark"; localStorage.setItem("fin-theme",theme); if(theme==="light")document.documentElement.setAttribute("data-theme","light"); else document.documentElement.removeAttribute("data-theme"); refresh(); }
-    function csvChart(id) { let csv=""; if(id==="pnl"){csv="Month,Revenue,Expenses\\n";filtered().forEach(d=>csv+=d.month+","+d.revenue+","+d.expenses+"\\n");} else if(id==="expense"){csv="Category,Amount\\n";finData.expenses.forEach(e=>csv+=e.cat+","+e.amount+"\\n");} else if(id==="cashflow"){csv="Month,CashFlow\\n";filtered().forEach(d=>csv+=d.month+","+(d.revenue-d.expenses)+"\\n");} else if(id==="margin"){csv="Month,Margin%\\n";filtered().forEach(d=>csv+=d.month+","+((d.revenue-d.expenses)/d.revenue*100).toFixed(1)+"\\n");} const b=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.download=id+"_data.csv";a.href=URL.createObjectURL(b);a.click(); }
-    function csvAll() { let csv="Month,Revenue,Expenses,NetProfit,Margin\\n"; filtered().forEach(d=>{const p=d.revenue-d.expenses;csv+=d.month+","+d.revenue+","+d.expenses+","+p+","+(d.revenue>0?((p/d.revenue)*100).toFixed(1):0)+"\\n";}); const b=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.download="financial_report.csv";a.href=URL.createObjectURL(b);a.click(); }
-    async function pdfAll() { const {jsPDF}=window.jspdf; const c=await html2canvas(document.getElementById("dashboard"),{scale:2,backgroundColor:theme==="dark"?"#0f172a":"#f8fafc"}); const img=c.toDataURL("image/png"); const pdf=new jsPDF({orientation:"landscape",unit:"px",format:[c.width,c.height]}); pdf.addImage(img,"PNG",0,0,c.width,c.height); pdf.save("financial_dashboard.pdf"); }
-    refresh(); setRefresh(30000);
-  <\/script>
+  <div id="root"></div>
+  <script type="module" src="./App.tsx"></script>
 </body>
 </html>`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import React, { useState, useEffect, useCallback, useRef } from "react";
+
+interface Scene {
+  id: string;
+  duration: number;
+  component: React.FC<{ progress: number; entering: boolean }>;
+  background: string;
+}
+
+function useAnimationLoop(totalDuration: number) {
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const startRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!playing) return;
+    startRef.current = performance.now() - pausedAtRef.current;
+    let raf: number;
+    const tick = (now: number) => {
+      const elapsed = now - startRef.current;
+      setTime(elapsed % (totalDuration * 1000));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, totalDuration]);
+
+  const toggle = useCallback(() => {
+    if (playing) pausedAtRef.current = performance.now() - startRef.current;
+    setPlaying(!playing);
+  }, [playing]);
+
+  const reset = useCallback(() => {
+    pausedAtRef.current = 0;
+    startRef.current = performance.now();
+    setTime(0);
+    setPlaying(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "animation-control") {
+        if (e.data.action === "pause") { pausedAtRef.current = performance.now() - startRef.current; setPlaying(false); }
+        if (e.data.action === "play") setPlaying(true);
+        if (e.data.action === "reset") reset();
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [reset]);
+
+  return { time, playing, toggle, reset };
+}
+
+function IntroScene({ progress }: { progress: number; entering: boolean }) {
+  const titleOpacity = Math.min(1, progress * 3);
+  const titleY = Math.max(0, (1 - Math.min(1, progress * 2)) * 40);
+  const subtitleOpacity = Math.min(1, Math.max(0, (progress - 0.3) * 3));
+  const glowSize = 100 + progress * 200;
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", width: glowSize, height: glowSize, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,101,203,0.3) 0%, transparent 70%)", filter: "blur(40px)" }} />
+      <h1 style={{ fontSize: "clamp(36px, 6vw, 72px)", fontWeight: 800, color: "#fff", transform: \`translateY(\${titleY}px)\`, opacity: titleOpacity, textAlign: "center", letterSpacing: "-0.02em", zIndex: 1 }} data-testid="text-scene-title">
+        YourProduct
+      </h1>
+      <p style={{ fontSize: "clamp(16px, 2.5vw, 28px)", color: "#94a3b8", opacity: subtitleOpacity, marginTop: 16, textAlign: "center", zIndex: 1 }} data-testid="text-scene-subtitle">
+        The future starts here
+      </p>
+    </div>
+  );
+}
+
+function FeaturesScene({ progress }: { progress: number; entering: boolean }) {
+  const features = [
+    { icon: "\\u26A1", title: "Lightning Fast", color: "#F5A623" },
+    { icon: "\\uD83D\\uDD12", title: "Secure by Default", color: "#0CCE6B" },
+    { icon: "\\uD83C\\uDF10", title: "Scale Globally", color: "#0079F2" },
+  ];
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "0 10%" }}>
+      <h2 style={{ fontSize: "clamp(24px, 4vw, 48px)", fontWeight: 700, color: "#fff", opacity: Math.min(1, progress * 4), transform: \`translateY(\${Math.max(0, (1 - progress * 3) * 30)}px)\` }}>
+        Why Choose Us
+      </h2>
+      <div style={{ display: "flex", gap: "clamp(16px, 3vw, 32px)", flexWrap: "wrap", justifyContent: "center" }}>
+        {features.map((f, i) => {
+          const delay = 0.2 + i * 0.15;
+          const p = Math.min(1, Math.max(0, (progress - delay) * 4));
+          return (
+            <div key={i} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 16, padding: "clamp(16px, 2vw, 32px)", textAlign: "center", opacity: p, transform: \`translateY(\${(1 - p) * 40}px) scale(\${0.8 + p * 0.2})\`, minWidth: 140, border: \`1px solid \${f.color}33\` }} data-testid={\`card-feature-\${i}\`}>
+              <div style={{ fontSize: "clamp(28px, 3vw, 40px)", marginBottom: 8 }}>{f.icon}</div>
+              <div style={{ color: f.color, fontWeight: 600, fontSize: "clamp(14px, 1.5vw, 18px)" }}>{f.title}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StatsScene({ progress }: { progress: number; entering: boolean }) {
+  const stats = [
+    { value: "10M+", label: "Users", color: "#7C65CB" },
+    { value: "99.9%", label: "Uptime", color: "#0CCE6B" },
+    { value: "50ms", label: "Response", color: "#0079F2" },
+  ];
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 32 }}>
+      <div style={{ display: "flex", gap: "clamp(24px, 4vw, 64px)", flexWrap: "wrap", justifyContent: "center" }}>
+        {stats.map((s, i) => {
+          const delay = i * 0.15;
+          const p = Math.min(1, Math.max(0, (progress - delay) * 3));
+          return (
+            <div key={i} style={{ textAlign: "center", opacity: p, transform: \`scale(\${0.5 + p * 0.5})\` }} data-testid={\`text-stat-\${i}\`}>
+              <div style={{ fontSize: "clamp(36px, 5vw, 64px)", fontWeight: 800, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: "clamp(14px, 1.5vw, 20px)", color: "#94a3b8", marginTop: 4 }}>{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CTAScene({ progress }: { progress: number; entering: boolean }) {
+  const scale = 0.8 + Math.min(1, progress * 2) * 0.2;
+  const opacity = Math.min(1, progress * 3);
+  const btnOpacity = Math.min(1, Math.max(0, (progress - 0.3) * 3));
+  const pulse = Math.sin(progress * Math.PI * 4) * 0.05 + 1;
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <h2 style={{ fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 800, color: "#fff", opacity, transform: \`scale(\${scale})\`, textAlign: "center" }}>
+        Get Started Today
+      </h2>
+      <div style={{ marginTop: 32, padding: "14px 48px", borderRadius: 99, background: "linear-gradient(135deg, #7C65CB, #0079F2)", color: "#fff", fontSize: "clamp(16px, 2vw, 22px)", fontWeight: 600, opacity: btnOpacity, transform: \`scale(\${pulse})\`, cursor: "pointer" }} data-testid="button-cta">
+        Try Free
+      </div>
+      <p style={{ color: "#64748b", fontSize: "clamp(12px, 1.2vw, 16px)", marginTop: 16, opacity: btnOpacity }}>
+        No credit card required
+      </p>
+    </div>
+  );
+}
+
+const scenes: Scene[] = [
+  { id: "intro", duration: 4, component: IntroScene, background: "linear-gradient(135deg, #0a0a1a 0%, #1a1030 100%)" },
+  { id: "features", duration: 5, component: FeaturesScene, background: "linear-gradient(135deg, #0f172a 0%, #0a0a1a 100%)" },
+  { id: "stats", duration: 4, component: StatsScene, background: "linear-gradient(135deg, #0a0a1a 0%, #0f172a 100%)" },
+  { id: "cta", duration: 4, component: CTAScene, background: "linear-gradient(135deg, #1a1030 0%, #0a0a1a 100%)" },
+];
+
+const TOTAL_DURATION = scenes.reduce((s, sc) => s + sc.duration, 0);
+
+export default function App() {
+  const { time, playing, toggle, reset } = useAnimationLoop(TOTAL_DURATION);
+
+  useEffect(() => {
+    try { window.parent.postMessage({ type: "animation-duration", duration: TOTAL_DURATION }, "*"); } catch {}
+  }, []);
+
+  let elapsed = 0;
+  let currentScene = scenes[0];
+  let sceneProgress = 0;
+
+  for (const sc of scenes) {
+    if (time / 1000 < elapsed + sc.duration) {
+      currentScene = sc;
+      sceneProgress = (time / 1000 - elapsed) / sc.duration;
+      break;
+    }
+    elapsed += sc.duration;
+  }
+
+  const SceneComponent = currentScene.component;
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", position: "relative", background: currentScene.background, transition: "background 0.8s ease" }}>
+      <SceneComponent progress={sceneProgress} entering={sceneProgress < 0.1} />
+      <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 8 }}>
+        {scenes.map((sc, i) => (
+          <div key={sc.id} style={{ width: 8, height: 8, borderRadius: "50%", background: currentScene.id === sc.id ? "#7C65CB" : "rgba(255,255,255,0.2)", transition: "background 0.3s" }} data-testid={\`indicator-scene-\${i}\`} />
+        ))}
+      </div>
+    </div>
+  );
+}`,
       },
     ],
   },
@@ -3190,11 +3280,11 @@ const styles = StyleSheet.create({
     ],
   },
   {
-    id: "metrics-tracker-dashboard",
-    name: "Metrics Tracker",
-    description: "KPI metrics tracker with real-time monitoring, trend analysis, and data export",
-    language: "javascript",
-    projectType: "web-app",
+    id: "animation-explainer",
+    name: "Explainer Animation",
+    description: "Step-by-step explainer animation with smooth transitions and motion graphics",
+    language: "typescript",
+    projectType: "animation",
     files: [
       {
         filename: "index.html",
@@ -3203,105 +3293,129 @@ const styles = StyleSheet.create({
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Metrics Tracker</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\/script>
+  <title>Explainer Animation</title>
   <style>
-    :root{--bg:#0f172a;--surface:#1e293b;--border:#334155;--text:#e2e8f0;--muted:#94a3b8;--accent:#06b6d4;--success:#22c55e;--warn:#f59e0b;--danger:#ef4444;}
-    [data-theme="light"]{--bg:#f1f5f9;--surface:#fff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--accent:#0891b2;--success:#16a34a;--warn:#d97706;--danger:#dc2626;}
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);}
-    .dash{max-width:1400px;margin:0 auto;padding:20px;}
-    .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
-    .hdr h1{font-size:24px;font-weight:700;}
-    .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-    .btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;transition:all .2s;}
-    .btn:hover{border-color:var(--accent);color:var(--accent);}
-    select{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;}
-    .filters{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
-    .filters label{font-size:12px;color:var(--muted);}
-    .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;}
-    .metric{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
-    .metric .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
-    .metric .num{font-size:24px;font-weight:700;}
-    .metric .chg{font-size:11px;margin-top:4px;}
-    .metric .chg.up{color:var(--success);}
-    .metric .chg.dn{color:var(--danger);}
-    .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px;margin-bottom:24px;}
-    .crd{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;}
-    .crd h3{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;}
-    .crd h3 .xb{font-size:11px;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;}
-    .crd h3 .xb:hover{color:var(--accent);border-color:var(--accent);}
-    .chw{position:relative;height:260px;}
-    .info{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;}
-    .info h3{font-size:14px;font-weight:600;margin-bottom:10px;}
-    .info p{font-size:13px;color:var(--muted);line-height:1.6;}
-    .rf{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
-    .dg{width:6px;height:6px;border-radius:50%;background:var(--success);animation:p 2s infinite;}
-    @keyframes p{0%,100%{opacity:1}50%{opacity:.4}}
-    @media(max-width:768px){.g2{grid-template-columns:1fr;}.metrics{grid-template-columns:repeat(2,1fr);}}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f23; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+    #root { width: 100vw; height: 100vh; }
   </style>
 </head>
 <body>
-  <div class="dash" id="dash">
-    <div class="hdr"><h1>Metrics Tracker</h1><div class="acts"><div class="rf"><span class="dg"></span>Auto-refresh:<select id="ri" onchange="setR(this.value)"><option value="0">Off</option><option value="5000" selected>5s</option><option value="30000">30s</option><option value="60000">1m</option></select></div><button class="btn" onclick="xCSV()">CSV</button><button class="btn" onclick="xPDF()">PDF</button><button class="btn" onclick="tTheme()">Theme</button></div></div>
-    <div class="filters"><div><label>Time Range</label><br><select id="tr" onchange="upd()"><option value="1h">Last Hour</option><option value="6h" selected>Last 6 Hours</option><option value="24h">Last 24 Hours</option><option value="7d">Last 7 Days</option></select></div><div><label>Service</label><br><select id="svc" onchange="upd()"><option value="all">All Services</option><option value="api">API Server</option><option value="web">Web Frontend</option><option value="db">Database</option><option value="cache">Cache</option></select></div></div>
-    <div class="metrics" id="ms"></div>
-    <div class="g2">
-      <div class="crd"><h3>Response Time (ms) <button class="xb" onclick="xC('rt')">CSV</button></h3><div class="chw"><canvas id="rtChart"></canvas></div></div>
-      <div class="crd"><h3>Request Rate (req/s) <button class="xb" onclick="xC('rr')">CSV</button></h3><div class="chw"><canvas id="rrChart"></canvas></div></div>
-      <div class="crd"><h3>Error Rate (%) <button class="xb" onclick="xC('er')">CSV</button></h3><div class="chw"><canvas id="erChart"></canvas></div></div>
-      <div class="crd"><h3>CPU & Memory Usage <button class="xb" onclick="xC('sys')">CSV</button></h3><div class="chw"><canvas id="sysChart"></canvas></div></div>
-    </div>
-    <div class="info"><h3>System Analysis</h3><p id="analysis">Analyzing...</p></div>
-  </div>
-  <script>
-    let C={},tmr=null,thm=localStorage.getItem("mt-theme")||"dark";
-    if(thm==="light")document.documentElement.setAttribute("data-theme","light");
-    const pts=60;
-    let mdata={rt:Array.from({length:pts},()=>Math.round(50+Math.random()*150)),rr:Array.from({length:pts},()=>Math.round(100+Math.random()*400)),er:Array.from({length:pts},()=>+(Math.random()*5).toFixed(2)),cpu:Array.from({length:pts},()=>Math.round(20+Math.random()*60)),mem:Array.from({length:pts},()=>Math.round(40+Math.random()*40))};
-    const labels=Array.from({length:pts},(_,i)=>{const d=new Date(Date.now()-(pts-i)*60000);return d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");});
-    function renderKPIs(){
-      const avgRt=Math.round(mdata.rt.reduce((a,b)=>a+b)/mdata.rt.length),avgRr=Math.round(mdata.rr.reduce((a,b)=>a+b)/mdata.rr.length),avgEr=(mdata.er.reduce((a,b)=>a+b)/mdata.er.length).toFixed(2),avgCpu=Math.round(mdata.cpu.reduce((a,b)=>a+b)/mdata.cpu.length),avgMem=Math.round(mdata.mem.reduce((a,b)=>a+b)/mdata.mem.length),uptime="99.97";
-      document.getElementById("ms").innerHTML=[{l:"Avg Response",v:avgRt+"ms",c:avgRt<100?"+":"",u:avgRt<100},{l:"Request Rate",v:avgRr+"/s",c:"+12%",u:true},{l:"Error Rate",v:avgEr+"%",c:avgEr<2?"-0.3%":"+0.5%",u:avgEr<2},{l:"CPU Usage",v:avgCpu+"%",c:avgCpu<60?"-5%":"+8%",u:avgCpu<60},{l:"Memory",v:avgMem+"%",c:avgMem<70?"-2%":"+4%",u:avgMem<70},{l:"Uptime",v:uptime+"%",c:"Healthy",u:true}].map(k=>\`<div class="metric"><div class="lbl">\${k.l}</div><div class="num">\${k.v}</div><div class="chg \${k.u?'up':'dn'}">\${k.u?'\\u2191':'\\u2193'} \${k.c}</div></div>\`).join("");
-    }
-    function renderCharts(){
-      const tc=thm==="dark"?"#94a3b8":"#64748b",gc=thm==="dark"?"rgba(148,163,184,0.08)":"rgba(100,116,139,0.08)";
-      Chart.defaults.color=tc;
-      if(C.rt)C.rt.destroy();
-      C.rt=new Chart(document.getElementById("rtChart"),{type:"line",data:{labels,datasets:[{label:"P50",data:mdata.rt.map(v=>v*0.7),borderColor:"#06b6d4",borderWidth:1.5,pointRadius:0,tension:.4},{label:"P95",data:mdata.rt,borderColor:"#f59e0b",borderWidth:1.5,pointRadius:0,tension:.4},{label:"P99",data:mdata.rt.map(v=>v*1.4),borderColor:"#ef4444",borderWidth:1.5,pointRadius:0,tension:.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10}}},scales:{y:{grid:{color:gc}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
-      if(C.rr)C.rr.destroy();
-      C.rr=new Chart(document.getElementById("rrChart"),{type:"bar",data:{labels,datasets:[{label:"Requests/s",data:mdata.rr,backgroundColor:"rgba(6,182,212,0.6)",borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
-      if(C.er)C.er.destroy();
-      C.er=new Chart(document.getElementById("erChart"),{type:"line",data:{labels,datasets:[{label:"Error %",data:mdata.er,borderColor:"#ef4444",backgroundColor:"rgba(239,68,68,0.1)",fill:true,tension:.3,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc},ticks:{callback:v=>v+"%"}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
-      if(C.sys)C.sys.destroy();
-      C.sys=new Chart(document.getElementById("sysChart"),{type:"line",data:{labels,datasets:[{label:"CPU %",data:mdata.cpu,borderColor:"#8b5cf6",borderWidth:1.5,pointRadius:0,tension:.4},{label:"Memory %",data:mdata.mem,borderColor:"#22c55e",borderWidth:1.5,pointRadius:0,tension:.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10}}},scales:{y:{grid:{color:gc},max:100,ticks:{callback:v=>v+"%"}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
-    }
-    function analyze(){
-      const avgRt=Math.round(mdata.rt.reduce((a,b)=>a+b)/mdata.rt.length),avgEr=(mdata.er.reduce((a,b)=>a+b)/mdata.er.length).toFixed(2);
-      document.getElementById("analysis").textContent=\`System performance is \${avgRt<100?"healthy":"elevated"} with average response time of \${avgRt}ms. Error rate at \${avgEr}% is \${avgEr<2?"within normal range":"above threshold"}. CPU utilization averages \${Math.round(mdata.cpu.reduce((a,b)=>a+b)/mdata.cpu.length)}% and memory at \${Math.round(mdata.mem.reduce((a,b)=>a+b)/mdata.mem.length)}%. No critical incidents detected in the monitoring period.\`;
-    }
-    function upd(){renderKPIs();renderCharts();analyze();}
-    function tick(){mdata.rt.shift();mdata.rt.push(Math.round(50+Math.random()*150));mdata.rr.shift();mdata.rr.push(Math.round(100+Math.random()*400));mdata.er.shift();mdata.er.push(+(Math.random()*5).toFixed(2));mdata.cpu.shift();mdata.cpu.push(Math.round(20+Math.random()*60));mdata.mem.shift();mdata.mem.push(Math.round(40+Math.random()*40));labels.shift();const d=new Date();labels.push(d.getHours()+":"+String(d.getMinutes()).padStart(2,"0"));upd();}
-    function setR(ms){if(tmr)clearInterval(tmr);if(parseInt(ms)>0)tmr=setInterval(tick,parseInt(ms));}
-    function tTheme(){thm=thm==="dark"?"light":"dark";localStorage.setItem("mt-theme",thm);if(thm==="light")document.documentElement.setAttribute("data-theme","light");else document.documentElement.removeAttribute("data-theme");upd();}
-    function xC(id){let csv="";if(id==="rt"){csv="Time,P50,P95,P99\\n";labels.forEach((l,i)=>csv+=l+","+Math.round(mdata.rt[i]*.7)+","+mdata.rt[i]+","+Math.round(mdata.rt[i]*1.4)+"\\n");}else if(id==="rr"){csv="Time,Requests\\n";labels.forEach((l,i)=>csv+=l+","+mdata.rr[i]+"\\n");}else if(id==="er"){csv="Time,ErrorRate\\n";labels.forEach((l,i)=>csv+=l+","+mdata.er[i]+"\\n");}else if(id==="sys"){csv="Time,CPU,Memory\\n";labels.forEach((l,i)=>csv+=l+","+mdata.cpu[i]+","+mdata.mem[i]+"\\n");}const b=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.download=id+"_metrics.csv";a.href=URL.createObjectURL(b);a.click();}
-    function xCSV(){let csv="Time,ResponseTime,RequestRate,ErrorRate,CPU,Memory\\n";labels.forEach((l,i)=>csv+=l+","+mdata.rt[i]+","+mdata.rr[i]+","+mdata.er[i]+","+mdata.cpu[i]+","+mdata.mem[i]+"\\n");const b=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.download="metrics_export.csv";a.href=URL.createObjectURL(b);a.click();}
-    async function xPDF(){const{jsPDF}=window.jspdf;const c=await html2canvas(document.getElementById("dash"),{scale:2,backgroundColor:thm==="dark"?"#0f172a":"#f1f5f9"});const img=c.toDataURL("image/png");const pdf=new jsPDF({orientation:"landscape",unit:"px",format:[c.width,c.height]});pdf.addImage(img,"PNG",0,0,c.width,c.height);pdf.save("metrics_dashboard.pdf");}
-    upd();setR(5000);
-  <\/script>
+  <div id="root"></div>
+  <script type="module" src="./App.tsx"></script>
 </body>
 </html>`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import React, { useState, useEffect, useCallback, useRef } from "react";
+
+function useAnimationLoop(totalDuration: number) {
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const startRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!playing) return;
+    startRef.current = performance.now() - pausedAtRef.current;
+    let raf: number;
+    const tick = (now: number) => {
+      const elapsed = now - startRef.current;
+      setTime(elapsed % (totalDuration * 1000));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, totalDuration]);
+
+  const reset = useCallback(() => {
+    pausedAtRef.current = 0;
+    startRef.current = performance.now();
+    setTime(0);
+    setPlaying(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "animation-control") {
+        if (e.data.action === "pause") { pausedAtRef.current = performance.now() - startRef.current; setPlaying(false); }
+        if (e.data.action === "play") setPlaying(true);
+        if (e.data.action === "reset") reset();
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [reset]);
+
+  return { time, playing };
+}
+
+const steps = [
+  { title: "The Problem", body: "Teams spend 40% of their time on repetitive manual tasks", icon: "\\u23F0", accent: "#EF4444", duration: 4 },
+  { title: "Step 1: Connect", body: "Link your tools and data sources in seconds", icon: "\\uD83D\\uDD17", accent: "#3B82F6", duration: 3.5 },
+  { title: "Step 2: Automate", body: "Build workflows with our visual drag-and-drop editor", icon: "\\u2699\\uFE0F", accent: "#8B5CF6", duration: 3.5 },
+  { title: "Step 3: Scale", body: "Watch your productivity multiply across teams", icon: "\\uD83D\\uDE80", accent: "#10B981", duration: 3.5 },
+  { title: "The Result", body: "Save 15+ hours per week. Start free today.", icon: "\\u2728", accent: "#F59E0B", duration: 3.5 },
+];
+
+const TOTAL = steps.reduce((s, st) => s + st.duration, 0);
+
+export default function App() {
+  const { time } = useAnimationLoop(TOTAL);
+
+  useEffect(() => {
+    try { window.parent.postMessage({ type: "animation-duration", duration: TOTAL }, "*"); } catch {}
+  }, []);
+
+  let elapsed = 0;
+  let currentIndex = 0;
+  let progress = 0;
+
+  for (let i = 0; i < steps.length; i++) {
+    if (time / 1000 < elapsed + steps[i].duration) {
+      currentIndex = i;
+      progress = (time / 1000 - elapsed) / steps[i].duration;
+      break;
+    }
+    elapsed += steps[i].duration;
+  }
+
+  const step = steps[currentIndex];
+  const enterP = Math.min(1, progress * 4);
+  const iconScale = 0.3 + enterP * 0.7;
+  const textY = (1 - enterP) * 60;
+  const barWidth = ((currentIndex + progress) / steps.length) * 100;
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", background: "#0f0f23", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, height: 4, background: \`linear-gradient(90deg, \${step.accent}, \${step.accent}80)\`, width: \`\${barWidth}%\`, transition: "width 0.3s" }} data-testid="progress-bar" />
+      <div style={{ fontSize: "clamp(48px, 8vw, 96px)", transform: \`scale(\${iconScale})\`, opacity: enterP, marginBottom: 24 }} data-testid={\`text-step-icon-\${currentIndex}\`}>
+        {step.icon}
+      </div>
+      <h1 style={{ fontSize: "clamp(28px, 5vw, 52px)", fontWeight: 800, color: step.accent, opacity: enterP, transform: \`translateY(\${textY}px)\`, textAlign: "center", marginBottom: 16 }} data-testid="text-step-title">
+        {step.title}
+      </h1>
+      <p style={{ fontSize: "clamp(16px, 2.5vw, 24px)", color: "#94a3b8", opacity: Math.min(1, Math.max(0, (progress - 0.15) * 4)), transform: \`translateY(\${Math.max(0, (1 - Math.min(1, (progress - 0.1) * 4)) * 30)}px)\`, textAlign: "center", maxWidth: "70%", lineHeight: 1.5 }} data-testid="text-step-body">
+        {step.body}
+      </p>
+      <div style={{ position: "absolute", bottom: 32, display: "flex", gap: 12 }}>
+        {steps.map((_, i) => (
+          <div key={i} style={{ width: i === currentIndex ? 32 : 8, height: 8, borderRadius: 4, background: i === currentIndex ? step.accent : "rgba(255,255,255,0.15)", transition: "all 0.4s ease" }} data-testid={\`indicator-step-\${i}\`} />
+        ))}
+      </div>
+    </div>
+  );
+}`,
       },
     ],
   },
   {
-    id: "user-analytics-dashboard",
-    name: "User Analytics Dashboard",
-    description: "User behavior analytics with engagement metrics, cohort analysis, and data export",
-    language: "javascript",
-    projectType: "web-app",
+    id: "animation-social-clip",
+    name: "Social Media Clip",
+    description: "Short animated clip for social media with bold text and dynamic transitions",
+    language: "typescript",
+    projectType: "animation",
     files: [
       {
         filename: "index.html",
@@ -3310,106 +3424,309 @@ const styles = StyleSheet.create({
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Analytics</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\/script>
+  <title>Social Media Clip</title>
   <style>
-    :root{--bg:#0f172a;--sf:#1e293b;--bd:#334155;--tx:#e2e8f0;--mt:#94a3b8;--ac:#10b981;--s:#22c55e;--w:#f59e0b;--d:#ef4444;}
-    [data-theme="light"]{--bg:#f8fafc;--sf:#fff;--bd:#e2e8f0;--tx:#1e293b;--mt:#64748b;--ac:#059669;--s:#16a34a;--w:#d97706;--d:#dc2626;}
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);}
-    .db{max-width:1400px;margin:0 auto;padding:20px;}
-    .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
-    .hd h1{font-size:24px;font-weight:700;}
-    .ab{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-    .bt{padding:8px 16px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);cursor:pointer;font-size:13px;transition:all .2s;}
-    .bt:hover{border-color:var(--ac);color:var(--ac);}
-    select{padding:8px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);font-size:13px;}
-    .fl{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
-    .fl label{font-size:12px;color:var(--mt);}
-    .kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;}
-    .kc{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:18px;}
-    .kc .kl{font-size:11px;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
-    .kc .kv{font-size:24px;font-weight:700;}
-    .kc .kd{font-size:11px;margin-top:4px;}
-    .kc .kd.up{color:var(--s);}
-    .kc .kd.dn{color:var(--d);}
-    .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px;margin-bottom:24px;}
-    .cd{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px;}
-    .cd h3{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;}
-    .cd h3 .eb{font-size:11px;color:var(--mt);cursor:pointer;padding:4px 8px;border-radius:4px;border:1px solid var(--bd);background:transparent;}
-    .cd h3 .eb:hover{color:var(--ac);border-color:var(--ac);}
-    .ch{position:relative;height:260px;}
-    .an{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px;margin-bottom:24px;}
-    .an h3{font-size:14px;font-weight:600;margin-bottom:10px;}
-    .an p{font-size:13px;color:var(--mt);line-height:1.6;}
-    .tb{width:100%;border-collapse:collapse;}
-    .tb th,.tb td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--bd);font-size:13px;}
-    .tb th{color:var(--mt);font-size:11px;text-transform:uppercase;font-weight:600;}
-    .ri{font-size:11px;color:var(--mt);display:flex;align-items:center;gap:6px;}
-    .dl{width:6px;height:6px;border-radius:50%;background:var(--s);animation:pu 2s infinite;}
-    @keyframes pu{0%,100%{opacity:1}50%{opacity:.4}}
-    @media(max-width:768px){.g2{grid-template-columns:1fr;}}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+    #root { width: 100vw; height: 100vh; }
   </style>
 </head>
 <body>
-  <div class="db" id="db">
-    <div class="hd"><h1>User Analytics</h1><div class="ab"><div class="ri"><span class="dl"></span>Refresh:<select id="rf" onchange="sR(this.value)"><option value="0">Off</option><option value="5000">5s</option><option value="30000" selected>30s</option><option value="60000">1m</option></select></div><button class="bt" onclick="eCSV()">CSV</button><button class="bt" onclick="ePDF()">PDF</button><button class="bt" onclick="tT()">Theme</button></div></div>
-    <div class="fl"><div><label>Period</label><br><select id="per" onchange="upd()"><option value="7d">7 Days</option><option value="30d" selected>30 Days</option><option value="90d">90 Days</option></select></div><div><label>Segment</label><br><select id="seg" onchange="upd()"><option value="all">All Users</option><option value="new">New Users</option><option value="returning">Returning</option><option value="power">Power Users</option></select></div><div><label>Platform</label><br><select id="plat" onchange="upd()"><option value="all">All</option><option value="web">Web</option><option value="mobile">Mobile</option><option value="desktop">Desktop</option></select></div></div>
-    <div class="kg" id="kpis"></div>
-    <div class="g2">
-      <div class="cd"><h3>Daily Active Users <button class="eb" onclick="ec('dau')">CSV</button></h3><div class="ch"><canvas id="dauChart"></canvas></div></div>
-      <div class="cd"><h3>User Acquisition <button class="eb" onclick="ec('acq')">CSV</button></h3><div class="ch"><canvas id="acqChart"></canvas></div></div>
-      <div class="cd"><h3>Session Duration <button class="eb" onclick="ec('sess')">CSV</button></h3><div class="ch"><canvas id="sessChart"></canvas></div></div>
-      <div class="cd"><h3>Retention Cohort <button class="eb" onclick="ec('ret')">CSV</button></h3><div class="ch"><canvas id="retChart"></canvas></div></div>
-    </div>
-    <div class="an"><h3>User Insights</h3><p id="ins">Analyzing user behavior...</p></div>
-    <div class="cd"><h3>Top Pages</h3><table class="tb"><thead><tr><th>Page</th><th>Views</th><th>Avg Time</th><th>Bounce Rate</th></tr></thead><tbody id="pgs"></tbody></table></div>
-  </div>
-  <script>
-    let ch={},tmr=null,th=localStorage.getItem("ua-theme")||"dark";
-    if(th==="light")document.documentElement.setAttribute("data-theme","light");
-    const days=30;
-    const ud={
-      dau:Array.from({length:days},()=>Math.round(800+Math.random()*1200)),
-      newUsers:Array.from({length:days},()=>Math.round(100+Math.random()*300)),
-      sessions:Array.from({length:days},()=>Math.round(3+Math.random()*12)),
-      retention:[100,72,58,48,42,38,35,32,30,28,26,24],
-      pages:[{page:"/home",views:15200,time:"2m 34s",bounce:"32%"},{page:"/features",views:8900,time:"3m 12s",bounce:"28%"},{page:"/pricing",views:6700,time:"1m 45s",bounce:"45%"},{page:"/docs",views:5400,time:"4m 20s",bounce:"18%"},{page:"/blog",views:4200,time:"2m 50s",bounce:"35%"}],
-      labels:Array.from({length:days},(_,i)=>{const d=new Date(Date.now()-(days-1-i)*86400000);return(d.getMonth()+1)+"/"+d.getDate();})
-    };
-    function rKPI(){
-      const tDAU=ud.dau.reduce((a,b)=>a+b,0),avgDAU=Math.round(tDAU/ud.dau.length),tNew=ud.newUsers.reduce((a,b)=>a+b,0),avgSess=+(ud.sessions.reduce((a,b)=>a+b,0)/ud.sessions.length).toFixed(1);
-      document.getElementById("kpis").innerHTML=[{l:"Total Users",v:(tDAU/1000).toFixed(1)+"K",c:"+18.4%",u:true},{l:"Avg DAU",v:avgDAU.toLocaleString(),c:"+12.1%",u:true},{l:"New Users",v:tNew.toLocaleString(),c:"+24.5%",u:true},{l:"Avg Session",v:avgSess+"min",c:"+8.3%",u:true},{l:"Retention D7",v:ud.retention[6]+"%",c:"-2.1%",u:false},{l:"Churn Rate",v:"4.2%",c:"-0.8%",u:true}].map(k=>\`<div class="kc"><div class="kl">\${k.l}</div><div class="kv">\${k.v}</div><div class="kd \${k.u?'up':'dn'}">\${k.u?'\\u2191':'\\u2193'} \${k.c}</div></div>\`).join("");
-    }
-    function rCharts(){
-      const tc=th==="dark"?"#94a3b8":"#64748b",gc=th==="dark"?"rgba(148,163,184,0.08)":"rgba(100,116,139,0.08)";
-      Chart.defaults.color=tc;
-      if(ch.dau)ch.dau.destroy();
-      ch.dau=new Chart(document.getElementById("dauChart"),{type:"line",data:{labels:ud.labels,datasets:[{label:"DAU",data:ud.dau,borderColor:"#10b981",backgroundColor:"rgba(16,185,129,0.1)",fill:true,tension:.4,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
-      if(ch.acq)ch.acq.destroy();
-      ch.acq=new Chart(document.getElementById("acqChart"),{type:"bar",data:{labels:ud.labels,datasets:[{label:"New Users",data:ud.newUsers,backgroundColor:"rgba(59,130,246,0.7)",borderRadius:4},{label:"Returning",data:ud.dau.map((d,i)=>d-ud.newUsers[i]),backgroundColor:"rgba(139,92,246,0.5)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10}}},scales:{y:{stacked:true,grid:{color:gc}},x:{stacked:true,grid:{display:false},ticks:{maxTicksLimit:8}}}}});
-      if(ch.sess)ch.sess.destroy();
-      ch.sess=new Chart(document.getElementById("sessChart"),{type:"bar",data:{labels:ud.labels.slice(-14),datasets:[{label:"Avg Minutes",data:ud.sessions.slice(-14),backgroundColor:"rgba(245,158,11,0.6)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc}},x:{grid:{display:false}}}}});
-      if(ch.ret)ch.ret.destroy();
-      ch.ret=new Chart(document.getElementById("retChart"),{type:"line",data:{labels:["D0","D1","D3","D7","D14","D21","D28","D30","D45","D60","D75","D90"],datasets:[{label:"Retention %",data:ud.retention,borderColor:"#ef4444",backgroundColor:"rgba(239,68,68,0.1)",fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:gc},max:100,ticks:{callback:v=>v+"%"}},x:{grid:{display:false}}}}});
-    }
-    function rPages(){document.getElementById("pgs").innerHTML=ud.pages.map(p=>\`<tr><td>\${p.page}</td><td>\${p.views.toLocaleString()}</td><td>\${p.time}</td><td>\${p.bounce}</td></tr>\`).join("");}
-    function rInsights(){
-      const avgDAU=Math.round(ud.dau.reduce((a,b)=>a+b)/ud.dau.length);
-      document.getElementById("ins").textContent=\`Average daily active users is \${avgDAU.toLocaleString()}, up 12.1% from last period. New user acquisition is strong at \${ud.newUsers.reduce((a,b)=>a+b).toLocaleString()} total signups. Day-7 retention is \${ud.retention[6]}%, indicating good engagement. The /docs page has the lowest bounce rate (18%) suggesting high-quality content. Mobile platform shows 34% higher session duration than web.\`;
-    }
-    function upd(){rKPI();rCharts();rPages();rInsights();}
-    function sR(ms){if(tmr)clearInterval(tmr);if(parseInt(ms)>0)tmr=setInterval(()=>{ud.dau.shift();ud.dau.push(Math.round(800+Math.random()*1200));ud.newUsers.shift();ud.newUsers.push(Math.round(100+Math.random()*300));ud.sessions.shift();ud.sessions.push(Math.round(3+Math.random()*12));ud.labels.shift();const d=new Date();ud.labels.push((d.getMonth()+1)+"/"+d.getDate());upd();},parseInt(ms));}
-    function tT(){th=th==="dark"?"light":"dark";localStorage.setItem("ua-theme",th);if(th==="light")document.documentElement.setAttribute("data-theme","light");else document.documentElement.removeAttribute("data-theme");upd();}
-    function ec(id){let csv="";if(id==="dau"){csv="Date,DAU\\n";ud.labels.forEach((l,i)=>csv+=l+","+ud.dau[i]+"\\n");}else if(id==="acq"){csv="Date,NewUsers,Returning\\n";ud.labels.forEach((l,i)=>csv+=l+","+ud.newUsers[i]+","+(ud.dau[i]-ud.newUsers[i])+"\\n");}else if(id==="sess"){csv="Date,AvgMinutes\\n";ud.labels.slice(-14).forEach((l,i)=>csv+=l+","+ud.sessions.slice(-14)[i]+"\\n");}else if(id==="ret"){csv="Day,Retention%\\n";["D0","D1","D3","D7","D14","D21","D28","D30","D45","D60","D75","D90"].forEach((l,i)=>csv+=l+","+ud.retention[i]+"\\n");}const b=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.download=id+"_analytics.csv";a.href=URL.createObjectURL(b);a.click();}
-    function eCSV(){let csv="Date,DAU,NewUsers,SessionMinutes\\n";ud.labels.forEach((l,i)=>csv+=l+","+ud.dau[i]+","+ud.newUsers[i]+","+ud.sessions[i]+"\\n");const b=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.download="user_analytics.csv";a.href=URL.createObjectURL(b);a.click();}
-    async function ePDF(){const{jsPDF}=window.jspdf;const c=await html2canvas(document.getElementById("db"),{scale:2,backgroundColor:th==="dark"?"#0f172a":"#f8fafc"});const img=c.toDataURL("image/png");const pdf=new jsPDF({orientation:"landscape",unit:"px",format:[c.width,c.height]});pdf.addImage(img,"PNG",0,0,c.width,c.height);pdf.save("user_analytics_dashboard.pdf");}
-    upd();sR(30000);
-  <\/script>
+  <div id="root"></div>
+  <script type="module" src="./App.tsx"></script>
 </body>
 </html>`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import React, { useState, useEffect, useCallback, useRef } from "react";
+
+function useAnimationLoop(totalDuration: number) {
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const startRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!playing) return;
+    startRef.current = performance.now() - pausedAtRef.current;
+    let raf: number;
+    const tick = (now: number) => {
+      const elapsed = now - startRef.current;
+      setTime(elapsed % (totalDuration * 1000));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, totalDuration]);
+
+  const reset = useCallback(() => {
+    pausedAtRef.current = 0;
+    startRef.current = performance.now();
+    setTime(0);
+    setPlaying(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "animation-control") {
+        if (e.data.action === "pause") { pausedAtRef.current = performance.now() - startRef.current; setPlaying(false); }
+        if (e.data.action === "play") setPlaying(true);
+        if (e.data.action === "reset") reset();
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [reset]);
+
+  return { time, playing };
+}
+
+const slides = [
+  { text: "STOP\\nSCROLLING", bg: "#FF3366", duration: 1.5 },
+  { text: "You need\\nto see this", bg: "#1a1a2e", duration: 2 },
+  { text: "Build\\nFaster", bg: "#7C65CB", duration: 2 },
+  { text: "Ship\\nSmarter", bg: "#0079F2", duration: 2 },
+  { text: "@YourBrand", bg: "#0CCE6B", duration: 2.5 },
+];
+
+const TOTAL = slides.reduce((s, sl) => s + sl.duration, 0);
+
+export default function App() {
+  const { time } = useAnimationLoop(TOTAL);
+
+  useEffect(() => {
+    try { window.parent.postMessage({ type: "animation-duration", duration: TOTAL }, "*"); } catch {}
+  }, []);
+
+  let elapsed = 0;
+  let currentIndex = 0;
+  let progress = 0;
+
+  for (let i = 0; i < slides.length; i++) {
+    if (time / 1000 < elapsed + slides[i].duration) {
+      currentIndex = i;
+      progress = (time / 1000 - elapsed) / slides[i].duration;
+      break;
+    }
+    elapsed += slides[i].duration;
+  }
+
+  const slide = slides[currentIndex];
+  const enterScale = 0.6 + Math.min(1, progress * 5) * 0.4;
+  const enterOpacity = Math.min(1, progress * 5);
+  const exitOpacity = progress > 0.8 ? Math.max(0, 1 - (progress - 0.8) * 5) : 1;
+  const rotation = (1 - Math.min(1, progress * 3)) * -5;
+  const lines = slide.text.split("\\n");
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", background: slide.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "background 0.15s ease", position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: \`radial-gradient(circle at 50% 50%, transparent 30%, rgba(0,0,0,0.4) 100%)\` }} />
+      <div style={{ transform: \`scale(\${enterScale}) rotate(\${rotation}deg)\`, opacity: enterOpacity * exitOpacity, zIndex: 1 }}>
+        {lines.map((line, i) => (
+          <div key={i} style={{ fontSize: "clamp(36px, 10vw, 80px)", fontWeight: 900, color: "#fff", textAlign: "center", lineHeight: 1.1, textShadow: "0 4px 30px rgba(0,0,0,0.3)", transform: \`translateY(\${(1 - Math.min(1, (progress - i * 0.05) * 5)) * 20}px)\` }} data-testid={\`text-slide-line-\${i}\`}>
+            {line}
+          </div>
+        ))}
+      </div>
+      <div style={{ position: "absolute", bottom: 20, display: "flex", gap: 6 }}>
+        {slides.map((_, i) => (
+          <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === currentIndex ? "#fff" : "rgba(255,255,255,0.3)" }} data-testid={\`indicator-slide-\${i}\`} />
+        ))}
+      </div>
+    </div>
+  );
+}`,
+      },
+    ],
+  },
+  {
+    id: "animation-brand-intro",
+    name: "Brand Intro Animation",
+    description: "Cinematic brand introduction with logo reveal and particle effects",
+    language: "typescript",
+    projectType: "animation",
+    files: [
+      {
+        filename: "index.html",
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brand Intro</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+    #root { width: 100vw; height: 100vh; }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./App.tsx"></script>
+</body>
+</html>`,
+      },
+      {
+        filename: "App.tsx",
+        content: `import React, { useState, useEffect, useCallback, useRef } from "react";
+
+function useAnimationLoop(totalDuration: number) {
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const startRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!playing) return;
+    startRef.current = performance.now() - pausedAtRef.current;
+    let raf: number;
+    const tick = (now: number) => {
+      const elapsed = now - startRef.current;
+      setTime(elapsed % (totalDuration * 1000));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, totalDuration]);
+
+  const reset = useCallback(() => {
+    pausedAtRef.current = 0;
+    startRef.current = performance.now();
+    setTime(0);
+    setPlaying(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "animation-control") {
+        if (e.data.action === "pause") { pausedAtRef.current = performance.now() - startRef.current; setPlaying(false); }
+        if (e.data.action === "play") setPlaying(true);
+        if (e.data.action === "reset") reset();
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [reset]);
+
+  return { time, playing };
+}
+
+interface Particle {
+  x: number; y: number; vx: number; vy: number;
+  size: number; alpha: number; color: string; life: number;
+}
+
+function ParticleCanvas({ progress }: { progress: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particlesRef = useRef<Particle[]>([]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    resize();
+    window.addEventListener("resize", resize);
+
+    if (particlesRef.current.length === 0) {
+      const colors = ["#7C65CB", "#0079F2", "#0CCE6B", "#F5A623"];
+      for (let i = 0; i < 80; i++) {
+        particlesRef.current.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: (Math.random() - 0.5) * 1.5,
+          size: Math.random() * 3 + 1,
+          alpha: Math.random() * 0.6 + 0.1,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          life: Math.random(),
+        });
+      }
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const intensity = Math.min(1, progress * 2);
+
+    for (const p of particlesRef.current) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = canvas.width;
+      if (p.x > canvas.width) p.x = 0;
+      if (p.y < 0) p.y = canvas.height;
+      if (p.y > canvas.height) p.y = 0;
+
+      ctx.globalAlpha = p.alpha * intensity;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < particlesRef.current.length; i++) {
+      for (let j = i + 1; j < particlesRef.current.length; j++) {
+        const a = particlesRef.current[i];
+        const b = particlesRef.current[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          ctx.globalAlpha = (1 - dist / 120) * 0.15 * intensity;
+          ctx.strokeStyle = a.color;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    return () => window.removeEventListener("resize", resize);
+  }, [progress]);
+
+  return <canvas ref={canvasRef} data-testid="canvas-particles" />;
+}
+
+const TOTAL_DURATION = 8;
+
+export default function App() {
+  const { time } = useAnimationLoop(TOTAL_DURATION);
+  const progress = time / 1000 / TOTAL_DURATION;
+
+  useEffect(() => {
+    try { window.parent.postMessage({ type: "animation-duration", duration: TOTAL_DURATION }, "*"); } catch {}
+  }, []);
+
+  const logoReveal = Math.min(1, Math.max(0, (progress - 0.1) * 4));
+  const logoScale = 0.5 + logoReveal * 0.5;
+  const taglineOpacity = Math.min(1, Math.max(0, (progress - 0.4) * 4));
+  const taglineY = Math.max(0, (1 - Math.min(1, (progress - 0.35) * 4)) * 30);
+  const lineWidth = Math.min(1, Math.max(0, (progress - 0.3) * 3)) * 120;
+  const fadeOut = progress > 0.85 ? Math.max(0, 1 - (progress - 0.85) / 0.15) : 1;
+
+  return (
+    <div style={{ width: "100vw", height: "100vh", background: "radial-gradient(ellipse at center, #0a0a2e 0%, #000 70%)", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <ParticleCanvas progress={progress} />
+      <div style={{ zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", opacity: fadeOut }}>
+        <div style={{ width: "clamp(80px, 12vw, 120px)", height: "clamp(80px, 12vw, 120px)", borderRadius: 24, background: "linear-gradient(135deg, #7C65CB, #0079F2)", display: "flex", alignItems: "center", justifyContent: "center", opacity: logoReveal, transform: \`scale(\${logoScale})\`, boxShadow: "0 0 60px rgba(124,101,203,0.4)" }} data-testid="logo-container">
+          <span style={{ fontSize: "clamp(32px, 5vw, 48px)", fontWeight: 900, color: "#fff" }}>Y</span>
+        </div>
+        <div style={{ width: lineWidth, height: 2, background: "linear-gradient(90deg, transparent, #7C65CB, transparent)", margin: "24px 0", opacity: logoReveal }} />
+        <h1 style={{ fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 800, color: "#fff", opacity: logoReveal, letterSpacing: "0.1em", textTransform: "uppercase" }} data-testid="text-brand-name">
+          YourBrand
+        </h1>
+        <p style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "#94a3b8", marginTop: 12, opacity: taglineOpacity, transform: \`translateY(\${taglineY}px)\`, letterSpacing: "0.05em" }} data-testid="text-tagline">
+          Innovation Meets Design
+        </p>
+      </div>
+    </div>
+  );
+}`,
       },
     ],
   },

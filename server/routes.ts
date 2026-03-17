@@ -9579,7 +9579,7 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
       const outputTypeContextMap: Record<string, string> = {
         "mobile-app": "\n\nThis project's output type is MOBILE APP (React Native/Expo). Generate React Native code with native components (View, Text, TouchableOpacity, FlatList, etc.), StyleSheet.create() for styling, Expo Router for navigation, and proper Expo config files. Preview runs via Expo Web, device testing via Expo Go QR code.",
         "mobile": "\n\nThis project's output type is MOBILE APP (React Native/Expo). Generate React Native code with native components (View, Text, TouchableOpacity, FlatList, etc.), StyleSheet.create() for styling, Expo Router for navigation, and proper Expo config files. Preview runs via Expo Web, device testing via Expo Go QR code.",
-        "animation": "\n\nThis project's output type is ANIMATION. Generate Canvas/CSS/SVG animations with play/pause/speed controls. Use requestAnimationFrame for smooth rendering and include interactive parameter controls.",
+        "animation": "\n\nThis project's output type is ANIMATION. Generate scene-based React animations using CSS animations and requestAnimationFrame. Structure animations with a scene-based architecture where each scene has a duration, background, and animated elements. Use a useAnimationLoop hook that tracks time and supports play/pause/reset via postMessage. Include smooth enter/exit transitions between scenes (fade, scale, slide). Listen for 'animation-control' messages with actions: 'pause', 'play', 'reset'. Post 'animation-duration' message to parent with total duration. Templates: product promo, explainer, social media clip, brand intro.",
         "design": "\n\nThis project's output type is DESIGN. Generate design tools with canvas elements, color pickers, drawing tools (pen, shapes, text), layers, and export functionality. Use Canvas API or SVG.",
         "data-visualization": "\n\nThis project's output type is DATA VISUALIZATION. Generate dashboards using Chart.js (via CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js). Include:\n- Multiple chart types (bar, line, pie, doughnut, scatter, polar area) with real sample data\n- KPI cards showing key metrics with trend arrows and percentage changes\n- Interactive filters (date range selectors, dropdown filters, text search) that update all charts in real-time\n- Auto-refresh mechanism with configurable intervals (5s, 30s, 1m, 5m) using setInterval\n- Light/dark mode toggle using CSS custom properties (:root and [data-theme='light']) with localStorage persistence\n- CSV export buttons for individual charts and the full dashboard data\n- PDF export using html2canvas (CDN: https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js) and jsPDF (CDN: https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js)\n- An AI analysis summary section that dynamically generates insights from the data\n- Responsive grid layout that adapts to mobile screens\nUse CSS Grid for layout with auto-fit and minmax for responsiveness.",
         "automation": "\n\nThis project's output type is AUTOMATION. Generate Node.js automation scripts with file processing, scheduling (setInterval/cron patterns), logging, error handling, and clear console output.",
@@ -17686,6 +17686,114 @@ Respond ONLY with the JSON array, no other text.`;
       readStream.on("error", () => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
     } catch {
       return res.status(500).json({ message: "Failed to export video" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/animations/export/mp4", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const exportSchema = z.object({
+        artifactId: z.string().optional(),
+        width: z.number().min(320).max(3840).default(1920),
+        height: z.number().min(240).max(2160).default(1080),
+        fps: z.number().min(1).max(60).default(30),
+        duration: z.number().min(1).max(120).default(10),
+        quality: z.enum(["standard", "high"]).default("standard"),
+      });
+      const parsed = exportSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid export options", errors: parsed.error.errors });
+
+      const { width, height, fps, duration, quality, artifactId } = parsed.data;
+
+      const files = await storage.getFiles(projectId);
+      const htmlFile = files.find(f => f.filename === "index.html");
+
+      let scenes: any[] = [];
+      const videoData = await storage.getVideoData(projectId);
+      if (videoData && videoData.scenes && (videoData.scenes as any[]).length > 0) {
+        scenes = (videoData.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      }
+
+      const { exportAnimationToMp4, cleanupExportDir } = await import("./videoExporter");
+      const result = await exportAnimationToMp4(
+        scenes,
+        { width, height, fps, duration, quality },
+        htmlFile?.content || undefined,
+      );
+
+      if (!result.success || !result.outputPath) {
+        return res.status(500).json({ message: result.error || "Export failed" });
+      }
+
+      const stat = fs.statSync(result.outputPath);
+      res.setHeader("Content-Type", "video/mp4");
+      res.setHeader("Content-Length", stat.size);
+      res.setHeader("Content-Disposition", `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_animation.mp4"`);
+      const readStream = fs.createReadStream(result.outputPath);
+      readStream.pipe(res);
+      readStream.on("end", () => cleanupExportDir(result.outputPath!));
+      readStream.on("error", () => cleanupExportDir(result.outputPath!));
+    } catch {
+      return res.status(500).json({ message: "Failed to export animation" });
+    }
+  });
+
+  app.post("/api/projects/:projectId/artifacts/:artifactId/export/mp4", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId as string;
+      const artifactId = req.params.artifactId as string;
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+
+      const artifact = await storage.getArtifact(artifactId);
+      if (!artifact || artifact.projectId !== projectId) return res.status(404).json({ message: "Artifact not found" });
+
+      const exportSchema = z.object({
+        width: z.number().min(320).max(3840).default(1920),
+        height: z.number().min(240).max(2160).default(1080),
+        fps: z.number().min(1).max(60).default(30),
+        duration: z.number().min(1).max(120).default(10),
+        quality: z.enum(["standard", "high"]).default("standard"),
+      });
+      const parsed = exportSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid export options", errors: parsed.error.errors });
+
+      const { width, height, fps, duration, quality } = parsed.data;
+
+      const files = await storage.getFiles(projectId);
+      const entryFile = artifact.entryFile || "index.html";
+      const htmlFile = files.find(f => f.filename === entryFile);
+
+      let scenes: any[] = [];
+      const videoData = await storage.getVideoData(projectId);
+      if (videoData && videoData.scenes && (videoData.scenes as any[]).length > 0) {
+        scenes = (videoData.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      }
+
+      const { exportAnimationToMp4, cleanupExportDir } = await import("./videoExporter");
+      const result = await exportAnimationToMp4(
+        scenes,
+        { width, height, fps, duration, quality },
+        htmlFile?.content || undefined,
+      );
+
+      if (!result.success || !result.outputPath) {
+        return res.status(500).json({ message: result.error || "Export failed" });
+      }
+
+      const stat = fs.statSync(result.outputPath);
+      res.setHeader("Content-Type", "video/mp4");
+      res.setHeader("Content-Length", stat.size);
+      res.setHeader("Content-Disposition", `attachment; filename="${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_${artifact.name.replace(/[^a-zA-Z0-9]/g, '_')}.mp4"`);
+      const readStream = fs.createReadStream(result.outputPath);
+      readStream.pipe(res);
+      readStream.on("end", () => cleanupExportDir(result.outputPath!));
+      readStream.on("error", () => cleanupExportDir(result.outputPath!));
+    } catch {
+      return res.status(500).json({ message: "Failed to export animation" });
     }
   });
 
