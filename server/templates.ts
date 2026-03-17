@@ -1057,521 +1057,6 @@ echo -e "\${YELLOW}Script completed successfully!\${NC}"
     ],
   },
   {
-    id: "mobile-blank",
-    name: "Mobile App (Blank)",
-    description: "Blank React Native/Expo mobile app",
-    language: "typescript",
-    projectType: "mobile-app",
-    files: [
-      {
-        filename: "app.json",
-        content: `{
-  "expo": {
-    "name": "MyMobileApp",
-    "slug": "my-mobile-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#ffffff"
-    },
-    "platforms": ["ios", "android", "web"],
-    "web": {
-      "bundler": "metro"
-    }
-  }
-}`,
-      },
-      {
-        filename: "package.json",
-        content: `{
-  "name": "my-mobile-app",
-  "version": "1.0.0",
-  "main": "App.tsx",
-  "scripts": {
-    "start": "npx expo start --web",
-    "android": "npx expo start --android",
-    "ios": "npx expo start --ios",
-    "web": "npx expo start --web"
-  },
-  "dependencies": {
-    "expo": "~52.0.0",
-    "expo-status-bar": "~2.0.0",
-    "react": "18.3.1",
-    "react-native": "0.76.3",
-    "react-dom": "18.3.1",
-    "react-native-web": "~0.19.12"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.25.0",
-    "@types/react": "~18.3.0",
-    "typescript": "~5.3.0"
-  }
-}`,
-      },
-      {
-        filename: "App.tsx",
-        content: `import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
-
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to My App</Text>
-      <Text style={styles.subtitle}>Edit App.tsx to get started</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-  },
-});
-`,
-      },
-      {
-        filename: "tsconfig.json",
-        content: `{
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true
-  }
-}`,
-      },
-    ],
-  },
-  {
-    id: "mobile-tabs",
-    name: "Mobile App (Tab Navigation)",
-    description: "React Native/Expo app with tab navigation",
-    language: "typescript",
-    projectType: "mobile-app",
-    files: [
-      {
-        filename: "app.json",
-        content: `{
-  "expo": {
-    "name": "TabNavigationApp",
-    "slug": "tab-navigation-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#ffffff"
-    },
-    "platforms": ["ios", "android", "web"],
-    "web": {
-      "bundler": "metro"
-    }
-  }
-}`,
-      },
-      {
-        filename: "package.json",
-        content: `{
-  "name": "tab-navigation-app",
-  "version": "1.0.0",
-  "main": "App.tsx",
-  "scripts": {
-    "start": "npx expo start --web",
-    "android": "npx expo start --android",
-    "ios": "npx expo start --ios",
-    "web": "npx expo start --web"
-  },
-  "dependencies": {
-    "expo": "~52.0.0",
-    "expo-status-bar": "~2.0.0",
-    "react": "18.3.1",
-    "react-native": "0.76.3",
-    "react-dom": "18.3.1",
-    "react-native-web": "~0.19.12"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.25.0",
-    "@types/react": "~18.3.0",
-    "typescript": "~5.3.0"
-  }
-}`,
-      },
-      {
-        filename: "App.tsx",
-        content: `import { useState } from "react";
-import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
-
-function HomeScreen() {
-  return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.screenTitle}>Home</Text>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Welcome Back!</Text>
-        <Text style={styles.cardText}>This is your home screen. Start building your app here.</Text>
-      </View>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Quick Stats</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Tasks</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>5</Text>
-            <Text style={styles.statLabel}>Done</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>3</Text>
-            <Text style={styles.statLabel}>Pending</Text>
-          </View>
-        </View>
-      </View>
-    </ScrollView>
-  );
-}
-
-function ExploreScreen() {
-  const items = ["React Native", "Expo", "TypeScript", "Navigation", "Animations", "APIs"];
-  return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.screenTitle}>Explore</Text>
-      {items.map((item, i) => (
-        <TouchableOpacity key={i} style={styles.listItem}>
-          <View style={[styles.listIcon, { backgroundColor: \`hsl(\${i * 60}, 70%, 60%)\` }]}>
-            <Text style={styles.listIconText}>{item[0]}</Text>
-          </View>
-          <Text style={styles.listItemText}>{item}</Text>
-          <Text style={styles.listArrow}>&rsaquo;</Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-}
-
-function ProfileScreen() {
-  return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.screenTitle}>Profile</Text>
-      <View style={styles.profileHeader}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>JD</Text>
-        </View>
-        <Text style={styles.profileName}>Jane Doe</Text>
-        <Text style={styles.profileEmail}>jane@example.com</Text>
-      </View>
-      <TouchableOpacity style={styles.menuItem}>
-        <Text style={styles.menuItemText}>Edit Profile</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.menuItem}>
-        <Text style={styles.menuItemText}>Notifications</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.menuItem}>
-        <Text style={styles.menuItemText}>Settings</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-type TabId = "home" | "explore" | "profile";
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>("home");
-
-  const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: "home", label: "Home", icon: "\u2302" },
-    { id: "explore", label: "Explore", icon: "\u2609" },
-    { id: "profile", label: "Profile", icon: "\u263A" },
-  ];
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="auto" />
-      <View style={styles.content}>
-        {activeTab === "home" && <HomeScreen />}
-        {activeTab === "explore" && <ExploreScreen />}
-        {activeTab === "profile" && <ProfileScreen />}
-      </View>
-      <View style={styles.tabBar}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={styles.tab}
-            onPress={() => setActiveTab(tab.id)}
-          >
-            <Text style={[styles.tabIcon, activeTab === tab.id && styles.tabActive]}>{tab.icon}</Text>
-            <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabActive]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  content: { flex: 1 },
-  screen: { padding: 20, paddingTop: 60 },
-  screenTitle: { fontSize: 28, fontWeight: "bold", marginBottom: 20 },
-  card: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  cardTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
-  cardText: { fontSize: 14, color: "#666", lineHeight: 20 },
-  statsRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 12 },
-  stat: { alignItems: "center" },
-  statValue: { fontSize: 24, fontWeight: "bold", color: "#0079F2" },
-  statLabel: { fontSize: 12, color: "#999", marginTop: 4 },
-  listItem: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8 },
-  listIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  listIconText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  listItemText: { flex: 1, fontSize: 15, fontWeight: "500" },
-  listArrow: { fontSize: 20, color: "#ccc" },
-  profileHeader: { alignItems: "center", marginBottom: 24 },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#0079F2", alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  avatarText: { color: "#fff", fontSize: 24, fontWeight: "bold" },
-  profileName: { fontSize: 20, fontWeight: "bold" },
-  profileEmail: { fontSize: 14, color: "#999", marginTop: 4 },
-  menuItem: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 8 },
-  menuItemText: { fontSize: 15 },
-  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#eee", backgroundColor: "#fff", paddingBottom: 20, paddingTop: 8 },
-  tab: { flex: 1, alignItems: "center" },
-  tabIcon: { fontSize: 20, color: "#999" },
-  tabLabel: { fontSize: 11, color: "#999", marginTop: 2 },
-  tabActive: { color: "#0079F2" },
-});
-`,
-      },
-      {
-        filename: "tsconfig.json",
-        content: `{
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true
-  }
-}`,
-      },
-    ],
-  },
-  {
-    id: "mobile-social-feed",
-    name: "Mobile App (Social Feed)",
-    description: "React Native/Expo social feed app with posts and interactions",
-    language: "typescript",
-    projectType: "mobile-app",
-    files: [
-      {
-        filename: "app.json",
-        content: `{
-  "expo": {
-    "name": "SocialFeedApp",
-    "slug": "social-feed-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#ffffff"
-    },
-    "platforms": ["ios", "android", "web"],
-    "web": {
-      "bundler": "metro"
-    }
-  }
-}`,
-      },
-      {
-        filename: "package.json",
-        content: `{
-  "name": "social-feed-app",
-  "version": "1.0.0",
-  "main": "App.tsx",
-  "scripts": {
-    "start": "npx expo start --web",
-    "android": "npx expo start --android",
-    "ios": "npx expo start --ios",
-    "web": "npx expo start --web"
-  },
-  "dependencies": {
-    "expo": "~52.0.0",
-    "expo-status-bar": "~2.0.0",
-    "react": "18.3.1",
-    "react-native": "0.76.3",
-    "react-dom": "18.3.1",
-    "react-native-web": "~0.19.12"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.25.0",
-    "@types/react": "~18.3.0",
-    "typescript": "~5.3.0"
-  }
-}`,
-      },
-      {
-        filename: "App.tsx",
-        content: `import { useState } from "react";
-import { StatusBar } from "expo-status-bar";
-import {
-  StyleSheet, Text, View, TouchableOpacity, ScrollView,
-  TextInput, FlatList, Image,
-} from "react-native";
-
-interface Post {
-  id: string;
-  author: string;
-  avatar: string;
-  content: string;
-  likes: number;
-  comments: number;
-  liked: boolean;
-  timeAgo: string;
-}
-
-const INITIAL_POSTS: Post[] = [
-  { id: "1", author: "Alex Chen", avatar: "AC", content: "Just shipped a new feature using React Native and Expo! The developer experience is amazing. Hot reloading makes iteration so fast.", likes: 24, comments: 5, liked: false, timeAgo: "2h" },
-  { id: "2", author: "Sarah Kim", avatar: "SK", content: "Beautiful sunset from the office rooftop today. Sometimes you need to step away from the code.", likes: 42, comments: 8, liked: true, timeAgo: "4h" },
-  { id: "3", author: "Dev Community", avatar: "DC", content: "What's your favorite mobile development framework in 2025? Drop your thoughts below!", likes: 156, comments: 89, liked: false, timeAgo: "6h" },
-  { id: "4", author: "Mike Johnson", avatar: "MJ", content: "TIL: You can use StyleSheet.create() for better performance in React Native. The styles get validated and optimized at creation time.", likes: 18, comments: 3, liked: false, timeAgo: "8h" },
-];
-
-function PostCard({ post, onLike }: { post: Post; onLike: () => void }) {
-  return (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <View style={[styles.postAvatar, { backgroundColor: post.liked ? "#0079F2" : "#6B7280" }]}>
-          <Text style={styles.postAvatarText}>{post.avatar}</Text>
-        </View>
-        <View style={styles.postMeta}>
-          <Text style={styles.postAuthor}>{post.author}</Text>
-          <Text style={styles.postTime}>{post.timeAgo} ago</Text>
-        </View>
-      </View>
-      <Text style={styles.postContent}>{post.content}</Text>
-      <View style={styles.postActions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
-          <Text style={[styles.actionIcon, post.liked && styles.liked]}>
-            {post.liked ? "\u2665" : "\u2661"}
-          </Text>
-          <Text style={[styles.actionText, post.liked && styles.liked]}>{post.likes}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn}>
-          <Text style={styles.actionIcon}>\u{1F4AC}</Text>
-          <Text style={styles.actionText}>{post.comments}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn}>
-          <Text style={styles.actionIcon}>\u{1F4E4}</Text>
-          <Text style={styles.actionText}>Share</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-export default function App() {
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [newPost, setNewPost] = useState("");
-
-  const handleLike = (id: string) => {
-    setPosts(posts.map(p => p.id === id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p));
-  };
-
-  const handlePost = () => {
-    if (!newPost.trim()) return;
-    const post: Post = {
-      id: Date.now().toString(),
-      author: "You",
-      avatar: "ME",
-      content: newPost.trim(),
-      likes: 0,
-      comments: 0,
-      liked: false,
-      timeAgo: "now",
-    };
-    setPosts([post, ...posts]);
-    setNewPost("");
-  };
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Feed</Text>
-      </View>
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View style={styles.composer}>
-            <TextInput
-              style={styles.composerInput}
-              placeholder="What's on your mind?"
-              placeholderTextColor="#999"
-              value={newPost}
-              onChangeText={setNewPost}
-              multiline
-            />
-            <TouchableOpacity
-              style={[styles.postButton, !newPost.trim() && styles.postButtonDisabled]}
-              onPress={handlePost}
-              disabled={!newPost.trim()}
-            >
-              <Text style={styles.postButtonText}>Post</Text>
-            </TouchableOpacity>
-          </View>
-        }
-        renderItem={({ item }) => <PostCard post={item} onLike={() => handleLike(item.id)} />}
-        contentContainerStyle={styles.feed}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f0f2f5" },
-  header: { paddingTop: 54, paddingBottom: 12, paddingHorizontal: 20, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#e5e5e5" },
-  headerTitle: { fontSize: 24, fontWeight: "bold" },
-  feed: { padding: 12 },
-  composer: { backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 12 },
-  composerInput: { fontSize: 15, minHeight: 40, color: "#333" },
-  postButton: { backgroundColor: "#0079F2", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 20, alignSelf: "flex-end", marginTop: 8 },
-  postButtonDisabled: { opacity: 0.5 },
-  postButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  postCard: { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
-  postHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  postAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", marginRight: 10 },
-  postAvatarText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
-  postMeta: { flex: 1 },
-  postAuthor: { fontSize: 15, fontWeight: "600" },
-  postTime: { fontSize: 12, color: "#999", marginTop: 2 },
-  postContent: { fontSize: 15, lineHeight: 22, color: "#333", marginBottom: 12 },
-  postActions: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#f0f0f0", paddingTop: 10 },
-  actionBtn: { flexDirection: "row", alignItems: "center", marginRight: 20 },
-  actionIcon: { fontSize: 18, marginRight: 4, color: "#666" },
-  actionText: { fontSize: 13, color: "#666" },
-  liked: { color: "#E54D4D" },
-});
-`,
-      },
-      {
-        filename: "tsconfig.json",
-        content: `{
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true
-  }
-}`,
-      },
-    ],
-  },
-  {
     id: "pitch-deck",
     name: "Pitch Deck",
     description: "Startup pitch deck with problem, solution, market, and team slides",
@@ -2271,6 +1756,1022 @@ setInterval(runAutomation, SCHEDULE_INTERVAL);
   </script>
 </body>
 </html>`,
+      },
+    ],
+  },
+  {
+    id: "mobile-blank",
+    name: "Mobile App (Blank)",
+    description: "Blank Expo/React Native mobile app with TypeScript",
+    language: "typescript",
+    projectType: "mobile-app",
+    files: [
+      {
+        filename: "app.json",
+        content: `{
+  "expo": {
+    "name": "MyApp",
+    "slug": "my-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.myapp.app"
+    },
+    "android": {
+      "package": "com.myapp.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "scheme": "myapp"
+  }
+}`,
+      },
+      {
+        filename: "package.json",
+        content: `{
+  "name": "my-app",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "start:web": "expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "expo": "~50.0.0",
+    "expo-router": "~3.4.0",
+    "expo-status-bar": "~1.11.0",
+    "react": "18.2.0",
+    "react-native": "0.73.0",
+    "react-native-web": "~0.19.10",
+    "react-dom": "18.2.0",
+    "react-native-safe-area-context": "4.8.2",
+    "react-native-screens": "~3.29.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.0",
+    "typescript": "^5.3.0"
+  }
+}`,
+      },
+      {
+        filename: "tsconfig.json",
+        content: `{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}`,
+      },
+      {
+        filename: "babel.config.js",
+        content: `module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ["babel-preset-expo"],
+    plugins: ["expo-router/babel"],
+  };
+};`,
+      },
+      {
+        filename: "app/_layout.tsx",
+        content: `import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+
+export default function RootLayout() {
+  return (
+    <>
+      <StatusBar style="auto" />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: "#0079F2" },
+          headerTintColor: "#fff",
+          headerTitleStyle: { fontWeight: "bold" },
+        }}
+      />
+    </>
+  );
+}`,
+      },
+      {
+        filename: "app/index.tsx",
+        content: `import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+export default function HomeScreen() {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title} data-testid="text-welcome-title">Welcome to MyApp</Text>
+        <Text style={styles.subtitle} data-testid="text-welcome-subtitle">
+          Built with Expo and React Native
+        </Text>
+        <TouchableOpacity style={styles.button} data-testid="button-get-started">
+          <Text style={styles.buttonText}>Get Started</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  content: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#1a1a1a",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  button: {
+    backgroundColor: "#0079F2",
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});`,
+      },
+      {
+        filename: "assets/.gitkeep",
+        content: "",
+      },
+    ],
+  },
+  {
+    id: "mobile-tabs",
+    name: "Mobile App (Tabs)",
+    description: "Expo/React Native app with tab and stack navigation",
+    language: "typescript",
+    projectType: "mobile-app",
+    files: [
+      {
+        filename: "app.json",
+        content: `{
+  "expo": {
+    "name": "MyTabApp",
+    "slug": "my-tab-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mytabapp.app"
+    },
+    "android": {
+      "package": "com.mytabapp.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "scheme": "mytabapp"
+  }
+}`,
+      },
+      {
+        filename: "package.json",
+        content: `{
+  "name": "my-tab-app",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "start:web": "expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "expo": "~50.0.0",
+    "expo-router": "~3.4.0",
+    "expo-status-bar": "~1.11.0",
+    "@expo/vector-icons": "^14.0.0",
+    "react": "18.2.0",
+    "react-native": "0.73.0",
+    "react-native-web": "~0.19.10",
+    "react-dom": "18.2.0",
+    "react-native-safe-area-context": "4.8.2",
+    "react-native-screens": "~3.29.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.0",
+    "typescript": "^5.3.0"
+  }
+}`,
+      },
+      {
+        filename: "tsconfig.json",
+        content: `{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}`,
+      },
+      {
+        filename: "babel.config.js",
+        content: `module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ["babel-preset-expo"],
+    plugins: ["expo-router/babel"],
+  };
+};`,
+      },
+      {
+        filename: "app/_layout.tsx",
+        content: `import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+
+export default function RootLayout() {
+  return (
+    <>
+      <StatusBar style="auto" />
+      <Stack screenOptions={{ headerShown: false }} />
+    </>
+  );
+}`,
+      },
+      {
+        filename: "app/(tabs)/_layout.tsx",
+        content: `import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+
+export default function TabLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: "#0079F2",
+        tabBarInactiveTintColor: "#999",
+        tabBarStyle: {
+          backgroundColor: "#fff",
+          borderTopColor: "#eee",
+        },
+        headerStyle: { backgroundColor: "#0079F2" },
+        headerTintColor: "#fff",
+        headerTitleStyle: { fontWeight: "bold" },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Explore",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="compass" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}`,
+      },
+      {
+        filename: "app/(tabs)/index.tsx",
+        content: `import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { useState } from "react";
+
+interface ListItem {
+  id: string;
+  title: string;
+  subtitle: string;
+}
+
+const SAMPLE_DATA: ListItem[] = [
+  { id: "1", title: "Getting Started", subtitle: "Learn the basics of the app" },
+  { id: "2", title: "Explore Features", subtitle: "Discover what you can do" },
+  { id: "3", title: "Customize", subtitle: "Make the app your own" },
+  { id: "4", title: "Connect", subtitle: "Link your accounts" },
+  { id: "5", title: "Settings", subtitle: "Configure preferences" },
+];
+
+export default function HomeScreen() {
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const renderItem = ({ item }: { item: ListItem }) => (
+    <TouchableOpacity
+      style={[styles.card, selected === item.id && styles.cardSelected]}
+      onPress={() => setSelected(item.id === selected ? null : item.id)}
+      data-testid={\`card-item-\${item.id}\`}
+    >
+      <Text style={styles.cardTitle}>{item.title}</Text>
+      <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.greeting} data-testid="text-greeting">Hello!</Text>
+        <Text style={styles.headerSubtitle}>What would you like to do today?</Text>
+      </View>
+      <FlatList
+        data={SAMPLE_DATA}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        data-testid="list-items"
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { padding: 20, paddingTop: 12 },
+  greeting: { fontSize: 28, fontWeight: "bold", color: "#1a1a1a" },
+  headerSubtitle: { fontSize: 15, color: "#666", marginTop: 4 },
+  list: { padding: 16, gap: 12 },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardSelected: { borderColor: "#0079F2", borderWidth: 2 },
+  cardTitle: { fontSize: 16, fontWeight: "600", color: "#1a1a1a", marginBottom: 4 },
+  cardSubtitle: { fontSize: 13, color: "#888" },
+});`,
+      },
+      {
+        filename: "app/(tabs)/explore.tsx",
+        content: `import { View, Text, StyleSheet, ScrollView, TextInput } from "react-native";
+import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+
+export default function ExploreScreen() {
+  const [search, setSearch] = useState("");
+
+  const categories = [
+    { icon: "star" as const, label: "Featured", color: "#F5A623" },
+    { icon: "trending-up" as const, label: "Trending", color: "#0CCE6B" },
+    { icon: "heart" as const, label: "Popular", color: "#E54D4D" },
+    { icon: "flash" as const, label: "New", color: "#0079F2" },
+  ];
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search..."
+          placeholderTextColor="#999"
+          value={search}
+          onChangeText={setSearch}
+          data-testid="input-search"
+        />
+      </View>
+      <Text style={styles.sectionTitle}>Categories</Text>
+      <View style={styles.grid}>
+        {categories.map((cat) => (
+          <View key={cat.label} style={[styles.categoryCard, { borderLeftColor: cat.color }]}>
+            <Ionicons name={cat.icon} size={22} color={cat.color} />
+            <Text style={styles.categoryLabel}>{cat.label}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  content: { padding: 16 },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: "#333" },
+  sectionTitle: { fontSize: 20, fontWeight: "bold", color: "#1a1a1a", marginBottom: 14 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  categoryCard: {
+    width: "47%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+    gap: 8,
+  },
+  categoryLabel: { fontSize: 14, fontWeight: "600", color: "#333" },
+});`,
+      },
+      {
+        filename: "app/(tabs)/profile.tsx",
+        content: `import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+
+export default function ProfileScreen() {
+  const menuItems = [
+    { icon: "person-outline" as const, label: "Edit Profile" },
+    { icon: "notifications-outline" as const, label: "Notifications" },
+    { icon: "shield-outline" as const, label: "Privacy" },
+    { icon: "help-circle-outline" as const, label: "Help" },
+    { icon: "log-out-outline" as const, label: "Sign Out" },
+  ];
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.avatarSection}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>JD</Text>
+        </View>
+        <Text style={styles.name} data-testid="text-user-name">John Doe</Text>
+        <Text style={styles.email}>john@example.com</Text>
+      </View>
+      <View style={styles.menu}>
+        {menuItems.map((item) => (
+          <TouchableOpacity key={item.label} style={styles.menuItem} data-testid={\`button-menu-\${item.label.toLowerCase().replace(/\\s/g, "-")}\`}>
+            <Ionicons name={item.icon} size={22} color="#555" />
+            <Text style={styles.menuLabel}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={18} color="#ccc" />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  content: { padding: 16 },
+  avatarSection: { alignItems: "center", paddingVertical: 24 },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#0079F2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  avatarText: { color: "#fff", fontSize: 28, fontWeight: "bold" },
+  name: { fontSize: 22, fontWeight: "bold", color: "#1a1a1a" },
+  email: { fontSize: 14, color: "#888", marginTop: 2 },
+  menu: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    marginTop: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    gap: 14,
+  },
+  menuLabel: { flex: 1, fontSize: 15, color: "#333" },
+});`,
+      },
+      {
+        filename: "assets/.gitkeep",
+        content: "",
+      },
+    ],
+  },
+  {
+    id: "mobile-auth",
+    name: "Mobile App (Auth)",
+    description: "Expo/React Native app with authentication flow",
+    language: "typescript",
+    projectType: "mobile-app",
+    files: [
+      {
+        filename: "app.json",
+        content: `{
+  "expo": {
+    "name": "MyAuthApp",
+    "slug": "my-auth-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.myauthapp.app"
+    },
+    "android": {
+      "package": "com.myauthapp.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "scheme": "myauthapp"
+  }
+}`,
+      },
+      {
+        filename: "package.json",
+        content: `{
+  "name": "my-auth-app",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "start:web": "expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "expo": "~50.0.0",
+    "expo-router": "~3.4.0",
+    "expo-status-bar": "~1.11.0",
+    "expo-secure-store": "~12.8.0",
+    "react": "18.2.0",
+    "react-native": "0.73.0",
+    "react-native-web": "~0.19.10",
+    "react-dom": "18.2.0",
+    "react-native-safe-area-context": "4.8.2",
+    "react-native-screens": "~3.29.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.0",
+    "typescript": "^5.3.0"
+  }
+}`,
+      },
+      {
+        filename: "tsconfig.json",
+        content: `{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}`,
+      },
+      {
+        filename: "babel.config.js",
+        content: `module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ["babel-preset-expo"],
+    plugins: ["expo-router/babel"],
+  };
+};`,
+      },
+      {
+        filename: "contexts/AuthContext.tsx",
+        content: `import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (name: string, email: string, password: string) => Promise<boolean>;
+  signOut: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    if (email && password.length >= 6) {
+      setUser({ id: "1", name: email.split("@")[0], email });
+      setIsLoading(false);
+      return true;
+    }
+    setIsLoading(false);
+    return false;
+  }, []);
+
+  const signUp = useCallback(async (name: string, email: string, password: string) => {
+    setIsLoading(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    if (name && email && password.length >= 6) {
+      setUser({ id: "1", name, email });
+      setIsLoading(false);
+      return true;
+    }
+    setIsLoading(false);
+    return false;
+  }, []);
+
+  const signOut = useCallback(() => {
+    setUser(null);
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, signIn, signUp, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
+  return ctx;
+}`,
+      },
+      {
+        filename: "app/_layout.tsx",
+        content: `import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { AuthProvider } from "../contexts/AuthContext";
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <StatusBar style="auto" />
+      <Stack screenOptions={{ headerShown: false }} />
+    </AuthProvider>
+  );
+}`,
+      },
+      {
+        filename: "app/index.tsx",
+        content: `import { Redirect } from "expo-router";
+import { useAuth } from "../contexts/AuthContext";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+
+export default function Index() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#0079F2" />
+      </View>
+    );
+  }
+
+  return <Redirect href={user ? "/home" : "/sign-in"} />;
+}
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+});`,
+      },
+      {
+        filename: "app/sign-in.tsx",
+        content: `import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { useState } from "react";
+import { router } from "expo-router";
+import { useAuth } from "../contexts/AuthContext";
+
+export default function SignInScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { signIn, isLoading } = useAuth();
+
+  const handleSignIn = async () => {
+    const success = await signIn(email, password);
+    if (success) {
+      router.replace("/home");
+    } else {
+      Alert.alert("Error", "Invalid email or password (min 6 chars)");
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <View style={styles.content}>
+        <Text style={styles.title} data-testid="text-signin-title">Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to your account</Text>
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            data-testid="input-email"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            data-testid="input-password"
+          />
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleSignIn}
+            disabled={isLoading}
+            data-testid="button-sign-in"
+          >
+            <Text style={styles.buttonText}>{isLoading ? "Signing in..." : "Sign In"}</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity onPress={() => router.push("/sign-up")} data-testid="link-sign-up">
+          <Text style={styles.linkText}>
+            Don't have an account? <Text style={styles.link}>Sign Up</Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+  content: { flex: 1, justifyContent: "center", padding: 24 },
+  title: { fontSize: 32, fontWeight: "bold", color: "#1a1a1a", marginBottom: 8 },
+  subtitle: { fontSize: 16, color: "#888", marginBottom: 32 },
+  form: { gap: 14 },
+  input: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  button: {
+    backgroundColor: "#0079F2",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  buttonDisabled: { opacity: 0.7 },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  linkText: { textAlign: "center", marginTop: 24, color: "#888", fontSize: 14 },
+  link: { color: "#0079F2", fontWeight: "600" },
+});`,
+      },
+      {
+        filename: "app/sign-up.tsx",
+        content: `import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { useState } from "react";
+import { router } from "expo-router";
+import { useAuth } from "../contexts/AuthContext";
+
+export default function SignUpScreen() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { signUp, isLoading } = useAuth();
+
+  const handleSignUp = async () => {
+    const success = await signUp(name, email, password);
+    if (success) {
+      router.replace("/home");
+    } else {
+      Alert.alert("Error", "Please fill all fields (password min 6 chars)");
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <View style={styles.content}>
+        <Text style={styles.title} data-testid="text-signup-title">Create Account</Text>
+        <Text style={styles.subtitle}>Sign up to get started</Text>
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Full Name"
+            placeholderTextColor="#999"
+            value={name}
+            onChangeText={setName}
+            data-testid="input-name"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            data-testid="input-email"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            data-testid="input-password"
+          />
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleSignUp}
+            disabled={isLoading}
+            data-testid="button-sign-up"
+          >
+            <Text style={styles.buttonText}>{isLoading ? "Creating account..." : "Sign Up"}</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity onPress={() => router.back()} data-testid="link-sign-in">
+          <Text style={styles.linkText}>
+            Already have an account? <Text style={styles.link}>Sign In</Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+  content: { flex: 1, justifyContent: "center", padding: 24 },
+  title: { fontSize: 32, fontWeight: "bold", color: "#1a1a1a", marginBottom: 8 },
+  subtitle: { fontSize: 16, color: "#888", marginBottom: 32 },
+  form: { gap: 14 },
+  input: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  button: {
+    backgroundColor: "#0079F2",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  buttonDisabled: { opacity: 0.7 },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  linkText: { textAlign: "center", marginTop: 24, color: "#888", fontSize: 14 },
+  link: { color: "#0079F2", fontWeight: "600" },
+});`,
+      },
+      {
+        filename: "app/home.tsx",
+        content: `import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { useAuth } from "../contexts/AuthContext";
+
+export default function HomeScreen() {
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = () => {
+    signOut();
+    router.replace("/sign-in");
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{user?.name?.charAt(0).toUpperCase() || "U"}</Text>
+        </View>
+        <Text style={styles.welcome} data-testid="text-welcome">Welcome, {user?.name || "User"}!</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>You're signed in</Text>
+          <Text style={styles.cardBody}>
+            This is a protected screen. Only authenticated users can see this content.
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} data-testid="button-sign-out">
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+  content: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#0079F2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  avatarText: { color: "#fff", fontSize: 28, fontWeight: "bold" },
+  welcome: { fontSize: 24, fontWeight: "bold", color: "#1a1a1a", marginBottom: 4 },
+  email: { fontSize: 14, color: "#888", marginBottom: 24 },
+  card: {
+    backgroundColor: "#f0f7ff",
+    borderRadius: 14,
+    padding: 20,
+    width: "100%",
+    marginBottom: 24,
+  },
+  cardTitle: { fontSize: 16, fontWeight: "600", color: "#0079F2", marginBottom: 8 },
+  cardBody: { fontSize: 14, color: "#555", lineHeight: 20 },
+  signOutButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E54D4D",
+  },
+  signOutText: { color: "#E54D4D", fontSize: 15, fontWeight: "600" },
+});`,
+      },
+      {
+        filename: "assets/.gitkeep",
+        content: "",
       },
     ],
   },

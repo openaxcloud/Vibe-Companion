@@ -284,12 +284,29 @@ export function serializeReplitConfig(config: ReplitConfig): string {
 export async function getProjectConfig(projectId: string): Promise<ReplitConfig> {
   const files = await storage.getFiles(projectId);
   const replitFile = files.find(f => f.filename === ".replit");
-  if (!replitFile || !replitFile.content) return {};
-  try {
-    return parseReplitConfig(replitFile.content);
-  } catch {
-    return {};
+  if (replitFile?.content) {
+    try {
+      return parseReplitConfig(replitFile.content);
+    } catch {
+      return {};
+    }
   }
+  const appJsonFile = files.find(f => f.filename === "app.json");
+  const pkgFile = files.find(f => f.filename === "package.json");
+  if (appJsonFile?.content?.includes('"expo"') ||
+      (pkgFile?.content?.includes('"expo"') && pkgFile?.content?.includes('"react-native"'))) {
+    return {
+      run: "npx expo start --web --port 8081",
+      entrypoint: "app/_layout.tsx",
+    };
+  }
+  return {};
+}
+
+export function isExpoProject(files: { filename: string; content: string }[]): boolean {
+  const hasAppJson = files.some(f => f.filename === "app.json" && f.content.includes('"expo"'));
+  const hasExpo = files.some(f => f.filename === "package.json" && f.content.includes('"expo"'));
+  return hasAppJson || hasExpo;
 }
 
 export function getEnvironmentMetadata(project: { id: string; name: string; language: string; userId: string }): Record<string, string> {

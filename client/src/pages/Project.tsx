@@ -278,6 +278,7 @@ function _projectPage() {
   const [wsLoading, setWsLoading] = useState(false);
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
+  const [expoGoUrl, setExpoGoUrl] = useState<string | null>(null);
   const devUrl = projectId ? `${projectId}.dev.e-code.ai` : null;
   const fullDevUrl = devUrl ? `${window.location.protocol}//${devUrl}` : null;
   const [selectedPreviewPort, setSelectedPreviewPort] = useState<number | null>(null);
@@ -2524,7 +2525,9 @@ function _projectPage() {
 
   useEffect(() => {
     if (wsStatus === "running" && projectId && userPrefs.forwardPorts) {
-      fetch(`/api/workspaces/${projectId}/preview-url`, { credentials: "include" })
+      const previewPort = project?.projectType === "mobile-app" ? 8081 : undefined;
+      const portParam = previewPort ? `?port=${previewPort}` : "";
+      fetch(`/api/workspaces/${projectId}/preview-url${portParam}`, { credentials: "include" })
         .then((r) => {
           if (!r.ok) throw new Error("Failed to get preview URL");
           return r.json();
@@ -2545,15 +2548,18 @@ function _projectPage() {
             }
           }
           setLivePreviewUrl(url);
+          setExpoGoUrl(d.expoGoUrl || null);
           if (url && userPrefs.automaticPreview) setPreviewPanelOpen(true);
         })
-        .catch(() => setLivePreviewUrl(null));
+        .catch(() => { setLivePreviewUrl(null); setExpoGoUrl(null); });
     } else if (!userPrefs.forwardPorts) {
       setLivePreviewUrl(null);
+      setExpoGoUrl(null);
     } else {
       setLivePreviewUrl(null);
+      setExpoGoUrl(null);
     }
-  }, [wsStatus, projectId, userPrefs.forwardPorts, projectConfigQuery.data]);
+  }, [wsStatus, projectId, userPrefs.forwardPorts, projectConfigQuery.data, project?.projectType]);
 
   const initWorkspaceMutation = useMutation({
     mutationFn: async () => {
@@ -3856,7 +3862,7 @@ function _projectPage() {
         </div>
       </div>
       {isMobileProject ? (
-        <MobilePreview previewUrl={wsStatus === "running" && livePreviewUrl ? (effectivePreviewUrl || livePreviewUrl) : null} previewHtml={previewHtml} />
+        <MobilePreview previewUrl={wsStatus === "running" && livePreviewUrl ? (effectivePreviewUrl || livePreviewUrl) : null} previewHtml={previewHtml} projectName={project?.name} expoGoUrl={expoGoUrl} />
       ) : (
         <DeviceFrame selectedPreset={selectedDevicePreset}>
           {wsStatus === "running" && livePreviewUrl ? (

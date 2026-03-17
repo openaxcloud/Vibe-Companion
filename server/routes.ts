@@ -4673,6 +4673,25 @@ export async function registerRoutes(
     return res.json(getAllTemplates());
   });
 
+  app.get("/api/qrcode", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { data } = req.query;
+      if (!data || typeof data !== "string") {
+        return res.status(400).json({ message: "Missing 'data' query parameter" });
+      }
+      const QRCode = await import("qrcode");
+      const dataUrl = await QRCode.toDataURL(data, {
+        width: 256,
+        margin: 2,
+        color: { dark: "#1a1a2e", light: "#ffffff" },
+        errorCorrectionLevel: "M",
+      });
+      return res.json({ qrDataUrl: dataUrl });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to generate QR code" });
+    }
+  });
+
   app.get("/api/plan-configs", async (_req: Request, res: Response) => {
     try {
       const configs = await storage.getAllPlanConfigs();
@@ -7356,11 +7375,24 @@ export async function registerRoutes(
     if (!workspace) {
       return res.status(404).json({ message: "Workspace not initialized" });
     }
+    const isMobile = project.projectType === "mobile-app";
     const rawPort = parseInt(req.query.port as string);
-    const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
+    const defaultPort = isMobile ? 8081 : 3000;
+    const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : defaultPort;
     const url = runnerClient.previewUrl(workspace.id, port);
     const devUrl = `${req.protocol}://${project.id}.dev.e-code.ai`;
-    return res.json({ previewUrl: url, workspaceId: workspace.id, port, devUrl });
+    let expoGoUrl: string | null = null;
+    if (isMobile) {
+      const expoPort = 8081;
+      const expoPreviewUrl = runnerClient.previewUrl(workspace.id, expoPort);
+      try {
+        const parsed = new URL(expoPreviewUrl);
+        expoGoUrl = `exp://${parsed.host}${parsed.pathname}`;
+      } catch {
+        expoGoUrl = expoPreviewUrl.replace(/^https?:\/\//, "exp://");
+      }
+    }
+    return res.json({ previewUrl: url, workspaceId: workspace.id, port, devUrl, expoGoUrl });
   });
 
   app.get("/api/projects/:id/dev-url", requireAuth, async (req: Request, res: Response) => {
@@ -7482,7 +7514,7 @@ export async function registerRoutes(
 
       const outputTypeInstructions: Record<string, string> = {
         "web": "Generate a web app. Put everything in a single HTML file with inline CSS/JS when possible. Use modern HTML5, CSS3, and vanilla JS or include CDN links for frameworks.",
-        "mobile": "Generate a responsive PWA with mobile-first layout. Include viewport meta tag, touch-friendly interactions, a web app manifest, and service worker registration stub. Use CSS media queries for responsiveness. Include install prompt UI.",
+        "mobile": "Generate a React Native/Expo mobile app with TypeScript. Use React Native components (View, Text, TouchableOpacity, FlatList, etc.) — NOT HTML. Use StyleSheet.create() for styles. Use Expo Router for navigation (file-based routing in app/ directory). Include app.json with Expo config, package.json with expo/react-native dependencies, babel.config.js, tsconfig.json, and app/_layout.tsx. Set projectType to 'mobile-app'. Place pages in app/ directory.",
         "slides": "Generate an HTML-based slide presentation using Reveal.js (include CDN). Create multiple slides with navigation, transitions, and speaker notes. Include a title slide and content slides.",
         "animation": "Generate a Canvas/CSS/SVG animation with controls (play/pause/speed). Use requestAnimationFrame for smooth rendering. Include interactive controls to adjust animation parameters.",
         "design": "Generate a design tool/canvas with interactive elements. Include color pickers, drawing tools (pen, shapes, text), canvas element, and export functionality. Use Canvas API or SVG.",
@@ -7510,7 +7542,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this s
 Rules:
 - name: short kebab-case slug (max 30 chars)
 - language: one of javascript, typescript, python
-- projectType: "web-app" for most output types
+- projectType: "web-app" for most output types, "mobile-app" for mobile output type
 - files: generate 1-3 concise, working files. Keep code SHORT but functional.
 - IMPORTANT: Keep total response under 3000 tokens. Prefer fewer, smaller files.
 - Do NOT add any text before or after the JSON object
@@ -7642,7 +7674,7 @@ ${formatInstruction}`;
       const validLangs = ["javascript", "typescript", "python"];
       if (!validLangs.includes(spec.language)) spec.language = "javascript";
 
-      const detectedProjectType = spec.projectType === "mobile-app" ? "mobile-app" : "web-app";
+      const detectedProjectType = (spec.projectType === "mobile-app" || outputType === "mobile") ? "mobile-app" : "web-app";
 
       const project = await storage.createProject(req.session.userId!, {
         name: spec.name.slice(0, 50),
@@ -8332,10 +8364,13 @@ Any closing remarks...`;
             }
             if (chatProject.projectType === "mobile-app") {
               chatMobileContext = `\n\nIMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
-- Use React Native components (View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Image, etc.) — NOT HTML elements
-- Use StyleSheet.create() for styles — NOT CSS
+- Use React Native components (View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Image, Pressable, ActivityIndicator, Switch, Modal) — NOT HTML elements
+- Use StyleSheet.create() for styles — NOT CSS, className, or web CSS properties
+- Use Expo Router for navigation: file-based routing in the app/ directory
+- Use @expo/vector-icons for icons — NOT lucide-react or web icon libs
 - Import from "react-native" and "expo-*" packages, not web libraries
-- Use "react-native-web" compatible APIs so the app runs via Expo Web preview`;
+- Use "react-native-web" compatible APIs so the app runs via Expo Web preview
+- Place pages in app/ directory, components in components/, contexts in contexts/`;
             }
             const chatFiles = await storage.getFiles(chatProject.id);
             let ecodeFile = chatFiles.find(f => f.filename === "ecode.md");
@@ -8903,13 +8938,23 @@ Rules:
       const mobileContext = isMobileProject ? `
 
 IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
-- Use React Native components (View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Image, etc.) — NOT HTML elements (div, span, button, input, etc.)
-- Use StyleSheet.create() for styles — NOT CSS or inline style objects with web properties
-- Use React Native layout (flexbox with flex, alignItems, justifyContent) — NOT CSS grid, float, or position: absolute for layouts
-- Import from "react-native" and "expo-*" packages, not web libraries
+- Use React Native components (View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Image, Pressable, ActivityIndicator, Switch, Modal) — NOT HTML elements (div, span, button, input, etc.)
+- Use StyleSheet.create() for styles — NOT CSS, className, or inline style objects with web CSS properties
+- Use React Native layout (flexbox with flex, alignItems, justifyContent, gap) — NOT CSS grid, float, or display: block
+- Import from "react-native" and "expo-*" packages, not web libraries like "react-dom"
 - Use "react-native-web" compatible APIs so the app runs via Expo Web preview
-- Include proper app.json with Expo configuration
-- Include package.json with Expo dependencies (expo, react-native, react-native-web, react-dom)` : "";
+- Use Expo Router for navigation: file-based routing in the app/ directory, Stack and Tabs layouts
+- Use SafeAreaView from "react-native-safe-area-context" for safe areas
+- Use @expo/vector-icons (Ionicons, MaterialIcons, FontAwesome) for icons — NOT lucide-react or web icon libs
+- Include proper app.json with Expo configuration (name, slug, icon, splash, ios/android config)
+- Include package.json with Expo dependencies (expo, react-native, react-native-web, react-dom, expo-router)
+- Include babel.config.js with babel-preset-expo and expo-router/babel plugin
+- Include tsconfig.json extending expo/tsconfig.base
+- Place pages in app/ directory using Expo Router conventions (app/index.tsx, app/(tabs)/_layout.tsx, etc.)
+- Place reusable components in components/ directory
+- Place shared state/context in contexts/ directory
+- For data persistence, use expo-secure-store or AsyncStorage
+- Always add data-testid attributes to interactive and display elements` : "";
 
       const planUserId = req.session.userId!;
       const approvedPlanForContext = await storage.getLatestPlan(projectId, planUserId);
@@ -8924,7 +8969,8 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
       }
 
       const outputTypeContextMap: Record<string, string> = {
-        "mobile": "\n\nThis project's output type is MOBILE (PWA). Generate responsive, mobile-first code with viewport meta, touch interactions, service worker stubs, and install prompts. Use CSS media queries and mobile-friendly UI patterns.",
+        "mobile-app": "\n\nThis project's output type is MOBILE APP (React Native/Expo). Generate React Native code with native components (View, Text, TouchableOpacity, FlatList, etc.), StyleSheet.create() for styling, Expo Router for navigation, and proper Expo config files. Preview runs via Expo Web, device testing via Expo Go QR code.",
+        "mobile": "\n\nThis project's output type is MOBILE APP (React Native/Expo). Generate React Native code with native components (View, Text, TouchableOpacity, FlatList, etc.), StyleSheet.create() for styling, Expo Router for navigation, and proper Expo config files. Preview runs via Expo Web, device testing via Expo Go QR code.",
         "animation": "\n\nThis project's output type is ANIMATION. Generate Canvas/CSS/SVG animations with play/pause/speed controls. Use requestAnimationFrame for smooth rendering and include interactive parameter controls.",
         "design": "\n\nThis project's output type is DESIGN. Generate design tools with canvas elements, color pickers, drawing tools (pen, shapes, text), layers, and export functionality. Use Canvas API or SVG.",
         "data-visualization": "\n\nThis project's output type is DATA VISUALIZATION. Generate dashboards with Chart.js or D3.js (via CDN). Create multiple chart types with real sample data, interactive filters, and responsive layout.",
