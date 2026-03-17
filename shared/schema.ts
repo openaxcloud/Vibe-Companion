@@ -1042,6 +1042,8 @@ export const deployments = pgTable("deployments", {
   isPrivate: boolean("is_private").notNull().default(false),
   showBadge: boolean("show_badge").notNull().default(true),
   enableFeedback: boolean("enable_feedback").notNull().default(false),
+  responseHeaders: json("response_headers").$type<Array<{ path: string; name: string; value: string }>>(),
+  rewrites: json("rewrites").$type<Array<{ from: string; to: string }>>(),
   processPort: integer("process_port"),
   lastHealthCheck: timestamp("last_health_check"),
   healthStatus: text("health_status").default("unknown"),
@@ -1069,6 +1071,8 @@ export const insertDeploymentSchema = createInsertSchema(deployments).pick({
   isPrivate: true,
   showBadge: true,
   enableFeedback: true,
+  responseHeaders: true,
+  rewrites: true,
 });
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;

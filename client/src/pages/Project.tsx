@@ -2259,7 +2259,7 @@ function _projectPage() {
     },
   });
 
-  const deploymentsQuery = useQuery<{ id: string; version: number; status: string; buildLog: string | null; url: string | null; createdAt: string; finishedAt: string | null; deploymentType?: string }[]>({
+  const deploymentsQuery = useQuery<{ id: string; version: number; status: string; buildLog: string | null; url: string | null; createdAt: string; finishedAt: string | null; deploymentType?: string; isPrivate?: boolean; responseHeaders?: Array<{ path: string; name: string; value: string }>; rewrites?: Array<{ from: string; to: string }> }[]>({
     queryKey: ["/api/projects", projectId, "deployments"],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${projectId}/deployments`, { credentials: "include" });
@@ -2271,6 +2271,16 @@ function _projectPage() {
   });
 
   const [expandedDeployId, setExpandedDeployId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const deps = deploymentsQuery.data;
+    if (deps && deps.length > 0) {
+      const liveDep = deps.find(d => d.status === "live");
+      if (liveDep) {
+        if (liveDep.isPrivate !== undefined) setDeployIsPrivate(liveDep.isPrivate);
+      }
+    }
+  }, [deploymentsQuery.data]);
 
   const rollbackMutation = useMutation({
     mutationFn: async (version: number) => {
@@ -6614,6 +6624,18 @@ function _projectPage() {
                         ))}
                       </div>
                       {project?.isPublished && (
+                        <div className="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-[var(--ide-surface)] border border-[var(--ide-border)] mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <Lock className="w-3 h-3 text-[var(--ide-text-muted)]" />
+                            <span className="text-[10px] text-[var(--ide-text)]">Private Deployment</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${deployIsPrivate ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`} data-testid="badge-deploy-visibility">{deployIsPrivate ? "Private" : "Public"}</span>
+                            <Switch checked={deployIsPrivate} onCheckedChange={(v) => { setDeployIsPrivate(v); if (project?.isPublished) deploySettingsMutation.mutate({ isPrivate: v }); }} data-testid="toggle-deploy-private" />
+                          </div>
+                        </div>
+                      )}
+                      {project?.isPublished && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)]">
                           <Globe className="w-3 h-3 text-[#0079F2] shrink-0" />
                           <span className="text-[10px] text-[var(--ide-text-secondary)] truncate font-mono flex-1">{`${window.location.origin}/shared/${projectId}`}</span>
@@ -6825,6 +6847,7 @@ function _projectPage() {
                                       <p className="text-[10px] text-[var(--ide-text)] font-medium">v{dep.version} <span className="text-[8px] text-[var(--ide-text-muted)] font-normal">{typeLabel}</span></p>
                                       <p className="text-[9px] text-[var(--ide-text-muted)]">{new Date(dep.createdAt).toLocaleString()}{duration !== null ? ` · ${duration}s` : ""}</p>
                                     </div>
+                                    {dep.isPrivate && <Lock className="w-3 h-3 text-amber-500 shrink-0" data-testid={`lock-icon-${dep.id}`} />}
                                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${statusColors[dep.status] || statusColors.stopped}`}>{isCurrentLive ? "Live" : dep.status}</span>
                                   </button>
                                   {expandedDeployId === dep.id && (
@@ -8101,6 +8124,16 @@ function _projectPage() {
                     {v === "public" ? "Public" : v === "private" ? "Private" : "Team"}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                  <div>
+                    <p className="text-[11px] text-[var(--ide-text)] font-medium">Private Deployment</p>
+                    <p className="text-[9px] text-[var(--ide-text-muted)]">Require sign-in to access deployed app</p>
+                  </div>
+                </div>
+                <Switch checked={deployIsPrivate} onCheckedChange={(v) => { setDeployIsPrivate(v); if (project?.isPublished) deploySettingsMutation.mutate({ isPrivate: v }); }} data-testid="dialog-toggle-private-deploy" />
               </div>
               {project?.visibility === "private" && (
                 <div className="space-y-2 border-t border-[var(--ide-border)] pt-3">

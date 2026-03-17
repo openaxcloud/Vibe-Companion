@@ -3736,6 +3736,8 @@ export async function registerRoutes(
     isPrivate: z.boolean().optional(),
     showBadge: z.boolean().optional(),
     enableFeedback: z.boolean().optional(),
+    responseHeaders: z.array(z.object({ path: z.string(), name: z.string(), value: z.string() })).optional(),
+    rewrites: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
   });
 
   app.get("/api/projects/:id/collaborators", requireAuth, async (req: Request, res: Response) => {
@@ -3886,6 +3888,8 @@ export async function registerRoutes(
         isPrivate: deployConfig.isPrivate,
         showBadge: deployConfig.showBadge,
         enableFeedback: deployConfig.enableFeedback,
+        responseHeaders: deployConfig.responseHeaders,
+        rewrites: deployConfig.rewrites,
       };
 
       const deployment = await storage.createDeployment(insertData);
@@ -3920,6 +3924,8 @@ export async function registerRoutes(
           isPrivate: deployConfig.isPrivate,
           showBadge: deployConfig.showBadge,
           enableFeedback: deployConfig.enableFeedback,
+          responseHeaders: deployConfig.responseHeaders,
+          rewrites: deployConfig.rewrites,
         },
       );
 
@@ -3935,6 +3941,8 @@ export async function registerRoutes(
         finishedAt: new Date(),
         deploymentType,
         processPort: build.processPort || undefined,
+        responseHeaders: build.config?.responseHeaders,
+        rewrites: build.config?.rewrites,
       });
       await storage.trackEvent(req.session.userId!, "project_deployed", { projectId: project.id, version, deploymentType });
       if (build.status === "live") {
@@ -4073,6 +4081,8 @@ export async function registerRoutes(
     isPrivate: z.boolean().optional(),
     showBadge: z.boolean().optional(),
     enableFeedback: z.boolean().optional(),
+    responseHeaders: z.array(z.object({ path: z.string(), name: z.string(), value: z.string() })).optional(),
+    rewrites: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
   });
 
   app.patch("/api/projects/:id/deploy/settings", requireAuth, async (req: Request, res: Response) => {
@@ -4092,10 +4102,12 @@ export async function registerRoutes(
         }
       }
 
-      const updates: Partial<{ isPrivate: boolean; showBadge: boolean; enableFeedback: boolean }> = {};
+      const updates: Record<string, unknown> = {};
       if (body.isPrivate !== undefined) updates.isPrivate = body.isPrivate;
       if (body.showBadge !== undefined) updates.showBadge = body.showBadge;
       if (body.enableFeedback !== undefined) updates.enableFeedback = body.enableFeedback;
+      if (body.responseHeaders !== undefined) updates.responseHeaders = body.responseHeaders;
+      if (body.rewrites !== undefined) updates.rewrites = body.rewrites;
       const updated = await storage.updateDeployment(liveDep.id, updates);
       return res.json(updated);
     } catch (err) {

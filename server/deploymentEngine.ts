@@ -39,6 +39,117 @@ export interface DeploymentConfig {
   isPrivate?: boolean;
   showBadge?: boolean;
   enableFeedback?: boolean;
+  responseHeaders?: Array<{ path: string; name: string; value: string }>;
+  rewrites?: Array<{ from: string; to: string }>;
+}
+
+const RESERVED_HEADERS = new Set([
+  "accept-ranges", "age", "connection", "content-encoding", "content-length",
+  "date", "location", "server", "set-cookie", "transfer-encoding", "upgrade",
+  "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer",
+  "vary", "via", "warning",
+]);
+
+function parseReplitConfig(files: ProjectFile[]): { responseHeaders: Array<{ path: string; name: string; value: string }>; rewrites: Array<{ from: string; to: string }> } {
+  const result: { responseHeaders: Array<{ path: string; name: string; value: string }>; rewrites: Array<{ from: string; to: string }> } = {
+    responseHeaders: [],
+    rewrites: [],
+  };
+
+  const replitFile = files.find(f => f.filename === ".replit");
+  if (!replitFile || !replitFile.content) return result;
+
+  try {
+    const content = replitFile.content;
+    const headerRegex = /\[\[deployment\.responseHeaders\]\]\s*\n((?:\s*\w+\s*=\s*"[^"]*"\s*\n?)*)/g;
+    let match;
+    while ((match = headerRegex.exec(content)) !== null) {
+      const block = match[1];
+      const path = block.match(/path\s*=\s*"([^"]*)"/)?.[1] || "/*";
+      const name = block.match(/name\s*=\s*"([^"]*)"/)?.[1];
+      const value = block.match(/value\s*=\s*"([^"]*)"/)?.[1];
+      if (name && value && !RESERVED_HEADERS.has(name.toLowerCase())) {
+        result.responseHeaders.push({ path, name, value });
+      }
+    }
+
+    const rewriteRegex = /\[\[deployment\.rewrites\]\]\s*\n((?:\s*\w+\s*=\s*"[^"]*"\s*\n?)*)/g;
+    while ((match = rewriteRegex.exec(content)) !== null) {
+      const block = match[1];
+      const from = block.match(/from\s*=\s*"([^"]*)"/)?.[1];
+      const to = block.match(/to\s*=\s*"([^"]*)"/)?.[1];
+      if (from && to) {
+        result.rewrites.push({ from, to });
+      }
+    }
+  } catch {
+  }
+
+  return result;
+}
+
+function matchWildcardPath(pattern: string, requestPath: string): boolean {
+  if (pattern === "/*" || pattern === "*") return true;
+  const regexStr = "^" + pattern.replace(/\*/g, "(.*)").replace(/\//g, "\\/") + "$";
+  try {
+    return new RegExp(regexStr).test(requestPath);
+  } catch {
+    return false;
+  }
+}
+
+function applyRewrites(requestPath: string, rewrites: Array<{ from: string; to: string }>, baseDir: string): string | null {
+  for (const rule of rewrites) {
+    const fromRegex = "^" + rule.from.replace(/\*/g, "(.*)").replace(/\//g, "\\/") + "$";
+    try {
+      const match = requestPath.match(new RegExp(fromRegex));
+      if (match) {
+        let target = rule.to;
+        const captures = match.slice(1);
+        for (const capture of captures) {
+          target = target.replace("*", capture);
+        }
+        const candidatePath = resolve(baseDir, target.replace(/^\//, ""));
+        if (candidatePath.startsWith(baseDir)) {
+          return target;
+        }
+      }
+    } catch {
+    }
+  }
+  return null;
+}
+
+function applyCustomHeaders(res: Response, headers: Array<{ path: string; name: string; value: string }>, requestPath: string): void {
+  for (const header of headers) {
+    if (matchWildcardPath(header.path, requestPath) && !RESERVED_HEADERS.has(header.name.toLowerCase())) {
+      res.setHeader(header.name, header.value);
+    }
+  }
+}
+
+function generatePrivateLoginPage(slug: string): string {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Private Deployment — Sign In</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0E1525;color:#F5F9FC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
+.card{background:#1A2035;border:1px solid #2D3548;border-radius:16px;padding:48px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+.lock{width:48px;height:48px;margin:0 auto 24px;background:#7C65CB;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.lock svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+h1{font-size:1.5rem;margin-bottom:8px;font-weight:600}
+p{color:#8B949E;font-size:0.95rem;margin-bottom:28px;line-height:1.5}
+.btn{display:inline-block;background:#0079F2;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:500;font-size:0.95rem;transition:background 0.2s}
+.btn:hover{background:#0066CC}
+.footer{margin-top:32px;font-size:0.75rem;color:#4B5563}
+</style></head><body>
+<div class="card">
+<div class="lock"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+<h1>Private Deployment</h1>
+<p>This application is private. Sign in with an authorized account to access it.</p>
+<a href="/auth/login?redirect=/deployed/${slug}/" class="btn">Sign In</a>
+<p class="footer">Powered by E-Code</p>
+</div>
+</body></html>`;
 }
 
 export interface DeploymentBuild {
@@ -503,6 +614,16 @@ export async function buildAndDeploy(
       await writeFile(filePath, file.content || "", "utf-8");
     }
 
+    const replitConfig = parseReplitConfig(files);
+    if (replitConfig.responseHeaders.length > 0) {
+      addLog(`[build] Parsed ${replitConfig.responseHeaders.length} custom response header rule(s) from .replit`);
+      if (config) config.responseHeaders = replitConfig.responseHeaders;
+    }
+    if (replitConfig.rewrites.length > 0) {
+      addLog(`[build] Parsed ${replitConfig.rewrites.length} URL rewrite rule(s) from .replit`);
+      if (config) config.rewrites = replitConfig.rewrites;
+    }
+
     if (config?.buildCommand) {
       addLog(`[build] Executing build command: ${config.buildCommand}`);
       try {
@@ -934,12 +1055,11 @@ async function checkPrivateDeployment(slug: string, req: Request): Promise<boole
     const { deployments } = await import("@shared/schema");
     const { eq, and } = await import("drizzle-orm");
     const deps = await db.select().from(deployments)
-      .where(and(eq(deployments.status, "live"), eq(deployments.isPrivate, true)))
-      .limit(50);
+      .where(and(eq(deployments.status, "live"), eq(deployments.isPrivate, true)));
     for (const dep of deps) {
       const project = await storage.getProject(dep.projectId);
       if (project) {
-        const depSlug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+        const depSlug = generateSlug(project.name, project.id);
         if (depSlug === slug) {
           const sessionReq = req as RequestWithSession;
           const userId = sessionReq.session?.userId;
@@ -952,24 +1072,37 @@ async function checkPrivateDeployment(slug: string, req: Request): Promise<boole
     }
     return true;
   } catch {
-    return true;
+    return false;
   }
 }
 
-async function getDeploymentSettings(slug: string): Promise<{ showBadge: boolean; enableFeedback: boolean } | null> {
+interface DeploymentSettings {
+  showBadge: boolean;
+  enableFeedback: boolean;
+  responseHeaders: Array<{ path: string; name: string; value: string }>;
+  rewrites: Array<{ from: string; to: string }>;
+  isPrivate: boolean;
+}
+
+async function getDeploymentSettings(slug: string): Promise<DeploymentSettings | null> {
   try {
     const { db } = await import("./db");
     const { deployments } = await import("@shared/schema");
     const { eq } = await import("drizzle-orm");
     const deps = await db.select().from(deployments)
-      .where(eq(deployments.status, "live"))
-      .limit(100);
+      .where(eq(deployments.status, "live"));
     for (const dep of deps) {
       const project = await storage.getProject(dep.projectId);
       if (project) {
         const depSlug = generateSlug(project.name, project.id);
         if (depSlug === slug) {
-          return { showBadge: dep.showBadge ?? true, enableFeedback: dep.enableFeedback ?? false };
+          return {
+            showBadge: dep.showBadge ?? true,
+            enableFeedback: dep.enableFeedback ?? false,
+            responseHeaders: dep.responseHeaders || [],
+            rewrites: dep.rewrites || [],
+            isPrivate: dep.isPrivate ?? false,
+          };
         }
       }
     }
@@ -1051,99 +1184,120 @@ async function trackAnalytics(slug: string, req: Request): Promise<void> {
 export function createDeploymentRouter(): Router {
   const router = Router();
 
+  async function handlePrivateCheck(slug: string, req: Request, res: Response, settings: DeploymentSettings | null): Promise<boolean> {
+    const allowed = await checkPrivateDeployment(slug, req);
+    if (!allowed) {
+      res.setHeader("Content-Type", "text/html");
+      res.status(403).send(generatePrivateLoginPage(slug));
+      return false;
+    }
+    return true;
+  }
+
+  async function serveFile(filePath: string, baseDir: string, slug: string, requestPath: string, settings: DeploymentSettings | null, res: Response): Promise<void> {
+    const mimeType = getMimeType(filePath);
+    if (settings && settings.responseHeaders.length > 0) {
+      applyCustomHeaders(res, settings.responseHeaders, requestPath);
+    }
+
+    if (mimeType === "text/html") {
+      let html = await readFile(filePath, "utf-8");
+      if (settings) html = injectWidgets(html, settings);
+      res.setHeader("Content-Type", "text/html");
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.setHeader("X-Deployed-By", "E-Code");
+      res.send(html);
+      return;
+    }
+
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("X-Deployed-By", "E-Code");
+    res.sendFile(filePath);
+  }
+
+  async function resolveAndServe(rawPath: string, slug: string, baseDir: string, settings: DeploymentSettings | null, req: Request, res: Response): Promise<void> {
+    const safePath = normalize(rawPath).replace(/^(\.\.[\/\\])+/, "");
+    const fullPath = resolve(baseDir, safePath);
+
+    if (!fullPath.startsWith(baseDir)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const requestPath = "/" + safePath;
+
+    if (existsSync(fullPath)) {
+      try {
+        const fileStat = await stat(fullPath);
+        if (fileStat.isDirectory()) {
+          const indexPath = join(fullPath, "index.html");
+          if (existsSync(indexPath)) {
+            return serveFile(indexPath, baseDir, slug, requestPath, settings, res);
+          }
+          return serve404(baseDir, slug, res);
+        }
+        return serveFile(fullPath, baseDir, slug, requestPath, settings, res);
+      } catch {
+        res.status(500).json({ error: "Failed to serve file" });
+        return;
+      }
+    }
+
+    if (settings && settings.rewrites.length > 0) {
+      const rewritten = applyRewrites(requestPath, settings.rewrites, baseDir);
+      if (rewritten) {
+        const rewrittenSafe = normalize(rewritten.replace(/^\//, "")).replace(/^(\.\.[\/\\])+/, "");
+        const rewrittenFull = resolve(baseDir, rewrittenSafe);
+        if (rewrittenFull.startsWith(baseDir) && existsSync(rewrittenFull)) {
+          try {
+            const rStat = await stat(rewrittenFull);
+            if (rStat.isDirectory()) {
+              const rIndex = join(rewrittenFull, "index.html");
+              if (existsSync(rIndex)) {
+                return serveFile(rIndex, baseDir, slug, requestPath, settings, res);
+              }
+            } else {
+              return serveFile(rewrittenFull, baseDir, slug, requestPath, settings, res);
+            }
+          } catch {}
+        }
+      }
+    }
+
+    return serve404(baseDir, slug, res);
+  }
+
   router.get("/deployed/:slug/{*filePath}", async (req: Request, res: Response) => {
     const slug = String(req.params.slug || "");
     if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
       return res.status(400).json({ error: "Invalid slug" });
     }
 
-    const allowed = await checkPrivateDeployment(slug, req);
-    if (!allowed) {
-      return res.status(403).json({ error: "This deployment is private. Please sign in with an authorized account." });
-    }
+    const settings = await getDeploymentSettings(slug);
+
+    if (!await handlePrivateCheck(slug, req, res, settings)) return;
 
     trackAnalytics(slug, req).catch(() => {});
 
     const rawPath = String((req.params as Record<string, string>).filePath || "index.html");
-    const safePath = normalize(rawPath).replace(/^(\.\.[\/\\])+/, "");
     const baseDir = resolve(DEPLOYMENTS_DIR, slug, "latest");
-    const fullPath = resolve(baseDir, safePath);
 
-    if (!fullPath.startsWith(baseDir)) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    const settings = await getDeploymentSettings(slug);
-
-    if (!existsSync(fullPath)) {
-      const indexPath = join(baseDir, "index.html");
-      if (existsSync(indexPath)) {
-        res.setHeader("Content-Type", "text/html");
-        res.setHeader("Cache-Control", "public, max-age=300");
-        let html = await readFile(indexPath, "utf-8");
-        if (settings) html = injectWidgets(html, settings);
-        return res.send(html);
-      }
-      return serve404(baseDir, slug, res);
-    }
-
-    try {
-      const fileStat = await stat(fullPath);
-      if (fileStat.isDirectory()) {
-        const indexPath = join(fullPath, "index.html");
-        if (existsSync(indexPath)) {
-          res.setHeader("Content-Type", "text/html");
-          res.setHeader("Cache-Control", "public, max-age=300");
-          let html = await readFile(indexPath, "utf-8");
-          if (settings) html = injectWidgets(html, settings);
-          return res.send(html);
-        }
-        return serve404(baseDir, slug, res);
-      }
-
-      const mimeType = getMimeType(safePath);
-      if (mimeType === "text/html" && settings) {
-        let html = await readFile(fullPath, "utf-8");
-        html = injectWidgets(html, settings);
-        res.setHeader("Content-Type", "text/html");
-        res.setHeader("Cache-Control", "public, max-age=3600");
-        res.setHeader("X-Deployed-By", "E-Code");
-        return res.send(html);
-      }
-
-      res.setHeader("Content-Type", mimeType);
-      res.setHeader("Cache-Control", "public, max-age=3600");
-      res.setHeader("X-Deployed-By", "E-Code");
-      return res.sendFile(fullPath);
-    } catch {
-      return res.status(500).json({ error: "Failed to serve file" });
-    }
+    return resolveAndServe(rawPath, slug, baseDir, settings, req, res);
   });
 
   router.get("/deployed/:slug/", async (req: Request, res: Response) => {
     const slug = String(req.params.slug || "");
 
-    const allowed = await checkPrivateDeployment(slug, req);
-    if (!allowed) {
-      return res.status(403).send(`<html><body style="background:#0E1525;color:#F5F9FC;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center"><h1>403</h1><p>This deployment is private</p></div></body></html>`);
-    }
+    const settings = await getDeploymentSettings(slug);
+
+    if (!await handlePrivateCheck(slug, req, res, settings)) return;
 
     trackAnalytics(slug, req).catch(() => {});
 
     const baseDir = join(DEPLOYMENTS_DIR, slug, "latest");
-    const indexPath = join(baseDir, "index.html");
 
-    if (!existsSync(indexPath)) {
-      return serve404(baseDir, slug, res);
-    }
-
-    const settings = await getDeploymentSettings(slug);
-    let html = await readFile(indexPath, "utf-8");
-    if (settings) html = injectWidgets(html, settings);
-
-    res.setHeader("Content-Type", "text/html");
-    res.setHeader("Cache-Control", "public, max-age=300");
-    return res.send(html);
+    return resolveAndServe("index.html", slug, baseDir, settings, req, res);
   });
 
   return router;
