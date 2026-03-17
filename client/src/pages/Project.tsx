@@ -293,6 +293,14 @@ function _projectPage() {
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
   const previewPanelRef = useRef<ImperativePanelHandle>(null);
 
+  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "publishing" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh" | "inbox";
+  const [openPanelTabs, setOpenPanelTabs] = useState<ToolPanelId[]>([]);
+  const [activePanelTab, setActivePanelTab] = useState<ToolPanelId | null>(null);
+  const openPanelTabsRef = useRef(openPanelTabs);
+  openPanelTabsRef.current = openPanelTabs;
+  const activePanelTabRef = useRef(activePanelTab);
+  activePanelTabRef.current = activePanelTab;
+
   const sidebarShouldBeOpen = sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0;
   useEffect(() => {
     if (!sidebarPanelRef.current) return;
@@ -602,7 +610,6 @@ function _projectPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
-  type ToolPanelId = "search" | "git" | "fileHistory" | "deployments" | "packages" | "database" | "tests" | "security" | "storage" | "auth" | "integrations" | "automations" | "agentAutomations" | "workflows" | "monitoring" | "publishing" | "threads" | "networking" | "skills" | "mcp" | "checkpoints" | "settings" | "envVars" | "ssh" | "inbox";
   const toolPanelRegistry: { id: ToolPanelId; label: string; icon: typeof Search; color: string }[] = [
     { id: "search", label: "Search", icon: Search, color: "#0079F2" },
     { id: "git", label: "Source Control", icon: GitBranch, color: "#F26522" },
@@ -630,12 +637,6 @@ function _projectPage() {
     { id: "ssh", label: "SSH", icon: Terminal, color: "#F5A623" },
     { id: "inbox", label: "Feedback Inbox", icon: Inbox, color: "#0079F2" },
   ];
-  const [openPanelTabs, setOpenPanelTabs] = useState<ToolPanelId[]>([]);
-  const [activePanelTab, setActivePanelTab] = useState<ToolPanelId | null>(null);
-  const openPanelTabsRef = useRef(openPanelTabs);
-  openPanelTabsRef.current = openPanelTabs;
-  const activePanelTabRef = useRef(activePanelTab);
-  activePanelTabRef.current = activePanelTab;
   const [dragPanelTabId, setDragPanelTabId] = useState<ToolPanelId | null>(null);
   const [dragOverPanelTabId, setDragOverPanelTabId] = useState<ToolPanelId | null>(null);
   const [panelAddMenuOpen, setPanelAddMenuOpen] = useState(false);
