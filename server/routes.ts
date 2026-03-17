@@ -4757,6 +4757,16 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/artifact-templates", async (req: Request, res: Response) => {
+    try {
+      const outputType = req.query.outputType as string | undefined;
+      const templates = await storage.getArtifactTemplates(outputType);
+      return res.json(templates);
+    } catch {
+      return res.status(500).json({ message: "Failed to fetch artifact templates" });
+    }
+  });
+
   app.get("/api/plan-configs", async (_req: Request, res: Response) => {
     try {
       const configs = await storage.getAllPlanConfigs();
@@ -16183,6 +16193,8 @@ Respond ONLY with the JSON array, no other text.`;
   log("Integration catalog seeded", "seed");
   await storage.seedOfficialFrameworks();
   log("Official frameworks seeded", "seed");
+  await storage.seedArtifactTemplates();
+  log("Artifact templates seeded", "seed");
 
   const { setExpressApp } = await import("./slackBot");
   setExpressApp(app);

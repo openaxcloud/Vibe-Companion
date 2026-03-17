@@ -2165,3 +2165,21 @@ export const insertSystemDepSchema = createInsertSchema(systemDeps).pick({
 });
 export type InsertSystemDep = z.infer<typeof insertSystemDepSchema>;
 export type SystemDep = typeof systemDeps.$inferSelect;
+
+export const artifactTemplates = pgTable("artifact_templates", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  outputType: text("output_type").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  files: json("files").$type<{ filename: string; content: string }[]>().notNull().default([]),
+  dependencies: json("dependencies").$type<Record<string, string>>().notNull().default({}),
+  buildCommand: text("build_command"),
+  runCommand: text("run_command"),
+  systemPromptHint: text("system_prompt_hint"),
+}, (table) => [
+  index("artifact_templates_output_type_idx").on(table.outputType),
+]);
+
+export const insertArtifactTemplateSchema = createInsertSchema(artifactTemplates).omit({ id: true });
+export type InsertArtifactTemplate = z.infer<typeof insertArtifactTemplateSchema>;
+export type ArtifactTemplate = typeof artifactTemplates.$inferSelect;

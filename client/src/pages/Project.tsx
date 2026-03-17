@@ -13,7 +13,7 @@ import {
   Folder, FolderPlus, ChevronRight, ChevronDown, ChevronUp, Monitor, Eye, Code2,
   Search, Hash, PanelLeft, Users, GitBranch, AlertCircle, Wand2, LogOut, Keyboard, GitCommitHorizontal, Key, Upload, Package,
   ArrowLeft, ArrowRight, Save, GripHorizontal, Database, FlaskConical, Shield, HardDrive, ShieldCheck, Puzzle, Zap, GitMerge, Download,
-  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu, Frame,
+  Activity, MessageSquare, Network, Brain, BarChart3, Clock, Lock, Calendar, Layers, Plug2, Cpu, Frame, Maximize2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import PackagesPanel from "@/components/PackagesPanel";
@@ -4147,26 +4147,104 @@ function _projectPage() {
         <MobilePreview previewUrl={wsStatus === "running" && livePreviewUrl ? (effectivePreviewUrl || livePreviewUrl) : null} previewHtml={previewHtml} projectName={project?.name} expoGoUrl={expoGoUrl} />
       ) : (
         <DeviceFrame selectedPreset={selectedDevicePreset}>
-          {wsStatus === "running" && livePreviewUrl ? (
-            <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
-          ) : previewHtml ? (
-            <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
-                <Monitor className="w-7 h-7 text-[var(--ide-text-muted)]" />
+          <div className="relative w-full h-full">
+            {wsStatus === "running" && livePreviewUrl ? (
+              <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
+            ) : previewHtml ? (
+              <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
+                  <Monitor className="w-7 h-7 text-[var(--ide-text-muted)]" />
+                </div>
+                <p className="text-sm font-medium text-[var(--ide-text)]">Webview</p>
+                <p className="text-xs text-center max-w-[220px] text-[var(--ide-text-muted)] leading-relaxed">
+                  {hasHtmlFile ? "Click Refresh to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
+                </p>
+                {hasHtmlFile && wsStatus !== "running" && (
+                  <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-webview-tab-preview">
+                    <Eye className="w-3 h-3" /> Preview HTML
+                  </Button>
+                )}
               </div>
-              <p className="text-sm font-medium text-[var(--ide-text)]">Webview</p>
-              <p className="text-xs text-center max-w-[220px] text-[var(--ide-text-muted)] leading-relaxed">
-                {hasHtmlFile ? "Click Refresh to render your HTML" : wsStatus === "running" ? "Waiting for your app to serve on a port..." : "Create an HTML file or run your app to see a preview"}
-              </p>
-              {hasHtmlFile && wsStatus !== "running" && (
-                <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-webview-tab-preview">
-                  <Eye className="w-3 h-3" /> Preview HTML
-                </Button>
-              )}
-            </div>
-          )}
+            )}
+            {isSlideProject && (previewHtml || livePreviewUrl) && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 z-10" data-testid="overlay-slides-nav">
+                <button
+                  onClick={() => {
+                    const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
+                    try { iframe?.contentWindow?.postMessage({ type: "navigate", direction: "prev" }, "*"); } catch {}
+                  }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  data-testid="button-slide-prev"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-[10px] text-white/70 font-medium px-1" data-testid="text-slide-indicator">Slide Nav</span>
+                <button
+                  onClick={() => {
+                    const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
+                    try { iframe?.contentWindow?.postMessage({ type: "navigate", direction: "next" }, "*"); } catch {}
+                  }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  data-testid="button-slide-next"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
+                    try { iframe?.contentWindow?.postMessage({ type: "fullscreen" }, "*"); } catch {}
+                    try { iframe?.requestFullscreen?.(); } catch {}
+                  }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors ml-1"
+                  data-testid="button-slide-fullscreen"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            {isDataVizProject && (previewHtml || livePreviewUrl) && (
+              <div className="absolute top-3 right-3 z-10" data-testid="overlay-dataviz">
+                <button
+                  onClick={() => {
+                    const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
+                    try { iframe?.requestFullscreen?.(); } catch {}
+                  }}
+                  className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/80 hover:text-white rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-colors"
+                  data-testid="button-dataviz-fullscreen"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                  Full Dashboard
+                </button>
+              </div>
+            )}
+            {is3DGameProject && (previewHtml || livePreviewUrl) && (
+              <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5" data-testid="overlay-3dgame">
+                <button
+                  onClick={() => {
+                    const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
+                    try { iframe?.contentWindow?.postMessage({ type: "game-toggle-pause" }, "*"); } catch {}
+                  }}
+                  className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/80 hover:text-white rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-colors"
+                  data-testid="button-game-playpause"
+                >
+                  <Play className="w-3 h-3" />
+                  Play / Pause
+                </button>
+                <button
+                  onClick={() => {
+                    const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
+                    try { iframe?.requestFullscreen?.(); } catch {}
+                  }}
+                  className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white/80 hover:text-white rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-colors"
+                  data-testid="button-game-fullscreen"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
         </DeviceFrame>
       )}
     </div>
@@ -4430,6 +4508,8 @@ function _projectPage() {
   );
 
   const isSlideProject = project?.projectType === "slides" || (project as any)?.outputType === "slides";
+  const isDataVizProject = (project as any)?.outputType === "data-visualization";
+  const is3DGameProject = (project as any)?.outputType === "3d-game";
   const isVideoProject = project?.projectType === "video";
   const isMediaProject = isSlideProject || isVideoProject;
 

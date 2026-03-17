@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/ui/skeleton";
+import ArtifactTypeCarousel, { ARTIFACT_TYPE_OPTIONS } from "@/components/ArtifactTypeCarousel";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import type { Project, Notification } from "@shared/schema";
@@ -709,19 +710,11 @@ export default function Dashboard() {
           </div>
         )}
         <div className="mb-4" data-testid="section-categories-mobile">
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
-            {APP_CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => { setSelectedCategory(cat.id); setPromptSeed(prev => prev + 1); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all shrink-0 border ${selectedCategory === cat.id ? "bg-[#0079F2]/15 text-[#0079F2] border-[#0079F2]/30" : "text-[var(--ide-text-muted)] border-transparent hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
-                data-testid={`category-${cat.id}-mobile`}
-              >
-                <cat.icon className="w-3 h-3" />
-                {cat.label}
-              </button>
-            ))}
-          </div>
+          <ArtifactTypeCarousel
+            selectedType={selectedCategory}
+            onSelectType={(type) => { setSelectedCategory(type || APP_CATEGORIES[0].id); setPromptSeed(prev => prev + 1); }}
+            size="sm"
+          />
         </div>
         <div className="mb-6" data-testid="section-example-prompts-mobile">
           <div className="flex items-center gap-2 mb-2">
@@ -1666,28 +1659,12 @@ export default function Dashboard() {
                 )}
               </form>
 
-              <div className="mb-6 relative" data-testid="section-categories">
-                <div className="flex items-center gap-1">
-                  <button onClick={() => scrollCategories("left")} className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 transition-colors shrink-0" data-testid="button-categories-left">
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <div className="flex gap-1.5 overflow-x-auto scrollbar-hide flex-1" ref={categoriesRef}>
-                    {APP_CATEGORIES.map((cat) => (
-                      <button
-                        key={cat.id}
-                        onClick={() => { setSelectedCategory(cat.id); setPromptSeed(prev => prev + 1); }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all shrink-0 border ${selectedCategory === cat.id ? "bg-[#0079F2]/15 text-[#0079F2] border-[#0079F2]/30" : "text-[var(--ide-text-muted)] border-transparent hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text-secondary)]"}`}
-                        data-testid={`category-${cat.id}`}
-                      >
-                        <cat.icon className="w-3.5 h-3.5" />
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-                  <button onClick={() => scrollCategories("right")} className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 transition-colors shrink-0" data-testid="button-categories-right">
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              <div className="mb-6" data-testid="section-categories">
+                <ArtifactTypeCarousel
+                  selectedType={selectedCategory}
+                  onSelectType={(type) => { setSelectedCategory(type || APP_CATEGORIES[0].id); setPromptSeed(prev => prev + 1); }}
+                  size="md"
+                />
               </div>
 
               <div className="mb-8" data-testid="section-example-prompts">

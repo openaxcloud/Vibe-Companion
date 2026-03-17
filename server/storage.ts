@@ -110,6 +110,8 @@ import {
   systemModules, systemDeps,
   type SystemModule, type InsertSystemModule,
   type SystemDep, type InsertSystemDep,
+  artifactTemplates,
+  type ArtifactTemplate, type InsertArtifactTemplate,
   notifications, notificationPreferences,
   type Notification, type InsertNotification,
   type NotificationPreferences, type InsertNotificationPreferences,
@@ -592,6 +594,11 @@ export interface IStorage {
   listSshKeysByUser(userId: string): Promise<SshKey[]>;
   deleteSshKey(id: string, userId: string): Promise<boolean>;
   findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined>;
+
+  getArtifactTemplates(outputType?: string): Promise<ArtifactTemplate[]>;
+  getArtifactTemplate(id: string): Promise<ArtifactTemplate | undefined>;
+  createArtifactTemplate(data: InsertArtifactTemplate): Promise<ArtifactTemplate>;
+  seedArtifactTemplates(): Promise<void>;
 
   getMergeState(projectId: string): Promise<MergeState | undefined>;
   saveMergeState(data: InsertMergeState): Promise<MergeState>;
@@ -3540,6 +3547,127 @@ export class DatabaseStorage implements IStorage {
   async findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined> {
     const [key] = await db.select().from(sshKeys).where(eq(sshKeys.fingerprint, fingerprint)).limit(1);
     return key;
+  }
+
+  async getArtifactTemplates(outputType?: string): Promise<ArtifactTemplate[]> {
+    if (outputType) {
+      return db.select().from(artifactTemplates).where(eq(artifactTemplates.outputType, outputType));
+    }
+    return db.select().from(artifactTemplates);
+  }
+
+  async getArtifactTemplate(id: string): Promise<ArtifactTemplate | undefined> {
+    const [template] = await db.select().from(artifactTemplates).where(eq(artifactTemplates.id, id)).limit(1);
+    return template;
+  }
+
+  async createArtifactTemplate(data: InsertArtifactTemplate): Promise<ArtifactTemplate> {
+    const [template] = await db.insert(artifactTemplates).values(data).returning();
+    return template;
+  }
+
+  async seedArtifactTemplates(): Promise<void> {
+    const existing = await db.select().from(artifactTemplates).limit(1);
+    if (existing.length > 0) return;
+
+    const templates: InsertArtifactTemplate[] = [
+      {
+        outputType: "web",
+        name: "Web App",
+        description: "React/Vite full-stack web application",
+        files: [],
+        dependencies: {},
+        buildCommand: "npm run build",
+        runCommand: "npm run dev",
+        systemPromptHint: "Generate a modern React web application with Vite. Use clean component architecture, modern CSS, and responsive design.",
+      },
+      {
+        outputType: "mobile",
+        name: "Mobile App",
+        description: "Responsive PWA with mobile-first layout",
+        files: [],
+        dependencies: {},
+        buildCommand: "npm run build",
+        runCommand: "npm run dev",
+        systemPromptHint: "Generate a responsive PWA with mobile-first layout. Include viewport meta, manifest.json, and service worker stub. Use touch-friendly UI patterns.",
+      },
+      {
+        outputType: "slides",
+        name: "Presentation",
+        description: "Reveal.js slide presentation with speaker notes",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate an HTML presentation using Reveal.js via CDN. Include multiple slides with transitions, speaker notes, and presenter mode navigation.",
+      },
+      {
+        outputType: "animation",
+        name: "Animation",
+        description: "CSS/JS animation with timeline controls",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate a canvas/CSS/SVG animation with interactive controls (play/pause/speed) and requestAnimationFrame. Include a timeline editor interface.",
+      },
+      {
+        outputType: "design",
+        name: "Design",
+        description: "Static HTML/CSS visual-first layout",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate an interactive design tool or visual canvas with drawing tools, color pickers, and export functionality. Focus on visual-first layout.",
+      },
+      {
+        outputType: "data-visualization",
+        name: "Data Visualization",
+        description: "D3/Chart.js interactive dashboard",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate a data dashboard using Chart.js or D3.js via CDN with sample datasets, interactive charts, filters, and responsive layout.",
+      },
+      {
+        outputType: "automation",
+        name: "Automation",
+        description: "Node.js automation scripts with scheduling",
+        files: [],
+        dependencies: {},
+        runCommand: "node index.js",
+        systemPromptHint: "Generate Node.js automation scripts with file processing, scheduling (cron-like), logging, error handling, and configurable parameters.",
+      },
+      {
+        outputType: "3d-game",
+        name: "3D Game",
+        description: "Three.js project with game loop",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate a 3D game using Three.js via CDN. Include camera controls, basic physics, game loop with requestAnimationFrame, and play/pause controls.",
+      },
+      {
+        outputType: "document",
+        name: "Document Editor",
+        description: "Rich text editor with PDF export",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate a rich text or Markdown editor with formatting toolbar, live preview, and export to HTML/PDF. Include templates and keyboard shortcuts.",
+      },
+      {
+        outputType: "spreadsheet",
+        name: "Spreadsheet",
+        description: "Data grid with formulas and CSV support",
+        files: [],
+        dependencies: {},
+        runCommand: "open index.html",
+        systemPromptHint: "Generate an interactive data grid with formula support (SUM, AVG, COUNT), sorting, filtering, CSV import/export, and cell formatting.",
+      },
+    ];
+
+    for (const template of templates) {
+      await db.insert(artifactTemplates).values(template).onConflictDoNothing();
+    }
   }
 
   async getMergeState(projectId: string): Promise<MergeState | undefined> {

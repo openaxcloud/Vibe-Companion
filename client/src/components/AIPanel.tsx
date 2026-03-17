@@ -9,6 +9,7 @@ import {
   Pause, GripVertical, Pencil, ListOrdered, ChevronUp,
   Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers
 } from "lucide-react";
+import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -506,6 +507,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const processingQueueRef = useRef(false);
   const pausedRef = useRef(false);
+  const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null);
   const [ecodeStatus, setEcodeStatus] = useState<{ exists: boolean; fileId: string | null }>({ exists: false, fileId: null });
   const [ecodeGenerating, setEcodeGenerating] = useState(false);
   const [planMessages, setPlanMessages] = useState<ChatMessage[]>([]);
@@ -1116,6 +1118,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         autonomousTier,
         turbo: agentToolsConfig.turbo,
       };
+
+      if (selectedArtifactType) {
+        body.artifactType = selectedArtifactType;
+      }
 
       if (isAgent || isLite) {
         body.projectId = projectId;
@@ -2881,6 +2887,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             )}
           </div>
         )}
+        {topMode === "build" && selectedArtifactType && (
+          <div className="flex flex-wrap gap-2 mb-2 px-1">
+            <ArtifactTypePill
+              type={selectedArtifactType}
+              onRemove={() => setSelectedArtifactType(null)}
+              size="sm"
+            />
+          </div>
+        )}
         {topMode === "build" && attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2 px-1">
             {attachments.map((a) => (
@@ -3158,6 +3173,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             )}
           </div>
         </div>
+        {topMode === "build" && messages.length === 0 && !isStreaming && (
+          <div className="mt-2">
+            <ArtifactTypeCarousel
+              selectedType={selectedArtifactType}
+              onSelectType={setSelectedArtifactType}
+              size="sm"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
