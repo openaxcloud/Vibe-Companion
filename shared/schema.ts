@@ -717,15 +717,15 @@ export const AUTONOMOUS_TIER_CONFIG = {
 } as const;
 
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
-  economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash" },
-  power: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
-  turbo: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+  economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash", openrouter: "meta-llama/llama-3.3-70b-instruct" },
+  power: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct" },
+  turbo: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct" },
 };
 
 export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
-  lite: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash" },
-  autonomous: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
-  max: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+  lite: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash", openrouter: "meta-llama/llama-3.3-70b-instruct" },
+  autonomous: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct" },
+  max: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct" },
 };
 
 export const customDomains = pgTable("custom_domains", {

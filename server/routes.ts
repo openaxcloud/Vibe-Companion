@@ -7571,6 +7571,40 @@ export async function registerRoutes(
     },
   });
 
+  const openrouter = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY || process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || "",
+    baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": "https://replit.com",
+      "X-Title": "Replit IDE",
+    },
+  });
+
+  const OPENROUTER_PRIVACY_BODY = {
+    provider: {
+      data_collection: "deny",
+      allow_fallbacks: false,
+    },
+    transforms: ["middle-out"],
+  };
+
+  const OPENROUTER_REQUEST_OPTS = {
+    headers: { "X-OpenRouter-Privacy": "1" },
+  };
+
+
+  function formatOpenRouterError(error: any): string {
+    if (!error) return "OpenRouter request failed";
+    const status = error.status || error.statusCode;
+    const msg = error.message || "";
+    if (status === 402 || msg.includes("insufficient")) return "OpenRouter: Insufficient credits or model requires payment";
+    if (status === 429 || msg.includes("rate")) return "OpenRouter: Rate limit exceeded — please wait and try again";
+    if (status === 404 || msg.includes("not found") || msg.includes("No available")) return "OpenRouter: Model is unavailable — it may be offline, incompatible with privacy settings, or require a paid endpoint";
+    if (status === 403 || msg.includes("privacy") || msg.includes("data_collection")) return "OpenRouter: Model unavailable due to privacy policy conflict — this model does not support privacy-safe requests";
+    if (status === 503 || msg.includes("overloaded")) return "OpenRouter: Model is temporarily overloaded — try a different model or retry later";
+    return `OpenRouter error: ${msg.substring(0, 200)}`;
+  }
+
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
     try {
       const { prompt, model: requestedModel, outputType: reqOutputType } = req.body;
@@ -8188,6 +8222,32 @@ Any closing remarks...`;
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
+      } else if (requestedModel === "openrouter") {
+        const orPlanModelId = req.body.openrouterModel || "meta-llama/llama-3.3-70b-instruct";
+
+        const orMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: planSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+        ];
+
+        const stream = await openrouter.chat.completions.create({
+          model: orPlanModelId,
+          messages: orMessages,
+          stream: true,
+          max_tokens: 16384,
+          ...OPENROUTER_PRIVACY_BODY,
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & Record<string, unknown>, OPENROUTER_REQUEST_OPTS);
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            fullContent += content;
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
       } else {
         const stream = anthropic.messages.stream({
           model: "claude-sonnet-4-6",
@@ -8403,6 +8463,87 @@ Any closing remarks...`;
     }
   });
 
+  let openrouterModelsCache: { data: any[]; timestamp: number } | null = null;
+  const OPENROUTER_CACHE_TTL = 10 * 60 * 1000;
+
+  app.get("/api/ai/openrouter/models", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      if (openrouterModelsCache && (Date.now() - openrouterModelsCache.timestamp) < OPENROUTER_CACHE_TTL) {
+        return res.json({ models: openrouterModelsCache.data });
+      }
+
+      const openrouterBaseUrl = process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+      const modelsRes = await fetch(`${openrouterBaseUrl}/models`, {
+        headers: {
+          "HTTP-Referer": "https://replit.com",
+          "X-Title": "Replit IDE",
+          "X-OpenRouter-Privacy": "1",
+          ...(openrouter.apiKey ? { "Authorization": `Bearer ${openrouter.apiKey}` } : {}),
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!modelsRes.ok) {
+        return res.status(502).json({ message: "Failed to fetch OpenRouter models" });
+      }
+
+      interface OpenRouterApiModel {
+        id: string;
+        name?: string;
+        description?: string;
+        context_length?: number;
+        pricing?: { prompt?: string; completion?: string };
+        top_provider?: { max_completion_tokens?: number };
+        architecture?: { modality?: string };
+      }
+
+      interface OpenRouterModelsResponse {
+        data?: OpenRouterApiModel[];
+      }
+
+      const PRIVACY_COMPATIBLE_PROVIDERS = new Set([
+        "openai", "anthropic", "google", "meta-llama", "mistralai",
+        "microsoft", "deepseek", "qwen", "cohere", "databricks",
+        "nvidia", "amazon", "x-ai",
+      ]);
+
+      function isProviderPrivacyCompatible(modelId: string): boolean {
+        const provider = modelId.split("/")[0];
+        return PRIVACY_COMPATIBLE_PROVIDERS.has(provider);
+      }
+
+      const body: OpenRouterModelsResponse = await modelsRes.json();
+      const allModels = body.data || [];
+
+      const models = allModels
+        .filter((m) => {
+          if (!m.id) return false;
+          const modality = m.architecture?.modality || "";
+          if (!modality.includes("text")) return false;
+          if (!isProviderPrivacyCompatible(m.id)) return false;
+          return true;
+        })
+        .map((m) => ({
+          id: m.id,
+          name: m.name || m.id,
+          description: m.description || "",
+          context_length: m.context_length || 0,
+          pricing: {
+            prompt: m.pricing?.prompt || "0",
+            completion: m.pricing?.completion || "0",
+          },
+          top_provider: m.top_provider?.max_completion_tokens || null,
+          architecture: m.architecture?.modality || null,
+        }));
+
+      openrouterModelsCache = { data: models, timestamp: Date.now() };
+      return res.json({ models });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to fetch models";
+      return res.status(500).json({ message: errMsg });
+    }
+  });
+
   app.post("/api/ai/chat", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
       const { messages, context, model, agentMode: reqMode } = req.body;
@@ -8523,6 +8664,28 @@ Rules:
             res.write(`data: ${JSON.stringify({ content })}\n\n`);
           }
         }
+      } else if (selectedModel === "openrouter") {
+        const orModelId = req.body.openrouterModel || modelId;
+
+        const orMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        const stream = await openrouter.chat.completions.create({
+          model: orModelId,
+          messages: orMessages,
+          stream: true,
+          max_tokens: turboMaxTokens,
+          ...OPENROUTER_PRIVACY_BODY,
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & Record<string, unknown>, OPENROUTER_REQUEST_OPTS);
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
       } else {
         const stream = anthropic.messages.stream({
           model: modelId,
@@ -8541,12 +8704,14 @@ Rules:
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error: any) {
-      log(`AI chat error: ${error.message}`, "ai");
+      const selectedModel = req.body?.model || "claude";
+      const errorMsg = selectedModel === "openrouter" ? formatOpenRouterError(error) : error.message;
+      log(`AI chat error: ${errorMsg}`, "ai");
       if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: "AI service error" });
+        res.status(500).json({ message: errorMsg || "AI service error" });
       }
     }
   });
@@ -9769,6 +9934,152 @@ Always cite your sources in your response when using information from web search
         if (iterations >= MAX_AGENT_ITERATIONS) {
           res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
         }
+      } else if (agentSelectedModel === "openrouter") {
+        const orAgentModelId = req.body.openrouterModel || agentModelId;
+
+        const orTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+          {
+            type: "function",
+            function: {
+              name: "create_file",
+              description: "Create a new file in the project with the given filename and content",
+              parameters: { type: "object", properties: { filename: { type: "string", description: "The filename" }, content: { type: "string", description: "The full file content" } }, required: ["filename", "content"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "edit_file",
+              description: "Replace the entire content of an existing file",
+              parameters: { type: "object", properties: { filename: { type: "string", description: "The filename of the existing file to edit" }, content: { type: "string", description: "The new full file content" } }, required: ["filename", "content"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "create_skill",
+              description: "Create a reusable skill that teaches the AI agent project-specific patterns",
+              parameters: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, content: { type: "string" } }, required: ["name", "content"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "generate_image",
+              description: "Generate an AI image and save it as a project file",
+              parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, size: { type: "string", enum: ["1024x1024", "1024x1536", "1536x1024", "auto"] } }, required: ["prompt", "filename"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "edit_image",
+              description: "Modify an existing generated image in the project using AI",
+              parameters: { type: "object", properties: { filename: { type: "string" }, modification_prompt: { type: "string" } }, required: ["filename", "modification_prompt"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "generate_file",
+              description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV)",
+              parameters: { type: "object", properties: { format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv", "pptx"] }, filename: { type: "string" }, title: { type: "string" }, sections: { type: "array", items: { type: "object" } } }, required: ["format", "filename", "sections"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "query_connector",
+              description: "Read data from a connected external service",
+              parameters: { type: "object", properties: { connector: { type: "string" }, operation: { type: "string" }, params: { type: "object" } }, required: ["connector", "operation"] },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "write_connector",
+              description: "Write data to a connected external service",
+              parameters: { type: "object", properties: { connector: { type: "string" }, operation: { type: "string" }, params: { type: "object" } }, required: ["connector", "operation"] },
+            },
+          },
+          ...mcpToolDefinitions.map(t => ({
+            type: "function" as const,
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          })),
+        ];
+        if (webSearchEnabled) {
+          orTools.push(
+            { type: "function", function: { name: "web_search", description: "Search the web for current information", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } },
+            { type: "function", function: { name: "fetch_url", description: "Fetch and read the content of a specific web page URL", parameters: { type: "object", properties: { url: { type: "string" } }, required: ["url"] } } },
+          );
+        }
+
+        let orMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: agentSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await openrouter.chat.completions.create({
+            model: orAgentModelId,
+            messages: orMessages,
+            tools: orTools,
+            max_tokens: agentTurboMaxTokens,
+            ...OPENROUTER_PRIVACY_BODY,
+          } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & Record<string, unknown>, OPENROUTER_REQUEST_OPTS);
+
+          const choice = response.choices[0];
+          const message = choice.message;
+
+          if (message.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          }
+
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+
+            for (const toolCall of message.tool_calls) {
+              if (toolCall.type !== "function") continue;
+              const fn = toolCall.function;
+              const toolInput = JSON.parse(fn.arguments) as Record<string, unknown>;
+
+              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
+              res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+
+              toolResultMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: result || "Done",
+              });
+            }
+
+            const assistantMsg: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+              role: "assistant",
+              content: message.content,
+              tool_calls: message.tool_calls,
+            };
+
+            orMessages = [
+              ...orMessages,
+              assistantMsg,
+              ...toolResultMessages,
+            ];
+          }
+
+          if (choice.finish_reason !== "tool_calls") {
+            continueLoop = false;
+          }
+        }
+
+        if (iterations >= MAX_AGENT_ITERATIONS) {
+          res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n[Agent reached maximum iteration limit]" })}\n\n`);
+        }
       } else {
         const tools: Anthropic.Messages.Tool[] = [
           {
@@ -10077,6 +10388,21 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
                 res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
               }
             }
+          } else if (agentSelectedModel === "openrouter") {
+            const orReviewModelId = req.body.openrouterModel || reviewModelId;
+            const reviewStream = await openrouter.chat.completions.create({
+              model: orReviewModelId,
+              messages: [{ role: "user", content: optimizePrompt }],
+              stream: true,
+              max_tokens: 4096,
+              ...OPENROUTER_PRIVACY_BODY,
+            } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & Record<string, unknown>, OPENROUTER_REQUEST_OPTS);
+            for await (const chunk of reviewStream) {
+              const content = chunk.choices[0]?.delta?.content || "";
+              if (content) {
+                res.write(`data: ${JSON.stringify({ type: "text", content })}\n\n`);
+              }
+            }
           } else {
             const reviewStream = anthropic.messages.stream({
               model: reviewModelId,
@@ -10103,13 +10429,15 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
-      log(`AI agent error: ${error.message}`, "ai");
+      const agentModel = req.body?.model || "claude";
+      const agentErrorMsg = agentModel === "openrouter" ? formatOpenRouterError(error) : error.message;
+      log(`AI agent error: ${agentErrorMsg}`, "ai");
       agentFileOpsCount.value = 0;
       if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "error", message: agentErrorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: "AI agent error" });
+        res.status(500).json({ message: agentErrorMsg || "AI agent error" });
       }
     }
   });
@@ -10289,6 +10617,63 @@ Rules:
             continueLoop = false;
           }
         }
+      } else if (requestedModel === "openrouter") {
+        const orLiteModelId = req.body.openrouterModel || "meta-llama/llama-3.3-70b-instruct";
+
+        const orLiteTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+          { type: "function", function: { name: "create_file", description: "Create a new file", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+          { type: "function", function: { name: "edit_file", description: "Replace file content", parameters: { type: "object", properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } } },
+        ];
+
+        let orLiteMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: liteSystemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        let continueLoop = true;
+        let iterations = 0;
+
+        while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
+          iterations++;
+          const response = await openrouter.chat.completions.create({
+            model: orLiteModelId,
+            messages: orLiteMessages,
+            tools: orLiteTools,
+            max_tokens: 8192,
+            ...OPENROUTER_PRIVACY_BODY,
+          } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & Record<string, unknown>, OPENROUTER_REQUEST_OPTS);
+
+          const choice = response.choices[0];
+          const message = choice.message;
+
+          if (message.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          }
+
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            for (const toolCall of message.tool_calls) {
+              if (toolCall.type !== "function") continue;
+              const fn = toolCall.function;
+              const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
+            }
+
+            const liteAssistantMsg: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+              role: "assistant",
+              content: message.content,
+              tool_calls: message.tool_calls,
+            };
+
+            orLiteMessages = [...orLiteMessages, liteAssistantMsg, ...toolResultMessages];
+          }
+
+          if (choice.finish_reason !== "tool_calls") {
+            continueLoop = false;
+          }
+        }
       } else {
         const tools: Anthropic.Messages.Tool[] = [
           { name: "create_file", description: "Create a new file", input_schema: { type: "object" as const, properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } },
@@ -10337,12 +10722,14 @@ Rules:
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
-      log(`AI lite error: ${error.message}`, "ai");
+      const liteModel = req.body?.model || "claude";
+      const liteErrorMsg = liteModel === "openrouter" ? formatOpenRouterError(error) : error.message;
+      log(`AI lite error: ${liteErrorMsg}`, "ai");
       if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "error", message: liteErrorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: "AI lite error" });
+        res.status(500).json({ message: liteErrorMsg || "AI lite error" });
       }
     }
   });

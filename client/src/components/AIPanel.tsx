@@ -105,12 +105,22 @@ interface AIPanelProps {
   onCanvasFrameCreate?: (htmlContent: string, name?: string) => void;
 }
 
-type AIModel = "claude" | "gpt" | "gemini";
+type AIModel = "claude" | "gpt" | "gemini" | "openrouter";
 type AIMode = "chat" | "agent" | "plan";
 type TopMode = "plan" | "build";
 type AgentMode = "economy" | "power" | "turbo";
 type TopAgentMode = "lite" | "autonomous" | "max";
 type AutonomousTier = "economy" | "power";
+
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  description: string;
+  context_length: number;
+  pricing: { prompt: string; completion: string };
+  top_provider: number | null;
+  architecture: string | null;
+}
 
 interface AgentToolsConfig {
   liteMode: boolean;
@@ -125,6 +135,7 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
   gpt: { name: "GPT-4o", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
   gemini: { name: "Gemini Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
+  openrouter: { name: "OpenRouter", badge: "200+ Models", color: "text-[#E44D26] bg-[#E44D26]/10", icon: Globe },
 };
 
 const TOP_AGENT_MODE_LABELS: Record<TopAgentMode, { name: string; icon: typeof Zap; color: string; bg: string; description: string }> = {
@@ -521,6 +532,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [model, setModel] = useState<AIModel>("gpt");
+  const [openrouterModel, setOpenrouterModel] = useState<string>("meta-llama/llama-3.3-70b-instruct");
+  const [openrouterModels, setOpenrouterModels] = useState<OpenRouterModel[]>([]);
+  const [openrouterSearch, setOpenrouterSearch] = useState("");
+  const [openrouterLoading, setOpenrouterLoading] = useState(false);
+  const [showOpenrouterPicker, setShowOpenrouterPicker] = useState(false);
   const [mode, setMode] = useState<AIMode>(projectId ? "agent" : "chat");
   const [agentMode, setAgentMode] = useState<AgentMode>(() => {
     try { return (localStorage.getItem("ai-agent-mode") as AgentMode) || "economy"; } catch { return "economy"; }
@@ -633,6 +649,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       return next;
     });
   }, []);
+
+  const [openrouterError, setOpenrouterError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (model !== "openrouter" || openrouterModels.length > 0) return;
+    setOpenrouterLoading(true);
+    setOpenrouterError(null);
+    fetch("/api/ai/openrouter/models", { credentials: "include" })
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to load models");
+        return r.json();
+      })
+      .then(data => {
+        if (data?.models) setOpenrouterModels(data.models);
+        else setOpenrouterError("No models returned");
+      })
+      .catch((err) => {
+        setOpenrouterError(err.message || "Failed to load OpenRouter models");
+      })
+      .finally(() => setOpenrouterLoading(false));
+  }, [model]);
 
   useEffect(() => {
     if (!projectId) { setConversationLoaded(true); return; }
@@ -1132,6 +1169,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           messages: allPlanMessages.map((m) => ({ role: m.role, content: m.content })),
           model,
           projectId,
+          ...(model === "openrouter" ? { openrouterModel } : {}),
         }),
         signal: abortRef.current.signal,
       });
@@ -1204,6 +1242,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         topAgentMode,
         autonomousTier,
         turbo: agentToolsConfig.turbo,
+        ...(model === "openrouter" ? { openrouterModel } : {}),
       };
 
       if (selectedArtifactType) {
@@ -1255,7 +1294,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       abortRef.current = null;
       onAgentComplete?.();
     }
-  }, [messages, model, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete]);
+  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -1395,7 +1434,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
-      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo };
+      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo, ...(model === "openrouter" ? { openrouterModel } : {}) };
       if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
@@ -2138,6 +2177,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
             model,
             projectId,
+            ...(model === "openrouter" ? { openrouterModel } : {}),
           }),
           signal: abortRef.current.signal,
         });
@@ -2294,7 +2334,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               <DropdownMenuTrigger asChild>
                 <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
                   <ModelIcon className="w-2.5 h-2.5" />
-                  {modelInfo.name}
+                  {model === "openrouter" ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter") : modelInfo.name}
                   <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                 </button>
               </DropdownMenuTrigger>
@@ -2329,8 +2369,105 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </div>
                   {model === "gemini" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
                 </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setModel("openrouter"); setShowOpenrouterPicker(true); }} data-testid="model-openrouter">
+                  <div className="w-5 h-5 rounded bg-[#E44D26]/15 flex items-center justify-center">
+                    <Globe className="w-3 h-3 text-[#E44D26]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">OpenRouter</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]">200+ Models</span>
+                  </div>
+                  {model === "openrouter" && <Check className="w-3.5 h-3.5 ml-auto text-[#0CCE6B]" />}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {model === "openrouter" && (
+              <Popover open={showOpenrouterPicker} onOpenChange={setShowOpenrouterPicker}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex items-center gap-1 text-[9px] px-1 py-0.5 rounded bg-[#E44D26]/10 text-[#E44D26] hover:opacity-80 transition-opacity"
+                    data-testid="button-openrouter-model-picker"
+                  >
+                    <Settings2 className="w-2.5 h-2.5" />
+                    Model
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
+                  <div className="p-2 border-b border-[var(--ide-border)]">
+                    <div className="relative">
+                      <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-[var(--ide-text-muted)]" />
+                      <input
+                        type="text"
+                        placeholder="Search models..."
+                        value={openrouterSearch}
+                        onChange={(e) => setOpenrouterSearch(e.target.value)}
+                        className="w-full pl-7 pr-2 py-1.5 text-xs bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] outline-none focus:border-[#E44D26]/50"
+                        data-testid="input-openrouter-search"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-1">
+                    {openrouterLoading ? (
+                      <div className="flex items-center justify-center py-6 text-xs text-[var(--ide-text-muted)]">
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Loading models...
+                      </div>
+                    ) : openrouterError ? (
+                      <div className="py-4 text-center text-xs text-[var(--ide-text-muted)]">
+                        <p className="text-red-400 mb-2">{openrouterError}</p>
+                        <button
+                          className="px-2 py-1 rounded bg-[var(--ide-surface)] hover:bg-[var(--ide-border)] text-[var(--ide-text)] text-[10px]"
+                          onClick={() => {
+                            setOpenrouterError(null);
+                            setOpenrouterLoading(true);
+                            fetch("/api/ai/openrouter/models", { credentials: "include" })
+                              .then(r => { if (!r.ok) throw new Error("Failed to load models"); return r.json(); })
+                              .then(data => { if (data?.models) setOpenrouterModels(data.models); else setOpenrouterError("No models returned"); })
+                              .catch(err => setOpenrouterError(err.message || "Failed to load models"))
+                              .finally(() => setOpenrouterLoading(false));
+                          }}
+                          data-testid="button-openrouter-retry"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : openrouterModels.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-[var(--ide-text-muted)]">
+                        No models available. Check your OpenRouter API key.
+                      </div>
+                    ) : (
+                      openrouterModels
+                        .filter(m => {
+                          if (!openrouterSearch.trim()) return true;
+                          const q = openrouterSearch.toLowerCase();
+                          return m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q);
+                        })
+                        .slice(0, 50)
+                        .map(m => (
+                          <button
+                            key={m.id}
+                            className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-[var(--ide-surface)] transition-colors flex items-center gap-2 ${openrouterModel === m.id ? "bg-[var(--ide-surface)]" : ""}`}
+                            onClick={() => { setOpenrouterModel(m.id); setShowOpenrouterPicker(false); }}
+                            title={m.description}
+                            data-testid={`openrouter-model-${m.id.replace(/\//g, "-")}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-[var(--ide-text)] truncate">
+                                {m.name}
+                              </div>
+                              <div className="text-[10px] text-[var(--ide-text-muted)] truncate">{m.id}</div>
+                            </div>
+                            {m.context_length > 0 && (
+                              <span className="text-[9px] text-[var(--ide-text-muted)] whitespace-nowrap">{Math.round(m.context_length / 1000)}k</span>
+                            )}
+                            {openrouterModel === m.id && <Check className="w-3 h-3 text-[#0CCE6B] flex-shrink-0" />}
+                          </button>
+                        ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1">
