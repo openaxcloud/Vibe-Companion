@@ -1598,8 +1598,8 @@ export default function CodeEditor({ value, onChange, language, readOnly = false
       ...(hasLSP && autocompleteSources.length > 0
         ? [autocompletion({ override: autocompleteSources })]
         : staticAutoComplete),
-      replitTheme,
-      ...(semanticTokens ? [syntaxHighlighting(replitHighlight)] : []),
+      editorTheme,
+      ...(semanticTokens ? [syntaxHighlighting(highlightStyle)] : []),
       indentUnit.of(indentStr),
       cursorTracker,
       blameField,

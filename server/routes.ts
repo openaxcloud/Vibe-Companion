@@ -6394,6 +6394,58 @@ export async function registerRoutes(
     return res.json({ project, files: fileList });
   });
 
+  app.get("/api/shared/:id/preview", async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project) return res.status(404).send("Not found");
+    if (project.visibility === "private") {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(403).send("Private project");
+      if (project.userId !== userId) {
+        const isGuest = await storage.isProjectGuest(project.id, userId);
+        if (!isGuest) {
+          if (project.teamId) {
+            const teams = await storage.getUserTeams(userId);
+            if (!teams.some(t => t.id === project.teamId)) return res.status(403).send("Private project");
+          } else {
+            return res.status(403).send("Private project");
+          }
+        }
+      }
+    }
+    const files = await storage.getFiles(project.id);
+    const htmlFile = files.find(f => f.filename === "index.html") || files.find(f => f.filename.endsWith(".html"));
+    if (!htmlFile) {
+      return res.status(200).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#1C2333;color:#9CA3AF;font-family:system-ui;text-align:center}div{max-width:400px}h2{color:#E5E7EB;font-size:18px;margin-bottom:8px}p{font-size:14px;line-height:1.5}</style></head><body><div><h2>${project.name}</h2><p>This project doesn't have an HTML preview.<br/>It's a ${project.language} project.</p></div></body></html>`);
+    }
+    let html = htmlFile.content || "";
+    const cssFiles = files.filter(f => f.filename.endsWith(".css"));
+    const jsFiles = files.filter(f => f.filename.endsWith(".js") && f.id !== htmlFile.id);
+    for (const css of cssFiles) {
+      const linkTag = `<link rel="stylesheet" href="${css.filename}"`;
+      const linkTag2 = `<link href="${css.filename}"`;
+      if (!html.includes(linkTag) && !html.includes(linkTag2) && !html.includes(css.filename)) {
+        html = html.replace("</head>", `<style>${css.content || ""}</style>\n</head>`);
+      } else {
+        html = html.replace(new RegExp(`<link[^>]*href=["']${css.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>`, 'g'), `<style>${css.content || ""}</style>`);
+      }
+    }
+    for (const js of jsFiles) {
+      const scriptTag = `<script src="${js.filename}"`;
+      if (html.includes(scriptTag) || html.includes(`src="${js.filename}"`)) {
+        html = html.replace(new RegExp(`<script[^>]*src=["']${js.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>\\s*</script>`, 'g'), `<script>${js.content || ""}</script>`);
+      }
+    }
+    const imgFiles = files.filter(f => /\.(png|jpg|jpeg|gif|svg|webp|ico)$/i.test(f.filename));
+    for (const img of imgFiles) {
+      if (img.content && img.content.startsWith("data:")) {
+        html = html.replace(new RegExp(`(src|href)=["']${img.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'g'), `$1="${img.content}"`);
+      }
+    }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("X-Frame-Options", "ALLOWALL");
+    return res.send(html);
+  });
+
   // --- DEVELOPER FRAMEWORKS ---
   app.get("/api/frameworks", async (req: Request, res: Response) => {
     const { search, category, language } = req.query;
