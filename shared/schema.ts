@@ -648,14 +648,12 @@ export type CreditUsage = typeof creditUsage.$inferSelect;
 export const usageRecords = pgTable("usage_records", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
-  actionType: text("action_type").notNull(),
-  creditCost: integer("credit_cost").notNull(),
-  description: text("description"),
-  billingCycleStart: timestamp("billing_cycle_start").notNull(),
+  actionType: text("action").notNull(),
+  creditCost: integer("credits_used").notNull(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("usage_records_user_idx").on(table.userId),
-  index("usage_records_cycle_idx").on(table.userId, table.billingCycleStart),
 ]);
 export const insertUsageRecordSchema = createInsertSchema(usageRecords).omit({ id: true, createdAt: true });
 export type InsertUsageRecord = z.infer<typeof insertUsageRecordSchema>;
@@ -721,6 +719,49 @@ export const AUTONOMOUS_TIER_CONFIG = {
   economy: { label: "Economy", description: "Standard models, 1 credit/call", cost: 1, color: "#0CCE6B" },
   power: { label: "Power", description: "Best models, 3 credits/call", cost: 3, color: "#0079F2" },
 } as const;
+
+export const MODEL_TOKEN_PRICING: Record<string, { input: number; output: number; label: string; creditsPerMillionInput: number; creditsPerMillionOutput: number }> = {
+  "gpt-4o-mini": { input: 0.00015, output: 0.0006, label: "GPT-4o Mini", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "gpt-4o": { input: 0.0025, output: 0.01, label: "GPT-4o", creditsPerMillionInput: 250, creditsPerMillionOutput: 1000 },
+  "claude-sonnet-4-6": { input: 0.003, output: 0.015, label: "Claude Sonnet 4", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
+  "gemini-2.0-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.0 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "gemini-2.5-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.5 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "mistral-small-latest": { input: 0.001, output: 0.003, label: "Mistral Small", creditsPerMillionInput: 100, creditsPerMillionOutput: 300 },
+  "mistral-large-latest": { input: 0.002, output: 0.006, label: "Mistral Large", creditsPerMillionInput: 200, creditsPerMillionOutput: 600 },
+  "sonar": { input: 0.001, output: 0.005, label: "Perplexity Sonar", creditsPerMillionInput: 100, creditsPerMillionOutput: 500 },
+  "sonar-pro": { input: 0.003, output: 0.015, label: "Perplexity Sonar Pro", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
+  "meta-llama/llama-3.3-70b-instruct": { input: 0.0025, output: 0.01, label: "Llama 3.3 70B", creditsPerMillionInput: 250, creditsPerMillionOutput: 1000 },
+  "dalle-3": { input: 0.04, output: 0, label: "DALL-E 3", creditsPerMillionInput: 4000, creditsPerMillionOutput: 0 },
+};
+
+export const SERVICE_CREDIT_COSTS: Record<string, number> = {
+  "tavily-search": 2,
+  "brave-image-search": 3,
+  "dalle-3-image": 20,
+  "elevenlabs-tts": 10,
+  "nanobanana-video": 15,
+  "code-execution": 1,
+};
+
+export const OVERAGE_RATE_PER_CREDIT = 0.01;
+
+export function calculateTokenCredits(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = MODEL_TOKEN_PRICING[model] || MODEL_TOKEN_PRICING["gpt-4o-mini"];
+  const costCents = (inputTokens * pricing.input / 1000) + (outputTokens * pricing.output / 1000);
+  return Math.max(1, Math.round(costCents * 100));
+}
+
+export function getProviderPricing(provider: string): { input: number; output: number } {
+  const providerMap: Record<string, { input: number; output: number }> = {
+    anthropic: { input: 0.003, output: 0.015 },
+    openai: { input: 0.0025, output: 0.01 },
+    google: { input: 0.00015, output: 0.0006 },
+    openrouter: { input: 0.0025, output: 0.01 },
+    perplexity: { input: 0.001, output: 0.005 },
+    mistral: { input: 0.001, output: 0.003 },
+  };
+  return providerMap[provider] || providerMap.openai;
+}
 
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
   economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },

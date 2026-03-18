@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2, CreditCard, CheckCircle2, ListChecks, AlertCircle } from "lucide-react";
+import { Check, ArrowLeft, Sparkles, Zap, Building2, Loader2, CreditCard, CheckCircle2, ListChecks, AlertCircle, Cpu, Search, Image, Mic, Film } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -376,6 +376,75 @@ export default function Pricing() {
             </div>
             );
           })}
+        </div>
+
+        <div className="mt-12 sm:mt-16">
+          <h3 className="text-xl font-semibold text-center mb-2">Usage-Based AI Pricing</h3>
+          <p className="text-center text-sm text-[var(--ide-text-secondary)] mb-6">
+            You only pay for what you use. Credits are deducted based on actual token consumption.
+          </p>
+          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="border border-[var(--ide-border)] rounded-xl bg-[var(--ide-panel)] p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Cpu className="w-5 h-5 text-[#0079F2]" />
+                <h4 className="font-semibold text-sm">AI Models</h4>
+              </div>
+              <div className="space-y-2" data-testid="pricing-models-table">
+                {[
+                  { name: "GPT-4o Mini", credits: "~1 credit/request", tier: "Economy" },
+                  { name: "Gemini Flash", credits: "~1 credit/request", tier: "Economy" },
+                  { name: "GPT-4o", credits: "~3-5 credits/request", tier: "Power" },
+                  { name: "Claude Sonnet 4", credits: "~3-8 credits/request", tier: "Power" },
+                  { name: "Mistral Large", credits: "~2-4 credits/request", tier: "Power" },
+                  { name: "Perplexity Sonar Pro", credits: "~3-5 credits/request", tier: "Power" },
+                ].map((m, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--ide-border)]/40 last:border-0">
+                    <div>
+                      <span className="text-sm font-medium text-[var(--ide-text)]">{m.name}</span>
+                      <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${m.tier === "Economy" ? "bg-[#0CCE6B]/10 text-[#0CCE6B]" : "bg-[#0079F2]/10 text-[#0079F2]"}`}>
+                        {m.tier}
+                      </span>
+                    </div>
+                    <span className="text-xs text-[var(--ide-text-muted)]">{m.credits}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-[var(--ide-text-muted)] mt-3">
+                Actual cost depends on input/output tokens. Longer conversations use more credits.
+              </p>
+            </div>
+
+            <div className="border border-[var(--ide-border)] rounded-xl bg-[var(--ide-panel)] p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="w-5 h-5 text-[#F5A623]" />
+                <h4 className="font-semibold text-sm">Services & Tools</h4>
+              </div>
+              <div className="space-y-2" data-testid="pricing-services-table">
+                {[
+                  { name: "Code Execution", credits: "1 credit", icon: Cpu },
+                  { name: "Web Search (Tavily)", credits: "2 credits", icon: Search },
+                  { name: "Image Search", credits: "3 credits", icon: Search },
+                  { name: "Text-to-Speech", credits: "10 credits", icon: Mic },
+                  { name: "Video Generation", credits: "15 credits", icon: Film },
+                  { name: "AI Image Generation (DALL-E 3)", credits: "20 credits", icon: Image },
+                ].map((s, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--ide-border)]/40 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <s.icon className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                      <span className="text-sm font-medium text-[var(--ide-text)]">{s.name}</span>
+                    </div>
+                    <span className="text-xs text-[var(--ide-text-muted)]">{s.credits}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 p-3 rounded-lg bg-[var(--ide-surface)]/50 border border-[var(--ide-border)]/50">
+                <p className="text-[11px] text-[var(--ide-text-secondary)]">
+                  <strong>Overage billing:</strong> When your monthly credits run out, add a payment method to continue at <span className="text-[#0079F2] font-semibold">$0.01/credit</span>.
+                  Usage is metered and billed at the end of your billing cycle.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-12 sm:mt-16 text-center">

@@ -9,7 +9,7 @@ import { rateLimit } from "express-rate-limit";
 import compression from "compression";
 import helmet from "helmet";
 import { storage } from "./storage";
-import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, STORAGE_PLAN_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES, type SlideData, type SlideTheme } from "@shared/schema";
+import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, STORAGE_PLAN_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES, type SlideData, type SlideTheme, MODEL_TOKEN_PRICING, SERVICE_CREDIT_COSTS, OVERAGE_RATE_PER_CREDIT, calculateTokenCredits, getProviderPricing } from "@shared/schema";
 import type PptxGenJS from "pptxgenjs";
 import { decrypt, encrypt } from "./encryption";
 import { z } from "zod";
@@ -1670,7 +1670,8 @@ export async function registerRoutes(
           aiCalls: { used: quota.dailyAiCallsUsed, limit: limits.dailyAiCalls },
         },
       });
-    } catch (err) {
+    } catch (err: any) {
+      console.error("[billing] Usage data error:", err?.message || err);
       return res.status(500).json({ message: "Failed to fetch usage data" });
     }
   });
@@ -1748,6 +1749,19 @@ export async function registerRoutes(
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch credits" });
     }
+  });
+
+  app.get("/api/billing/pricing", (_req: Request, res: Response) => {
+    return res.json({
+      models: MODEL_TOKEN_PRICING,
+      services: SERVICE_CREDIT_COSTS,
+      overageRatePerCredit: OVERAGE_RATE_PER_CREDIT,
+      plans: {
+        free: { monthlyCredits: 0, price: 0, label: "Free" },
+        pro: { monthlyCredits: 2000, price: 1200, label: "Pro" },
+        team: { monthlyCredits: 5000, price: 2500, label: "Team" },
+      },
+    });
   });
 
   app.get("/api/stripe/products", async (_req: Request, res: Response) => {
@@ -8262,9 +8276,9 @@ ${formatInstruction}`;
       if (!imageQuota.allowed) {
         return res.status(429).json({ error: "Daily AI call limit reached. Upgrade to Pro for more." });
       }
-      const imgCreditResult = await storage.deductCredits(req.session.userId!, "economy");
+      const imgCreditResult = await storage.deductMonthlyCreditsFromRoute(req.session.userId!, SERVICE_CREDIT_COSTS["dalle-3-image"] || 20, "service-image-gen", "dalle-3");
       if (!imgCreditResult.allowed) {
-        return res.status(429).json({ error: imgCreditResult.reason || "Daily credit limit reached" });
+        return res.status(429).json({ error: "Credit limit reached. Add a payment method to enable overage billing." });
       }
 
       const imageBuffer = await generateImageBuffer(prompt, imageSize);
@@ -8872,11 +8886,11 @@ Any closing remarks...`;
       const completion = result.choices[0]?.message?.content?.trim() || "";
       const inputTokens = result.usage?.prompt_tokens || 0;
       const outputTokens = result.usage?.completion_tokens || 0;
-      const completeEstCost = Math.round((inputTokens * 0.00015 / 1000 + outputTokens * 0.0006 / 1000) * 100);
+      const completeTokenCredits = calculateTokenCredits("gpt-4o-mini", inputTokens, outputTokens);
+      const completeEstCost = completeTokenCredits;
       const effectiveCompleteCredMode = completeByokNoKey ? "managed" : completeCredMode;
       if (effectiveCompleteCredMode === "managed") {
-        const completeTokenCredits = Math.max(1, completeEstCost);
-        storage.deductCredits(req.session.userId!, "economy", "gpt-4o-mini", "complete", completeTokenCredits).catch(() => {});
+        storage.deductMonthlyCreditsFromRoute(req.session.userId!, completeTokenCredits, "ai-complete", "gpt-4o-mini").catch(() => {});
       }
       storage.logAiUsage({
         userId: req.session.userId!,
@@ -9198,21 +9212,13 @@ Rules:
         chatOutputTokens = finalMsg.usage?.output_tokens || 0;
       }
 
-      const pricingPerToken: Record<string, { input: number; output: number }> = {
-        anthropic: { input: 0.003, output: 0.015 },
-        openai: { input: 0.0025, output: 0.01 },
-        google: { input: 0.00015, output: 0.0006 },
-        openrouter: { input: 0.0025, output: 0.01 },
-        perplexity: { input: 0.001, output: 0.005 },
-        mistral: { input: 0.001, output: 0.003 },
-      };
-      const pricing = pricingPerToken[chatProvider] || pricingPerToken.openai;
-      const chatEstimatedCost = Math.round((chatInputTokens * pricing.input / 1000 + chatOutputTokens * pricing.output / 1000) * 100);
+      const chatPricing = getProviderPricing(chatProvider);
+      const chatEstimatedCost = Math.round((chatInputTokens * chatPricing.input / 1000 + chatOutputTokens * chatPricing.output / 1000) * 100);
       const effectiveChatCredMode = chatByokNoKey ? "managed" : chatCredMode;
       const chatLoggedModel = selectedModel === "openrouter" ? "openai/gpt-4o" : modelId;
       if (effectiveChatCredMode === "managed") {
         const chatTokenCredits = Math.max(1, chatEstimatedCost);
-        storage.deductCredits(req.session.userId!, chatMode, chatLoggedModel, "chat", chatTokenCredits).catch(() => {});
+        storage.deductMonthlyCreditsFromRoute(req.session.userId!, chatTokenCredits, "ai-chat", chatLoggedModel).catch(() => {});
       }
       storage.logAiUsage({
         userId: req.session.userId!,
@@ -9344,7 +9350,7 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
           return `Error: ${msg}`;
         }
-        await storage.deductCredits(req.session.userId!, "economy", "brave-image-search", "agent-service", BRAVE_CREDIT_COST);
+        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, BRAVE_CREDIT_COST, "service-brave-image", "brave-image-search");
         res.write(`data: ${JSON.stringify({ type: "image_search_results", query, results })}\n\n`);
         await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "brave_image_search", projectId, query, creditCost: BRAVE_CREDIT_COST });
         if (results.length === 0) return "No image results found.";
@@ -9363,7 +9369,7 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
           return `Error: ${msg}`;
         }
-        await storage.deductCredits(req.session.userId!, "economy", "elevenlabs-tts", "agent-service", TTS_CREDIT_COST);
+        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, TTS_CREDIT_COST, "service-tts", "elevenlabs-tts");
         const audioDataUri = `data:${result.mimeType};base64,${result.audioBase64}`;
         res.write(`data: ${JSON.stringify({ type: "tts_audio_generated", audio: audioDataUri, voiceName: result.voiceName, durationEstimate: result.durationEstimate, textLength: result.textLength, mimeType: result.mimeType })}\n\n`);
         await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "elevenlabs_tts", projectId, textLength: text.length, voice: result.voiceName, creditCost: TTS_CREDIT_COST });
@@ -9397,7 +9403,7 @@ Rules:
             const width = Number.isFinite(rawWidth) && rawWidth >= 64 ? Math.min(Math.floor(rawWidth), 2048) : 1024;
             const height = Number.isFinite(rawHeight) && rawHeight >= 64 ? Math.min(Math.floor(rawHeight), 2048) : 1024;
             const nbResult = await generateNanoBananaImage(prompt, width, height);
-            await storage.deductCredits(req.session.userId!, "economy", "nanobanana", "agent-service", NANOBANANA_CREDIT_COST);
+            await storage.deductMonthlyCreditsFromRoute(req.session.userId!, NANOBANANA_CREDIT_COST, "service-image", "nanobanana");
             const imageDataUri = `data:${nbResult.mimeType};base64,${nbResult.imageBase64}`;
             const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
             const safeName = sanitizeAIFilename(filename);
@@ -9426,7 +9432,7 @@ Rules:
             return `Error: ${msg}`;
           }
         }
-        await storage.deductCredits(req.session.userId!, "economy", "dalle-3", "agent-service", creditCost);
+        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, creditCost, "service-image", "dalle-3");
         const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
         const safeName = sanitizeAIFilename(filename);
         if (safeName) {
@@ -9459,7 +9465,7 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
           return `Error: ${msg}`;
         }
-        await storage.deductCredits(req.session.userId!, "economy", "tavily-search", "agent-service", TAVILY_CREDIT_COST);
+        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, TAVILY_CREDIT_COST, "service-search", "tavily");
         res.write(`data: ${JSON.stringify({ type: "tavily_search_results", query, results: tavilyResult.results, answer: tavilyResult.answer, responseTime: tavilyResult.responseTime })}\n\n`);
         await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "tavily_search", projectId, query, creditCost: TAVILY_CREDIT_COST });
         let response = "";
@@ -11326,20 +11332,14 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         agentFileOpsCount.value = 0;
       }
 
-      const agentPricing: Record<string, { input: number; output: number }> = {
-        anthropic: { input: 0.003, output: 0.015 },
-        openai: { input: 0.0025, output: 0.01 },
-        google: { input: 0.00015, output: 0.0006 },
-        openrouter: { input: 0.0025, output: 0.01 },
-      };
-      const agentPriceEntry = agentPricing[agentProvider] || agentPricing.openai;
+      const agentPriceEntry = getProviderPricing(agentProvider);
       const agentEstInputTokens = Math.ceil(JSON.stringify(messages).length / 4);
       const agentEstOutputTokens = agentModifiedFiles.size * 200;
       const agentEstCost = Math.round((agentEstInputTokens * agentPriceEntry.input / 1000 + agentEstOutputTokens * agentPriceEntry.output / 1000) * 100);
       const effectiveAgentCredMode = agentByokNoKey ? "managed" : agentCredMode;
       if (effectiveAgentCredMode === "managed") {
         const agentTokenCredits = Math.max(1, agentEstCost);
-        storage.deductCredits(req.session.userId!, agentModeVal, agentModelId, "agent", agentTokenCredits).catch(() => {});
+        storage.deductMonthlyCreditsFromRoute(req.session.userId!, agentTokenCredits, "ai-agent", agentModelId).catch(() => {});
       }
       storage.logAiUsage({
         userId: req.session.userId!,
@@ -11710,20 +11710,14 @@ Rules:
         }
       }
 
-      const litePricing: Record<string, { input: number; output: number }> = {
-        anthropic: { input: 0.003, output: 0.015 },
-        openai: { input: 0.0025, output: 0.01 },
-        google: { input: 0.00015, output: 0.0006 },
-        openrouter: { input: 0.0025, output: 0.01 },
-      };
-      const litePriceEntry = litePricing[liteProvider] || litePricing.openai;
+      const litePriceEntry = getProviderPricing(liteProvider);
       const liteEstInputTokens = Math.ceil(JSON.stringify(messages).length / 4);
       const liteEstOutputTokens = liteModifiedFiles.size * 150;
       const liteEstCost = Math.round((liteEstInputTokens * litePriceEntry.input / 1000 + liteEstOutputTokens * litePriceEntry.output / 1000) * 100);
       const effectiveLiteCredMode = liteByokNoKey ? "managed" : liteCredMode;
       if (effectiveLiteCredMode === "managed") {
         const liteTokenCredits = Math.max(1, liteEstCost);
-        storage.deductCredits(req.session.userId!, "economy", undefined, "lite", liteTokenCredits).catch(() => {});
+        storage.deductMonthlyCreditsFromRoute(req.session.userId!, liteTokenCredits, "ai-lite", requestedModel || "claude-sonnet-4-6").catch(() => {});
       }
       storage.logAiUsage({
         userId: req.session.userId!,
@@ -12038,9 +12032,9 @@ Rules:
       if (!searchQuota.allowed) {
         return res.status(429).json({ message: "Daily AI call limit reached." });
       }
-      const searchCreditResult = await storage.deductCredits(req.session.userId!, "economy");
+      const searchCreditResult = await storage.deductMonthlyCreditsFromRoute(req.session.userId!, SERVICE_CREDIT_COSTS["tavily-search"] || 2, "ai-search", "web-search");
       if (!searchCreditResult.allowed) {
-        return res.status(429).json({ message: searchCreditResult.reason || "Daily credit limit reached" });
+        return res.status(429).json({ message: "Credit limit reached. Add a payment method to enable overage billing." });
       }
 
       res.setHeader("Content-Type", "text/event-stream");

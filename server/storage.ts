@@ -259,6 +259,8 @@ export interface IStorage {
   getUsageBreakdown(userId: string, cycleStart?: Date): Promise<Record<string, number>>;
   getBillingHistory(userId: string, months?: number): Promise<{ cycleStart: Date; cycleEnd: Date; totalCredits: number; breakdown: Record<string, number> }[]>;
   deductMonthlyCredits(userId: string, creditCost: number, actionType: string, description?: string): Promise<{ allowed: boolean; quota: UserQuota; isOverage: boolean }>;
+  deductMonthlyCreditsFromRoute(userId: string, creditCost: number, actionType: string, model?: string): Promise<{ allowed: boolean; quota: UserQuota; isOverage: boolean }>;
+  reportStripeUsage(userId: string, credits: number): Promise<void>;
   resetBillingCycle(userId: string): Promise<UserQuota>;
   setOverageEnabled(userId: string, enabled: boolean): Promise<UserQuota>;
 
@@ -1446,13 +1448,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async recordUsage(userId: string, actionType: string, creditCost: number, description?: string): Promise<UsageRecord> {
-    const quota = await this.getUserQuota(userId);
     const [record] = await db.insert(usageRecords).values({
       userId,
-      actionType,
+      actionType: description ? `${actionType}:${description}` : actionType,
       creditCost,
-      description: description || null,
-      billingCycleStart: quota.billingCycleStart,
+      metadata: description ? { description } : null,
     }).returning();
     return record;
   }
@@ -1483,11 +1483,13 @@ export class DatabaseStorage implements IStorage {
 
     const cycleMap = new Map<string, { cycleStart: Date; records: UsageRecord[] }>();
     for (const r of records) {
-      const key = r.billingCycleStart.toISOString();
-      if (!cycleMap.has(key)) {
-        cycleMap.set(key, { cycleStart: r.billingCycleStart, records: [] });
+      const d = new Date(r.createdAt);
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const cycleStart = new Date(d.getFullYear(), d.getMonth(), 1);
+      if (!cycleMap.has(monthKey)) {
+        cycleMap.set(monthKey, { cycleStart, records: [] });
       }
-      cycleMap.get(key)!.records.push(r);
+      cycleMap.get(monthKey)!.records.push(r);
     }
 
     return Array.from(cycleMap.values()).map(({ cycleStart, records: recs }) => {
@@ -1576,6 +1578,44 @@ export class DatabaseStorage implements IStorage {
       .set({ overageEnabled: enabled, updatedAt: new Date() })
       .where(eq(userQuotas.userId, userId)).returning();
     return updated;
+  }
+
+  async deductMonthlyCreditsFromRoute(userId: string, creditCost: number, actionType: string, model?: string): Promise<{ allowed: boolean; quota: UserQuota; isOverage: boolean }> {
+    const result = await this.deductMonthlyCredits(userId, creditCost, actionType, model ? `${actionType}:${model}` : actionType);
+    if (result.isOverage && result.allowed) {
+      this.reportStripeUsage(userId, creditCost).catch((err) => {
+        console.error("[billing] Failed to report Stripe usage:", err?.message);
+      });
+    }
+    return result;
+  }
+
+  async reportStripeUsage(userId: string, credits: number): Promise<void> {
+    try {
+      const quota = await this.getUserQuota(userId);
+      if (!quota.stripeSubscriptionId) return;
+
+      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const configured = await isStripeConfigured();
+      if (!configured) return;
+      const stripe = await getUncachableStripeClient();
+
+      const subscription = await stripe.subscriptions.retrieve(quota.stripeSubscriptionId);
+      const meteredItem = subscription.items.data.find((item: any) => {
+        const price = item.price;
+        return price?.recurring?.usage_type === "metered";
+      });
+
+      if (meteredItem) {
+        await stripe.subscriptionItems.createUsageRecord(meteredItem.id, {
+          quantity: credits,
+          timestamp: Math.floor(Date.now() / 1000),
+          action: "increment",
+        });
+      }
+    } catch (err: any) {
+      console.error("[billing] Stripe metered usage report failed:", err?.message);
+    }
   }
 
   async getProjectEnvVars(projectId: string): Promise<ProjectEnvVar[]> {
