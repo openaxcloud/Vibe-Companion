@@ -3,6 +3,28 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  :root {
+    --border: 240 10% 50%;
+    --muted-foreground: 240 10% 25%;
+  }
+  .dark {
+    --border: 222 30% 50%;
+    --muted-foreground: 222 10% 70%;
+  }
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -653,4 +675,156 @@ button:disabled {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+/* ========== Fortune 500 Premium UI Polish ========== */
+
+/* Skip to main content - accessibility */
+.skip-to-main {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 9999;
+}
+.skip-to-main:focus {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: auto;
+  height: auto;
+  padding: 12px 24px;
+  background: #0079F2;
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 24px rgba(0, 121, 242, 0.4);
+  z-index: 9999;
+}
+
+/* Premium card hover effect */
+.card-premium {
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.card-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+.dark .card-premium:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Premium button effects */
+.btn-premium {
+  position: relative;
+  overflow: hidden;
+  transition: all 200ms ease;
+}
+.btn-premium::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.btn-premium:hover::after {
+  opacity: 1;
+}
+.btn-premium:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 121, 242, 0.25);
+}
+.btn-premium:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Premium gradient text */
+.text-gradient-premium {
+  background: linear-gradient(135deg, #0079F2 0%, #7C65CB 50%, #F26522 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Shimmer loading skeleton */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--ide-surface) 25%, var(--ide-hover) 50%, var(--ide-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Premium glass morphism */
+.glass-premium {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dark .glass-premium {
+  background: rgba(14, 21, 37, 0.7);
+  border-color: rgba(43, 50, 69, 0.6);
+}
+
+/* Premium focus ring */
+.focus-ring-premium:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ide-bg), 0 0 0 4px #0079F2;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  animation: page-enter-anim 300ms ease-out forwards;
+}
+@keyframes page-enter-anim {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Premium notification badge pulse */
+@keyframes badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+.badge-pulse {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+/* Premium tooltip styles */
+.tooltip-premium {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+}
+
+/* Firefox scrollbar styling */
+@supports (scrollbar-width: thin) {
+  .xterm .xterm-viewport {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(103, 109, 126, 0.25) transparent;
+  }
+}
+
+/* Tablet responsive breakpoints */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .cm-content {
+    font-size: 12.5px !important;
+  }
+  .cm-gutters {
+    min-width: 48px !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  body { background: white !important; color: black !important; }
+  .no-print, nav, footer, .xterm, .resize-handle { display: none !important; }
+  .cm-editor { height: auto !important; }
+}
+
+/* Theme transition */
+body {
+  transition: background-color 200ms ease, color 200ms ease;
 }

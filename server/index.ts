@@ -14,6 +14,16 @@ import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
 
+// Global error handlers to prevent silent crashes
+process.on("uncaughtException", (error) => {
+  console.error("[FATAL] Uncaught Exception:", error);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[ERROR] Unhandled Promise Rejection at:", promise, "reason:", reason);
+});
+
 function validateEnvironment() {
   const required: Record<string, string> = {
     DATABASE_URL: "PostgreSQL connection string",
@@ -80,11 +90,36 @@ const allowedOrigins = process.env.REPLIT_DOMAINS
   : undefined;
 
 app.use(cors({
-  origin: allowedOrigins || true,
+  origin: allowedOrigins || (process.env.NODE_ENV === "production" ? false : true),
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-CSRF-Token", "Authorization"],
 }));
+
+// Health check endpoint for monitoring and autoscaling
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: {
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    },
+    version: process.env.npm_package_version || "1.0.0",
+  });
+});
+
+// Readiness probe
+app.get("/api/ready", async (_req, res) => {
+  try {
+    await storage.getUser(0).catch(() => null);
+    res.status(200).json({ ready: true });
+  } catch {
+    res.status(503).json({ ready: false, reason: "Database unavailable" });
+  }
+});
 
 declare module "http" {
   interface IncomingMessage {
@@ -160,7 +195,12 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse && !path.includes("env-var") && !path.includes("csrf")) {
-        const safe = JSON.parse(JSON.stringify(capturedJsonResponse));
+        let safe: any;
+        try {
+          safe = JSON.parse(JSON.stringify(capturedJsonResponse));
+        } catch {
+          safe = { _serialization: "failed" };
+        }
         const redactKeys = ["password", "csrfToken", "encryptedValue", "token", "secret", "apiKey"];
         const redact = (obj: any): void => {
           if (!obj || typeof obj !== "object") return;
@@ -283,15 +323,16 @@ async function initStripe() {
       process.exit(0);
     });
 
-    // Force shutdown after timeout
+    // Force shutdown after timeout (30s to allow running operations to complete)
     setTimeout(() => {
       log("Forced shutdown after timeout");
       process.exit(1);
-    }, 10000);
+    }, 30000);
   };
 
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(

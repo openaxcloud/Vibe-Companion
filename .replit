@@ -60,7 +60,7 @@ integrations = ["javascript_openai_ai_integrations:2.0.0", "javascript_anthropic
 [userenv.shared]
 RUNNER_BASE_URL = "https://runner.e-code.ai"
 WORKSPACE_TOKEN_TTL_MIN = "15"
-ENCRYPTION_KEY = "26ef761743bdfa5ac85f6e331a3917a8979901b6b9a55230416da2c68dd15684"
+# ENCRYPTION_KEY should be set via Replit Secrets, not hardcoded here
 
 [postMerge]
 path = "scripts/post-merge.sh"
