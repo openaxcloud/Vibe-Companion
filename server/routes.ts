@@ -1054,7 +1054,7 @@ export async function registerRoutes(
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" as const },
   }));
 
   const PgStore = connectPgSimple(session);
@@ -1123,6 +1123,14 @@ export async function registerRoutes(
     max: 5,
     keyGenerator: (req: Request) => req.session?.userId || "anonymous",
     message: { message: "Too many project generation requests. Please wait." },
+    validate: { xForwardedForHeader: false, ip: false },
+  });
+
+  const checkoutLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    keyGenerator: (req: Request) => req.session?.userId || "anonymous",
+    message: { message: "Too many checkout attempts. Please wait." },
     validate: { xForwardedForHeader: false, ip: false },
   });
 
@@ -1249,9 +1257,10 @@ export async function registerRoutes(
     try {
       const schema = z.object({
         email: z.string().email(),
-        password: z.string().min(6),
+        password: z.string().min(8).regex(/[A-Z]/, "Password must contain at least one uppercase letter").regex(/[0-9]/, "Password must contain at least one number"),
         displayName: z.string().optional(),
         recaptchaToken: z.string().optional(),
+        acceptedTerms: z.literal(true, { errorMap: () => ({ message: "You must accept the Terms of Service" }) }),
       });
       const data = schema.parse(req.body);
 
@@ -1438,7 +1447,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/billing/checkout", requireAuth, checkoutLimiter, async (req: Request, res: Response) => {
     const { plan, priceId } = req.body;
     if (!plan && !priceId) {
       return res.status(400).json({ message: "Plan or priceId required" });
@@ -2021,7 +2030,38 @@ export async function registerRoutes(
       });
       const tokenData = await tokenRes.json() as { id_token?: string };
       if (!tokenData.id_token) return res.redirect("/auth?error=token_failed");
-      const payload = JSON.parse(Buffer.from(tokenData.id_token.split(".")[1], "base64").toString()) as { sub: string; email?: string };
+
+      // Verify Apple JWT: fetch Apple's public keys and validate
+      const parts = tokenData.id_token.split(".");
+      if (parts.length !== 3) return res.redirect("/auth?error=token_failed");
+      const header = JSON.parse(Buffer.from(parts[0], "base64url").toString()) as { kid: string; alg: string };
+      const appleKeysRes = await fetch("https://appleid.apple.com/auth/keys");
+      const appleKeys = await appleKeysRes.json() as { keys: Array<{ kid: string; kty: string; n: string; e: string; alg: string }> };
+      const matchingKey = appleKeys.keys.find((k: any) => k.kid === header.kid);
+      if (!matchingKey) return res.redirect("/auth?error=token_failed");
+
+      // Verify signature using Node crypto
+      const importedKey = await crypto.subtle.importKey(
+        "jwk",
+        { kty: matchingKey.kty, n: matchingKey.n, e: matchingKey.e, alg: matchingKey.alg, ext: true },
+        { name: "RSASSA-PKCS1-v1_5", hash: header.alg === "RS256" ? "SHA-256" : "SHA-384" },
+        false,
+        ["verify"]
+      );
+      const signatureValid = await crypto.subtle.verify(
+        "RSASSA-PKCS1-v1_5",
+        importedKey,
+        Buffer.from(parts[2], "base64url"),
+        Buffer.from(parts[0] + "." + parts[1])
+      );
+      if (!signatureValid) return res.redirect("/auth?error=token_failed");
+
+      const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString()) as { sub: string; email?: string; iss?: string; aud?: string; exp?: number };
+
+      // Validate claims
+      if (payload.iss !== "https://appleid.apple.com") return res.redirect("/auth?error=token_failed");
+      if (payload.aud !== clientId) return res.redirect("/auth?error=token_failed");
+      if (payload.exp && payload.exp * 1000 < Date.now()) return res.redirect("/auth?error=token_failed");
       const appleId = payload.sub;
       const email = payload.email || `apple-${appleId}@privaterelay.appleid.com`;
       let user = await storage.getUserByAppleId(appleId);
@@ -2293,12 +2333,14 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       const projectsList = await storage.getProjects(userId);
       const allData: any = { user: { id: user?.id, email: user?.email, displayName: user?.displayName, createdAt: user?.createdAt }, projects: [] };
-      for (const p of projectsList) {
-        const pFiles = await storage.getFiles(p.id);
+      const fileResults = await Promise.all(projectsList.map(p => storage.getFiles(p.id)));
+      for (let i = 0; i < projectsList.length; i++) {
+        const p = projectsList[i];
+        const pFiles = fileResults[i];
         allData.projects.push({ ...p, files: pFiles.map(f => ({ filename: f.filename, content: f.content })) });
       }
       res.setHeader("Content-Type", "application/json");
-      res.setHeader("Content-Disposition", `attachment; filename="replit-export-${userId}.json"`);
+      res.setHeader("Content-Disposition", `attachment; filename="ecode-export-${userId}.json"`);
       return res.json(allData);
     } catch {
       return res.status(500).json({ message: "Failed to export data" });
@@ -2747,11 +2789,17 @@ export async function registerRoutes(
   });
 
   // --- ANALYTICS TRACKING ---
-  app.post("/api/analytics/track", async (req: Request, res: Response) => {
+  const analyticsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { message: "Too many tracking requests." },
+  });
+
+  app.post("/api/analytics/track", analyticsLimiter, async (req: Request, res: Response) => {
     try {
       const { event, properties } = z.object({
-        event: z.string(),
-        properties: z.record(z.any()).optional(),
+        event: z.string().max(100),
+        properties: z.record(z.string().max(500)).optional(),
       }).parse(req.body);
       await storage.trackEvent(req.session.userId || null, event, properties);
       return res.json({ ok: true });

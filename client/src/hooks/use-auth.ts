@@ -23,8 +23,8 @@ export function useAuth() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: ({ email, password, displayName }: { email: string; password: string; displayName?: string }) =>
-      register(email, password, displayName),
+    mutationFn: ({ email, password, displayName, acceptedTerms }: { email: string; password: string; displayName?: string; acceptedTerms?: boolean }) =>
+      register(email, password, displayName, acceptedTerms),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");

@@ -49,7 +49,16 @@ export default function Terms() {
 
           <section>
             <h2 className="text-lg font-semibold text-[var(--ide-text)] mb-3">6. Subscription Plans & Billing</h2>
-            <p>The Service offers free and paid subscription plans. Paid plans are billed on a monthly basis. You may cancel your subscription at any time. Refunds are handled on a case-by-case basis. Usage limits apply based on your plan tier.</p>
+            <p>The Service offers free and paid subscription plans. Paid plans are billed on a monthly or yearly basis. You may cancel your subscription at any time; cancellation takes effect at the end of the current billing period.</p>
+            <h3 className="text-base font-semibold text-[var(--ide-text)] mt-4 mb-2">6.1 Refund Policy</h3>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li><strong>14-day money-back guarantee:</strong> If you subscribe to a paid plan and are not satisfied, you may request a full refund within 14 days of your initial purchase, provided you have not consumed more than 20% of your monthly quotas.</li>
+              <li><strong>Annual plans:</strong> Annual subscriptions are eligible for a prorated refund within the first 30 days. After 30 days, no refunds are issued for annual plans.</li>
+              <li><strong>Renewals:</strong> Automatic renewal charges may be refunded within 48 hours of the charge if you forgot to cancel.</li>
+              <li><strong>No refund:</strong> No refunds are provided for partial months of service, downgrades to a lower plan, or accounts terminated for Terms of Service violations.</li>
+              <li><strong>How to request:</strong> Contact support@e-code.ai with your account email and reason for the refund request. Refunds are processed within 5-10 business days.</li>
+            </ul>
+            <p className="mt-2">Usage limits apply based on your plan tier. Overage charges are billed separately and are non-refundable.</p>
           </section>
 
           <section>

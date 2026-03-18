@@ -62,6 +62,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const authConfigQuery = useQuery<{ recaptchaSiteKey: string | null; providers: Record<string, boolean> }>({
     queryKey: ["/api/auth/config"],
@@ -135,7 +136,11 @@ export default function Auth() {
       if (isLogin) {
         await login.mutateAsync({ email, password });
       } else {
-        await register.mutateAsync({ email, password, displayName: displayName.trim() || undefined });
+        if (!acceptedTerms) {
+          toast({ title: "Terms required", description: "You must accept the Terms of Service and Privacy Policy to create an account.", variant: "destructive" });
+          return;
+        }
+        await register.mutateAsync({ email, password, displayName: displayName.trim() || undefined, acceptedTerms });
       }
     } catch (error: any) {
       toast({ title: isLogin ? "Login failed" : "Registration failed", description: error?.message || "Something went wrong", variant: "destructive" });
@@ -197,7 +202,6 @@ export default function Auth() {
                   fetch("/api/auth/github", { method: "POST", headers: { "Content-Type": "application/json" } })
                     .then(r => r.json().then(data => {
                       if (r.ok && data.id) {
-                        if (data.csrfToken) localStorage.setItem("csrfToken", data.csrfToken);
                         window.location.href = "/dashboard";
                       } else {
                         toast({ title: "GitHub Login", description: data.message || "Connect GitHub integration first", variant: "destructive" });
@@ -310,19 +314,36 @@ export default function Auth() {
                 id="password"
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isLogin ? "Enter your password" : "Min. 6 characters"}
+                placeholder={isLogin ? "Enter your password" : "Min. 8 chars, 1 uppercase, 1 number"}
                 className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-11 rounded-xl text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-2 focus-visible:ring-[#0079F2]/40 focus-visible:border-[#0079F2] transition-all duration-200"
                 data-testid="input-password"
               />
             </div>
 
+            {!isLogin && (
+              <label className="flex items-start gap-2 cursor-pointer mt-1" data-testid="checkbox-terms">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-[var(--ide-border)] accent-[#0079F2]"
+                />
+                <span className="text-xs text-[var(--ide-text-secondary)] leading-relaxed">
+                  I agree to the{" "}
+                  <Link href="/terms" className="text-[#0079F2] hover:underline" target="_blank">Terms of Service</Link>
+                  {" "}and{" "}
+                  <Link href="/privacy" className="text-[#0079F2] hover:underline" target="_blank">Privacy Policy</Link>
+                </span>
+              </label>
+            )}
+
             <Button
               type="submit"
               className="w-full h-11 rounded-xl font-semibold bg-[#0CCE6B] hover:bg-[#0CCE6B]/90 text-[#0E1525] shadow-[0_0_0_1px_rgba(12,206,107,0.4)] hover:shadow-[0_0_12px_rgba(12,206,107,0.3)] transition-all duration-200 mt-2"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (!isLogin && !acceptedTerms)}
               data-testid="button-submit-auth"
             >
               {isSubmitting ? (

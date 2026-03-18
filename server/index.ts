@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
+import cors from "cors";
 import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -8,10 +9,42 @@ import { createServer } from "http";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
-import { startAutoMetricsCollector, startResourceSnapshotCollector } from "./metricsCollector";
+import { startAutoMetricsCollector, startResourceSnapshotCollector, stopAutoMetricsCollector } from "./metricsCollector";
 import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from "./deploymentEngine";
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
+
+function validateEnvironment() {
+  const required: Record<string, string> = {
+    DATABASE_URL: "PostgreSQL connection string",
+    SESSION_SECRET: "Session encryption secret",
+    ENCRYPTION_KEY: "Data encryption key (32+ chars)",
+  };
+
+  const missing: string[] = [];
+  for (const [key, description] of Object.entries(required)) {
+    if (!process.env[key]) {
+      missing.push(`  - ${key}: ${description}`);
+    }
+  }
+
+  if (missing.length > 0) {
+    console.error("\n[FATAL] Missing required environment variables:\n" + missing.join("\n"));
+    console.error("\nSet these variables before starting the server.\n");
+    process.exit(1);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    const recommended = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
+    for (const key of recommended) {
+      if (!process.env[key]) {
+        console.warn(`[WARN] ${key} is not set. Billing features will be disabled.`);
+      }
+    }
+  }
+}
+
+validateEnvironment();
 
 const app = express();
 app.set("trust proxy", 1);
@@ -19,14 +52,39 @@ const httpServer = createServer(app);
 
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "wss:", "ws:", "https://api.anthropic.com", "https://api.openai.com", "https://generativelanguage.googleapis.com"],
+        frameSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
+    },
     crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: false,
-    frameguard: false,
-    hsts: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+    },
   })
 );
+
+const allowedOrigins = process.env.REPLIT_DOMAINS
+  ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
+  : undefined;
+
+app.use(cors({
+  origin: allowedOrigins || true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-CSRF-Token", "Authorization"],
+}));
 
 declare module "http" {
   interface IncomingMessage {
@@ -104,7 +162,7 @@ app.use((req, res, next) => {
       if (capturedJsonResponse && !path.includes("env-var") && !path.includes("csrf")) {
         const safe = JSON.parse(JSON.stringify(capturedJsonResponse));
         const redactKeys = ["password", "csrfToken", "encryptedValue", "token", "secret", "apiKey"];
-        function redact(obj: any) {
+        const redact = (obj: any): void => {
           if (!obj || typeof obj !== "object") return;
           for (const k of Object.keys(obj)) {
             if (redactKeys.some(rk => k.toLowerCase().includes(rk.toLowerCase()))) {
@@ -198,7 +256,7 @@ async function initStripe() {
   }).catch(err => {
     console.warn("[cleanup] Failed to purge old file versions:", err?.message || err);
   });
-  setInterval(() => {
+  const cleanupInterval = setInterval(() => {
     storage.purgeFileVersionsOlderThan(30).then(count => {
       if (count > 0) log(`Purged ${count} file versions older than 30 days`, "cleanup");
     }).catch(err => {
@@ -206,13 +264,26 @@ async function initStripe() {
     });
   }, 24 * 60 * 60 * 1000);
 
+  let sslRenewalInterval: NodeJS.Timeout | null = null;
+
   const gracefulShutdown = async (signal: string) => {
     log(`Received ${signal}, shutting down gracefully...`);
+
+    // Clear all intervals to prevent memory leaks
+    clearInterval(cleanupInterval);
+    if (sslRenewalInterval) clearInterval(sslRenewalInterval);
+    stopAutoMetricsCollector();
+
+    // Shutdown managed processes
     await shutdownAllProcesses();
+
+    // Close HTTP server (stop accepting new connections)
     httpServer.close(() => {
       log("HTTP server closed");
       process.exit(0);
     });
+
+    // Force shutdown after timeout
     setTimeout(() => {
       log("Forced shutdown after timeout");
       process.exit(1);
@@ -250,7 +321,7 @@ async function initStripe() {
         30000,
       );
 
-      setInterval(async () => {
+      sslRenewalInterval = setInterval(async () => {
         try {
           await renewExpiringCertificates(30);
         } catch (err: any) {
