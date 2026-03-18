@@ -112,7 +112,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const deviceType = useDeviceType();
   const { toast } = useToast();
   const connectionStatus = useConnectionStatus();
-  const isConnected = connectionStatus.isOnline && connectionStatus.backendHealthy;
+  const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
   const { errorsCount } = useProblemsCount(projectId);
   const { isReady: isSchemaReady } = useSchemaWarmingStore();
 
@@ -122,6 +122,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     project,
     projectName,
     files,
+    filesRaw,
     isLoadingProject,
     user,
     activeTab,
@@ -164,6 +165,29 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     handleSplitRight,
     handleRunStop,
     handleAddTool,
+    // Real integrations
+    activeFileId,
+    activeFileName,
+    activeFileContent,
+    activeFileLanguage,
+    fileContents,
+    dirtyFiles,
+    handleCodeChange,
+    handleCursorChange,
+    wsConnected,
+    wsStatus,
+    livePreviewUrl,
+    connectionQuality,
+    remoteUsers,
+    activeYtext,
+    remoteAwareness,
+    collabConnected,
+    logs,
+    currentConsoleRunId,
+    pendingAIMessage,
+    setPendingAIMessage,
+    userPrefs,
+    creditBalance,
   } = workspace;
 
   // Activity bar click handler
@@ -430,13 +454,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ResponsiveWebPreview projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'console') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} executionId={executionId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} logs={logs} onStop={handleRunStop} onAskAI={(text) => { setPendingAIMessage(text); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} activeFileName={activeFileName || undefined} currentConsoleRunId={currentConsoleRunId} /></Suspense>;
     }
     if (currentTab.id === 'shell') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ShellPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id.startsWith('file:')) {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitMonacoEditor projectId={projectId} fileId={selectedFileId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitMonacoEditor projectId={projectId} fileId={activeFileId} fileContents={fileContents} onCodeChange={handleCodeChange} onCursorChange={handleCursorChange} fontSize={userPrefs?.fontSize} tabSize={userPrefs?.tabSize} wordWrap={userPrefs?.wordWrap} minimap={userPrefs?.minimap} filename={activeFileName || undefined} ytext={activeYtext} remoteAwareness={collabConnected ? remoteAwareness : undefined} /></Suspense>;
     }
     if (currentTab.id === 'git') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitGitPanel projectId={projectId} /></Suspense>;
@@ -736,6 +760,21 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                       key={`agent-${projectId}`}
                       projectId={projectId}
                       mode="desktop"
+                      activeFileId={activeFileId}
+                      activeFileName={activeFileName}
+                      activeFileContent={activeFileContent}
+                      activeFileLanguage={activeFileLanguage}
+                      files={filesRaw?.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) || []}
+                      onFileCreated={(file: any) => { workspace.createFileMutation?.reset(); }}
+                      onFileUpdated={(file: any) => { }}
+                      onApplyCode={(filename: string, code: string) => {
+                        const file = filesRaw?.find((f: any) => f.filename === filename);
+                        if (file) {
+                          workspace.saveMutation.mutate({ fileId: String(file.id), content: code });
+                        }
+                      }}
+                      pendingMessage={pendingAIMessage}
+                      onPendingMessageConsumed={() => setPendingAIMessage(null)}
                       agentToolsSettings={agentToolsSettings}
                       onAgentToolsSettingsChange={setAgentToolsSettings}
                     />
@@ -802,8 +841,10 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   </div>
                   <ReplitFileExplorer
                     projectId={projectId}
+                    files={filesRaw || []}
                     onFileSelect={handleFileSelect}
-                    selectedFileId={selectedFileId}
+                    selectedFileId={activeFileId}
+                    dirtyFiles={dirtyFiles}
                   />
                 </div>
               </ResizablePanel>
