@@ -33,6 +33,7 @@ import McpInstallLink from "@/pages/McpInstallLink";
 import OpenInReplit from "@/pages/OpenInReplit";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import GlobalShortcuts from "@/components/GlobalShortcuts";
+import CookieConsent from "@/components/CookieConsent";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -140,6 +141,7 @@ function App() {
               </Switch>
             </div>
             <GlobalShortcuts />
+            <CookieConsent />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

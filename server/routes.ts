@@ -1054,7 +1054,7 @@ export async function registerRoutes(
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" as const },
   }));
 
   const PgStore = connectPgSimple(session);
@@ -1123,6 +1123,14 @@ export async function registerRoutes(
     max: 5,
     keyGenerator: (req: Request) => req.session?.userId || "anonymous",
     message: { message: "Too many project generation requests. Please wait." },
+    validate: { xForwardedForHeader: false, ip: false },
+  });
+
+  const checkoutLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    keyGenerator: (req: Request) => req.session?.userId || "anonymous",
+    message: { message: "Too many checkout attempts. Please wait." },
     validate: { xForwardedForHeader: false, ip: false },
   });
 
@@ -1249,9 +1257,10 @@ export async function registerRoutes(
     try {
       const schema = z.object({
         email: z.string().email(),
-        password: z.string().min(6),
+        password: z.string().min(8).regex(/[A-Z]/, "Password must contain at least one uppercase letter").regex(/[0-9]/, "Password must contain at least one number"),
         displayName: z.string().optional(),
         recaptchaToken: z.string().optional(),
+        acceptedTerms: z.literal(true, { errorMap: () => ({ message: "You must accept the Terms of Service" }) }),
       });
       const data = schema.parse(req.body);
 
@@ -1438,7 +1447,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/billing/checkout", requireAuth, checkoutLimiter, async (req: Request, res: Response) => {
     const { plan, priceId } = req.body;
     if (!plan && !priceId) {
       return res.status(400).json({ message: "Plan or priceId required" });
@@ -1575,7 +1584,7 @@ export async function registerRoutes(
               WHERE s.id = ${quota.stripeSubscriptionId}`
         );
         if (result.rows.length > 0) {
-          const row = result.rows[0] as SubscriptionRow;
+          const row = result.rows[0] as unknown as SubscriptionRow;
           subscriptionDetails = {
             id: row.id,
             status: row.status,
@@ -1604,7 +1613,7 @@ export async function registerRoutes(
               ORDER BY s.created DESC LIMIT 1`
         );
         if (result.rows.length > 0) {
-          const row = result.rows[0] as SubscriptionRow;
+          const row = result.rows[0] as unknown as SubscriptionRow;
           subscriptionDetails = {
             id: row.id,
             status: row.status,
@@ -1818,7 +1827,7 @@ export async function registerRoutes(
       }
 
       const productsMap = new Map<string, ProductData>();
-      for (const row of result.rows as ProductPriceRow[]) {
+      for (const row of result.rows as unknown as ProductPriceRow[]) {
         if (!productsMap.has(row.product_id)) {
           productsMap.set(row.product_id, {
             id: row.product_id,
@@ -1976,7 +1985,7 @@ export async function registerRoutes(
       if (!user) {
         const existing = await storage.getUserByEmail(gUser.email);
         if (existing) {
-          await storage.updateUser(existing.id, { googleId: gUser.id, avatarUrl: gUser.picture || existing.avatarUrl });
+          await storage.updateUser(existing.id, { googleId: gUser.id, avatarUrl: gUser.picture || existing.avatarUrl || undefined });
           user = (await storage.getUser(existing.id))!;
         } else {
           user = await storage.createUser({ email: gUser.email, password: "", displayName: gUser.name || gUser.email.split("@")[0], googleId: gUser.id, avatarUrl: gUser.picture, emailVerified: true });
@@ -2021,7 +2030,38 @@ export async function registerRoutes(
       });
       const tokenData = await tokenRes.json() as { id_token?: string };
       if (!tokenData.id_token) return res.redirect("/auth?error=token_failed");
-      const payload = JSON.parse(Buffer.from(tokenData.id_token.split(".")[1], "base64").toString()) as { sub: string; email?: string };
+
+      // Verify Apple JWT: fetch Apple's public keys and validate
+      const parts = tokenData.id_token.split(".");
+      if (parts.length !== 3) return res.redirect("/auth?error=token_failed");
+      const header = JSON.parse(Buffer.from(parts[0], "base64url").toString()) as { kid: string; alg: string };
+      const appleKeysRes = await fetch("https://appleid.apple.com/auth/keys");
+      const appleKeys = await appleKeysRes.json() as { keys: Array<{ kid: string; kty: string; n: string; e: string; alg: string }> };
+      const matchingKey = appleKeys.keys.find((k: any) => k.kid === header.kid);
+      if (!matchingKey) return res.redirect("/auth?error=token_failed");
+
+      // Verify signature using Node crypto
+      const importedKey = await crypto.subtle.importKey(
+        "jwk",
+        { kty: matchingKey.kty, n: matchingKey.n, e: matchingKey.e, alg: matchingKey.alg, ext: true },
+        { name: "RSASSA-PKCS1-v1_5", hash: header.alg === "RS256" ? "SHA-256" : "SHA-384" },
+        false,
+        ["verify"]
+      );
+      const signatureValid = await crypto.subtle.verify(
+        "RSASSA-PKCS1-v1_5",
+        importedKey,
+        Buffer.from(parts[2], "base64url"),
+        Buffer.from(parts[0] + "." + parts[1])
+      );
+      if (!signatureValid) return res.redirect("/auth?error=token_failed");
+
+      const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString()) as { sub: string; email?: string; iss?: string; aud?: string; exp?: number };
+
+      // Validate claims
+      if (payload.iss !== "https://appleid.apple.com") return res.redirect("/auth?error=token_failed");
+      if (payload.aud !== clientId) return res.redirect("/auth?error=token_failed");
+      if (payload.exp && payload.exp * 1000 < Date.now()) return res.redirect("/auth?error=token_failed");
       const appleId = payload.sub;
       const email = payload.email || `apple-${appleId}@privaterelay.appleid.com`;
       let user = await storage.getUserByAppleId(appleId);
@@ -2151,7 +2191,7 @@ export async function registerRoutes(
         const email = replitUser.email || `replit-${replitId}@users.replit.com`;
         const existing = await storage.getUserByEmail(email);
         if (existing) {
-          await storage.updateUser(existing.id, { replitId, avatarUrl: replitUser.profileImageUrl || existing.avatarUrl });
+          await storage.updateUser(existing.id, { replitId, avatarUrl: replitUser.profileImageUrl || existing.avatarUrl || undefined });
           user = (await storage.getUser(existing.id))!;
         } else {
           const displayName = [replitUser.firstName, replitUser.lastName].filter(Boolean).join(" ") || replitUser.username || email.split("@")[0];
@@ -2293,12 +2333,14 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       const projectsList = await storage.getProjects(userId);
       const allData: any = { user: { id: user?.id, email: user?.email, displayName: user?.displayName, createdAt: user?.createdAt }, projects: [] };
-      for (const p of projectsList) {
-        const pFiles = await storage.getFiles(p.id);
+      const fileResults = await Promise.all(projectsList.map(p => storage.getFiles(p.id)));
+      for (let i = 0; i < projectsList.length; i++) {
+        const p = projectsList[i];
+        const pFiles = fileResults[i];
         allData.projects.push({ ...p, files: pFiles.map(f => ({ filename: f.filename, content: f.content })) });
       }
       res.setHeader("Content-Type", "application/json");
-      res.setHeader("Content-Disposition", `attachment; filename="replit-export-${userId}.json"`);
+      res.setHeader("Content-Disposition", `attachment; filename="ecode-export-${userId}.json"`);
       return res.json(allData);
     } catch {
       return res.status(500).json({ message: "Failed to export data" });
@@ -2747,11 +2789,17 @@ export async function registerRoutes(
   });
 
   // --- ANALYTICS TRACKING ---
-  app.post("/api/analytics/track", async (req: Request, res: Response) => {
+  const analyticsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { message: "Too many tracking requests." },
+  });
+
+  app.post("/api/analytics/track", analyticsLimiter, async (req: Request, res: Response) => {
     try {
       const { event, properties } = z.object({
-        event: z.string(),
-        properties: z.record(z.any()).optional(),
+        event: z.string().max(100),
+        properties: z.record(z.string().max(500)).optional(),
       }).parse(req.body);
       await storage.trackEvent(req.session.userId || null, event, properties);
       return res.json({ ok: true });
@@ -3734,6 +3782,8 @@ export async function registerRoutes(
         name: forkName,
         language: sourceProject.language,
         visibility: requestedVisibility,
+        outputType: "web",
+        projectType: "web-app",
       });
       if (req.body.teamId) {
         const userTeams = await storage.getUserTeams(req.session.userId!);
@@ -3945,7 +3995,7 @@ export async function registerRoutes(
 
       await storage.addProjectCollaborator({
         projectId: link.projectId,
-        userId: req.session.userId,
+        userId: req.session.userId || "",
         role: link.role || "editor",
         addedBy: link.createdBy,
       });
@@ -4147,7 +4197,7 @@ export async function registerRoutes(
       if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
       await teardownDeployment(slug, project.id);
-      await storage.updateProject(project.id, { isPublished: false, publishedSlug: null });
+      await storage.updateProject(project.id, { isPublished: false, publishedSlug: undefined });
       return res.json({ success: true });
     } catch {
       return res.status(500).json({ message: "Teardown failed" });
@@ -4392,7 +4442,7 @@ export async function registerRoutes(
       const success = await removeDomain(req.params.domainId, req.session.userId!);
       if (!success) return res.status(404).json({ message: "Domain not found" });
       if (project.customDomain) {
-        await storage.updateProject(project.id, { customDomain: null });
+        await storage.updateProject(project.id, { customDomain: undefined });
       }
       return res.json({ success: true });
     } catch {
@@ -6897,7 +6947,7 @@ export async function registerRoutes(
       const url = `https://github.com/${githubRepo}.git`;
       const httpTransport = github.createGitHttpTransport();
       const currentBranch = await gitService.getCurrentBranch(req.params.projectId) || "main";
-      const status = await gitService.getRemoteStatus(req.params.projectId, url, { httpTransport, branch: currentBranch });
+      const status = await gitService.getRemoteStatus(req.params.projectId, url, { httpTransport, branch: currentBranch } as any);
       ahead = status.ahead;
       behind = status.behind;
     } catch {
@@ -6930,7 +6980,7 @@ export async function registerRoutes(
       const result = await gitService.pushToRemote(req.params.projectId, url, {
         httpTransport,
         branch: currentBranch,
-      });
+      } as any);
 
       if (!result.ok) {
         return res.status(500).json({ message: result.error || "Push failed" });
@@ -6976,7 +7026,7 @@ export async function registerRoutes(
         authorName,
         authorEmail,
         branch: currentBranch,
-      });
+      } as any);
 
       if (!result.ok && result.conflicts && result.conflicts.length > 0) {
         await storage.saveMergeState({
@@ -7227,7 +7277,7 @@ export async function registerRoutes(
 
       const clonedFiles = await gitService.cloneRepo(req.params.projectId, url, {
         httpTransport,
-      });
+      } as any);
 
       const currentFiles = await storage.getFiles(req.params.projectId);
       for (const f of currentFiles) {
@@ -8062,13 +8112,14 @@ ${formatInstruction}`;
       const validLangs = ["javascript", "typescript", "python"];
       if (!validLangs.includes(spec.language)) spec.language = "javascript";
 
-      const detectedProjectType = (spec.projectType === "mobile-app" || outputType === "mobile") ? "mobile-app" : "web-app";
+      const detectedProjectType = "web-app";
 
       const project = await storage.createProject(req.session.userId!, {
         name: spec.name.slice(0, 50),
         language: spec.language,
+        visibility: "private" as const,
         projectType: detectedProjectType,
-        outputType: outputType,
+        outputType: outputType as any,
       });
 
       const categoryToArtifactType: Record<string, string> = {
@@ -9334,7 +9385,8 @@ Rules:
     res: Response,
     modifiedFiles?: Set<string>,
     mcpDefs?: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[],
-    onToolComplete?: () => Promise<void>
+    onToolComplete?: () => Promise<void>,
+    userId?: string
   ): Promise<string> => {
     try {
       if (toolName === "brave_image_search") {
@@ -9350,9 +9402,9 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
           return `Error: ${msg}`;
         }
-        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, BRAVE_CREDIT_COST, "service-brave-image", "brave-image-search");
+        await storage.deductMonthlyCreditsFromRoute(userId!, BRAVE_CREDIT_COST, "service-brave-image", "brave-image-search");
         res.write(`data: ${JSON.stringify({ type: "image_search_results", query, results })}\n\n`);
-        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "brave_image_search", projectId, query, creditCost: BRAVE_CREDIT_COST });
+        await storage.trackEvent(userId!, "agent_service_used", { service: "brave_image_search", projectId, query, creditCost: BRAVE_CREDIT_COST });
         if (results.length === 0) return "No image results found.";
         return "Image search results:\n" + results.map((r, i) => `${i + 1}. "${r.title}" (${r.width}x${r.height}) from ${r.sourceDomain} — ${r.imageUrl}`).join("\n");
       }
@@ -9369,10 +9421,10 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
           return `Error: ${msg}`;
         }
-        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, TTS_CREDIT_COST, "service-tts", "elevenlabs-tts");
+        await storage.deductMonthlyCreditsFromRoute(userId!, TTS_CREDIT_COST, "service-tts", "elevenlabs-tts");
         const audioDataUri = `data:${result.mimeType};base64,${result.audioBase64}`;
         res.write(`data: ${JSON.stringify({ type: "tts_audio_generated", audio: audioDataUri, voiceName: result.voiceName, durationEstimate: result.durationEstimate, textLength: result.textLength, mimeType: result.mimeType })}\n\n`);
-        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "elevenlabs_tts", projectId, textLength: text.length, voice: result.voiceName, creditCost: TTS_CREDIT_COST });
+        await storage.trackEvent(userId!, "agent_service_used", { service: "elevenlabs_tts", projectId, textLength: text.length, voice: result.voiceName, creditCost: TTS_CREDIT_COST });
         return `Speech generated using voice "${result.voiceName}" (~${result.durationEstimate}s, ${result.textLength} characters)`;
       }
       if (toolName === "generate_ai_image") {
@@ -9403,7 +9455,7 @@ Rules:
             const width = Number.isFinite(rawWidth) && rawWidth >= 64 ? Math.min(Math.floor(rawWidth), 2048) : 1024;
             const height = Number.isFinite(rawHeight) && rawHeight >= 64 ? Math.min(Math.floor(rawHeight), 2048) : 1024;
             const nbResult = await generateNanoBananaImage(prompt, width, height);
-            await storage.deductMonthlyCreditsFromRoute(req.session.userId!, NANOBANANA_CREDIT_COST, "service-image", "nanobanana");
+            await storage.deductMonthlyCreditsFromRoute(userId!, NANOBANANA_CREDIT_COST, "service-image", "nanobanana");
             const imageDataUri = `data:${nbResult.mimeType};base64,${nbResult.imageBase64}`;
             const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
             const safeName = sanitizeAIFilename(filename);
@@ -9422,7 +9474,7 @@ Rules:
               if (modifiedFiles) modifiedFiles.add(safeName);
             }
             res.write(`data: ${JSON.stringify({ type: "ai_image_generated", prompt, imageDataUri, width: nbResult.width, height: nbResult.height, model: nbResult.model, filename: safeName || filename })}\n\n`);
-            await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "nanobanana_fallback", projectId, prompt: prompt.slice(0, 200), creditCost: NANOBANANA_CREDIT_COST });
+            await storage.trackEvent(userId!, "agent_service_used", { service: "nanobanana_fallback", projectId, prompt: prompt.slice(0, 200), creditCost: NANOBANANA_CREDIT_COST });
             return `AI image generated (${nbResult.width}x${nbResult.height}) using ${nbResult.model}${safeName ? ` and saved as ${safeName}` : ""}`;
           } catch (fallbackErr: unknown) {
             const dalleMsg = dalleErr instanceof Error ? dalleErr.message : "DALL-E 3 failed";
@@ -9432,7 +9484,7 @@ Rules:
             return `Error: ${msg}`;
           }
         }
-        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, creditCost, "service-image", "dalle-3");
+        await storage.deductMonthlyCreditsFromRoute(userId!, creditCost, "service-image", "dalle-3");
         const filename = toolInput.filename || `ai-generated-${Date.now()}.png`;
         const safeName = sanitizeAIFilename(filename);
         if (safeName) {
@@ -9450,7 +9502,7 @@ Rules:
           if (modifiedFiles) modifiedFiles.add(safeName);
         }
         res.write(`data: ${JSON.stringify({ type: "ai_image_generated", prompt, imageDataUri: imageUrl, width: 1024, height: 1024, model, revisedPrompt, filename: safeName || filename })}\n\n`);
-        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "dalle-3", projectId, prompt: prompt.slice(0, 200), size, quality, creditCost });
+        await storage.trackEvent(userId!, "agent_service_used", { service: "dalle-3", projectId, prompt: prompt.slice(0, 200), size, quality, creditCost });
         return `AI image generated using DALL-E 3 (${size}, ${quality}, ${style})${revisedPrompt !== prompt ? ` — revised prompt: "${revisedPrompt.slice(0, 100)}..."` : ""}${safeName ? ` and saved as ${safeName}` : ""}`;
       }
       if (toolName === "tavily_search") {
@@ -9465,9 +9517,9 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
           return `Error: ${msg}`;
         }
-        await storage.deductMonthlyCreditsFromRoute(req.session.userId!, TAVILY_CREDIT_COST, "service-search", "tavily");
+        await storage.deductMonthlyCreditsFromRoute(userId!, TAVILY_CREDIT_COST, "service-search", "tavily");
         res.write(`data: ${JSON.stringify({ type: "tavily_search_results", query, results: tavilyResult.results, answer: tavilyResult.answer, responseTime: tavilyResult.responseTime })}\n\n`);
-        await storage.trackEvent(req.session.userId!, "agent_service_used", { service: "tavily_search", projectId, query, creditCost: TAVILY_CREDIT_COST });
+        await storage.trackEvent(userId!, "agent_service_used", { service: "tavily_search", projectId, query, creditCost: TAVILY_CREDIT_COST });
         let response = "";
         if (tavilyResult.answer) response += `Answer: ${tavilyResult.answer}\n\n`;
         response += "Sources:\n" + tavilyResult.results.map((r, i) => `${i + 1}. ${r.title} (${r.url}): ${r.content.slice(0, 200)}`).join("\n");
@@ -9728,7 +9780,7 @@ Rules:
         }
       }
       if (toolName === "update_slides" || toolName === "create_slide" || toolName === "edit_slide") {
-        const slidesInput = toolInput as { slides: any[]; theme?: any };
+        const slidesInput = toolInput as unknown as { slides: any[]; theme?: any };
         let existing = await storage.getSlidesData(projectId);
         if (!existing) {
           existing = await storage.createSlidesData({ projectId, slides: slidesInput.slides, theme: slidesInput.theme });
@@ -9738,10 +9790,10 @@ Rules:
           existing = await storage.updateSlidesData(projectId, updatePayload);
         }
         res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n> Updated slides data\n" })}\n\n`);
-        return;
+        return "";
       }
       if (toolName === "update_video" || toolName === "create_video_scene" || toolName === "edit_video_scene") {
-        const videoInput = toolInput as { scenes: any[]; audioTracks?: any[] };
+        const videoInput = toolInput as unknown as { scenes: any[]; audioTracks?: any[] };
         let existing = await storage.getVideoData(projectId);
         if (!existing) {
           existing = await storage.createVideoData({ projectId, scenes: videoInput.scenes, audioTracks: videoInput.audioTracks || [] });
@@ -9751,7 +9803,7 @@ Rules:
           existing = await storage.updateVideoData(projectId, updatePayload);
         }
         res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n> Updated video data\n" })}\n\n`);
-        return;
+        return "";
       }
       if (toolName === "create_file" || toolName === "edit_file") {
         agentFileOpsCount.value++;
@@ -10343,7 +10395,7 @@ Always cite your sources in your response when using information from web search
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+              const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
 
               toolResponseParts.push({
                 functionResponse: {
@@ -10677,7 +10729,7 @@ Always cite your sources in your response when using information from web search
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
 
               toolResultMessages.push({
                 role: "tool",
@@ -10816,12 +10868,12 @@ Always cite your sources in your response when using information from web search
             for (const toolCall of message.tool_calls) {
               if (toolCall.type !== "function") continue;
               const fn = toolCall.function;
-              const toolInput = JSON.parse(fn.arguments) as Record<string, unknown>;
+              const toolInput = JSON.parse(fn.arguments) as any;
 
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
 
               toolResultMessages.push({
                 role: "tool",
@@ -10907,7 +10959,7 @@ Always cite your sources in your response when using information from web search
               const toolInput = JSON.parse(fn.arguments) as any;
               const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : undefined;
               res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
-              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+              const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
               toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: result || "Done" });
             }
             extMessages = [...extMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
@@ -11200,7 +11252,7 @@ Always cite your sources in your response when using information from web search
               const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : block.name === "brave_image_search" ? "Searching for images" : block.name === "text_to_speech" ? "Generating speech" : block.name === "generate_ai_image" ? "Generating AI image" : block.name === "tavily_search" ? "Researching" : undefined;
               res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
 
-              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask);
+              const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
               toolResultMap.set(block.id, result);
             }
           }
@@ -11499,7 +11551,7 @@ Rules:
               const fn = part.functionCall;
               const toolInput = fn.args as { filename: string; content: string };
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
-              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
               toolResponseParts.push({ functionResponse: { name: fn.name, response: { result: "Done" } } });
             }
           }
@@ -11548,7 +11600,7 @@ Rules:
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
-              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
               toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
             }
             gptMessages = [...gptMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
@@ -11598,7 +11650,7 @@ Rules:
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
-              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
               toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
             }
 
@@ -11655,7 +11707,7 @@ Rules:
               const fn = toolCall.function;
               const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
-              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles);
+              await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
               toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
             }
             extLiteMessages = [...extLiteMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
@@ -11695,7 +11747,7 @@ Rules:
             } else if (block.type === "tool_use") {
               const input = block.input as { filename: string; content: string };
               res.write(`data: ${JSON.stringify({ type: "tool_use", name: block.name, input: { filename: input.filename } })}\n\n`);
-              await executeToolCall(block.name, input, projectId, existingFiles, res, liteModifiedFiles);
+              await executeToolCall(block.name, input, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
             }
           }
 
@@ -12165,7 +12217,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     try {
       const file = await storage.getFile(fileId);
       if (file) {
-        await storage.updateFile(fileId, file.filename, content);
+        await storage.updateFileContent(fileId, content);
         log(`Collab auto-persisted file ${fileId}`, "collab");
       }
     } catch (err) {
@@ -12289,7 +12341,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
   lspWss.on("connection", (ws: WebSocket, req) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
     const projectId = url.searchParams.get("projectId") || "";
-    const userId = req.session?.userId || "";
+    const userId = (req as any).session?.userId || "";
     handleLSPConnection(ws, projectId, userId);
   });
 
@@ -12302,7 +12354,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       return;
     }
 
-    const userId = req.session?.userId;
+    const userId = (req as any).session?.userId;
     const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
       req.socket.remoteAddress || "unknown";
 
@@ -12819,6 +12871,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         }
       }
 
+      const trimmed = sqlQuery.trim().toUpperCase();
       if (allTableRefs.length === 0 && !trimmed.startsWith("SHOW") && !trimmed.startsWith("EXPLAIN")) {
         return res.status(400).json({ error: "Could not determine target tables. Please use a standard SELECT ... FROM table query." });
       }
@@ -14379,7 +14432,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     if (!project) return UPLOAD_LIMITS.objectStorageByPlan.free;
     const user = await storage.getUser(project.userId);
     if (!user) return UPLOAD_LIMITS.objectStorageByPlan.free;
-    return getUploadLimitForPlan(user.plan || "free");
+    return getUploadLimitForPlan((user as any).plan || "free");
   }
 
   async function validateFileSizeForPlan(req: Request, res: Response, files: Express.Multer.File[]): Promise<boolean> {
@@ -15190,7 +15243,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const pi = integrations.find(i => i.id === req.params.integrationId);
       if (!pi) return res.status(404).json({ message: "Integration not found" });
 
-      const testResult = await testIntegrationConnection(pi.integration.name, pi.config);
+      const testResult = await testIntegrationConnection(pi.integration.name, pi.config || {});
       if (testResult.success) {
         await storage.updateIntegrationStatus(pi.id, "connected");
         await storage.addIntegrationLog(pi.id, "info", `Re-test passed: ${testResult.message}`);
@@ -16819,7 +16872,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
               });
             }
           } else if (existingCustom.projectId !== projectId) {
-            await storage.updateCustomDomain(existingCustom.id, { projectId });
+            await storage.updateCustomDomain(existingCustom.id, { projectId } as any);
           }
           await storage.updateProject(projectId, { customDomain: domain.domain });
         }
@@ -16827,12 +16880,12 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         if (!projectId && domain.projectId) {
           const existingCustom = await storage.getCustomDomainByHostname(domain.domain);
           if (existingCustom) {
-            await storage.deleteCustomDomain(existingCustom.id);
+            await storage.deleteCustomDomain(existingCustom.id, req.session.userId!);
           }
           if (domain.projectId) {
             const project = await storage.getProject(domain.projectId);
             if (project && project.customDomain === domain.domain) {
-              await storage.updateProject(domain.projectId, { customDomain: null });
+              await storage.updateProject(domain.projectId, { customDomain: undefined });
             }
           }
         }
@@ -17274,7 +17327,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const doneTask = await storage.getTask(task.id);
       if (doneTask) taskBroadcast(task.projectId, "update", { task: doneTask });
       broadcastToProject(task.projectId, { type: "files_changed" });
-      res.json({ success: true, ...mergeResult });
+      const { success: _s, ...mergeRest } = mergeResult;
+      res.json({ success: true, ...mergeRest });
     } catch { res.status(500).json({ message: "Failed to apply task" }); }
   });
 
@@ -18296,7 +18350,7 @@ Respond ONLY with the JSON array, no other text.`;
       const { slides, theme } = parsed.data;
       let data = await storage.getSlidesData(projectId);
       if (!data) {
-        data = await storage.createSlidesData({ projectId, slides: slides || [], theme: theme || undefined });
+        data = await storage.createSlidesData({ projectId, slides: slides as any || [], theme: theme as any || undefined });
       } else {
         const updatePayload: any = {};
         if (slides !== undefined) updatePayload.slides = slides;
@@ -18345,7 +18399,7 @@ Respond ONLY with the JSON array, no other text.`;
       const { scenes, audioTracks, resolution, fps } = parsed.data;
       let data = await storage.getVideoData(projectId);
       if (!data) {
-        data = await storage.createVideoData({ projectId, scenes: scenes || [], audioTracks: audioTracks || [], resolution: resolution || undefined, fps: fps || undefined });
+        data = await storage.createVideoData({ projectId, scenes: scenes as any || [], audioTracks: audioTracks as any || [], resolution: resolution || undefined, fps: fps || undefined });
       } else {
         const updatePayload: any = {};
         if (scenes !== undefined) updatePayload.scenes = scenes;
@@ -18895,6 +18949,7 @@ Respond ONLY with the JSON array, no other text.`;
 
       let createCanvas: any = null;
       try {
+        // @ts-ignore
         const canvasModule = await import("canvas");
         createCanvas = canvasModule.createCanvas;
       } catch {}

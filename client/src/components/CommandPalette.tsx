@@ -130,7 +130,7 @@ export default function CommandPalette({
   const [codeSearchLoading, setCodeSearchLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const searchDebounceRef = useRef<NodeJS.Timeout>();
+  const searchDebounceRef = useRef<NodeJS.Timeout>(undefined);
 
   const sc = (id: string, fallback: string): string | undefined => {
     const val = getShortcutDisplay?.(id);
@@ -423,7 +423,7 @@ export default function CommandPalette({
                 <span className="text-[9px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Files</span>
               </div>
               {fileResults.map((cmd) => {
-                const globalIndex = filtered.indexOf(cmd);
+                const globalIndex = filtered.indexOf(cmd as any);
                 return (
                   <button
                     key={cmd.id}
@@ -434,7 +434,7 @@ export default function CommandPalette({
                   >
                     {cmd.icon}
                     <span className="flex-1 text-[12px] truncate">{cmd.label}</span>
-                    {cmd.shortcut && <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">{cmd.shortcut}</kbd>}
+                    {(cmd as any).shortcut && <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">{(cmd as any).shortcut}</kbd>}
                   </button>
                 );
               })}
@@ -448,7 +448,7 @@ export default function CommandPalette({
                 <span className="text-[9px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Commands</span>
               </div>
               {actionResults.map((cmd) => {
-                const globalIndex = filtered.indexOf(cmd);
+                const globalIndex = filtered.indexOf(cmd as any);
                 return (
                   <button
                     key={cmd.id}
@@ -459,7 +459,7 @@ export default function CommandPalette({
                   >
                     {cmd.icon}
                     <span className="flex-1 text-[12px]">{cmd.label}</span>
-                    {cmd.shortcut && <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">{cmd.shortcut}</kbd>}
+                    {(cmd as any).shortcut && <kbd className="text-[9px] text-[var(--ide-text-muted)] bg-[var(--ide-bg)] px-1.5 py-0.5 rounded border border-[var(--ide-border)] font-mono shrink-0">{(cmd as any).shortcut}</kbd>}
                   </button>
                 );
               })}

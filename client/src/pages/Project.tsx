@@ -480,7 +480,7 @@ function _projectPage() {
     try {
       const res = await fetch(`/api/projects/${projectId}/visual-edit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify(edit),
       });
@@ -505,7 +505,7 @@ function _projectPage() {
     try {
       const res = await fetch(`/api/projects/${projectId}/visual-edit/find-source`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify({ text: element.text, className: element.className, tag: element.tag, dataTestId: element.dataTestId }),
       });
@@ -1370,9 +1370,9 @@ function _projectPage() {
       if (msg.type === "notification") {
         queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       }
-      if (msg.type === "deploy_log" && msg.line) {
+      if (msg.type === "deploy_log" && (msg as any).line) {
         setDeployProcessLogs((prev) => {
-          const next = [...prev, msg.line as string];
+          const next = [...prev, (msg as any).line as string];
           return next.length > 500 ? next.slice(-500) : next;
         });
       }
@@ -1670,7 +1670,7 @@ function _projectPage() {
       }
       if (matchesCommand("toggle-minimap", e)) {
         e.preventDefault();
-        setShowMinimap(prev => !prev);
+        savePrefs({ minimap: !showMinimap });
         return;
       }
       if (e.key === "Escape" && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
@@ -2026,7 +2026,7 @@ function _projectPage() {
     try {
       const res = await fetch(`/api/projects/${projectId}/canvas/frames`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify({
           name: name || "AI Generated Frame",
@@ -3137,14 +3137,14 @@ function _projectPage() {
       setTimeout(() => {
         const editorView = collabEditorRef.current?.view;
         if (editorView) {
-          const targetLine = Math.min(line + 1, editorView.state.doc.lines);
-          const lineObj = editorView.state.doc.line(targetLine);
+          const targetLine = Math.min(line + 1, (editorView.state.doc as any).lines);
+          const lineObj = (editorView.state.doc as any).line(targetLine);
           const pos = lineObj.from + Math.min(character, lineObj.text.length);
-          editorView.dispatch({
+          (editorView as any).dispatch({
             selection: { anchor: pos },
             scrollIntoView: true,
           });
-          editorView.focus();
+          (editorView as any).focus();
         }
       }, 200);
     }
@@ -5187,7 +5187,7 @@ function _projectPage() {
                           const view = collabEditorRef.current?.view;
                           if (!view || !lspClientRef.current || !activeFileName) return;
                           const pos = view.state.selection.main.head;
-                          const line = view.state.doc.lineAt(pos);
+                          const line = (view.state.doc as any).lineAt(pos);
                           const uri = lspClientRef.current.makeUri(activeFileName);
                           lspClientRef.current.definition(uri, line.number - 1, pos - line.from).then(locs => {
                             if (locs.length > 0) handleGoToDefinition(locs[0].uri, locs[0].range.start.line, locs[0].range.start.character);
@@ -5203,7 +5203,7 @@ function _projectPage() {
                           const view = collabEditorRef.current?.view;
                           if (!view || !lspClientRef.current || !activeFileName) return;
                           const pos = view.state.selection.main.head;
-                          const line = view.state.doc.lineAt(pos);
+                          const line = (view.state.doc as any).lineAt(pos);
                           const uri = lspClientRef.current.makeUri(activeFileName);
                           handleFindReferences(uri, line.number - 1, pos - line.from);
                         }}
@@ -5218,7 +5218,7 @@ function _projectPage() {
                           const view = collabEditorRef.current?.view;
                           if (!view || !lspClientRef.current || !activeFileName) return;
                           const pos = view.state.selection.main.head;
-                          const line = view.state.doc.lineAt(pos);
+                          const line = (view.state.doc as any).lineAt(pos);
                           const uri = lspClientRef.current.makeUri(activeFileName);
                           handleRenameSymbol(uri, line.number - 1, pos - line.from);
                         }}
@@ -6576,7 +6576,7 @@ function _projectPage() {
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]" data-testid="mobile-settings-panel">
                   <UserSettingsPanel
                     prefs={userPrefs}
-                    onPrefsChange={savePrefs}
+                    onPrefsChange={savePrefs as any}
                     onClose={() => setMobileTab("editor")}
                     onOpenProjectSettings={() => { setMobileTab("editor"); setProjectSettingsOpen(true); }}
                     onOpenEnvVars={() => { setMobileTab("editor"); openPanel("envVars"); }}
@@ -8536,7 +8536,7 @@ function _projectPage() {
             {activePanelTab === "settings" && (
               <UserSettingsPanel
                 prefs={userPrefs}
-                onPrefsChange={savePrefs}
+                onPrefsChange={savePrefs as any}
                 onClose={() => closePanel("settings")}
                 onOpenProjectSettings={() => { closePanel("settings"); setProjectSettingsOpen(true); }}
                 onOpenEnvVars={() => openPanel("envVars")}
@@ -9400,8 +9400,8 @@ function _projectPage() {
         onGoToDashboard={() => setLocation("/dashboard")}
         onOpenFile={(file) => { openFile(file); if (isMobile) setMobileTab("editor"); }}
         onSplitEditor={() => { if (activeFileId && !activeFileId.startsWith("__")) setSplitEditorFileId(activeFileId); }}
-        onToggleMinimap={() => setShowMinimap(prev => !prev)}
-        onForkProject={() => forkMutation.mutate()}
+        onToggleMinimap={() => savePrefs({ minimap: !showMinimap })}
+        onForkProject={() => forkMutation.mutate(undefined)}
         getShortcutDisplay={getShortcutDisplay}
         projectId={projectId}
       />

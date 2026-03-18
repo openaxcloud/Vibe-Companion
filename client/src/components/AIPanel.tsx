@@ -835,7 +835,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const res = await fetch(`/api/projects/${projectId}/ai-credentials/${provider}/approve-managed`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
       });
       if (res.ok) {
         setCredentialModes(prev => ({ ...prev, [provider]: { mode: "managed", hasApiKey: false, configured: true } }));
@@ -860,7 +860,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           await fetch(`/api/projects/${projectId}/env-vars`, {
             method: "POST",
             credentials: "include",
-            headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+            headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
             body: JSON.stringify({ key: secretKey, value: byokKeyInput.trim() }),
           });
         }
@@ -868,7 +868,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const res = await fetch(`/api/projects/${projectId}/ai-credentials/${provider}`, {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
         body: JSON.stringify({ mode: "byok" }),
       });
       if (res.ok) {
@@ -1626,6 +1626,112 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   };
 
+  const initAudioPlayback = useCallback(async () => {
+    if (audioReadyRef.current && audioCtxRef.current) {
+      if (audioCtxRef.current.state === "suspended") {
+        await audioCtxRef.current.resume();
+      }
+      return;
+    }
+    const ctx = new AudioContext({ sampleRate: 24000 });
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
+    await ctx.audioWorklet.addModule("/audio-playback-worklet.js");
+    const worklet = new AudioWorkletNode(ctx, "audio-playback-processor");
+    worklet.connect(ctx.destination);
+    worklet.port.onmessage = (e) => {
+      if (e.data.type === "ended") {
+        setIsAudioStreaming(false);
+        setReadAloudMsgId(null);
+      }
+    };
+    audioCtxRef.current = ctx;
+    audioWorkletRef.current = worklet;
+    audioReadyRef.current = true;
+  }, []);
+
+  const stopAudioPlayback = useCallback(() => {
+    audioWorkletRef.current?.port.postMessage({ type: "clear" });
+    audioAbortRef.current?.abort();
+    setIsAudioStreaming(false);
+    setReadAloudMsgId(null);
+  }, []);
+
+  const readAloud = useCallback(async (text: string, msgId: string) => {
+    if (isAudioStreaming) {
+      stopAudioPlayback();
+      if (readAloudMsgId === msgId) return;
+    }
+
+    await initAudioPlayback();
+    if (!audioWorkletRef.current) return;
+
+    audioWorkletRef.current.port.postMessage({ type: "clear" });
+    setIsAudioStreaming(true);
+    setReadAloudMsgId(msgId);
+
+    audioAbortRef.current = new AbortController();
+    const collectedChunks: string[] = [];
+
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+      const response = await fetch("/api/ai/tts", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ text, voice: selectedVoice }),
+        signal: audioAbortRef.current.signal,
+      });
+
+      if (!response.ok) throw new Error("TTS request failed");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "audio" && audioWorkletRef.current) {
+              collectedChunks.push(event.data);
+              const samples = decodePCM16ToFloat32(event.data);
+              audioWorkletRef.current.port.postMessage({ type: "audio", samples });
+            } else if (event.type === "done") {
+              audioWorkletRef.current?.port.postMessage({ type: "streamComplete" });
+              setMessages((prev) =>
+                prev.map((m) => m.id === msgId ? { ...m, audioChunks: collectedChunks } : m)
+              );
+            } else if (event.type === "error") {
+              throw new Error(event.error);
+            }
+          } catch (e) {
+            if (!(e instanceof SyntaxError)) throw e;
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error("TTS error:", err);
+      }
+      setIsAudioStreaming(false);
+      setReadAloudMsgId(null);
+    }
+  }, [isAudioStreaming, readAloudMsgId, selectedVoice, initAudioPlayback, stopAudioPlayback]);
+
   const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
     let fullContent = content;
 
@@ -2128,111 +2234,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     try { localStorage.setItem("ai-voice", voice); } catch {}
   }, []);
 
-  const initAudioPlayback = useCallback(async () => {
-    if (audioReadyRef.current && audioCtxRef.current) {
-      if (audioCtxRef.current.state === "suspended") {
-        await audioCtxRef.current.resume();
-      }
-      return;
-    }
-    const ctx = new AudioContext({ sampleRate: 24000 });
-    if (ctx.state === "suspended") {
-      await ctx.resume();
-    }
-    await ctx.audioWorklet.addModule("/audio-playback-worklet.js");
-    const worklet = new AudioWorkletNode(ctx, "audio-playback-processor");
-    worklet.connect(ctx.destination);
-    worklet.port.onmessage = (e) => {
-      if (e.data.type === "ended") {
-        setIsAudioStreaming(false);
-        setReadAloudMsgId(null);
-      }
-    };
-    audioCtxRef.current = ctx;
-    audioWorkletRef.current = worklet;
-    audioReadyRef.current = true;
-  }, []);
-
-  const stopAudioPlayback = useCallback(() => {
-    audioWorkletRef.current?.port.postMessage({ type: "clear" });
-    audioAbortRef.current?.abort();
-    setIsAudioStreaming(false);
-    setReadAloudMsgId(null);
-  }, []);
-
-  const readAloud = useCallback(async (text: string, msgId: string) => {
-    if (isAudioStreaming) {
-      stopAudioPlayback();
-      if (readAloudMsgId === msgId) return;
-    }
-
-    await initAudioPlayback();
-    if (!audioWorkletRef.current) return;
-
-    audioWorkletRef.current.port.postMessage({ type: "clear" });
-    setIsAudioStreaming(true);
-    setReadAloudMsgId(msgId);
-
-    audioAbortRef.current = new AbortController();
-    const collectedChunks: string[] = [];
-
-    try {
-      const csrfToken = getCsrfToken();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
-
-      const response = await fetch("/api/ai/tts", {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify({ text, voice: selectedVoice }),
-        signal: audioAbortRef.current.signal,
-      });
-
-      if (!response.ok) throw new Error("TTS request failed");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            if (event.type === "audio" && audioWorkletRef.current) {
-              collectedChunks.push(event.data);
-              const samples = decodePCM16ToFloat32(event.data);
-              audioWorkletRef.current.port.postMessage({ type: "audio", samples });
-            } else if (event.type === "done") {
-              audioWorkletRef.current?.port.postMessage({ type: "streamComplete" });
-              setMessages((prev) =>
-                prev.map((m) => m.id === msgId ? { ...m, audioChunks: collectedChunks } : m)
-              );
-            } else if (event.type === "error") {
-              throw new Error(event.error);
-            }
-          } catch (e) {
-            if (!(e instanceof SyntaxError)) throw e;
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        console.error("TTS error:", err);
-      }
-      setIsAudioStreaming(false);
-      setReadAloudMsgId(null);
-    }
-  }, [isAudioStreaming, readAloudMsgId, selectedVoice, initAudioPlayback, stopAudioPlayback]);
+  // initAudioPlayback, stopAudioPlayback, readAloud moved before sendMessageDirect
 
   const streamAudioResponse = useCallback(async (chatMessages: { role: string; content: string }[], assistantMsgId: string) => {
     await initAudioPlayback();
@@ -3260,7 +3262,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
                           isActive ? "ring-1" : "hover:bg-[var(--ide-surface)]"
                         }`}
-                        style={isActive ? { backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30`, ringColor: `${cfg.color}30` } : {}}
+                        style={isActive ? { backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30`, ringColor: `${cfg.color}30` } as React.CSSProperties : {}}
                         onClick={() => handleTopAgentModeChange(m)}
                         data-testid={`agent-mode-${m}`}
                       >

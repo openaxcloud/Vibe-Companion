@@ -1339,6 +1339,7 @@ function trackAnalyticsOnFinish(slug: string, req: Request, res: Response, start
 
         let country: string | null = null;
         try {
+          // @ts-ignore
           const geoip = await import("geoip-lite");
           const geo = geoip.lookup(ip);
           if (geo?.country) {

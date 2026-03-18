@@ -908,7 +908,7 @@ export default function AppStoragePanel({ projectId, onClose }: AppStoragePanelP
             {bucketAccessQuery.data && (
               <div>
                 <span className="text-[9px] text-[var(--ide-text-muted)] uppercase tracking-wider font-semibold block mb-1">Projects with Access</span>
-                {bucketAccessQuery.data.accessList?.map((access: BucketAccessEntry) => (
+                {(bucketAccessQuery.data.accessList as any)?.map((access: BucketAccessEntry) => (
                   <div key={access.id} className="flex items-center justify-between py-1 text-[10px]">
                     <span className="text-[var(--ide-text)] font-mono truncate">{access.projectId}</span>
                     {access.projectId !== projectId && (

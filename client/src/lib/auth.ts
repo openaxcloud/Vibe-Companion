@@ -22,9 +22,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   return { id: data.id, email: data.email, displayName: data.displayName };
 }
 
-export async function register(email: string, password: string, displayName?: string): Promise<AuthUser> {
+export async function register(email: string, password: string, displayName?: string, acceptedTerms?: boolean): Promise<AuthUser> {
   await fetchCsrfToken();
-  const res = await apiRequest("POST", "/api/auth/register", { email, password, displayName });
+  const res = await apiRequest("POST", "/api/auth/register", { email, password, displayName, acceptedTerms });
   const text = await res.text();
   let data: any;
   try {

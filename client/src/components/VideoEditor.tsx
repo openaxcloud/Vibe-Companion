@@ -192,7 +192,7 @@ export default function VideoEditor({ projectId }: VideoEditorProps) {
       startTime: 0,
       duration: totalDuration,
       volume: 1,
-    };
+    } as any;
     setLocalAudioTracks(prev => [...prev, track]);
     setIsDirty(true);
   }, [localAudioTracks.length, totalDuration]);
@@ -827,8 +827,8 @@ export default function VideoEditor({ projectId }: VideoEditorProps) {
                         <span className="text-[10px] text-[var(--ide-text-secondary)]">Start (s)</span>
                         <input
                           type="number"
-                          value={track.startTime}
-                          onChange={e => updateAudioTrack(track.id, { startTime: Math.max(0, Number(e.target.value)) })}
+                          value={(track as any).startTime}
+                          onChange={e => updateAudioTrack(track.id, { startTime: Math.max(0, Number(e.target.value)) } as any)}
                           className="w-full bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-1.5 py-0.5 text-xs text-[var(--ide-text)]"
                           min={0}
                           step={0.1}
@@ -839,8 +839,8 @@ export default function VideoEditor({ projectId }: VideoEditorProps) {
                         <span className="text-[10px] text-[var(--ide-text-secondary)]">Duration (s)</span>
                         <input
                           type="number"
-                          value={track.duration}
-                          onChange={e => updateAudioTrack(track.id, { duration: Math.max(0.1, Number(e.target.value)) })}
+                          value={(track as any).duration}
+                          onChange={e => updateAudioTrack(track.id, { duration: Math.max(0.1, Number(e.target.value)) } as any)}
                           className="w-full bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-1.5 py-0.5 text-xs text-[var(--ide-text)]"
                           min={0.1}
                           step={0.1}

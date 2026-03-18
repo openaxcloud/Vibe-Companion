@@ -97,7 +97,7 @@ export function DevicePresetSelector({
     if (!projectId) return;
     fetch(`/api/projects/${projectId}/device-preset`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+      headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
       credentials: "include",
       body: JSON.stringify({ preset: presetId, customWidth: w || null, customHeight: h || null }),
     }).catch(() => {});

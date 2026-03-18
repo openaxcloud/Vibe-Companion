@@ -232,6 +232,9 @@ export async function importFromGitHub(
   const project = await storage.createProject(userId, {
     name: (projectName || repo).slice(0, 50),
     language: lang,
+    visibility: "private",
+    outputType: "web",
+    projectType: "web-app",
   });
 
   await storage.updateProject(project.id, { githubRepo: `${owner}/${repo}` });
@@ -389,6 +392,9 @@ export async function importFromZip(
   const project = await storage.createProject(userId, {
     name: projectName.slice(0, 50),
     language: lang,
+    visibility: "private",
+    outputType: "web",
+    projectType: "web-app",
   });
 
   let importedCount = 0;
@@ -609,6 +615,9 @@ export async function importFromFigma(
   const project = await storage.createProject(userId, {
     name: projectName.slice(0, 50),
     language: "typescript",
+    visibility: "private",
+    outputType: "web",
+    projectType: "web-app",
   });
 
   const allFiles = {

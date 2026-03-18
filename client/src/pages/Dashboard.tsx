@@ -711,7 +711,7 @@ export default function Dashboard() {
     { icon: Compass, label: "Templates", action: () => setDialogOpen(true), testId: "nav-templates" },
     { icon: Box, label: "Frameworks", action: () => setLocation("/frameworks"), testId: "nav-frameworks" },
     { icon: Link2, label: "Open in E-Code", action: () => setLocation("/open"), testId: "nav-open-in-replit" },
-    { icon: MessageSquare, label: "Community", action: () => window.open("https://ask.replit.com", "_blank"), testId: "nav-community-link" },
+    { icon: MessageSquare, label: "Community", action: () => toast({ title: "Community", description: "Community forum coming soon." }), testId: "nav-community-link" },
   ];
 
   const mobileHomeContent = (
@@ -1514,7 +1514,7 @@ export default function Dashboard() {
             ))}
             <div className="!mt-4 pt-3 border-t border-[var(--ide-border)]/40">
               <p className="px-3 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2">Resources</p>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => window.open("https://docs.replit.com", "_blank")} data-testid="nav-docs">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => toast({ title: "Documentation", description: "Documentation coming soon." })} data-testid="nav-docs">
                 <BookOpen className="w-3.5 h-3.5" /> Docs
               </button>
               <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => toast({ title: "Help", description: "Help center coming soon." })} data-testid="nav-help">

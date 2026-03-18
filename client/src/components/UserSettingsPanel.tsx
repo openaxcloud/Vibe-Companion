@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
   X, ChevronDown, ChevronRight, Palette, FileCode2, Brain, Terminal,
-  Bell, Accessibility, Keyboard, Settings, Key,
+  Bell, Accessibility, Keyboard, Settings, Key, Plus,
 } from "lucide-react";
 import type {
   UserPreferences, UserPreferencesStored,
