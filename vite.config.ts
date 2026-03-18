@@ -40,6 +40,18 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("@xterm")) {
+            return "xterm";
+          }
+          if (id.includes("@codemirror") || id.includes("@lezer")) {
+            return "codemirror";
+          }
+        },
+      },
+    },
   },
   server: {
     host: "0.0.0.0",
