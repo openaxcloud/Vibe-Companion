@@ -19484,7 +19484,7 @@ Respond ONLY with the JSON array, no other text.`;
       await storage.trackDesktopDownload(platform, version);
       return res.json({ success: true });
     } catch (err: any) {
-      return res.status(500).json({ message: err.message });
+      return res.status(500).json({ message: safeError(err, "Failed to track download") });
     }
   });
 
