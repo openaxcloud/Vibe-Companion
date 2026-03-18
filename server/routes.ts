@@ -6,6 +6,8 @@ import crypto from "crypto";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
+import compression from "compression";
+import helmet from "helmet";
 import { storage } from "./storage";
 import { insertUserSchema, insertProjectSchema, insertFileSchema, UPLOAD_LIMITS, STORAGE_PLAN_LIMITS, AGENT_MODE_COSTS, AGENT_MODE_MODELS, TOP_AGENT_MODE_MODELS, TOP_AGENT_MODE_CONFIG, AUTONOMOUS_TIER_CONFIG, type AgentMode, type TopAgentMode, type AutonomousTier, type InsertDeployment, type CheckpointStateSnapshot, insertThemeSchema, insertArtifactSchema, ARTIFACT_TYPES, type SlideData, type SlideTheme } from "@shared/schema";
 import type PptxGenJS from "pptxgenjs";
@@ -1047,6 +1049,14 @@ export async function registerRoutes(
     setProcessBroadcastFn(broadcastToProject);
   }).catch(() => {});
 
+  app.use(compression());
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  }));
+
   const PgStore = connectPgSimple(session);
   const sessionMiddleware = session({
     store: new PgStore({
@@ -1322,6 +1332,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
       }
+      console.error("[auth] Login error:", error?.message || error);
       return res.status(500).json({ message: "Login failed" });
     }
   });

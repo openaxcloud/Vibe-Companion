@@ -1297,8 +1297,8 @@ export type ProjectAuthConfig = typeof projectAuthConfig.$inferSelect;
 export const loginHistory = pgTable("login_history", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
-  timestamp: timestamp("timestamp").notNull().defaultNow(),
-  ip: text("ip"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  ip: text("ip_address"),
   provider: text("provider").notNull().default("email"),
   userAgent: text("user_agent"),
 }, (table) => [

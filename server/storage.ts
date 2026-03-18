@@ -811,7 +811,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLoginHistory(userId: string, limit: number = 50): Promise<LoginHistory[]> {
-    return db.select().from(loginHistory).where(eq(loginHistory.userId, userId)).orderBy(desc(loginHistory.timestamp)).limit(limit);
+    return db.select().from(loginHistory).where(eq(loginHistory.userId, userId)).orderBy(desc(loginHistory.createdAt)).limit(limit);
   }
 
   async getUserPreferences(userId: string): Promise<UserPreferences> {
