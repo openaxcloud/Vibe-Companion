@@ -1,0 +1,78 @@
+import { cn } from '@/lib/utils';
+import { Globe, Bot, Rocket, MoreHorizontal, Plus, Layers } from 'lucide-react';
+
+export type MobileTab =
+  | 'preview' | 'agent' | 'deploy' | 'more'
+  | 'git' | 'packages' | 'secrets' | 'database' | 'auth'
+  | 'shell' | 'storage' | 'terminal' | 'files' | 'history'
+  | 'themes' | 'multiplayers' | 'checkpoints' | 'settings'
+  | 'extensions' | 'workflows' | 'debug' | 'testing' | 'security'
+  | 'collaboration' | 'search' | 'actions' | 'tools';
+
+interface OpenTab {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+interface ReplitMobileNavigationProps {
+  activeTab: MobileTab;
+  onTabChange: (tab: MobileTab) => void;
+  isRunning: boolean;
+  onPlayStop: () => void;
+  isPanelOpen: boolean;
+  onPanelToggle: () => void;
+  onMorePress: () => void;
+  openTabs?: OpenTab[];
+  activeOpenTabId?: string;
+  onOpenTabSelect?: (tabId: string) => void;
+  onAddTab?: () => void;
+  onTabSwitcherOpen?: () => void;
+}
+
+const coreNavItems = [
+  { id: 'preview' as const, icon: Globe, label: 'Preview', color: '#F5A623' },
+  { id: 'agent' as const, icon: Bot, label: 'Agent', color: '#7C65CB' },
+  { id: 'deploy' as const, icon: Rocket, label: 'Deploy', color: '#0CCE6B' },
+  { id: 'more' as const, icon: MoreHorizontal, label: 'More', color: '#6B7280' },
+];
+
+export function ReplitMobileNavigation({
+  activeTab,
+  onTabChange,
+  isRunning,
+  onPlayStop,
+  onMorePress,
+  openTabs = [],
+  activeOpenTabId,
+  onOpenTabSelect,
+  onAddTab,
+  onTabSwitcherOpen,
+}: ReplitMobileNavigationProps) {
+  return (
+    <div className="flex items-stretch h-[52px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} data-testid="mobile-nav">
+      {coreNavItems.map(({ id, icon: Icon, label, color }) => {
+        const isActive = activeTab === id;
+        return (
+          <button
+            key={id}
+            className="relative flex flex-col items-center justify-center gap-0.5 flex-1 transition-all duration-150 active:scale-90"
+            style={{ color: isActive ? color : '#9CA3AF' }}
+            onClick={() => {
+              if (id === 'more') {
+                onMorePress();
+              } else {
+                onTabChange(id);
+              }
+            }}
+            data-testid={`mobile-tab-${id}`}
+          >
+            {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-b-full" style={{ backgroundColor: color }} />}
+            <Icon className="w-5 h-5" />
+            <span className="text-[9px] font-medium leading-none">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
