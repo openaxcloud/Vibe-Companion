@@ -612,8 +612,8 @@ export default function SpotlightOverlay({ projectId, open, onClose, onProjectUp
                             </div>
                           )}
                           <div>
-                            <span className="text-sm text-white font-medium block">{data.owner.displayName || data.owner.email.split("@")[0]}</span>
-                            <span className="text-[11px] text-[#666]">{data.owner.email}</span>
+                            <span className="text-sm text-white font-medium block">{data.owner.displayName || data.owner.email?.split("@")[0] || "User"}</span>
+                            <span className="text-[11px] text-[#666]">{data.owner.email || ""}</span>
                           </div>
                         </div>
                       </div>
@@ -767,8 +767,8 @@ export default function SpotlightOverlay({ projectId, open, onClose, onProjectUp
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm text-white font-medium truncate block">{data.owner.displayName || data.owner.email.split("@")[0]}</span>
-                          <span className="text-[11px] text-[#666] truncate block">{data.owner.email}</span>
+                          <span className="text-sm text-white font-medium truncate block">{data.owner.displayName || data.owner.email?.split("@")[0] || "User"}</span>
+                          <span className="text-[11px] text-[#666] truncate block">{data.owner.email || ""}</span>
                         </div>
                         <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[#0079F2]/15 text-[#0079F2] font-semibold">
                           <Shield className="w-3 h-3" /> Owner
@@ -783,10 +783,10 @@ export default function SpotlightOverlay({ projectId, open, onClose, onProjectUp
                         data-testid={`invite-row-${invite.id}`}
                       >
                         <div className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center text-[#888] text-xs font-bold shrink-0">
-                          {invite.email.charAt(0).toUpperCase()}
+                          {(invite.email || "?").charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm text-[#CCC] truncate block">{invite.email}</span>
+                          <span className="text-sm text-[#CCC] truncate block">{invite.email || "Unknown"}</span>
                           <span className={`text-[10px] ${invite.status === "accepted" ? "text-green-400" : "text-yellow-400"}`}>
                             {invite.status === "accepted" ? "Active" : "Pending"}
                           </span>
