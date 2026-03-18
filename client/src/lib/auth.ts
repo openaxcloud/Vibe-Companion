@@ -19,6 +19,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   if (data.csrfToken) {
     setCsrfToken(data.csrfToken);
   }
+  if (!data.id || !data.email) {
+    throw new Error(data.message || "Login failed: invalid response data");
+  }
   return { id: data.id, email: data.email, displayName: data.displayName };
 }
 
@@ -34,6 +37,9 @@ export async function register(email: string, password: string, displayName?: st
   }
   if (data.csrfToken) {
     setCsrfToken(data.csrfToken);
+  }
+  if (!data.id || !data.email) {
+    throw new Error(data.message || "Registration failed: invalid response data");
   }
   return { id: data.id, email: data.email, displayName: data.displayName };
 }

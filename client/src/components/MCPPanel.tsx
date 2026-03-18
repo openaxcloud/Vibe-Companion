@@ -55,9 +55,11 @@ function ServerLogsPanel({ projectId, serverId }: { projectId: string; serverId:
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let closed = false;
     setLogs([]);
     const es = new EventSource(`/api/projects/${projectId}/mcp/servers/${serverId}/logs`);
     es.onmessage = (event) => {
+      if (closed) return;
       try {
         const line = JSON.parse(event.data) as string;
         setLogs((prev) => {
@@ -67,7 +69,7 @@ function ServerLogsPanel({ projectId, serverId }: { projectId: string; serverId:
       } catch {}
     };
     es.onerror = () => { es.close(); };
-    return () => { es.close(); };
+    return () => { closed = true; es.close(); };
   }, [projectId, serverId]);
 
   useEffect(() => {

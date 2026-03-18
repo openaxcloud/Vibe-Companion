@@ -1174,8 +1174,13 @@ export default function Settings() {
                     try {
                       const res = await apiRequest("POST", "/api/billing/portal");
                       const data = await res.json();
-                      if (data.url) window.location.href = data.url;
-                      else toast({ title: data.message || "Billing portal unavailable" });
+                      if (data.url) {
+                        const portalUrl = new URL(data.url);
+                        if (!portalUrl.hostname.endsWith("stripe.com")) throw new Error("Invalid portal URL");
+                        window.location.href = data.url;
+                      } else {
+                        toast({ title: data.message || "Billing portal unavailable" });
+                      }
                     } catch { toast({ title: "Failed to open billing portal", variant: "destructive" }); }
                   }}
                   data-testid="button-manage-billing"

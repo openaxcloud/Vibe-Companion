@@ -43,7 +43,7 @@ function QRCodeDisplay({ expoGoUrl, projectName }: { expoGoUrl: string | null; p
     setLoading(true);
     setError(null);
     fetch(`/api/qrcode?data=${encodeURIComponent(expoGoUrl)}`)
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : Promise.reject(new Error("QR code request failed")))
       .then(data => {
         if (data.qrDataUrl) {
           setQrDataUrl(data.qrDataUrl);

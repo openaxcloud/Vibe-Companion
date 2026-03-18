@@ -7,3 +7,10 @@ vite.config.ts.*
 .storage
 # SSH host key
 .ssh_host_key
+# Environment variables
+.env
+.env.local
+.env.production
+# IDE
+.idea
+.vscode

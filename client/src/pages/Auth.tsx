@@ -68,6 +68,7 @@ export default function Auth() {
     queryKey: ["/api/auth/config"],
     queryFn: async () => {
       const res = await fetch("/api/auth/config");
+      if (!res.ok) throw new Error("Failed to load auth config");
       return res.json();
     },
     staleTime: 60000,
@@ -200,13 +201,14 @@ export default function Auth() {
                   window.location.href = "/api/auth/github/redirect";
                 } else {
                   fetch("/api/auth/github", { method: "POST", headers: { "Content-Type": "application/json" } })
-                    .then(r => r.json().then(data => {
+                    .then(async r => {
+                      const data = await r.json().catch(() => ({}));
                       if (r.ok && data.id) {
                         window.location.href = "/dashboard";
                       } else {
                         toast({ title: "GitHub Login", description: data.message || "Connect GitHub integration first", variant: "destructive" });
                       }
-                    }))
+                    })
                     .catch((err: any) => toast({ title: "GitHub Login Failed", description: err.message, variant: "destructive" }));
                 }
               }}

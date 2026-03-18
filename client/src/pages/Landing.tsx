@@ -355,9 +355,9 @@ export default function Landing() {
       <AnimatedGrid />
 
       {incomingError && (
-        <div className="relative z-20 bg-red-500/10 border-b border-red-500/20 px-6 py-3" data-testid="banner-incoming-error">
+        <div className="relative z-20 bg-red-500/10 border-b border-red-500/20 px-6 py-3" role="alert" aria-live="assertive" data-testid="banner-incoming-error">
           <div className="max-w-3xl mx-auto flex items-center gap-3 text-sm text-red-400">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0" aria-hidden="true">
               <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             {incomingError}
@@ -381,7 +381,7 @@ export default function Landing() {
         </div>
       )}
 
-      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
+      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]" role="navigation" aria-label="Main navigation">
         <div className="flex items-center gap-3">
           <ECodeLogo size={28} />
           <span className="text-lg font-bold tracking-tight">E-Code</span>
@@ -403,6 +403,9 @@ export default function Landing() {
           <button
             className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             data-testid="button-mobile-hamburger"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -411,7 +414,11 @@ export default function Landing() {
       </nav>
 
       <div
+        id="mobile-menu"
         className={`md:hidden fixed inset-0 top-16 z-50 transition-all duration-300 ${mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
       >
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
         <div className={`absolute top-0 right-0 w-[280px] h-full bg-[var(--ide-bg)] border-l border-[var(--ide-border)]/50 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}>
@@ -452,7 +459,7 @@ export default function Landing() {
 
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
           <Link href="/login?signup=true">
-            <Button className="h-11 px-7 text-sm font-semibold bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-xl shadow-[0_0_20px_rgba(12,206,107,0.3)] hover:shadow-[0_0_30px_rgba(12,206,107,0.4)] transition-all gap-2" data-testid="cta-signup">
+            <Button className="h-11 px-7 text-sm font-semibold bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-xl shadow-[0_0_20px_rgba(12,206,107,0.3)] hover:shadow-[0_0_30px_rgba(12,206,107,0.4)] transition-all gap-2 btn-premium" data-testid="cta-signup">
               Start building for free <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
@@ -484,7 +491,7 @@ export default function Landing() {
         </div>
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f) => (
-            <div key={f.title} className="group p-6 rounded-2xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] transition-all duration-300" data-testid={`feature-${f.title.toLowerCase().replace(/\s/g, "-")}`}>
+            <div key={f.title} className="group p-6 rounded-2xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] transition-all duration-300 card-premium" data-testid={`feature-${f.title.toLowerCase().replace(/\s/g, "-")}`}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: `${f.color}15`, border: `1px solid ${f.color}30` }}>
                 <f.icon className="w-5 h-5" style={{ color: f.color }} />
               </div>
@@ -526,14 +533,14 @@ export default function Landing() {
           <h2 className="text-3xl md:text-5xl font-bold mb-6">Ready to start building?</h2>
           <p className="text-[var(--ide-text-secondary)] text-lg mb-10">Join thousands of developers building and deploying on E-Code.</p>
           <Link href="/login?signup=true">
-            <Button className="h-14 px-10 text-lg font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl shadow-[0_0_20px_rgba(0,121,242,0.3)] hover:shadow-[0_0_30px_rgba(0,121,242,0.4)] transition-all gap-2" data-testid="cta-bottom-signup">
+            <Button className="h-14 px-10 text-lg font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl shadow-[0_0_20px_rgba(0,121,242,0.3)] hover:shadow-[0_0_30px_rgba(0,121,242,0.4)] transition-all gap-2 btn-premium" data-testid="cta-bottom-signup">
               Get started for free <ChevronRight className="w-5 h-5" />
             </Button>
           </Link>
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-12 py-10">
+      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-12 py-10" role="contentinfo">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start justify-between gap-8">
           <div className="flex items-center gap-2">
             <ECodeLogo size={20} />

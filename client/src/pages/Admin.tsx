@@ -113,7 +113,7 @@ export default function Admin() {
 
   const stats = statsQuery.data || {};
   const filteredUsers = (usersQuery.data?.users || []).filter((u: any) =>
-    !search || u.email.includes(search) || (u.displayName || "").toLowerCase().includes(search.toLowerCase())
+    !search || (u.email || "").includes(search) || (u.displayName || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (

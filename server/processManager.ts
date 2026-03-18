@@ -56,6 +56,7 @@ export interface ManagedProcess {
   envVars: Record<string, string>;
   autoRestart: boolean;
   previousVersionDir?: string;
+  restartTimeoutId?: ReturnType<typeof setTimeout>;
 }
 
 export interface ProcessInfo {
@@ -226,7 +227,7 @@ function attachProcessHandlers(managed: ManagedProcess): void {
       managed.restartCount++;
       addLog(managed, `Auto-restarting in ${backoff}ms (attempt ${managed.restartCount}/${managed.maxRestarts})...`);
 
-      setTimeout(async () => {
+      managed.restartTimeoutId = setTimeout(async () => {
         const current = managedProcesses.get(managed.projectId);
         if (!current || current !== managed || managed.status === "stopped") {
           addLog(managed, "Auto-restart cancelled (process was stopped or replaced)");
@@ -498,6 +499,10 @@ export async function stopProcess(projectId: string): Promise<void> {
   if (!managed) return;
 
   setStatus(managed, "stopped");
+  if (managed.restartTimeoutId) {
+    clearTimeout(managed.restartTimeoutId);
+    managed.restartTimeoutId = undefined;
+  }
   stopPeriodicHealthChecks(projectId);
   stopLogFlushTimer(managed);
 

@@ -35,13 +35,24 @@ export function decrypt(ciphertext: string): string {
   const parts = ciphertext.split(":");
 
   if (parts.length !== 3) {
-    return ciphertext;
+    // Not encrypted data - return as-is for backward compatibility with plaintext values
+    if (!isEncrypted(ciphertext)) {
+      return ciphertext;
+    }
+    throw new Error("Invalid encrypted data format");
   }
 
   try {
     const iv = Buffer.from(parts[0], ENCODING);
     const tag = Buffer.from(parts[1], ENCODING);
     const encrypted = parts[2];
+
+    if (iv.length !== IV_LENGTH) {
+      throw new Error("Invalid IV length in encrypted data");
+    }
+    if (tag.length !== TAG_LENGTH) {
+      throw new Error("Invalid auth tag length in encrypted data");
+    }
 
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(tag);
@@ -50,8 +61,9 @@ export function decrypt(ciphertext: string): string {
     decrypted += decipher.final("utf8");
 
     return decrypted;
-  } catch {
-    return ciphertext;
+  } catch (error) {
+    console.error("[encryption] Decryption failed:", error instanceof Error ? error.message : "Unknown error");
+    throw new Error("Failed to decrypt data - possible key mismatch or data corruption");
   }
 }
 

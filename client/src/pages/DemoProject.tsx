@@ -111,6 +111,28 @@ export default function DemoProject() {
     );
   }
 
+  if (demoQuery.isError) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[var(--ide-panel)]">
+        <div className="text-center max-w-sm px-6">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <X className="w-6 h-6 text-red-400" />
+          </div>
+          <h2 className="text-lg font-semibold text-[var(--ide-text)] mb-2">Demo Unavailable</h2>
+          <p className="text-sm text-[var(--ide-text-secondary)] mb-4">The demo project could not be loaded. Please try again.</p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="outline" onClick={() => demoQuery.refetch()} className="text-sm">
+              <RefreshCw className="w-3.5 h-3.5 mr-2" /> Try Again
+            </Button>
+            <Button onClick={() => setLocation("/")} className="text-sm bg-[#0079F2] hover:bg-[#006AD8] text-white">
+              Go Home
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none">
       <div className="flex items-center justify-between px-2 h-10 bg-[var(--ide-panel)] border-b border-[var(--ide-border)] shrink-0">

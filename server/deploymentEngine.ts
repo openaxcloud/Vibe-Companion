@@ -304,8 +304,14 @@ export async function provisionProductionDatabase(
     const pg = await import("pg");
     const pool = new pg.default.Pool({ connectionString: dbUrl });
 
-    const devSchema = `proj_${projectId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
-    const prodSchema = `prod_${projectId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+    // Sanitize schema names - only allow alphanumeric and underscore, max 63 chars (PostgreSQL limit)
+    const sanitizeIdentifier = (id: string): string => {
+      const sanitized = id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 50);
+      if (!sanitized || /^\d/.test(sanitized)) return `x_${sanitized}`;
+      return sanitized;
+    };
+    const devSchema = `proj_${sanitizeIdentifier(projectId)}`;
+    const prodSchema = `prod_${sanitizeIdentifier(projectId)}`;
     addLog(`[db] Creating production schema: ${prodSchema}`);
 
     await pool.query(`CREATE SCHEMA IF NOT EXISTS "${prodSchema}"`);
@@ -323,6 +329,11 @@ export async function provisionProductionDatabase(
     }
 
     for (const tableName of projectTables) {
+      // Validate table name to prevent SQL injection via dynamic identifiers
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName) || tableName.length > 63) {
+        addLog(`[db] Skipping invalid table name: ${tableName}`);
+        continue;
+      }
       try {
         const existsResult = await pool.query(
           `SELECT 1 FROM pg_tables WHERE schemaname = $1 AND tablename = $2`,
@@ -463,15 +474,26 @@ export async function buildAndDeploy(
     if (config?.buildCommand) {
       addLog(`[build] Executing build command: ${config.buildCommand}`);
       try {
+        const secretKeys = Object.keys(config.deploymentSecrets || {});
         const envVars = { ...getSandboxEnv(0), ...(config.deploymentSecrets || {}) };
+        const sanitizeLog = (text: string): string => {
+          let sanitized = text;
+          for (const key of secretKeys) {
+            const val = (config?.deploymentSecrets || {})[key];
+            if (val && val.length > 3) {
+              sanitized = sanitized.replaceAll(val, `[REDACTED:${key}]`);
+            }
+          }
+          return sanitized;
+        };
         const { stdout, stderr } = await execAsync(config.buildCommand, {
           cwd: outputDir,
           timeout: 60000,
           env: envVars,
           maxBuffer: 10 * 1024 * 1024,
         });
-        if (stdout) addLog(`[build:stdout] ${stdout.slice(0, 2000)}`);
-        if (stderr) addLog(`[build:stderr] ${stderr.slice(0, 2000)}`);
+        if (stdout) addLog(`[build:stdout] ${sanitizeLog(stdout.slice(0, 2000))}`);
+        if (stderr) addLog(`[build:stderr] ${sanitizeLog(stderr.slice(0, 2000))}`);
         addLog(`[build] Build command completed successfully`);
       } catch (buildErr: unknown) {
         const err = buildErr as { code?: number; stderr?: string; stdout?: string };
@@ -618,17 +640,20 @@ export async function buildAndDeploy(
             const tempName = `__pub_temp_${Date.now()}`;
             const tempDir = join(outputDir, tempName);
             await cp(pubDirPath, tempDir, { recursive: true });
-            const entries = await readdir(outputDir);
-            for (const entry of entries) {
-              if (entry !== tempName) {
-                await rm(join(outputDir, entry), { recursive: true, force: true }).catch(() => {});
+            try {
+              const entries = await readdir(outputDir);
+              for (const entry of entries) {
+                if (entry !== tempName) {
+                  await rm(join(outputDir, entry), { recursive: true, force: true }).catch(() => {});
+                }
               }
+              const tempEntries = await readdir(tempDir);
+              for (const entry of tempEntries) {
+                await cp(join(tempDir, entry), join(outputDir, entry), { recursive: true });
+              }
+            } finally {
+              await rm(tempDir, { recursive: true, force: true }).catch(() => {});
             }
-            const tempEntries = await readdir(tempDir);
-            for (const entry of tempEntries) {
-              await cp(join(tempDir, entry), join(outputDir, entry), { recursive: true });
-            }
-            await rm(tempDir, { recursive: true, force: true });
             addLog(`[build] Promoted ${pubDir}/ contents to deployment root`);
           } else {
             addLog(`[build] Warning: ${pubDir} is not a directory, serving from root`);
@@ -1083,6 +1108,19 @@ export async function rollbackDeployment(
 }
 
 export async function teardownDeployment(slug: string, projectId?: string): Promise<void> {
+  // Stop scheduled cron job if any
+  const scheduledJob = scheduledDeployJobs.get(slug);
+  if (scheduledJob) {
+    scheduledJob.stop();
+    scheduledDeployJobs.delete(slug);
+    log(`Stopped scheduled cron job for ${slug}`, "deploy");
+  }
+  // Stop VM process if any
+  const vmProc = activeVMProcesses.get(slug);
+  if (vmProc) {
+    try { vmProc.kill("SIGTERM"); } catch {}
+    activeVMProcesses.delete(slug);
+  }
   if (projectId) {
     await stopManagedProcess(projectId);
   }

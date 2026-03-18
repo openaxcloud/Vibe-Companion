@@ -57,6 +57,16 @@ import * as fs from "fs";
 import { importFromGitHub, importFromZip, importFromFigma, importFromVercel, importFromBolt, importFromLovable, validateImportSource, startAsyncImport, startAsyncZipImport, getImportJob, validateZipBuffer, fetchFigmaDesignContext } from "./importService";
 import { handleLSPConnection } from "./lspBridge";
 
+/** Sanitize error messages to avoid leaking internal details (DB schema, connection strings, API keys) */
+function safeError(err: any, fallback: string): string {
+  const msg = err instanceof Error ? err.message : String(err || "");
+  // Block messages containing connection strings, SQL internals, or API keys
+  const sensitive = /password|connection|ECONNREFUSED|ENOTFOUND|at\s+\S+\.\w+\s+\(|SELECT |INSERT |UPDATE |DELETE |pg_|sk-[a-zA-Z0-9]/i;
+  if (sensitive.test(msg)) return fallback;
+  // Truncate to prevent oversized error responses
+  return msg.slice(0, 200) || fallback;
+}
+
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
   if (dbCommits.length === 0) return undefined;
@@ -927,8 +937,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/reset-password",
   "/api/auth/send-verification",
   "/api/csrf-token",
-  "/api/demo/run",
-  "/api/demo/project",
+  // Demo routes require CSRF - removed from exemptions for security
   "/api/ai/chat",
   "/api/ai/complete",
   "/api/billing/webhook",
@@ -1069,7 +1078,7 @@ export async function registerRoutes(
       if (!s && process.env.NODE_ENV === "production") {
         throw new Error("SESSION_SECRET is required in production");
       }
-      return s || "dev-only-fallback-" + Date.now();
+      return s || crypto.randomBytes(32).toString("hex");
     })(),
     resave: false,
     saveUninitialized: false,
@@ -1202,7 +1211,8 @@ export async function registerRoutes(
 
   app.get("/api/metrics", async (req: Request, res: Response) => {
     if (!req.session.userId) {
-      return res.json({ execution: getSystemMetrics(), errorCount: 0 });
+      // Unauthenticated users get minimal info only
+      return res.json({ status: "ok", uptime: Math.round(process.uptime()) });
     }
     const system = getSystemMetrics();
     res.json({
@@ -1281,6 +1291,13 @@ export async function registerRoutes(
         displayName: data.displayName || data.email.split("@")[0],
       });
 
+      // Regenerate session to prevent session fixation
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
@@ -1327,6 +1344,13 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Regenerate session to prevent session fixation
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
@@ -1891,7 +1915,7 @@ export async function registerRoutes(
       await storage.trackEvent(user.id, "login", { method: "github" });
       return res.json({ id: user.id, email: user.email, displayName: user.displayName, csrfToken: req.session.csrfToken });
     } catch (err: any) {
-      return res.status(500).json({ message: "GitHub authentication failed: " + (err.message || "Unknown error") });
+      return res.status(500).json({ message: "GitHub authentication failed: " + safeError(err, "Unknown error") });
     }
   });
 
@@ -2071,7 +2095,8 @@ export async function registerRoutes(
           await storage.updateUser(existing.id, { appleId });
           user = (await storage.getUser(existing.id))!;
         } else {
-          const userPayload = req.body.user ? JSON.parse(req.body.user) : null;
+          let userPayload: any = null;
+          try { userPayload = req.body.user ? JSON.parse(req.body.user) : null; } catch { /* Apple may send malformed user data */ }
           const displayName = userPayload?.name ? `${userPayload.name.firstName || ""} ${userPayload.name.lastName || ""}`.trim() : email.split("@")[0];
           user = await storage.createUser({ email, password: "", displayName, appleId, emailVerified: true });
         }
@@ -2318,7 +2343,10 @@ export async function registerRoutes(
     try {
       const { confirmation } = z.object({ confirmation: z.literal("DELETE MY ACCOUNT") }).parse(req.body);
       const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      console.log(`[AUDIT] Account deletion requested by user ${userId} (${user?.email || "unknown"}) at ${new Date().toISOString()}`);
       await storage.deleteUser(userId);
+      console.log(`[AUDIT] Account deleted: user ${userId} (${user?.email || "unknown"})`);
       req.session.destroy(() => {});
       return res.json({ message: "Account deleted" });
     } catch (err: any) {
@@ -3950,12 +3978,13 @@ export async function registerRoutes(
         projectId: req.params.id,
         token,
         createdBy: req.session.userId,
-        role: req.body.role || "editor",
-        maxUses: req.body.maxUses || null,
+        role: ["viewer", "editor"].includes(req.body.role) ? req.body.role : "editor",
+        maxUses: (typeof req.body.maxUses === "number" && Number.isInteger(req.body.maxUses) && req.body.maxUses > 0) ? req.body.maxUses : null,
         expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : null,
       });
       res.json({ ...link, url: `/invite/${token}` });
-    } catch (err) {
+    } catch (err: any) {
+      log(`Error creating invite link: ${err.message}`, "routes");
       res.status(500).json({ message: "Failed to create invite link" });
     }
   });
@@ -8198,7 +8227,7 @@ ${formatInstruction}`;
       res.json({ text: transcription.text });
     } catch (err: any) {
       log(`Transcription error: ${err.message}`, "ai");
-      res.status(500).json({ error: "Transcription failed: " + (err.message || "unknown error") });
+      res.status(500).json({ error: "Transcription failed: " + safeError(err, "unknown error") });
     }
   });
 
@@ -8253,7 +8282,7 @@ ${formatInstruction}`;
         res.write(`data: ${JSON.stringify({ type: "error", error: "TTS failed" })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: "TTS failed: " + (err.message || "unknown error") });
+        res.status(500).json({ error: "TTS failed: " + safeError(err, "unknown error") });
       }
     }
   });
@@ -8305,7 +8334,7 @@ ${formatInstruction}`;
         res.write(`data: ${JSON.stringify({ type: "error", error: "Audio response failed" })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: "Audio response failed: " + (err.message || "unknown error") });
+        res.status(500).json({ error: "Audio response failed: " + safeError(err, "unknown error") });
       }
     }
   });
@@ -8340,7 +8369,7 @@ ${formatInstruction}`;
       res.json({ image: `data:image/png;base64,${base64}` });
     } catch (err: any) {
       log(`Image generation error: ${err.message}`, "ai");
-      res.status(500).json({ error: "Image generation failed: " + (err.message || "unknown error") });
+      res.status(500).json({ error: "Image generation failed: " + safeError(err, "unknown error") });
     }
   });
 
@@ -12273,8 +12302,8 @@ Based on the search results above, provide a comprehensive answer to the user's 
           socket.destroy();
           return;
         }
-        storage.getProject(projectId).then((project) => {
-          if (!project || project.userId !== req.session.userId) {
+        storage.getProject(projectId).then(async (project) => {
+          if (!project || !(await canAccessProject(req.session.userId, project))) {
             socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
             socket.destroy();
             return;
@@ -12924,7 +12953,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         client.release();
       }
     } catch (err: any) {
-      res.json({ error: err.message || "Query failed" });
+      res.json({ error: safeError(err, "Query failed") });
     }
   });
 
@@ -12943,7 +12972,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       );
       res.json({ tables: result.rows.map((r: any) => r.tablename) });
     } catch (err: any) {
-      res.json({ error: err.message || "Failed to list tables" });
+      res.json({ error: safeError(err, "Failed to list tables") });
     }
   });
 
@@ -12994,10 +13023,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
         dataQuery += ` ORDER BY "${sortCol}" ${sortDir}`;
       }
 
-      dataQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+      const countParams = [...params];
+      params.push(limit, offset);
+      dataQuery += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
       const [countRes, dataRes] = await Promise.all([
-        pool.query(countQuery, params),
+        pool.query(countQuery, countParams),
         pool.query(dataQuery, params),
       ]);
 
@@ -13016,7 +13047,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         offset,
       });
     } catch (err: any) {
-      res.json({ error: err.message || "Failed to fetch table data" });
+      res.json({ error: safeError(err, "Failed to fetch table data") });
     }
   });
 
@@ -13096,7 +13127,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         freeLimitBytes: 10 * 1024 * 1024 * 1024,
       });
     } catch (err: any) {
-      res.json({ error: err.message || "Failed to get usage" });
+      res.json({ error: safeError(err, "Failed to get usage") });
     }
   });
 
@@ -13136,7 +13167,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
       res.json({ message: `Removed ${droppedTables.length} tables`, droppedTables });
     } catch (err: any) {
-      res.status(500).json({ error: err.message || "Failed to remove database" });
+      res.status(500).json({ error: safeError(err, "Failed to remove database") });
     }
   });
 
@@ -13189,7 +13220,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
       res.json({ files: testFiles, framework });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, "Failed to discover tests") });
     }
   });
 
@@ -18940,7 +18971,7 @@ Respond ONLY with the JSON array, no other text.`;
 
       const scenes = (data.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
       const resolution = (data.resolution as any) || { width: 1920, height: 1080 };
-      const fps = data.fps || 30;
+      const fps = Math.max(1, Math.min(120, parseInt(String(data.fps)) || 30));
       const totalDuration = scenes.reduce((sum: number, s: any) => sum + (s.duration || 3), 0);
 
       const { execSync } = await import("child_process");
@@ -19453,7 +19484,7 @@ Respond ONLY with the JSON array, no other text.`;
       await storage.trackDesktopDownload(platform, version);
       return res.json({ success: true });
     } catch (err: any) {
-      return res.status(500).json({ message: err.message });
+      return res.status(500).json({ message: safeError(err, "Failed to track download") });
     }
   });
 
