@@ -1,22 +1,67 @@
-import CodeEditor from '@/components/CodeEditor';
-import { useQuery } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { useMemo, useCallback } from 'react';
+import CodeEditor, { detectLanguage } from '@/components/CodeEditor';
 
 interface ReplitMonacoEditorProps {
   projectId: string;
-  fileId: number | null;
+  fileId: string | null;
+  fileContents: Record<string, string>;
+  onCodeChange: (value: string) => void;
+  onCursorChange?: (line: number, col: number) => void;
+  fontSize?: number;
+  tabSize?: number;
+  wordWrap?: boolean;
+  minimap?: boolean;
+  ytext?: any;
+  remoteAwareness?: any;
+  blameData?: any[];
+  filename?: string;
 }
 
-export function ReplitMonacoEditor({ projectId, fileId }: ReplitMonacoEditorProps) {
-  const fileQuery = useQuery({
-    queryKey: ['/api/projects', projectId, 'files', fileId],
-    queryFn: async () => {
-      const res = await apiRequest('GET', `/api/projects/${projectId}/files`);
-      const files = await res.json();
-      return files.find((f: any) => f.id === fileId);
+export function ReplitMonacoEditor({
+  projectId,
+  fileId,
+  fileContents,
+  onCodeChange,
+  onCursorChange,
+  fontSize,
+  tabSize,
+  wordWrap,
+  minimap,
+  ytext,
+  remoteAwareness,
+  blameData,
+  filename,
+}: ReplitMonacoEditorProps) {
+  const value = useMemo(() => {
+    if (!fileId) return '';
+    return fileContents[fileId] ?? '';
+  }, [fileId, fileContents]);
+
+  const language = useMemo(() => {
+    if (filename) return detectLanguage(filename);
+    if (!fileId) return 'javascript';
+    // Try to detect from the fileId if it looks like a path
+    const parts = fileId.split('/');
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && lastPart.includes('.')) {
+      return detectLanguage(lastPart);
+    }
+    return 'javascript';
+  }, [filename, fileId]);
+
+  const handleChange = useCallback(
+    (val: string) => {
+      onCodeChange(val);
     },
-    enabled: !!projectId && !!fileId,
-  });
+    [onCodeChange],
+  );
+
+  const handleCursorChange = useCallback(
+    (line: number, col: number) => {
+      onCursorChange?.(line, col);
+    },
+    [onCursorChange],
+  );
 
   if (!fileId) {
     return (
@@ -26,31 +71,23 @@ export function ReplitMonacoEditor({ projectId, fileId }: ReplitMonacoEditorProp
     );
   }
 
-  if (fileQuery.isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="w-5 h-5 border-2 border-[#0079F2] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const file = fileQuery.data;
-  if (!file) {
-    return (
-      <div className="h-full flex items-center justify-center text-[var(--ide-text-muted)] text-xs">
-        File not found
-      </div>
-    );
-  }
-
   return (
     <div className="h-full">
       <CodeEditor
-        value={file.content || ''}
-        language={file.language || 'javascript'}
-        onChange={() => {}}
-        filename={file.filename || file.name}
-        projectId={parseInt(projectId, 10)}
+        value={value}
+        onChange={handleChange}
+        language={language}
+        onCursorChange={onCursorChange ? handleCursorChange : undefined}
+        fontSize={fontSize}
+        tabSize={tabSize}
+        wordWrap={wordWrap}
+        minimap={minimap}
+        blameData={blameData}
+        aiCompletions={true}
+        filename={filename}
+        projectId={projectId}
+        ytext={ytext}
+        remoteAwareness={remoteAwareness}
       />
     </div>
   );
