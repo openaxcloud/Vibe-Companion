@@ -326,6 +326,6 @@ export function getEnvironmentMetadata(project: { id: string; name: string; lang
     HOME: process.env.HOME || "/home/runner",
     LANG: "en_US.UTF-8",
     PRYBAR_FILE: "",
-    REPLIT_DEV_DOMAIN: `${project.id}.repl.co`,
+    ECODE_DEV_DOMAIN: `${project.id}.dev.e-code.ai`,
   };
 }

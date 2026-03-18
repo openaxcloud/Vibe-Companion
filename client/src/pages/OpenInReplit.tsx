@@ -102,7 +102,7 @@ export default function OpenInReplit() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" data-testid="open-in-replit-page">
+    <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" data-testid="open-in-ecode-page">
       <nav className="flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
         <div className="flex items-center gap-3">
           <Link href={isAuthenticated ? "/dashboard" : "/"}>

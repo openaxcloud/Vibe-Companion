@@ -151,7 +151,7 @@ export default function McpDirectory() {
                         className="h-8 text-xs bg-[#0079F2] hover:bg-[#0079F2]/80 text-white gap-1.5"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        Add to Replit
+                        Add to E-Code
                       </Button>
                     </a>
                   ) : (
@@ -162,7 +162,7 @@ export default function McpDirectory() {
                         data-testid={`link-login-${server.id}`}
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        Add to Replit
+                        Add to E-Code
                       </Button>
                     </Link>
                   )}
@@ -190,7 +190,7 @@ export default function McpDirectory() {
         <div className="mt-12 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/30 p-6 text-center">
           <h2 className="text-lg font-semibold mb-2">Have your own MCP server?</h2>
           <p className="text-sm text-[var(--ide-text-secondary)] mb-4">
-            Create an install link so users can add your server to their Replit projects with one click.
+            Create an install link so users can add your server to their E-Code projects with one click.
           </p>
           <Link href="/mcp-install-link">
             <Button className="bg-[#0079F2] hover:bg-[#0079F2]/80 text-white gap-2" data-testid="link-create-install">

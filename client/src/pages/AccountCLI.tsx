@@ -30,7 +30,7 @@ const SUB_COMMANDS: Record<string, { name: string; description: string }[]> = {
   ],
   team: [
     { name: "view", description: "Show teams you belong to" },
-    { name: "fork-repl-to-project", description: "Fork a project into a team" },
+    { name: "fork-project-to-team", description: "Fork a project into a team" },
   ],
 };
 
@@ -210,11 +210,11 @@ export default function AccountCLI() {
               })),
             ]);
           }
-        } else if (sub === "fork-repl-to-project") {
+        } else if (sub === "fork-project-to-team") {
           const projectId = args[0]?.trim();
           const teamId = args[1]?.trim();
           if (!projectId || !teamId) {
-            addLines([{ id: id + 1, type: "error", text: "Usage: fork-repl-to-project <project-id> <team-id>" }]);
+            addLines([{ id: id + 1, type: "error", text: "Usage: fork-project-to-team <project-id> <team-id>" }]);
             return;
           }
           const res = await apiRequest("POST", `/api/projects/${projectId}/fork`, { teamId });

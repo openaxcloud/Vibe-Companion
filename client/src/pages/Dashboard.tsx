@@ -220,11 +220,11 @@ export default function Dashboard() {
   const [aiModel, setAiModel] = useState<"claude" | "gpt" | "gemini">("gpt");
   const [deleteConfirmDialogOpen, setDeleteConfirmDialogOpen] = useState(false);
   const [deleteTargetProject, setDeleteTargetProject] = useState<{ id: string; name: string } | null>(null);
-  const [sidebarNav, setSidebarNav] = useState<"home" | "repls">("home");
+  const [sidebarNav, setSidebarNav] = useState<"home" | "projects">("home");
   const [sortBy, setSortBy] = useState<"modified" | "name">("modified");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<"home" | "repls" | "notifications" | "profile">("home");
+  const [mobileTab, setMobileTab] = useState<"home" | "projects" | "notifications" | "profile">("home");
   const [generationStep, setGenerationStep] = useState(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
@@ -704,13 +704,13 @@ export default function Dashboard() {
 
   const sidebarLinks = [
     { id: "home" as const, icon: Home, label: "Home" },
-    { id: "repls" as const, icon: FileCode, label: "My Repls" },
+    { id: "projects" as const, icon: FileCode, label: "My Projects" },
   ];
 
   const sidebarSecondaryLinks = [
     { icon: Compass, label: "Templates", action: () => setDialogOpen(true), testId: "nav-templates" },
     { icon: Box, label: "Frameworks", action: () => setLocation("/frameworks"), testId: "nav-frameworks" },
-    { icon: Link2, label: "Open in E-Code", action: () => setLocation("/open"), testId: "nav-open-in-replit" },
+    { icon: Link2, label: "Open in E-Code", action: () => setLocation("/open"), testId: "nav-open-in-ecode" },
     { icon: MessageSquare, label: "Community", action: () => toast({ title: "Community", description: "Community forum coming soon." }), testId: "nav-community-link" },
   ];
 
@@ -822,7 +822,7 @@ export default function Dashboard() {
           <div className="pb-24">
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Recent</h3>
-              <button className="text-[11px] text-[#0079F2] font-medium" onClick={() => setMobileTab("repls")} data-testid="button-view-all-mobile">
+              <button className="text-[11px] text-[#0079F2] font-medium" onClick={() => setMobileTab("projects")} data-testid="button-view-all-mobile">
                 View all <ChevronRight className="w-3 h-3 inline" />
               </button>
             </div>
@@ -862,7 +862,7 @@ export default function Dashboard() {
     </div>
   );
 
-  const mobileReplsContent = (
+  const mobileProjectsContent = (
     <div
       ref={projectListRef}
       className="flex-1 overflow-y-auto bg-[var(--ide-panel)]"
@@ -877,11 +877,11 @@ export default function Dashboard() {
       )}
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-my-repls-mobile">My Repls</h2>
+          <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-my-projects-mobile">My Projects</h2>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#9CA3AF]" />
-              <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-7.5 bg-[var(--ide-panel)] border-[var(--ide-border)] h-9 w-36 text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-search-repls-mobile" />
+              <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-7.5 bg-[var(--ide-panel)] border-[var(--ide-border)] h-9 w-36 text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-search-projects-mobile" />
             </div>
           </div>
         </div>
@@ -900,7 +900,7 @@ export default function Dashboard() {
         ) : projects.length === 0 ? (
           <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
             <Code2 className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
-            <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium">{searchQuery ? "No matching repls" : "No repls yet"}</p>
+            <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium">{searchQuery ? "No matching projects" : "No projects yet"}</p>
             <p className="text-[12px] text-[var(--ide-text-secondary)]">{searchQuery ? "Try a different search" : "Tap + to create your first project"}</p>
           </div>
         ) : (
@@ -908,7 +908,7 @@ export default function Dashboard() {
             {projects.map((project) => {
               const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
               return (
-                <div key={project.id} className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] active:scale-[0.98] transition-all cursor-pointer" onClick={() => setLocation(`/project/${project.id}`)} data-testid={`card-repl-${project.id}`}>
+                <div key={project.id} className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] active:scale-[0.98] transition-all cursor-pointer" onClick={() => setLocation(`/project/${project.id}`)} data-testid={`card-project-${project.id}`}>
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center border text-[10px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
                     {langInfo.label}
                   </div>
@@ -1151,7 +1151,7 @@ export default function Dashboard() {
               <div className="flex items-center flex-1 ml-3">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9CA3AF]" />
-                  <Input placeholder="Search Repls..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-8 bg-[var(--ide-panel)] border border-[var(--ide-border)] h-9 w-full text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-mobile-search" autoFocus />
+                  <Input placeholder="Search Projects..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-8 bg-[var(--ide-panel)] border border-[var(--ide-border)] h-9 w-full text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40" data-testid="input-mobile-search" autoFocus />
                   <button className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[var(--ide-text)]" onClick={() => { setMobileSearchOpen(false); setSearchQuery(""); }} data-testid="button-close-mobile-search">
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1165,14 +1165,14 @@ export default function Dashboard() {
           </header>
 
           {mobileTab === "home" && mobileHomeContent}
-          {mobileTab === "repls" && mobileReplsContent}
+          {mobileTab === "projects" && mobileProjectsContent}
           {mobileTab === "notifications" && mobileNotificationsContent}
           {mobileTab === "profile" && mobileProfileContent}
 
           <div className="flex items-stretch h-[56px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-dashboard-nav">
             {([
               { id: "home" as const, icon: Home, label: "Home" },
-              { id: "repls" as const, icon: FileCode, label: "My Repls" },
+              { id: "projects" as const, icon: FileCode, label: "My Projects" },
               { id: "create" as const, icon: Plus, label: "Create" },
               { id: "notifications" as const, icon: Bell, label: "Notifs" },
               { id: "profile" as const, icon: User, label: "Profile" },
@@ -1188,7 +1188,7 @@ export default function Dashboard() {
               }
               const isActive = mobileTab === id;
               return (
-                <button key={id} className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all active:scale-90" onClick={() => { if (id === "home" || id === "repls" || id === "notifications" || id === "profile") setMobileTab(id); }} data-testid={`mobile-tab-${id}`}>
+                <button key={id} className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all active:scale-90" onClick={() => { if (id === "home" || id === "projects" || id === "notifications" || id === "profile") setMobileTab(id); }} data-testid={`mobile-tab-${id}`}>
                   {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2.5px] rounded-full bg-[#0079F2]" />}
                   <Icon className={`w-5 h-5 transition-all ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`} />
                   <span className={`text-[10px] font-medium leading-none ${isActive ? "text-[#0079F2]" : "text-[#9CA3AF]"}`}>{label}</span>
@@ -1211,7 +1211,7 @@ export default function Dashboard() {
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
             <Input
-              placeholder="Search your Repls..."
+              placeholder="Search your Projects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 bg-[var(--ide-panel)] border border-[var(--ide-border)] h-9 w-full text-[12px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
@@ -1223,12 +1223,12 @@ export default function Dashboard() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="h-9 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg gap-1.5 font-medium px-4 shadow-sm shadow-[#0079F2]/30" data-testid="button-new-project">
-                <Plus className="w-3.5 h-3.5" /> Create Repl
+                <Plus className="w-3.5 h-3.5" /> Create Project
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl shadow-xl shadow-black/30">
-              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setDialogOpen(true)} data-testid="button-create-repl">
-                <Plus className="w-3.5 h-3.5" /> New Repl
+              <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setDialogOpen(true)} data-testid="button-create-project">
+                <Plus className="w-3.5 h-3.5" /> New Project
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 text-[11px] text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer mx-1 rounded-md" onClick={() => setLocation("/import?source=github")} data-testid="button-import-github">
                 <GitBranch className="w-3.5 h-3.5" /> Import from GitHub
@@ -1363,7 +1363,7 @@ export default function Dashboard() {
           <Dialog open={!isMobile && dialogOpen} onOpenChange={setDialogOpen}>
               <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                 <DialogHeader>
-                  <DialogTitle className="text-[var(--ide-text)] text-lg font-bold">Create Repl</DialogTitle>
+                  <DialogTitle className="text-[var(--ide-text)] text-lg font-bold">Create Project</DialogTitle>
                   <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Start from a template or create an empty project</DialogDescription>
                 </DialogHeader>
                 <div className="flex items-center gap-2 mt-2 mb-2">
@@ -1484,9 +1484,9 @@ export default function Dashboard() {
             <Button
               className="w-full h-9 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[13px] font-medium rounded-lg gap-1.5"
               onClick={() => setDialogOpen(true)}
-              data-testid="sidebar-create-repl"
+              data-testid="sidebar-create-project"
             >
-              <Plus className="w-3.5 h-3.5" /> Create Repl
+              <Plus className="w-3.5 h-3.5" /> Create Project
             </Button>
           </div>
           <nav className="flex-1 py-2 px-2 space-y-0.5">
@@ -1795,7 +1795,7 @@ export default function Dashboard() {
               </div>
 
               {projectsQuery.isLoading && (
-                <div className="pb-8" data-testid="skeleton-recent-repls">
+                <div className="pb-8" data-testid="skeleton-recent-projects">
                   <div className="flex items-center justify-between mb-3">
                     <Skeleton className="h-3 w-20 rounded bg-[var(--ide-surface)]" />
                     <Skeleton className="h-3 w-16 rounded bg-[var(--ide-surface)]" />
@@ -1831,9 +1831,9 @@ export default function Dashboard() {
                           size="sm"
                           className="h-9 px-5 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg gap-1.5 font-medium shadow-sm shadow-[#0079F2]/20"
                           onClick={() => setDialogOpen(true)}
-                          data-testid="button-empty-create-repl"
+                          data-testid="button-empty-create-project"
                         >
-                          <Plus className="w-3.5 h-3.5" /> Create Repl
+                          <Plus className="w-3.5 h-3.5" /> Create Project
                         </Button>
                         <Button
                           size="sm"
@@ -1855,7 +1855,7 @@ export default function Dashboard() {
               {!projectsQuery.isLoading && projects.length > 0 && (
                 <div className="pb-8 animate-fade-in">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider" data-testid="text-my-repls">Recent Repls</h3>
+                    <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider" data-testid="text-my-projects">Recent Projects</h3>
                     <div className="flex items-center gap-3">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1873,7 +1873,7 @@ export default function Dashboard() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <button className="text-[11px] text-[#0079F2] hover:text-[#0079F2]/80 transition-colors" onClick={() => setSidebarNav("repls")}>
+                      <button className="text-[11px] text-[#0079F2] hover:text-[#0079F2]/80 transition-colors" onClick={() => setSidebarNav("projects")}>
                         View all <ChevronRight className="w-3 h-3 inline" />
                       </button>
                     </div>
@@ -1948,7 +1948,7 @@ export default function Dashboard() {
                 </div>
               )}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-my-repls">My Repls</h2>
+                <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-my-projects">My Projects</h2>
                 <div className="flex items-center gap-2">
                   <div className="relative sm:hidden">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--ide-text-muted)]" />
@@ -1956,7 +1956,7 @@ export default function Dashboard() {
                       placeholder="Search..."
                       value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-7.5 bg-[var(--ide-panel)] border-[var(--ide-border)] h-8 w-40 text-[11px] rounded-lg text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus-visible:ring-1 focus-visible:ring-[#0079F2]/40"
-                      data-testid="input-search-repls"
+                      data-testid="input-search-projects"
                     />
                   </div>
                   <div className="hidden sm:flex items-center bg-[var(--ide-surface)]/50 rounded-lg p-0.5">
@@ -1967,8 +1967,8 @@ export default function Dashboard() {
                       <ListIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <Button size="sm" className="h-8 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[11px] rounded-lg gap-1.5 font-medium px-3" onClick={() => setDialogOpen(true)} data-testid="button-new-project-repls">
-                    <Plus className="w-3.5 h-3.5" /> New Repl
+                  <Button size="sm" className="h-8 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[11px] rounded-lg gap-1.5 font-medium px-3" onClick={() => setDialogOpen(true)} data-testid="button-new-project-list">
+                    <Plus className="w-3.5 h-3.5" /> New Project
                   </Button>
                 </div>
               </div>
@@ -1998,7 +1998,7 @@ export default function Dashboard() {
                         <div className="w-14 h-14 rounded-2xl bg-[var(--ide-panel)] border border-[var(--ide-border)] flex items-center justify-center mx-auto mb-4">
                           <Search className="w-6 h-6 text-[var(--ide-text-muted)]" />
                         </div>
-                        <p className="text-[13px] text-[var(--ide-text-secondary)] mb-1 font-medium" data-testid="text-empty-state">No repls match your search</p>
+                        <p className="text-[13px] text-[var(--ide-text-secondary)] mb-1 font-medium" data-testid="text-empty-state">No projects match your search</p>
                         <p className="text-[11px] text-[var(--ide-text-muted)]">Try a different search term</p>
                       </>
                     ) : (
@@ -2006,23 +2006,23 @@ export default function Dashboard() {
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0079F2]/20 to-[#7C65CB]/20 border border-[#0079F2]/20 flex items-center justify-center mx-auto mb-4">
                           <Code2 className="w-7 h-7 text-[#0079F2]" />
                         </div>
-                        <p className="text-[15px] text-[var(--ide-text)] mb-1.5 font-semibold" data-testid="text-empty-state">No repls yet</p>
+                        <p className="text-[15px] text-[var(--ide-text)] mb-1.5 font-semibold" data-testid="text-empty-state">No projects yet</p>
                         <p className="text-[12px] text-[var(--ide-text-muted)] max-w-sm mx-auto mb-5 leading-relaxed">Create your first project to start coding. Use AI to generate one or start from scratch.</p>
                         <div className="flex items-center justify-center gap-3">
                           <Button
                             size="sm"
                             className="h-9 px-5 bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] rounded-lg gap-1.5 font-medium shadow-sm shadow-[#0079F2]/20"
                             onClick={() => setDialogOpen(true)}
-                            data-testid="button-empty-repls-create"
+                            data-testid="button-empty-projects-create"
                           >
-                            <Plus className="w-3.5 h-3.5" /> Create Repl
+                            <Plus className="w-3.5 h-3.5" /> Create Project
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             className="h-9 px-4 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50 text-[12px] rounded-lg gap-1.5"
                             onClick={() => setSidebarNav("home")}
-                            data-testid="button-empty-repls-ai"
+                            data-testid="button-empty-projects-ai"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" /> Generate with AI
                           </Button>
@@ -2036,12 +2036,12 @@ export default function Dashboard() {
                   <button
                     className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[var(--ide-border)] bg-[var(--ide-panel)]/20 hover:bg-[var(--ide-panel)]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
                     onClick={() => setDialogOpen(true)}
-                    data-testid="card-create-new-repl"
+                    data-testid="card-create-new-project"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[#0079F2]/10 border border-[#0079F2]/20 flex items-center justify-center mb-2.5 group-hover:bg-[#0079F2]/20 transition-colors">
                       <Plus className="w-5 h-5 text-[#0079F2]" />
                     </div>
-                    <p className="text-[12px] font-medium text-[var(--ide-text-secondary)] group-hover:text-[var(--ide-text)] transition-colors">Create New Repl</p>
+                    <p className="text-[12px] font-medium text-[var(--ide-text-secondary)] group-hover:text-[var(--ide-text)] transition-colors">Create New Project</p>
                   </button>
                   {projects.map((project) => {
                     const langInfo = LANG_ICONS[project.language] || LANG_ICONS.javascript;
@@ -2152,7 +2152,7 @@ export default function Dashboard() {
       <Drawer open={isMobile && dialogOpen} onOpenChange={setDialogOpen}>
         <DrawerContent className="bg-[var(--ide-panel)] border-[var(--ide-border)]">
           <DrawerHeader className="text-left">
-            <DrawerTitle className="text-[var(--ide-text)] text-base">Create Repl</DrawerTitle>
+            <DrawerTitle className="text-[var(--ide-text)] text-base">Create Project</DrawerTitle>
             <DrawerDescription className="text-[var(--ide-text-muted)] text-xs">Start with an empty project</DrawerDescription>
           </DrawerHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (newProjectName.trim()) createProject.mutate({ name: newProjectName.trim(), language: newProjectLang, visibility: newProjectPrivate ? "private" : "public", artifactType: categoryToArtifactType[selectedCategory] || "web-app" }); }} className="space-y-4 px-4 pb-8">
@@ -2182,7 +2182,7 @@ export default function Dashboard() {
               <Switch checked={newProjectPrivate} onCheckedChange={setNewProjectPrivate} disabled={isFreePlan} data-testid="switch-private-project-mobile" />
             </div>
             <Button type="submit" className="w-full rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white h-12 text-base" disabled={createProject.isPending} data-testid="button-create-project-mobile">
-              {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Repl"}
+              {createProject.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Project"}
             </Button>
           </form>
         </DrawerContent>

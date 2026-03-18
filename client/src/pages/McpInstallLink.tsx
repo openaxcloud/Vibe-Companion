@@ -27,7 +27,7 @@ export default function McpInstallLink() {
   }, [encodedPayload]);
 
   const badgeMarkdown = useMemo(() => {
-    return `[![Add MCP Server](https://img.shields.io/badge/Add%20to-Replit-0079F2?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xMiAydjIwTTIgMTJoMjAiLz48L3N2Zz4=)](${installUrl})`;
+    return `[![Add MCP Server](https://img.shields.io/badge/Add%20to-E--Code-0079F2?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xMiAydjIwTTIgMTJoMjAiLz48L3N2Zz4=)](${installUrl})`;
   }, [installUrl]);
 
   const copyToClipboard = async (text: string, field: string) => {
@@ -140,8 +140,8 @@ export default function McpInstallLink() {
                   <p className="text-[10px] text-[var(--ide-text-muted)] mb-2">Preview:</p>
                   <a href={installUrl} target="_blank" rel="noopener noreferrer">
                     <img
-                      src="https://img.shields.io/badge/Add%20to-Replit-0079F2?style=for-the-badge"
-                      alt="Add to Replit"
+                      src="https://img.shields.io/badge/Add%20to-E--Code-0079F2?style=for-the-badge"
+                      alt="Add to E-Code"
                       className="h-8"
                     />
                   </a>

@@ -204,7 +204,7 @@ export class McpClient extends EventEmitter {
     const result = await this.sendRequest("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "replit-ide", version: "1.0.0" },
+      clientInfo: { name: "ecode-ide", version: "1.0.0" },
     });
     this.initialized = true;
     await this.sendNotification("notifications/initialized", {});
@@ -623,7 +623,7 @@ export async function testRemoteConnection(baseUrl: string, headers: Record<stri
         const initResp = await sendJsonRpc(messageEndpoint, "initialize", {
           protocolVersion: "2024-11-05",
           capabilities: {},
-          clientInfo: { name: "replit-agent", version: "1.0.0" },
+          clientInfo: { name: "ecode-agent", version: "1.0.0" },
         }, headers);
         if (initResp?.result?.serverInfo) {
           return { success: true, message: `Connected via SSE to ${initResp.result.serverInfo.name || "MCP server"} v${initResp.result.serverInfo.version || "unknown"}` };
@@ -636,7 +636,7 @@ export async function testRemoteConnection(baseUrl: string, headers: Record<stri
     const initResp = await sendJsonRpc(httpUrl, "initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "replit-agent", version: "1.0.0" },
+      clientInfo: { name: "ecode-agent", version: "1.0.0" },
     }, headers);
 
     if (initResp?.result?.serverInfo) {
@@ -677,7 +677,7 @@ export async function connectRemoteServer(
     const initResp = await sendJsonRpc(rpcUrl, "initialize", {
       protocolVersion: "2024-11-05",
       capabilities: { tools: {} },
-      clientInfo: { name: "replit-agent", version: "1.0.0" },
+      clientInfo: { name: "ecode-agent", version: "1.0.0" },
     }, headers);
 
     if (!initResp || initResp.error) {

@@ -89,7 +89,7 @@ export default function Auth() {
         google_failed: "Google authentication failed.",
         apple_failed: "Apple authentication failed.",
         twitter_failed: "X/Twitter authentication failed.",
-        replit_failed: "Replit authentication failed.",
+        replit_failed: "E-Code authentication failed.",
         invalid_state: "Authentication failed - invalid security state. Please try again.",
       };
       toast({ title: "Authentication Error", description: messages[error] || "Authentication failed.", variant: "destructive" });
@@ -178,17 +178,17 @@ export default function Auth() {
               type="button"
               variant="outline"
               className={socialButtonClass}
-              data-testid="button-replit-login"
+              data-testid="button-ecode-login"
               onClick={() => {
-                if (providers.replit) {
-                  window.location.href = "/api/auth/replit";
+                if (providers.ecode) {
+                  window.location.href = "/api/auth/ecode";
                 } else {
-                  toast({ title: "Replit Sign-In", description: "Replit Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
+                  toast({ title: "E-Code Sign-In", description: "E-Code Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
               }}
             >
               <UserCheck className="w-5 h-5" />
-              Continue with Replit
+              Continue with E-Code
             </Button>
             <Button
               type="button"

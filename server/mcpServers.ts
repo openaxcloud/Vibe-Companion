@@ -187,7 +187,7 @@ async function handleMsg(msg) {
           const maxLen = args.maxLength || 10000;
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 15000);
-          const res = await fetch(args.url, { signal: controller.signal, headers: { 'User-Agent': 'Replit-MCP/1.0' }, redirect: 'manual' });
+          const res = await fetch(args.url, { signal: controller.signal, headers: { 'User-Agent': 'E-Code-MCP/1.0' }, redirect: 'manual' });
           clearTimeout(timeout);
           let text = await res.text();
           if (text.length > maxLen) text = text.slice(0, maxLen) + "\\n... [truncated]";
