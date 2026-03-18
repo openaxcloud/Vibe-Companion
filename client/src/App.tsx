@@ -120,7 +120,7 @@ function App() {
                 <Route path="/" component={Landing} />
                 <Route path="/login" component={Auth} />
                 <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
-                <Route path="/project/:id">{() => <ProtectedRoute component={ProjectRoute} />}</Route>
+                <Route path="/project/:id">{() => <ProtectedRoute component={UnifiedProjectRoute} />}</Route>
                 <Route path="/ide/:id">{() => <ProtectedRoute component={UnifiedProjectRoute} />}</Route>
                 <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
                 <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
