@@ -258,10 +258,12 @@ const IDLE_UNSELECTED_TIMEOUT_MS = 5 * 60 * 1000;
 
 setInterval(() => {
   const now = Date.now();
+  // Collect keys to destroy first to avoid modifying map while iterating
+  const toDestroy: string[] = [];
   for (const [key, session] of sessions) {
     if (now - session.lastActivity > SESSION_TIMEOUT_MS) {
       log(`Terminal session timed out: ${key}`, "terminal");
-      destroyTerminal(key);
+      toDestroy.push(key);
       continue;
     }
 
@@ -269,8 +271,11 @@ setInterval(() => {
       const running = hasChildProcesses(session.pty.pid);
       if (!running) {
         log(`Idle unselected terminal auto-closed: ${key}`, "terminal");
-        destroyTerminal(key);
+        toDestroy.push(key);
       }
     }
+  }
+  for (const key of toDestroy) {
+    destroyTerminal(key);
   }
 }, IDLE_CHECK_MS);

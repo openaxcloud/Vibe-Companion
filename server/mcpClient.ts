@@ -33,6 +33,7 @@ export class McpClient extends EventEmitter {
   private pendingRequests = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
   private initialized = false;
   private _status: "stopped" | "starting" | "running" | "error" = "stopped";
+  private _restartAttempts: number = 0;
   private command: string;
   private args: string[];
   private env: Record<string, string>;
@@ -105,14 +106,28 @@ export class McpClient extends EventEmitter {
           this.emit("exit", code);
           this.cleanup();
           if (wasRunning && code !== 0) {
-            this.addLog(`MCP server exited unexpectedly (code ${code}), attempting restart...`);
-            setTimeout(() => {
-              this.start().catch((err) => {
-                this.addLog(`Auto-restart failed: ${err.message}`);
-                this._status = "error";
-                this.emit("status", this._status);
-              });
-            }, 2000);
+            // Exponential backoff for restarts: max 3 attempts, 2s/4s/8s delays
+            if (!this._restartAttempts) this._restartAttempts = 0;
+            this._restartAttempts++;
+            const MAX_RESTART_ATTEMPTS = 3;
+            if (this._restartAttempts <= MAX_RESTART_ATTEMPTS) {
+              const delay = Math.min(2000 * Math.pow(2, this._restartAttempts - 1), 8000);
+              this.addLog(`MCP server exited unexpectedly (code ${code}), restart attempt ${this._restartAttempts}/${MAX_RESTART_ATTEMPTS} in ${delay}ms...`);
+              setTimeout(() => {
+                this.start().then(() => {
+                  this._restartAttempts = 0; // Reset on successful restart
+                }).catch((err) => {
+                  this.addLog(`Auto-restart failed: ${err.message}`);
+                  this._status = "error";
+                  this.emit("status", this._status);
+                });
+              }, delay);
+            } else {
+              this.addLog(`MCP server crashed ${MAX_RESTART_ATTEMPTS} times, giving up. Manual restart required.`);
+              this._restartAttempts = 0;
+              this._status = "error";
+              this.emit("status", this._status);
+            }
           }
         });
 

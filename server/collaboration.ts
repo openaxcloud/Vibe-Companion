@@ -271,9 +271,15 @@ export function broadcastToCollaborators(
     try {
       if (conn.ws.readyState === 1) {
         conn.ws.send(data);
+      } else if (conn.ws.readyState > 1) {
+        // WebSocket is closing or closed - remove stale connection
+        conns.delete(uid);
+        log(`Removed stale collab connection for ${uid} in project ${projectId}`, "collab");
       }
     } catch (err) {
       log(`Collab broadcast send error to ${uid}: ${err}`, "collab");
+      // Remove dead connection to prevent memory leak
+      conns.delete(uid);
     }
   }
 }

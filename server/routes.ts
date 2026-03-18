@@ -2085,7 +2085,8 @@ export async function registerRoutes(
           await storage.updateUser(existing.id, { appleId });
           user = (await storage.getUser(existing.id))!;
         } else {
-          const userPayload = req.body.user ? JSON.parse(req.body.user) : null;
+          let userPayload: any = null;
+          try { userPayload = req.body.user ? JSON.parse(req.body.user) : null; } catch { /* Apple may send malformed user data */ }
           const displayName = userPayload?.name ? `${userPayload.name.firstName || ""} ${userPayload.name.lastName || ""}`.trim() : email.split("@")[0];
           user = await storage.createUser({ email, password: "", displayName, appleId, emailVerified: true });
         }
@@ -12290,8 +12291,8 @@ Based on the search results above, provide a comprehensive answer to the user's 
           socket.destroy();
           return;
         }
-        storage.getProject(projectId).then((project) => {
-          if (!project || project.userId !== req.session.userId) {
+        storage.getProject(projectId).then(async (project) => {
+          if (!project || !(await canAccessProject(req.session.userId, project))) {
             socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
             socket.destroy();
             return;
