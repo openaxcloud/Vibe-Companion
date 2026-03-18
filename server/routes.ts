@@ -927,8 +927,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/reset-password",
   "/api/auth/send-verification",
   "/api/csrf-token",
-  "/api/demo/run",
-  "/api/demo/project",
+  // Demo routes require CSRF - removed from exemptions for security
   "/api/ai/chat",
   "/api/ai/complete",
   "/api/billing/webhook",
@@ -1069,7 +1068,7 @@ export async function registerRoutes(
       if (!s && process.env.NODE_ENV === "production") {
         throw new Error("SESSION_SECRET is required in production");
       }
-      return s || "dev-only-fallback-" + Date.now();
+      return s || crypto.randomBytes(32).toString("hex");
     })(),
     resave: false,
     saveUninitialized: false,
@@ -1202,7 +1201,8 @@ export async function registerRoutes(
 
   app.get("/api/metrics", async (req: Request, res: Response) => {
     if (!req.session.userId) {
-      return res.json({ execution: getSystemMetrics(), errorCount: 0 });
+      // Unauthenticated users get minimal info only
+      return res.json({ status: "ok", uptime: Math.round(process.uptime()) });
     }
     const system = getSystemMetrics();
     res.json({
@@ -1281,6 +1281,13 @@ export async function registerRoutes(
         displayName: data.displayName || data.email.split("@")[0],
       });
 
+      // Regenerate session to prevent session fixation
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
@@ -1327,6 +1334,13 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Regenerate session to prevent session fixation
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
       req.session.userId = user.id;
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
@@ -2318,7 +2332,10 @@ export async function registerRoutes(
     try {
       const { confirmation } = z.object({ confirmation: z.literal("DELETE MY ACCOUNT") }).parse(req.body);
       const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      console.log(`[AUDIT] Account deletion requested by user ${userId} (${user?.email || "unknown"}) at ${new Date().toISOString()}`);
       await storage.deleteUser(userId);
+      console.log(`[AUDIT] Account deleted: user ${userId} (${user?.email || "unknown"})`);
       req.session.destroy(() => {});
       return res.json({ message: "Account deleted" });
     } catch (err: any) {

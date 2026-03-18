@@ -659,7 +659,7 @@ export async function executeCode(
   const sandboxDir = join("/tmp", "sandbox", sandboxId);
 
   try {
-    await mkdir(sandboxDir, { recursive: true });
+    await mkdir(sandboxDir, { recursive: true, mode: 0o700 });
 
     let filename: string;
     let command: string;
@@ -970,6 +970,8 @@ export async function executeCode(
   } finally {
     try {
       await rm(sandboxDir, { recursive: true, force: true });
-    } catch {}
+    } catch (cleanupErr) {
+      console.warn(`[executor] Failed to cleanup sandbox ${sandboxId}:`, cleanupErr instanceof Error ? cleanupErr.message : cleanupErr);
+    }
   }
 }

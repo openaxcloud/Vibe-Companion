@@ -114,7 +114,7 @@ app.get("/api/health", (_req, res) => {
 // Readiness probe
 app.get("/api/ready", async (_req, res) => {
   try {
-    await storage.getUser(0).catch(() => null);
+    await storage.getUser("0").catch(() => null);
     res.status(200).json({ ready: true });
   } catch {
     res.status(503).json({ ready: false, reason: "Database unavailable" });

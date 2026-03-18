@@ -196,7 +196,16 @@ export default function Pricing() {
       const res = await apiRequest("POST", "/api/billing/checkout", body);
       const data = await res.json();
       if (data.url) {
-        window.location.href = data.url;
+        // Validate redirect URL is a trusted Stripe domain
+        try {
+          const redirectUrl = new URL(data.url);
+          if (!redirectUrl.hostname.endsWith("stripe.com")) {
+            throw new Error("Invalid checkout URL");
+          }
+          window.location.href = data.url;
+        } catch {
+          toast({ title: "Invalid checkout URL received. Please try again.", variant: "destructive" });
+        }
       } else {
         toast({ title: data.message || "Unable to start checkout. Please try again later.", variant: "destructive" });
       }
