@@ -229,10 +229,13 @@ function buildFileTree(files: File[]): TreeNode[] {
   return sortNodes(root);
 }
 
+const _layoutRestoredFlags = new Map<string, boolean>();
+
 function _projectPage() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
+  const _layoutKey = projectId || "";
   const queryClient = useQueryClient();
 
   const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__", CONFIG: "__config__" } as const;
@@ -1317,7 +1320,7 @@ function _projectPage() {
   });
 
   useEffect(() => {
-    if (!useRunnerFS && filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0 && !layoutRestoredRef.current) {
+    if (!useRunnerFS && filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0 && !_layoutRestoredFlags.get(_layoutKey)) {
       const entrypoint = projectConfigQuery.data?.replit?.entrypoint;
       let targetFile = filesQuery.data[0];
       if (entrypoint) {
@@ -3956,6 +3959,7 @@ function _projectPage() {
         if (uniqueTabs.length > 0) {
           setOpenTabs(uniqueTabs);
           layoutRestoredRef.current = true;
+          _layoutRestoredFlags.set(_layoutKey, true);
           const activeLeaf = getPaneLeaves(localSaved.root).find(p => p.id === localSaved.activePaneId);
           if (activeLeaf?.activeTab) setActiveFileId(activeLeaf.activeTab);
           else setActiveFileId(uniqueTabs[0]);
@@ -3972,6 +3976,7 @@ function _projectPage() {
           if (uniqueTabs.length > 0) {
             setOpenTabs(uniqueTabs);
             layoutRestoredRef.current = true;
+            _layoutRestoredFlags.set(_layoutKey, true);
             const activeLeaf = getPaneLeaves(serverSaved.root).find(p => p.id === serverSaved.activePaneId);
             if (activeLeaf?.activeTab) setActiveFileId(activeLeaf.activeTab);
             else setActiveFileId(uniqueTabs[0]);
@@ -3979,6 +3984,9 @@ function _projectPage() {
         }
       });
     }
+    return () => {
+      _layoutRestoredFlags.delete(_layoutKey);
+    };
   }, [projectId]);
 
   const layoutBroadcastRef = useRef(false);
