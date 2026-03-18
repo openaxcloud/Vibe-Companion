@@ -640,17 +640,20 @@ export async function buildAndDeploy(
             const tempName = `__pub_temp_${Date.now()}`;
             const tempDir = join(outputDir, tempName);
             await cp(pubDirPath, tempDir, { recursive: true });
-            const entries = await readdir(outputDir);
-            for (const entry of entries) {
-              if (entry !== tempName) {
-                await rm(join(outputDir, entry), { recursive: true, force: true }).catch(() => {});
+            try {
+              const entries = await readdir(outputDir);
+              for (const entry of entries) {
+                if (entry !== tempName) {
+                  await rm(join(outputDir, entry), { recursive: true, force: true }).catch(() => {});
+                }
               }
+              const tempEntries = await readdir(tempDir);
+              for (const entry of tempEntries) {
+                await cp(join(tempDir, entry), join(outputDir, entry), { recursive: true });
+              }
+            } finally {
+              await rm(tempDir, { recursive: true, force: true }).catch(() => {});
             }
-            const tempEntries = await readdir(tempDir);
-            for (const entry of tempEntries) {
-              await cp(join(tempDir, entry), join(outputDir, entry), { recursive: true });
-            }
-            await rm(tempDir, { recursive: true, force: true });
             addLog(`[build] Promoted ${pubDir}/ contents to deployment root`);
           } else {
             addLog(`[build] Warning: ${pubDir} is not a directory, serving from root`);
@@ -1105,6 +1108,19 @@ export async function rollbackDeployment(
 }
 
 export async function teardownDeployment(slug: string, projectId?: string): Promise<void> {
+  // Stop scheduled cron job if any
+  const scheduledJob = scheduledDeployJobs.get(slug);
+  if (scheduledJob) {
+    scheduledJob.stop();
+    scheduledDeployJobs.delete(slug);
+    log(`Stopped scheduled cron job for ${slug}`, "deploy");
+  }
+  // Stop VM process if any
+  const vmProc = activeVMProcesses.get(slug);
+  if (vmProc) {
+    try { vmProc.kill("SIGTERM"); } catch {}
+    activeVMProcesses.delete(slug);
+  }
   if (projectId) {
     await stopManagedProcess(projectId);
   }

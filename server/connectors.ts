@@ -571,9 +571,13 @@ export async function executeConnectorOperation(
       headers["Content-Type"] = "application/json";
     }
 
+    if (op.extraHeaders) {
+      Object.assign(headers, op.extraHeaders);
+    }
+
     let response = await tryProxyFetch(config.connectorName, path, {
       method: op.method,
-      headers: op.extraHeaders,
+      headers,
       body: bodyStr,
     });
 

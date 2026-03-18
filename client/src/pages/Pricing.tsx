@@ -68,7 +68,7 @@ export default function Pricing() {
 
   useEffect(() => {
     fetch("/api/config/status")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
       .then((data) => setStripeStatus(data.stripe || { configured: false, proConfigured: false, teamConfigured: false, hasWebhookSecret: false }))
       .catch(() => setStripeStatus({ configured: false, proConfigured: false, teamConfigured: false, hasWebhookSecret: false }));
   }, []);

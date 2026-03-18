@@ -3968,7 +3968,7 @@ export async function registerRoutes(
         projectId: req.params.id,
         token,
         createdBy: req.session.userId,
-        role: req.body.role || "editor",
+        role: ["viewer", "editor"].includes(req.body.role) ? req.body.role : "editor",
         maxUses: req.body.maxUses || null,
         expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : null,
       });
