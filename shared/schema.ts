@@ -892,14 +892,14 @@ export const aiConversations = pgTable("ai_conversations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   userId: varchar("user_id", { length: 36 }).notNull(),
-  title: text("title").default(""),
+  title: text("title").notNull().default(""),
   model: text("model").notNull().default("gpt"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("ai_conv_project_idx").on(table.projectId),
   index("ai_conv_user_idx").on(table.userId),
-  uniqueIndex("ai_conv_project_user_title_unique").on(table.projectId, table.userId, table.title),
+  index("ai_conv_project_user_title_idx").on(table.projectId, table.userId, table.title),
 ]);
 
 export const insertAiConversationSchema = createInsertSchema(aiConversations).pick({
