@@ -112,10 +112,12 @@ function AutomationLogStream({ automationId, projectId }: { automationId: string
   }, [streamLogs, runsQuery.data]);
 
   useEffect(() => {
+    let closed = false;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws?projectId=${projectId}`);
 
     ws.onmessage = (event) => {
+      if (closed) return;
       try {
         const data = JSON.parse(event.data);
         if (data.type === "automation_log" && data.automationId === automationId) {
@@ -134,7 +136,7 @@ function AutomationLogStream({ automationId, projectId }: { automationId: string
       } catch {}
     };
 
-    return () => ws.close();
+    return () => { closed = true; ws.close(); };
   }, [automationId, projectId]);
 
   const latestRun = runsQuery.data?.[0];

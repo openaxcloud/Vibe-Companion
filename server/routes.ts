@@ -18971,7 +18971,7 @@ Respond ONLY with the JSON array, no other text.`;
 
       const scenes = (data.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
       const resolution = (data.resolution as any) || { width: 1920, height: 1080 };
-      const fps = data.fps || 30;
+      const fps = Math.max(1, Math.min(120, parseInt(String(data.fps)) || 30));
       const totalDuration = scenes.reduce((sum: number, s: any) => sum + (s.duration || 3), 0);
 
       const { execSync } = await import("child_process");
