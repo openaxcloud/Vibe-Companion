@@ -964,6 +964,7 @@ function _projectPage() {
       return res.json();
     },
   });
+  const project = projectQuery.data;
 
   const creditBalanceQuery = useQuery<{
     monthlyCreditsIncluded: number;
@@ -3033,7 +3034,6 @@ function _projectPage() {
     }
   };
 
-  const project = projectQuery.data;
   const isMobileProject = useMemo(() => {
     if (project?.projectType === "mobile-app") return true;
     if ((project as any)?.outputType === "mobile") return true;
@@ -3042,6 +3042,11 @@ function _projectPage() {
     return isMobileAppProject(fileList.map(f => ({ filename: f.filename, content: f.content })));
   }, [project?.projectType, (project as any)?.outputType, filesQuery.data]);
   const isAnimationProject = (project as any)?.outputType === "animation" || project?.projectType === "animation";
+  const isSlideProject = project?.projectType === "slides" || (project as any)?.outputType === "slides";
+  const isDataVizProject = (project as any)?.outputType === "data-visualization";
+  const is3DGameProject = (project as any)?.outputType === "3d-game";
+  const isVideoProject = project?.projectType === "video";
+  const isMediaProject = isSlideProject || isVideoProject;
   const activeIsSpecial = activeFileId ? isSpecialTab(activeFileId) : false;
   const isRunnerTab = !activeIsSpecial && activeFileId?.startsWith("runner:");
   const activeFile = (isRunnerTab || activeIsSpecial) ? null : filesQuery.data?.find((f) => f.id === activeFileId);
@@ -4739,12 +4744,6 @@ function _projectPage() {
       />
     </div>
   );
-
-  const isSlideProject = project?.projectType === "slides" || (project as any)?.outputType === "slides";
-  const isDataVizProject = (project as any)?.outputType === "data-visualization";
-  const is3DGameProject = (project as any)?.outputType === "3d-game";
-  const isVideoProject = project?.projectType === "video";
-  const isMediaProject = isSlideProject || isVideoProject;
 
   const renderPaneContentForTab = (tabId: string | null) => {
     if (!tabId) return (

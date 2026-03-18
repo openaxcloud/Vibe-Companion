@@ -1,449 +1,68 @@
 # E-Code IDE - Full-Screen IDE SaaS
 
 ## Overview
-A full-screen responsive IDE SaaS platform (web/tablet/mobile). Users can write, save, and execute code with light/dark themed interface, AI coding agent, and real-time log streaming. VS Code-style layout with pixel-perfect design language.
+E-Code IDE is a full-screen, responsive IDE SaaS platform accessible via web, tablet, and mobile. It allows users to write, save, and execute code within a VS Code-style layout, offering both light and dark themes. The platform integrates an AI coding agent and provides real-time log streaming.
 
-## Theme System
-- **Custom Themes**: Full theme customization with 6 global color channels (Background, Outline, Foreground, Primary, Positive, Negative) and 19 syntax token colors. Themes stored in `themes` DB table, tied to user accounts.
-- **CSS Variables**: All IDE colors use `--ide-*` CSS custom properties. ThemeProvider dynamically applies custom theme global colors as CSS vars on `:root`, with derived colors (panel, surface, hover, text variants) auto-computed via color blending.
-- **ThemeProvider**: React context in `client/src/components/ThemeProvider.tsx` manages full theme state (built-in dark/light + custom themes), persists to localStorage, fetches user/installed themes via API. Exposes `activeTheme`, `setActiveTheme`, `activateThemeById`, theme lists, and refresh functions.
-- **CodeMirror Dynamic Theming**: `CodeEditor.tsx` uses `buildEditorTheme()` and `buildHighlightStyle()` functions to generate CodeMirror themes dynamically from the active theme's colors. No more hardcoded `replitTheme`/`replitHighlight`.
-- **Theme Editor**: `/themes/editor` — Visual editor with color pickers for all 6 global + 19 syntax colors, live CodeMirror preview, save/publish/apply buttons. Edit existing themes at `/themes/editor/:id`.
-- **Themes Explore**: `/themes` — Community catalog with search, dark/light filter, theme cards with color previews, install/uninstall/preview functionality.
-- **Settings Integration**: Settings page has full theme switcher with built-in themes, user's custom themes, installed community themes. Create/edit/delete custom themes. Links to Explore and Create pages.
-- **Backend API**: Full REST: POST/GET/PUT/DELETE `/api/themes`, GET `/api/themes/installed`, GET `/api/themes/explore`, POST `/:id/publish`, POST `/:id/install`, DELETE `/:id/uninstall`. Access control: unpublished themes only visible to owner.
-- **DB Tables**: `themes` (id, user_id, title, description, base_scheme, global_colors JSON, syntax_colors JSON, is_published, install_count, created_at, updated_at), `installed_themes` (id, user_id, theme_id, installed_at)
-- **Hex Validation**: All color fields validated with `#RRGGBB` regex in Zod schemas.
-- **Flash prevention**: Inline script in `<head>` of `index.html` applies saved theme before first paint
-- **Color tokens**: `--ide-bg`, `--ide-panel`, `--ide-surface`, `--ide-hover`, `--ide-border`, `--ide-separator`, `--ide-input`, `--ide-text`, `--ide-text-secondary`, `--ide-text-muted`
+The project's vision is to deliver a comprehensive, pixel-perfect development environment that supports individual developers and teams. Key capabilities include a multi-layered sandboxed code execution environment, robust deployment features with custom domains and SSL, real-time collaborative editing, and an advanced AI assistant with multi-model support and diverse tool use. E-Code aims to be a leading platform for rapid application development, offering a rich ecosystem for various project types including web, mobile, slides, and even 3D games, alongside extensive dependency and project management tools.
 
-## Architecture
-- **Frontend**: React + Vite + TailwindCSS v4, responsive design (desktop/tablet/mobile)
-- **Backend**: Express.js + PostgreSQL (Drizzle ORM) + WebSockets
-- **Sessions**: PostgreSQL-backed via `connect-pg-simple` (table: `user_sessions`)
-- **Code Execution**: Multi-layered sandbox — AST-based analysis (acorn), runtime policy wrappers, OS-level isolation (ulimit, nice, unshare --net), `--disallow-code-generation-from-strings`, `--no-addons`, minimal env vars, 10s timeout, 64MB memory limit. Worker pool (`executionPool.ts`) with 8 max concurrent, 50 max queue, per-user rate limiting (20/min, 3 concurrent), metrics tracking, graceful shutdown.
-- **Deployment Engine**: Real build pipeline (`deploymentEngine.ts`) — 4 deployment types (Autoscale, Static, Reserved VM, Scheduled), writes files to `.deployments/:slug/v{N}/`, serves at `/deployed/:slug/`, versioned rollback, build logs, machine config (CPU/RAM sliders), build/run commands, deployment secrets injection, private deployment access control, badge toggle, feedback widget toggle, deployment analytics (page views, unique visitors, referrers, traffic over time), natural language to cron conversion via AI (Anthropic). **Process Manager** (`server/processManager.ts`): standalone module for real process management — port pool allocation (9000-9999), health checks with exponential backoff, process lifecycle (start/stop/restart/rollback), crash detection with auto-restart (backoff, max 3 attempts), resource limits per plan tier (Free: 512MB/50% CPU, Pro: 2048MB/100%, Team: 4096MB/200%), log buffering with real-time WebSocket streaming (`deploy_log`/`deploy_status` message types), periodic health monitoring, graceful shutdown on SIGTERM/SIGINT. Reverse proxy in deployment router forwards requests to running process ports. Frontend "Process" tab in deploy panel shows live status (starting/running/live/crashed/stopped/restarting), port, uptime, restart count, resource limits, restart/stop controls, and real-time log viewer
-- **Custom Domains**: Domain manager (`domainManager.ts`) — DNS TXT verification + CNAME/A record verification, Let's Encrypt ACME (HTTP-01 challenge) SSL provisioning with self-signed fallback, automatic certificate renewal for expiring certs, domain-to-project mapping, CRUD API with ownership checks, persisted in PostgreSQL `custom_domains` table. ACME challenge route at `/.well-known/acme-challenge/:token`. Set `ACME_EMAIL` env var for Let's Encrypt registration. `ACME_STAGING=true` for staging certificates.
-- **Auth**: Session-based (express-session, bcrypt), `trust proxy` enabled. OAuth 2.0 providers: GitHub, Google, Apple Sign-In, X/Twitter (all with CSRF state validation). User banning system (isBanned/bannedAt/banReason fields, admin ban/unban endpoints). reCAPTCHA v3 server-side verification (optional, fail-closed when configured). Login activity tracking (`login_history` table with IP, provider, user agent). Admin panel has ban controls and login activity display. Auth config endpoint exposes configured providers. Project-level Auth Panel supports all 5 providers (email + 4 OAuth), login page branding (app name, icon), and last login display.
-- **AI**: Triple model support — Anthropic Claude Sonnet (claude-sonnet-4-6) + OpenAI GPT-4o + Google Gemini Flash (gemini-2.5-flash), all via Replit AI Integrations
-- **Agent Modes**: Economy (1 credit, lighter models: gpt-4o-mini, gemini-2.0-flash), Power (3 credits, full models), Turbo (6 credits, Pro/Team only). Credit limits: Free=100/day, Pro=1000/day, Team=5000/day. Atomic credit deduction with SQL-level concurrency safety.
-- **Code Optimizations**: Post-processing review pass for AI-generated code. Toggle in AI panel settings popover, persisted per-user.
-- **AI Agent**: Tool-use endpoint that can create/edit files, create skills, generate downloadable files (PDF/DOCX/XLSX/CSV), update slides/video data, and (when web search enabled) search the web and fetch URL content directly in the project. Web search uses Tavily API (primary, structured AI-optimized results) with Google/Bing scraping fallback if TAVILY_API_KEY not set; `fetch_url` has SSRF protection (blocks private/internal IPs). Search results rendered as citation cards with clickable source links. Message Queue system allows users to queue follow-up messages during streaming, with auto-processing loop, drag-and-drop reorder, inline edit, pause/resume, and DB persistence (`queued_messages` table).
-- **AI Agent Services** (`server/agentServices/`): Modular agent tool backends. **DALL-E 3** (`dalleImageGen.ts`): primary AI image generation via OpenAI API (size: square/landscape/portrait, quality: standard/hd, style: vivid/natural), returns URL with revised prompt. Falls back to **NanoBanana** (`nanoBanana.ts`, Stable Diffusion XL) if DALL-E unavailable. **Brave Image Search** (`braveImageSearch.ts`): web image search via Brave API, returns thumbnails/URLs/attribution (requires `BRAVE_SEARCH_API_KEY`). **Tavily Search** (`tavilySearch.ts`): AI-powered web search with answer synthesis and source attribution (requires `TAVILY_API_KEY`), integrated as `tavily_search` agent tool across all 4 model sections. **ElevenLabs TTS** (`elevenLabsTTS.ts`): text-to-speech with 11 voices (requires `ELEVENLABS_API_KEY`). All services: credit-tracked, event-logged, error-handled with descriptive messages. Tool definitions registered in Gemini/GPT/Claude/OpenRouter sections.
-- **File Generation**: Native file generation engine (`server/fileGeneration.ts`) using pdfkit (PDF), docx (DOCX), exceljs (XLSX), pptxgenjs (PPTX), and built-in CSV. Unified interface accepts structured content (title, sections with headings/paragraphs/tables/lists). Agent `generate_file` tool available in all 3 models supporting all 5 formats. Files stored in `.storage/generated/`. Download endpoint: `GET /api/projects/:id/generated-files/:filename/download`. Direct API: `POST /api/projects/:id/generate-file`. Dashboard has "Document" and "Spreadsheet" categories with relevant example prompts. Project toolbar includes Export dropdown for quick export to PDF/DOCX/XLSX/PPTX/CSV. Inline CSV table preview in code editor. Download cards for generated files shown in AI Panel.
-- **Multi-Artifact Architecture**: Projects support multiple artifacts (web-app, mobile-app, slides, animation, data-viz, 3d-game, document, spreadsheet, design, automation). Each artifact has its own type, name, entry file, and settings (JSON) while sharing the project's backend, database, and secrets. DB table: `artifacts` (id, project_id, type, name, entry_file, settings, created_at). Files table has optional `artifact_id` FK. API: CRUD under `/api/projects/:id/artifacts`. Dashboard persists selected APP_CATEGORY as artifact type on project creation. Project page has artifact switcher (tab bar) in preview panel header with "+" button to add new artifacts. Deployment engine supports multi-artifact publishing via `buildAndDeployMultiArtifact()` with sub-route per artifact.
-- **Mobile App Artifacts**: Real Expo/React Native project scaffolding with 3 templates (blank, tabs, auth-flow) using Expo Router file-based routing (`app/` directory). MobilePreview component (`client/src/components/MobilePreview.tsx`) provides phone-frame device mockup (6 devices: iPhone 15/SE/Pro Max, Pixel 8, Galaxy S24, iPad Air), QR code panel for Expo Go device testing (server-side QR generation via `qrcode` library at `/api/qrcode`), and architecture diagram. AI agent system prompts enhanced with React Native/Expo awareness (components, StyleSheet, Expo Router, vector icons). Expo project auto-detection in `configParser.ts` sets run command to `npx expo start --web --port 8081`. Mobile output type routes to RN/Expo code generation (not PWA). Templates include `app.json`, `package.json` (Expo Router + RN dependencies), `babel.config.js`, `tsconfig.json`, and `app/_layout.tsx` with proper file-based routing.
-- **Slides & Video Artifacts**: First-class project types (`slides`, `video`) with dedicated editors, templates, and AI tool support. Slides: content blocks (title/body/image/code/list), 6 preset themes, fullscreen presentation mode, autosave, PDF export (via pdfkit with proper page backgrounds, themed typography, code block styling, bullet-point lists, and remote image embedding). Video: scene/timeline management, Canvas-based preview with real transition rendering (fade, dissolve, slide-left, slide-right, zoom between scenes), element animations (fade-in, slide-up, scale, typewriter for text), element editor (text/shape/image/overlay) with full property controls (position, size, timing, animation), audio track management panel (add/remove tracks with URL, start time, duration, volume controls), MP4 export (via ffmpeg with canvas-rendered PNG frames or PPM fallback). Templates: pitch-deck, tech-talk, portfolio-slides, product-demo-video, explainer-video, social-intro-video. AI tools: create_slide, edit_slide, update_slides, create_video_scene, edit_video_scene, update_video across all 3 providers.
-- **Design Canvas**: Infinite visual board workspace mode alongside the code editor. Features: pan/zoom (wheel + drag), HTML mockup frames (sandboxed iframes), sticky note/text/image annotations, drag-to-move, 8-direction resize handles, context menus, grid overlay, zoom toolbar. AI integration: "Canvas" button on HTML code blocks in AI panel sends content as new frame. DB tables: `canvas_frames` (projectId, name, htmlContent, x, y, width, height, zIndex), `canvas_annotations` (projectId, type, content, x, y, width, height, color, zIndex). Full CRUD REST API under `/api/projects/:id/canvas/frames` and `/api/projects/:id/canvas/annotations` with project-scoped authorization. SSE broadcasts for frame and annotation create/update events. Component: `DesignCanvas.tsx`. Toggle via Frame icon in workspace header.
-- **Agent Skills**: Per-project reusable skills (patterns, conventions, domain knowledge) that are automatically injected into AI context. CRUD via REST API + Skills panel in sidebar. AI agent has a `create_skill` tool. Skills stored in `skills` table.
-- **MCP Servers**: Model Context Protocol server system for AI Agent tool extensions. Per-project MCP server configuration with built-in servers (file-search, web-fetch, database-query) and remote SSE-based MCP servers. MCP tools automatically injected into AI agent conversations. JSON-RPC over stdio client (`server/mcpClient.ts`) manages local server lifecycle; remote MCP client connects to HTTPS SSE-based servers with custom auth headers. Security scanner (`scanToolSecurity`/`scanAllTools`) blocks suspicious tool definitions (shell exec, eval, credential access patterns). DB schema: `mcp_servers` table has `base_url`, `headers` (JSON), `server_type` (stdio/remote) columns. API: `POST /test-remote` (test connection), `POST /:id/test` (test saved server), `POST /:id/connect` (connect & discover tools). MCP Directory page (`/mcp-directory`) shows 9 featured servers (Atlassian, Amplitude, Granola, Linear, Miro, Notion, PostHog, Sentry, Stripe) with "Add to Replit" badges. MCP Install Link generator (`/mcp-install-link`) creates base64-encoded `?mcp={payload}` URLs with badge markdown. IntegrationsPanel has MCP Servers section with add/test/save/manage/disconnect flow. Install links auto-populate via `sessionStorage` on Dashboard `?mcp=` param. **Figma MCP Integration**: When users paste a Figma URL in AI chat, a FigmaDesignCard appears with OAuth connection flow (requires `FIGMA_CLIENT_ID` and `FIGMA_CLIENT_SECRET` env vars). After connecting, the agent can explore layers, extract variables, capture screenshots, and generate code via Figma MCP tools. Server-side OAuth uses nonce-based state validation with 10-minute expiry. Rate limits displayed per plan tier (Free=6/month, Pro/Dev=200/day, Enterprise=600/day). MCP Directory in MCPPanel shows Figma with OAuth badge and capabilities. SSE events for `mcp_tool_use`/`mcp_tool_result` rendered as expandable timeline items. Components: `FigmaDesignCard.tsx`, Figma routes in `server/routes.ts`.
-- **ecode.md Project Guidelines**: Auto-generated project guidelines file (`ecode.md`) — similar to Replit's `replit.md`. Created automatically on every project creation path (manual, template, duplicate, fork, GitHub import, AI generate). Language-specific templates for all 11 supported languages (JS, TS, Python, Go, Ruby, C++, C, Java, Rust, Bash, HTML). Content includes: project overview, technology, coding standards, patterns, communication preferences, and project context. Injected into AI chat and agent system prompts as `## Project Guidelines (ecode.md)`. Auto-regenerated if deleted when AI endpoints are called. Frontend: green "ecode.md" badge in AI panel header (click to open), "Generate ecode.md" button if missing, purple EC icon + "Config" label in file explorer. Template generator: `server/ecodeTemplates.ts`. API: `GET /api/projects/:id/ecode` (status), `POST /api/projects/:id/ecode/generate` (create if missing).
-- **Keyboard Shortcuts**: Fully customizable keyboard shortcuts system. Shared defaults defined in `shared/keyboardShortcuts.ts`. Per-user overrides stored in `preferences.keyboardShortcuts` JSON field. API: `GET/PUT /api/user/keyboard-shortcuts`. Frontend hook: `use-keyboard-shortcuts.ts`. Settings UI: `KeyboardShortcutsSettings.tsx` in Account Settings. Features: recording mode, conflict detection with force-assign (auto-unbinds conflict), search, reset individual/all, dynamic keydown handler in Project.tsx (first-match-wins), CommandPalette reflects custom shortcuts.
-- **Console Panel**: `ConsolePanel.tsx` — structured run-based console with collapsible run entries, "Show Only Latest" toggle, "Clear past runs" with confirmation, "Ask AI" button per run entry, stop button for active runs. Run history persisted to `console_runs` table. Replaces old flat log list.
-- **AI Plan Mode**: Plan/Build mode selector in AI panel. Plan mode uses a planning-specific system prompt to generate structured task lists (JSON with title, description, complexity, dependencies). Backend parses AI response server-side (`parsePlanFromResponse` in routes.ts), persists plan+tasks atomically, and emits `plan_created` SSE event. Plan conversations use `ai_conversations` with title `__plan__` as discriminator (same `projectId` column). "Start building" approves the plan, switches to Agent mode, and auto-dispatches agent message with task list. Persistent checklist sidebar tracks task progress.
-- **User Settings**: Full settings panel (`UserSettingsPanel.tsx`) with 7 categories (Appearance, File Editor, Code Intelligence, Shell & Preview, Notifications, Accessibility, Keyboard Shortcuts). 19 settings with backend persistence via `GET/PUT /api/user/preferences` and `GET/PUT /api/user/keyboard-shortcuts`. Community themes (12 presets), custom theme editor with color pickers, editor controls (font size, tab size, indentation, brackets, minimap, etc.), code intelligence toggles, terminal accessibility/bell, notification toggles, and full keyboard shortcut customization (search, add, edit via keypress capture, delete). All shortcuts wired to actual key handler via action-based dispatch.
-- **Editor**: CodeMirror 6 via `@uiw/react-codemirror` with custom syntax theme, language-aware autocomplete, and basic lint integration
-- **Real-time Collaborative Editing**: Production-ready multiplayer co-editing via dedicated WebSocket (`/ws/collab`) using Yjs CRDT for conflict-free document synchronization. Server-side collaboration manager (`server/collaboration.ts`) maintains authoritative Y.Doc per project+file with idle cleanup (5min timer destroys inactive docs after all users leave, persisting first), tracks connected users with colored cursors, and relays binary Yjs updates. Per-connection rate limiting (120 msgs/sec) protects server resources. Client hook (`client/src/hooks/use-collaboration.ts`) manages WS connection with binary protocol (sync request/response/update), Yjs document lifecycle per file, awareness state broadcasting, awareness clear on file switch (prevents ghost cursors), and reconnection with bidirectional full state sync. CodeEditor (`CodeEditor.tsx`) uses `yCollab` extension from `y-codemirror.next` for CRDT-backed text binding, renders remote cursors (colored cursor line + username label widget) and remote selections as CodeMirror decorations via awareness state. Graceful fallback: editor uses legacy value/onChange until initial Yjs sync completes (prevents empty editor flash). Y.Text observer triggers autoSave only for local edits (remote edits are server-persisted via 3s debounce, avoiding write amplification). Presence indicators (colored avatars with online dot) shown in top bar next to Invite button. Join/leave toast notifications. Status bar shows collaborator count. Binary message protocol: type 0 (sync request), 1 (sync response), 2 (update relay), 3 (awareness). Server validates message sizes (1MB limit). Proper text/binary frame distinction via `isBinary` flag. Supports team member AND project collaborator access.
-- **Project Invite System**: Real invite link flow for project collaboration. Project owners generate shareable invite links via API (`POST /api/projects/:id/invite-link`). Links support optional expiration and max-use limits. Accept invite page (`/invite/:token`) allows users to join a project as editor. Unauthenticated users redirected to login first. Invite dialog in Project.tsx with copy-to-clipboard. DB tables: `project_collaborators` (projectId, userId, role, addedBy) and `project_invite_links` (projectId, token, maxUses, useCount, expiresAt, isActive). Project access check (`canAccessProject`) now includes collaborator check alongside owner/demo/team membership. API endpoints: GET/DELETE collaborators, POST invite-link, GET/DELETE invite-links, POST accept invite, GET invite info.
-- **Pane Management**: Full Replit-style multi-pane workspace (`PaneManager.tsx`). Tree-based split pane layout with horizontal/vertical splitting, resizable panes, floating panes (draggable overlay), maximize/restore toggle, tab drag-and-drop between panes, "⋮" options menu per pane (Split Right, Split Down, Maximize, Float, Move Tab, Close Tab, Close Other Tabs, Close Pane, Open in New Window). BroadcastChannel API for multi-window state sync. Layout persisted to localStorage per project. Desktop/tablet only — mobile stays single-pane.
-- **Email**: Nodemailer with SMTP support (env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, APP_URL). Falls back to console logging when SMTP not configured.
-- **Stripe Billing**: Production-ready Stripe integration using `stripe-replit-sync` for automatic database synchronization. Uses Replit Stripe connector for credentials (`server/stripeClient.ts` with `getUncachableStripeClient()` and `getStripeSync()`). Falls back to env vars (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET) when connector unavailable. Webhook route registered BEFORE express.json() in `server/index.ts` using `express.raw()`. On startup: `runMigrations()` creates `stripe` schema, `syncBackfill()` syncs existing data, managed webhook auto-registered. `server/webhookHandlers.ts` delegates to `stripeSync.processWebhook()`. Products/prices queried from `stripe.products` and `stripe.prices` tables (no custom product tables). Checkout supports both subscription and one-time payment modes. Seed script at `scripts/seed-products.ts` (idempotent).
-- **Usage-Based Billing & Credits**: Monthly credit allowances per plan (Free=0, Pro=2000, Team=5000). Granular usage tracking per action type (AI calls, code executions, deployments) via `usage_records` table. `userQuotas` extended with `monthlyCreditsIncluded`, `monthlyCreditsUsed`, `overageCreditsUsed`, `overageEnabled`, `billingCycleStart`. Credit deduction splits across included+overage correctly. Auto billing cycle reset. API: `GET /api/billing/credits`, `GET /api/billing/usage`, `GET /api/billing/history`, `POST /api/billing/add-payment-method`. Settings page shows credit progress bar (color-coded warnings at 80%), usage breakdown by category, overage billing section, billing history. Project workspace status bar shows real-time credit balance with low/exhausted notifications. Pricing page updated with credit allowances and FAQ.
-- **Config Status API**: `GET /api/config/status` — reports Stripe connector and email configuration state for frontend UI adaptation.
-- **CLUI System**: Three-context Command Line UI system. (1) **Account CLUI** (`/cli` page, `AccountCLI.tsx`): Terminal-style interface with hierarchical commands (`account info/warnings/change-username`, `trash list/restore`, `team list/create`, `clear`), real API calls, command history (up/down arrows). (2) **Shortcuts CLUI** (`ShortcutsCLUI.tsx` + `GlobalShortcuts.tsx`): Global Cmd/Ctrl+K search overlay (outside workspace) with categorized results (Projects, Templates, Code, People) from `GET /api/search`, quick actions, keyboard navigation. (3) **Workspace CLUI** (`CommandPalette.tsx`): Upgraded command palette with hierarchical categories (Files, Actions, Navigation, Editor), breadcrumb navigation, `>search` code search mode, integrated with project files API. Backend: soft-delete projects (`deletedAt` column), `account_warnings` table, username change system, global search endpoint, trash restore endpoints.
-- **Replit Config System**: Full `.replit` and `replit.nix` configuration system. TOML parser (`server/configParser.ts`) using `smol-toml` for all `.replit` keys (run, build, compile, onBoot, hidden, audio, language, nix channel, packager, deployment, ports, runEnv, unitTest, gitHubImport). Nix parser (`server/nixParser.ts`) extracts deps from `replit.nix`. Config API: `GET/PUT /api/projects/:id/config`, `POST /api/projects/:id/onboot`. Interactive stdin/stdout via WebSocket (`stdin`/`kill_process` message types). Executor tracks active processes per project. ConfigPanel UI component (`client/src/components/ConfigPanel.tsx`) provides visual editing for all config sections (Execution, Environment, Packager, Ports, Hidden Files). ConsolePanel has stdin input field when processes are running. Project.tsx supports hidden file filtering from `.replit` config with glob patterns and eye-icon toggle. Config tab available as special tab in editor area.
-- **Homepage Prompt Input**: Landing page has a Replit-style prompt input with example suggestions. Creates a project and redirects to the IDE. Unauthenticated users are sent to login with prompt preserved in query params.
-- **Open in E-Code Link Builder**: Dedicated `/open` page (`OpenInReplit.tsx`) for creating shareable "Open in E-Code" links and badges. Interactive builder with: prompt textarea, stack mode selector (Design/Build), optional referrer input, live URL generation with LZ-string compression (`lz-string` package). Badge system: live SVG preview, customizable caption, copy-ready Markdown and HTML snippets. Server-side badge endpoint `GET /badge/:caption?` returns SVG with sanitized caption (XSS-safe). Landing page (`Landing.tsx`) parses incoming `?prompt=&stack=&referrer=` URL parameters, decompresses LZ-string prompts, validates stack mode, and auto-fills project creation (authenticated) or shows sign-up banner (unauthenticated). Error banners for malformed URLs, invalid stack values, failed decompression, oversized payloads (>10KB). Dashboard sidebar has "Open in E-Code" navigation link.
-- **Git Integration**: Real git operations via `isomorphic-git` (`server/git.ts`). Each project gets a temp directory with a real `.git` repo. Git operations: init, add, commit, log, branch, checkout, diff, status, blame. DB snapshots kept for backward compatibility. GitHub sync via connector proxy API — push (with deletion propagation), pull, clone, connect/disconnect remote. UI: Source Control panel has push/pull buttons and GitHub connect flow. **Merge Conflict Resolution**: Full visual merge conflict resolution UI (`MergeConflictPanel.tsx`). When pull detects conflicts, a dedicated panel opens with: file list sidebar with resolution status checkmarks, split-view editor showing "Yours" (local) and "Theirs" (remote) side by side, per-file "Accept Yours"/"Accept Theirs"/"Accept Both"/manual edit buttons, progress bar showing X/Y resolved, "Complete Merge" and "Abort Merge" buttons. Merge state persisted in `merge_states` DB table so it survives page reloads. Backend endpoints: `GET merge-status`, `POST resolve-conflict` (single file), `POST complete-merge`, `POST abort-merge`.
-- **Git Selective Staging**: Per-file staging with checkboxes; auto-stages all on load, user can unstage individually. Commit always uses staged set (backend rejects empty). Stage All / Unstage All toggle.
-- **Git Merge Conflict Resolution**: 3-way merge-base detection (common ancestor via log intersection), line-level diff3 merge with proper conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`). Binary file detection (null-byte scan) with separate handling. LCS-based line diff with 5000-line guard for large files. MERGE_HEAD/MERGE_MSG written to `.git/` for proper merge state. Resolve via Accept Ours/Theirs/Manual Edit/Open in Editor (conflict tabs in main editor). Two-parent merge commit via `writeCommit`/`writeRef`.
-- **Git Disaster Recovery & Auto-Backup**: Automatic git repo backups with gzip compression stored in `git_backups` table. Backups triggered after commits/deployments/agent operations. Auto-recovery on corruption (detect → restore from backup → fallback to git_repo_state → reinitialize). Post-restore verification validates repo integrity. Version race protection via unique constraint with retry. Retention: 10 backups per project with automatic pruning. API: `POST /api/projects/:id/git/backup` (create), `POST /api/projects/:id/git/backup/restore` (restore by version), `GET /api/projects/:id/git/backups` (list), `GET /api/projects/:id/git/backup/status` (health), `GET /api/admin/git/stale-backups` (admin monitoring). UI: `BackupRecoverySection.tsx` in Source Control panel (desktop + mobile) with health indicator (green/yellow/red), backup list with trigger badges, Create Backup button, version-selector restore with confirmation dialog. Service: `server/gitBackupService.ts`.
-- **Shell-to-Git Sync**: `GET /git/state-hash` returns SHA-256 hash of HEAD+branch+statusMatrix. Frontend polls every 4s when Git pane open, auto-invalidates React Query caches on change.
-- **File History (Per-File Versioning)**: Automatic per-file version tracking stored in `file_versions` table. Every file content change creates a new version (skipping binary/data URIs). UI: `FileHistoryPanel.tsx` with file selector, timeline slider, arrow/keyboard navigation (left/right), playback mode (play through versions chronologically with configurable speed), Compare Latest toggle (inline diff view), Restore button (non-destructive, saves current as new version first). Retention: auto-prunes to 200 versions per file. API: `GET /api/projects/:id/files/:fileId/history`, `GET .../history/:versionId`, `POST .../restore/:versionId`. Legacy compatibility: old `/api/projects/:id/file-history/:filename` endpoint preserved, now backed by `file_versions` table.
-- **SSH Panel & Key Management**: SSH panel in IDE sidebar and mobile with Keys and Connect tabs. Keys tab: add SSH public keys (label + key content with format validation for ed25519/RSA/ECDSA, SHA256 fingerprint generation, deduplication), list keys (label, fingerprint, date), delete keys. Connect tab: VS Code and Cursor launch buttons (vscode-remote:// / cursor:// URI schemes), copyable SSH command, collapsible SSH config block for ~/.ssh/config, setup instructions. Keys are per-user (not per-project), persisted in `ssh_keys` table. API: GET/POST/DELETE `/api/ssh-keys`.
-- **Developer Frameworks**: Users can publish projects as reusable frameworks (`/frameworks` route, `Frameworks.tsx`). Official templates are seeded as verified frameworks. Features: search, category/language filtering, fork with one click, update messages. API: `GET/POST /api/frameworks`, `GET /api/frameworks/:id`, `POST /api/projects/:id/publish-as-framework`, `POST /api/frameworks/:id/updates`. Categories: frontend, backend, fullstack, systems, scripting, other.
-- **Spotlight Overlay**: Replit-style project details overlay (`SpotlightOverlay.tsx`). Opened by clicking project name in top bar (toggle). Three tabs: Overview (stats: views/forks/team size, quick share URL, owner info), Sharing (public/private toggle, shareable URL, embed code, social sharing: Twitter/X, LinkedIn, Email), Collaborators (owner display, invite list with role management, invite form by email/username). Cover image upload/remove (multer, stored as project file, served via dedicated endpoint with authz). Role-based access: owners manage everything, editors edit metadata/cover, viewers read-only. API: `GET/PATCH /api/projects/:id/spotlight`, `POST /spotlight/cover`, `GET /spotlight/cover-image`, invite CRUD endpoints. `isProjectCollaborator()` helper integrates into project/file access checks. Pending invites notification system in Dashboard (desktop dropdown + mobile tab) with accept/decline flow. View count incremented on shared page visit, fork count on project fork. Migration: `migrations/0009_spotlight_and_invites.sql`.
-- **Desktop App**: Electron-based desktop application scaffold (`desktop/` directory) with native window, auto-updater, IPC bridge, `ecode://` protocol handler, and window state persistence. Download page at `/desktop` with OS auto-detection, animated hero, platform cards (macOS/Windows/Linux), real release data from API, feature highlights, system requirements, FAQ. Backend API: `GET /api/desktop/releases/latest`, `GET /api/desktop/releases/:version`, `POST /api/desktop/releases` (admin), `GET /api/desktop/update/:platform/:version` (electron-updater manifest), `POST /api/desktop/downloads/track`. DB tables: `desktop_releases`, `desktop_downloads`.
-- **Artifact Types & Selection Carousel**: 10 output format types (Web, Mobile, Slides, Animation, Design, Data Viz, Automation, 3D Game, Document, Spreadsheet) with reusable scrollable carousel component (`ArtifactTypeCarousel.tsx`). Carousel integrated into AIPanel (initial prompt area with pill display), Dashboard (replaces inline category buttons), and Landing page. Each type has a system prompt hint stored in `artifact_templates` DB table, seeded on startup. Artifact type passed in AI request body as `artifactType`. Artifact-specific preview overlays in Project.tsx: slides get presenter nav (prev/next/fullscreen), data-viz gets fullscreen dashboard button, 3D games get play/pause + fullscreen controls. API: `GET /api/artifact-templates?outputType=...`.
-- **Mobile App Projects**: React Native/Expo project type (`projectType: "mobile-app"`). 3 starter templates: `mobile-blank`, `mobile-tabs`, `mobile-social-feed`. Device-frame preview component (`MobilePreview.tsx`) with 6 device presets (iPhone SE/15/Pro Max, Pixel 8, Galaxy S24, iPad Air), dynamic island rendering, and iframe preview. AI agent detects mobile projects and injects React Native-specific coding instructions. Dashboard shows phone icons for mobile projects with purple accent. AI project generation supports mobile-app projectType.
-- **Output Types**: 10 output types aligned across the stack: Web, Mobile, Slides, Animation, Design, Data Visualization, Automation, 3D Game, Document, Spreadsheet. Stored as `output_type` column on `projects` table (default: `"web"`). Exported as `OUTPUT_TYPES` array and `outputTypeEnum` from `shared/schema.ts`. Landing page has horizontal carousel for selecting output type. Dashboard categories match the 10 types. AI generation endpoint (`POST /api/projects/generate`) uses format-specific system prompt instructions per output type. AI agent system prompt includes output-type-specific guidance. Preview panel auto-detects mobile/slides output types for specialized rendering. 7 format-specific starter templates: canvas-animation, design-canvas, data-dashboard, automation-script, threejs-game, markdown-editor, spreadsheet-app. Project page auto-triggers AI generation from `?prompt=` query parameter.
-- **Dependency Management**: Production-quality IDE dependency panel (`PackagesPanel.tsx`) with two-tab UI (Imports + System Advanced). npm/PyPI registry search with rate limiting (300ms per user). SSE streaming install/remove/update output via `/packages/install-stream`, `/packages/remove-stream`, `/packages/update-stream`. Auto-detection of package manager (npm/pip/poetry) from project files. Import guessing from source code. Version pinning with version picker. Outdated detection with amber badges (`/packages/outdated` with 2-min cache). Per-package and update-all buttons with multi-manager fan-out. System modules and Nix deps CRUD (`system_modules`, `system_deps` tables). Per-project concurrency locks prevent parallel installs. Package name validation with strict regex. Multi-language grouping in UI.
-- **Project Import System**: Unified import page (`/import` route, `Import.tsx`) supporting 6 sources: GitHub (recursive tree API with subtree fallback for large repos up to 5000 files, batch parallel import with 10-file concurrency, multi-language detection, framework/dep-file compatibility checks), Figma (AI-powered React component generation from Figma REST API design context — file structure, node screenshots, design styles — via connectors SDK integration token, OpenAI/Anthropic/Gemini provider support, dedicated `/api/import/figma/design-context` pre-fetch endpoint), Vercel (imports linked GitHub repo with team slug resolution, detects env var names, validates GitHub link compatibility), Bolt (GitHub import + .bolt/ config + Supabase/secret detection), Lovable (GitHub import + .lovable/ config detection), ZIP (async upload extraction with decompression bomb protection, path traversal checks, 500-file/50MB/200MB limits). Backend service: `server/importService.ts`. Fully async job-based architecture: `startAsyncImport()` / `startAsyncZipImport()` return jobId immediately (HTTP 202), all import functions accept optional `existingJob` parameter to avoid double job creation and ensure consistent progress tracking (Vercel/Bolt/Lovable pass job through to inner GitHub import). Polling endpoint: `GET /api/import/progress/:jobId` (includes `result` field on completion). Frontend polling: AbortController-based with cleanup on unmount, proper error handling for auth/404/timeout. Pre-import validation: `POST /api/import/validate` (URL sources with compatibility check), `POST /api/import/validate-zip` (ZIP files). Frontend enforces both `valid` AND `compatible` from returned validation payload (no stale state). CSRF tokens included on all multipart requests. Import endpoints: `POST /api/github/import` (supports `async: true`), `POST /api/import/zip`, `POST /api/import/figma`, `POST /api/import/vercel`, `POST /api/import/bolt`, `POST /api/import/lovable`. Dashboard "Import from GitHub" links to `/import?source=github`. Features: env var setup during import (`PUT /api/projects/:id/env-vars/bulk`), secret detection (Supabase + .env.example + common patterns), real-time progress bar with file count/current file display, 3-state validation UI (valid+compatible green, valid+incompatible yellow, invalid red).
+## User Preferences
+- **Communication Style**: I prefer clear and concise communication.
+- **Workflow**: I want iterative development with clear steps.
+- **Interaction**: Ask before making major changes or irreversible decisions.
+- **AI Agent Behavior**: I want the AI to be helpful but not intrusive, providing suggestions and completing tasks when requested, but allowing me to maintain control over the codebase.
 
-## Database Schema (PostgreSQL)
-- `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id, keyboard_shortcuts (JSON)
-- `projects`: id, user_id (indexed), team_id, name, description, cover_image_url, is_public, language, project_type (default 'web-app', also 'slides', 'video', 'mobile-app'), output_type (default 'web', one of: web/mobile/slides/animation/design/data-visualization/automation/3d-game/document/spreadsheet), is_demo, is_published, published_slug, custom_domain, github_repo, is_dev_framework, framework_description, framework_category, framework_cover_url, is_official_framework, selected_workflow_id (nullable), view_count, fork_count, created_at, updated_at
-- `users`: id, email, password (hashed), display_name, avatar_url, email_verified, is_admin, github_id, keyboard_shortcuts (JSON)
-- `project_invites`: id, project_id (indexed), email, role (viewer/editor), invited_by, status (pending/accepted), created_at — unique on (project_id, email)
-- `project_guests`: id, project_id (indexed), user_id (indexed), email (indexed), role (default 'viewer'), invited_by, token, accepted_at, created_at
-- `slides_data`: id, project_id (unique indexed), slides (JSON array of SlideData), theme (JSON SlideTheme), updated_at
-- `video_data`: id, project_id (unique indexed), scenes (JSON array of VideoScene), audio_tracks (JSON), resolution (JSON), fps, updated_at
-- `git_backups`: id, project_id, version (unique indexed with project_id), compressed_data (gzip+base64), size_bytes, trigger (commit|deploy|agent|manual), created_at
-- `framework_updates`: id, framework_id (indexed), message, created_at
-- `files`: id, project_id (indexed), filename, content, updated_at
-- `runs`: id, project_id (indexed), user_id (indexed), status, language, code, stdout, stderr, exit_code, started_at, finished_at
-- `console_runs`: id (uuid), project_id (indexed), command, status, logs (JSON array), exit_code, started_at (indexed), finished_at — structured run entries for Console panel with persisted log history
-- `workspaces`: id (uuid), project_id (unique), owner_user_id, created_at, last_seen_at, status_cache
-- `workspace_sessions`: id (uuid), workspace_id, user_id, created_at, expires_at
-- `commits`: id (uuid), project_id (indexed), branch_name, message, author_id, parent_commit_id, snapshot (JSON), created_at
-- `branches`: id (uuid), project_id + name (unique), head_commit_id, is_default, created_at
-- `execution_logs`: id (uuid), user_id (indexed), project_id, language, exit_code, duration_ms, security_violation (indexed), code_hash, ip_address, created_at (indexed)
-- `user_quotas`: id (uuid), user_id (unique), plan, daily_executions_used, daily_ai_calls_used, daily_credits_used, storage_bytes, total_executions, total_ai_calls, agent_mode, code_optimizations_enabled, credit_alert_threshold, stripe_customer_id, stripe_subscription_id, last_reset_at, updated_at
-- `credit_usage`: id (uuid), user_id, mode, model, credit_cost, endpoint, created_at — tracks per-call credit costs
-- `ai_conversations`: id (uuid), project_id, user_id, title, model, created_at, updated_at — unique(project_id, user_id)
-- `ai_messages`: id (uuid), conversation_id (indexed), role, content, model (nullable), file_ops (JSON, nullable), created_at
-- `queued_messages`: id (uuid), conversation_id (indexed), project_id, user_id (indexed with project_id), content, attachments (JSON, nullable), position (int), status (pending/processing), created_at — message queue for AI agent, supports drag-and-drop reorder
-- `ai_plans`: id (uuid), project_id (indexed), user_id (indexed), title, status (draft/approved), model, created_at, updated_at
-- `ai_plan_tasks`: id (uuid), plan_id (indexed), title, description, complexity (simple/medium/complex), depends_on (text[]), status (pending/in-progress/done), order_index, created_at
-- `project_env_vars`: id (uuid), project_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at
-- `account_env_vars`: id (uuid), user_id (indexed), key, encrypted_value (AES-256-GCM encrypted), created_at — user-level secrets shared across projects
-- `account_env_var_links`: id (uuid), account_env_var_id, project_id (indexed) — links account secrets to specific projects
-- `password_reset_tokens`: id, user_id, token, expires_at, used
-- `email_verifications`: id, user_id, token, expires_at, used
-- `teams`: id, name, slug, owner_id, created_at
-- `team_members`: id, team_id, user_id, role, joined_at
-- `team_invites`: id, team_id, email, role, token, invited_by, expires_at, accepted
-- `analytics_events`: id, user_id, event, properties, created_at
-- `deployments`: id, project_id, user_id, version, status, build_log, url, deployment_type (autoscale/static/reserved-vm/scheduled), build_command, run_command, machine_config (JSON: cpu/ram), max_machines, cron_expression, schedule_description, job_timeout, public_directory, app_type (web_server/background_worker), deployment_secrets (JSON), is_private, show_badge, enable_feedback, created_at, finished_at
-- `deployment_analytics`: id, project_id, deployment_id, path, referrer, user_agent, visitor_id, ip_hash, created_at
-- `custom_domains`: id, domain (unique), project_id (indexed), user_id (indexed), verified, verification_token, ssl_status, ssl_expires_at, created_at, verified_at
-- `plan_configs`: id, plan (unique), daily_executions, daily_ai_calls, storage_mb, max_projects, price, description, features (text[])
-- `project_auth_config`: id, project_id (unique, indexed), enabled, providers (JSON string[]), require_email_verification, session_duration_hours, allowed_domains (JSON string[])
-- `project_auth_users`: id, project_id (indexed), email, password_hash, provider, verified, last_login_at, created_at — unique(project_id, email)
-- `integration_catalog`: id, name (unique), category, description, icon, env_var_keys (JSON string[])
-- `project_integrations`: id, project_id (indexed), integration_id, status, config (JSON), connected_at — unique(project_id, integration_id)
-- `integration_logs`: id, project_integration_id (indexed), level, message, created_at
-- `automations`: id (uuid), project_id (indexed), name, type (cron/webhook/on-deploy/slack/telegram), cron_expression, webhook_token (unique), slack_bot_token, slack_signing_secret, telegram_bot_token, bot_status, script, language, enabled, last_run_at, created_at
-- `automation_runs`: id (uuid), automation_id (indexed), status, stdout, stderr, exit_code, duration_ms, triggered_by, started_at, finished_at
-- `workflows`: id (uuid), project_id (indexed), name, trigger_event, execution_mode (sequential/parallel), enabled, created_at
-- `workflow_steps`: id (uuid), workflow_id (indexed), name, command, task_type (shell/install_packages/run_workflow), order_index, continue_on_error
-- `workflow_runs`: id (uuid), workflow_id (indexed), status, step_results (JSON), duration_ms, started_at, finished_at
-- `monitoring_metrics`: id (uuid), project_id (indexed), metric_type (indexed), value, metadata (JSON), recorded_at
-- `monitoring_alerts`: id (uuid), project_id (indexed), name, metric_type, condition, threshold, enabled, last_triggered_at, created_at
-- `code_threads`: id (uuid), project_id (indexed), user_id, filename (indexed), line_number, title, status, created_at, resolved_at
-- `thread_comments`: id (uuid), thread_id (indexed), user_id, content, created_at
-- `skills`: id (uuid), project_id (indexed), name, description, content (markdown), is_active, created_at
-- `port_configs`: id (uuid), project_id (indexed), port, label, protocol, is_public, created_at — unique(project_id, port)
-- `ssh_keys`: id (uuid), user_id (indexed), label, public_key, fingerprint, created_at — unique(user_id, fingerprint). User-level SSH public keys for remote access
-- `checkpoints`: id (uuid), project_id (indexed), user_id, description, type (manual/auto), trigger (manual/feature_complete/deployment/pre_risky_op), state_snapshot (JSON: files, envVars, storageKv, storageObjectsMeta, aiConversations, projectConfig, packages), created_at (indexed)
-- `checkpoint_positions`: id (uuid), project_id (unique), current_checkpoint_id, updated_at — tracks current position in checkpoint timeline per project
-- `tasks`: id (uuid), project_id, user_id, title, description, plan (JSON string[]), status (draft/active/queued/ready/applying/done), depends_on (JSON string[]), priority, progress, result, error_message, created_at, updated_at, started_at, completed_at
-- `task_steps`: id (uuid), task_id, order_index, title, description, status (pending/running/completed/failed), output, started_at, completed_at
-- `task_messages`: id (uuid), task_id, role (system/user/assistant), content, created_at
-- `task_file_snapshots`: id (uuid), task_id, filename, content, original_content, is_modified
-- `git_repo_state`: id (uuid), project_id (unique), pack_data (text), updated_at — stores serialized .git state for persistence across restarts
-- `merge_states`: id (uuid), project_id (unique, indexed), branch, local_oid, remote_oid, conflicts (JSON array of MergeConflictFile), resolutions (JSON array of MergeResolution), status (in_progress), created_at — tracks pending merge conflict resolution state; auto-created on pull conflicts, deleted on merge complete/abort
-- `mcp_servers`: id (uuid), project_id (indexed), name, description, command, args (JSON string[]), env (JSON), is_built_in, status, created_at — unique(project_id, name)
-- `mcp_tools`: id (uuid), server_id (indexed), name, description, input_schema (JSON), created_at
-- `system_modules`: id (uuid), project_id (indexed), name, version — language runtime modules for workspace configuration
-- `system_deps`: id (uuid), project_id (indexed), name — Nix system-level dependencies for workspace environment
-- `project_collaborators`: id (uuid), project_id (indexed, unique with user_id), user_id (indexed), role (default "editor"), added_by, created_at
-- `project_invite_links`: id (uuid), project_id (indexed), token (unique), created_by, role (default "editor"), max_uses, use_count, expires_at, is_active, created_at
-- `desktop_releases`: id (uuid), version (unique), platform, download_url, file_size, sha256, changelog, is_latest, created_at — stores desktop app release metadata per platform
-- `desktop_downloads`: id (uuid), platform, version, ip_address, user_agent, created_at — tracks desktop app download events
-- `storage_bandwidth`: id (uuid), project_id (indexed), period_start, period_end, bytes_downloaded, updated_at — tracks download bandwidth per project per billing period
-- `user_sessions`: PostgreSQL session store (auto-created by connect-pg-simple)
+## System Architecture
+**Frontend**: Built with React, Vite, and TailwindCSS v4, featuring a responsive design for desktop, tablet, and mobile. The UI adheres to a pixel-perfect design language inspired by VS Code, including a customizable theme system with 6 global color channels and 19 syntax token colors dynamically applied via CSS variables. Key UI elements include an activity bar, file explorer, multi-file tabs, a resizable bottom panel with console and shell, a split preview panel, and a command palette.
 
-## Database Panel & Storage
-- **Project-scoped databases**: Each project gets its own PostgreSQL schema (`proj_{projectId}`) for isolation. SQL Runner executes queries within project schema via `SET search_path`. No access to platform tables.
-- **DatabasePanel** (`client/src/components/DatabasePanel.tsx`): 3 tabs — My Data (table browser with data grid, inline cell edit, insert/delete rows, sortable columns, filter, CSV export), SQL Runner (full SQL with destructive query confirmation dialog), Settings (masked credentials display, usage metrics with size per table, remove database action).
-- **Dev/Prod switcher**: Frontend dropdown to view dev vs production data. Production mode blocks destructive queries server-side.
-- **Production database provisioning**: `provisionProductionDatabase()` in `deploymentEngine.ts` creates `prod_{projectId}` schema, copies table structures from dev schema, optional data seeding.
-- **Storage quota enforcement**: Plan-based limits (Free=50MB, Pro=5GB, Team=50GB from `STORAGE_PLAN_LIMITS`). Upload returns 413 when exceeded.
-- **Bandwidth tracking**: Downloads tracked in `storage_bandwidth` table. `AppStoragePanel` shows bandwidth usage bar alongside storage usage.
-- **App Storage v2 (Buckets)**: Full bucket-based object storage with folder organization. DB tables: `storage_buckets` (id, name, owner_user_id, created_at), `bucket_access` (id, bucket_id, project_id, granted_at — enables cross-project sharing), `storage_objects` (extended with bucket_id FK, folder_path). Storage layer methods: bucket CRUD (create/get/list/delete/rename), access management (grant/revoke), object operations (copy/move/exists/filtered listing with prefix/glob/pagination), folder CRUD, auto-created default buckets per project. Files stored in `.storage/buckets/{bucketId}/{folderPath}/`. Frontend `AppStoragePanel.tsx` has: bucket dropdown selector with create/add-existing, three tabs (Key-Value, Objects, Settings), folder navigation with breadcrumbs, multi-file + folder upload with drag-and-drop, file type icons (image/video/code/document/archive), Settings view with Bucket ID (copyable), rename, delete bucket, remove from project, access list. All bucket routes have access control verification (verifyBucketAccess for read ops, verifyBucketOwnership for mutations), path traversal protection (sanitizeFolderPath), and plan-based quota enforcement on all upload modes.
-- **API Routes**: `POST /api/projects/:id/database/execute` (SQL with env/confirm), `GET /database/tables`, `GET /database/tables/:name/data`, `GET /database/credentials`, `GET /database/usage`, `POST /database/remove`, `GET /api/projects/:id/storage/bandwidth`. Bucket routes: `POST/GET/GET/:bucketId/DELETE/PUT /api/projects/:id/storage/buckets`, `POST /:bucketId/grant`, `POST /:bucketId/revoke`, `POST /add-existing`. Bucket object routes: `GET/POST/DELETE /:bucketId/objects`, upload-text, upload-bytes, upload-folder, download (with mode=text/bytes/stream), copy, exists, move. Folder routes: `POST/DELETE/GET /:bucketId/folders`. Legacy non-bucket routes preserved for backwards compat.
+**Backend**: Powered by Express.js, PostgreSQL (with Drizzle ORM), and WebSockets. Session management is PostgreSQL-backed.
 
-## Key Features
-- Email/password authentication with persistent PostgreSQL-backed sessions
-- CRUD projects (create, list, duplicate, delete) with project limit enforcement
-- **Usage quotas**: Per-user daily limits (50 executions, 20 AI calls on free plan), project limits (5 on free), storage limits, with live usage display in dashboard sidebar
-- **AI project generation**: Create projects from a text prompt (Dashboard "Create with AI" input)
-- **Automations**: Cron scheduling (node-cron), webhook triggers (unique token per automation), on-deploy triggers, Slack bot triggers (@slack/bolt with ExpressReceiver), Telegram bot triggers (telegraf with long-polling), execution history with stdout/stderr. Bot credentials stored securely (masked in API responses). Connection status indicators. Panel in activity bar (Zap icon, #F5A623).
-- **Workflows**: Multi-step build/run workflows with sequential or parallel execution modes, 3 step task types (shell, install_packages, run_workflow with depth-limit protection), templates with real commands (npm install, npm test, etc.), drag-and-drop step reordering, trigger events (manual, on-save, on-deploy, on-commit) that fire automatically with debouncing, Run button workflow assignment dropdown, console pane integration streaming workflow outputs via WebSocket, live progress, run history. Panel in activity bar (GitMerge icon, #0079F2).
-- **Monitoring**: Real metrics collection (`metricsCollector.ts`) — CPU% (process.cpuUsage), memory (RSS/heap), system memory (os.totalmem/freemem), load average (os.loadavg), request count, response time, error count. Automated periodic collection (60s interval) for all deployed projects via `startAutoMetricsCollector`. Real uptime tracking from health check results. Configurable alerts (gt/lt/eq thresholds). Panel in activity bar (Activity icon, #10B981).
-- **Threads**: Code discussion threads per-file with line number references, open/resolved status, comments. Panel in activity bar (MessageSquare icon, #8B5CF6).
-- **Build in Parallel (Tasks)**: Kanban board (Drafts/Active/Ready/Done) for parallel task execution. AI Plan mode breaks user prompts into independent tasks. Tasks execute against file snapshots (isolation). Three-way merge engine applies changes back to main. Per-task AI threads. WebSocket real-time updates. Task limits: free=2, pro/team=10 parallel. Components: `TaskBoard.tsx`, `TaskReviewDrawer.tsx`, Plan mode in `AIPanel.tsx`. Backend: `taskExecutor.ts`, `mergeEngine.ts`.
-- **Networking**: Port configuration with labels, protocol (http/https/tcp/ws), public/private toggle, per-project isolation. Panel in activity bar (Network icon, #06B6D4).
-- **Checkpoints**: Full project state snapshots (files, env vars, KV store, packages) with visual timeline. Manual creation, auto-triggered on deployment & AI operations. Rollback/roll-forward with optional database restore. Diff preview before restoring. Panel in activity bar (Clock icon, #7C65CB). Service: `server/checkpointService.ts`.
-- **VS Code-style IDE layout**: Activity bar on far left with tooltips (Explorer, Search, AI, Git, Deployments, Preview, Settings icons)
-- **Desktop bottom panel**: Console + Shell tabs in resizable bottom panel (like VS Code) with Ctrl+J/Ctrl+` toggle
-- **Split preview panel**: Side-by-side editor + preview on desktop with resizable drag handle (Ctrl+\), auto-opens for HTML, live-refreshes on code change (500ms debounce)
-- **ANSI color support**: Console output parses ANSI escape codes for colored output (red, green, yellow, blue, purple, cyan)
-- **Smooth panel transitions**: Sidebar, terminal, and preview panels animate open/close with CSS transitions
-- **Nested file tree**: Files with paths like `src/components/App.tsx` display in proper folder hierarchy with expand/collapse
-- **File tree context menu**: Right-click for Open, Rename, Duplicate, Delete, Copy Path; folders get New File/New Folder
-- **Tab context menu**: Right-click tabs for Close, Close Others, Close All, Close to Right, Copy Path, Split Right
-- **Tab drag reorder**: Drag and drop tabs to reorder; scroll arrows when tabs overflow
-- **Split editor panes**: Right-click tab > "Split Right" or use command palette to open a second editor side-by-side with resizable divider
-- **Code minimap**: Scaled-down preview of the file on the right side of the editor (toggleable via command palette)
-- **Multiple terminal tabs**: Add/close terminal tabs with "+" button in bottom panel
-- **Drag-and-drop file tree**: Drag files onto folders to move them
-- **Project forking**: Fork any published/shared project (or your own) to create a copy. Fork button on shared project pages.
-- **User onboarding**: First-time users see a 4-step welcome walkthrough on the dashboard
-- Full IDE layout: file explorer sidebar, multi-file tabs, auto-save, dirty indicators
-- **Breadcrumbs**: Path segments above editor (src > components > App.tsx) with clickable segments
-- **Command Palette** (Cmd+K): Searchable command overlay with file switching and action shortcuts
-- CodeMirror 6 editor with syntax theme (red keywords, green strings, teal functions, orange numbers)
-- **Code Intelligence**: Language-aware autocomplete (JS/TS globals, DOM APIs, Python builtins/stdlib), bracket auto-close, auto-indent, syntax error highlighting (linter)
-- **File type icons**: Colorful language-specific badges (JS yellow, TS blue, PY green, etc.) in tree and tabs
-- **AI coding agent**: Chat mode (ask questions) + Agent mode (create/edit files directly)
-- **Persistent AI conversations**: DB-backed chat history survives page refreshes/sessions; homepage prompts auto-seed into project conversation
-- **Model selection**: Choose between Claude Sonnet (Anthropic), GPT-4o (OpenAI, default), and Gemini Flash (Google) — all three work in chat, agent, AND project generation modes
-- **Markdown rendering in AI chat**: Bold, italic, inline code, links, headers, bullet/numbered lists
-- **AI model badges**: Each AI response shows which model generated it (Claude/GPT)
-- **Character count**: Shows character count while typing in AI input
-- **Apply-to-file**: Code blocks in AI chat have "Apply" buttons that insert code directly into the active file
-- **Template starters**: Dashboard has horizontal scrolling template cards with arrow buttons
-- **Dashboard search**: Real-time project search in dashboard header
-- **Notifications**: Bell icon with badge count in dashboard header
-- **Credits indicator**: "Free" plan badge near profile in dashboard
-- **Welcome/Onboarding states**: New project shows welcome with quick-start actions; no-files-open shows recent file list
-- **Mobile dashboard navigation**: Hamburger menu slides in sidebar; mobile search expands from icon
-- **GitHub OAuth login**: Login/register with GitHub via Replit connector
-- **Password reset flow**: Token-based forgot/reset password with email sending (nodemailer)
-- **Email verification**: Send verification emails with clickable links, dedicated verify-email page
-- **Team invites**: Email notifications for team invitations
-- **Teams & Organizations**: Create teams, invite members, role-based access (owner/admin/member)
-- **Admin Dashboard**: Platform metrics, user management, analytics (admin-only)
-- **Dependency Management**: Full two-tab Dependencies panel (Imports + System Advanced). Imports tab: registry search (npm/PyPI), version picker, missing import detection with one-click install, poetry support, language dropdown. System tab: system modules (language runtimes) and Nix dependencies CRUD. API endpoints: `GET /api/packages/search`, `GET /api/packages/versions`, `GET /api/projects/:id/imports/missing`, `GET/POST/DELETE /api/projects/:id/system-modules`, `GET/POST/DELETE /api/projects/:id/system-deps`
-- **Database Viewer**: Activity bar panel to browse database tables, view columns/types, run SQL queries (read-only SELECT/WITH/EXPLAIN/SHOW), results table display. Component: `DatabasePanel.tsx`, API: `POST /api/projects/:id/database/query`
-- **Test Runner**: Activity bar panel to detect test files (Jest/Vitest/Mocha/pytest patterns), run all or single tests, display pass/fail/skip results with duration. Component: `TestRunnerPanel.tsx`, API: `GET /api/projects/:id/tests/detect`, `POST /api/projects/:id/tests/run`
-- **AI Commit Messages**: "AI" button in git commit textarea that generates a commit message by analyzing file changes since last commit using Claude Sonnet. API: `POST /api/projects/:id/git/generate-commit-message`
-- **AI Voice Input (Audio Transcription)**: Microphone button in AI chat input to record audio and transcribe via OpenAI Whisper. Records WebM audio, sends to `POST /api/ai/transcribe`, inserts transcribed text into input. Visual recording/transcribing states with animated indicators.
-- **AI File Attachments**: Paperclip button in AI chat to attach files (images, code, text). Image attachments show thumbnails; text/code files are included inline in the message. Supports drag-and-drop style multi-file attachment with remove buttons. Attachment previews shown above input area and in sent messages.
-- **Profile Settings**: Display name, connected accounts (GitHub), GDPR data export, email verification, billing portal, account deletion
-- **Legal Pages**: Terms of Service, Privacy Policy with proper routing
-- **Stripe Billing**: Checkout sessions, subscription management, webhook handling, billing portal (when Stripe configured)
-- Remote code execution (JavaScript, TypeScript, Python) via local sandbox with esbuild TypeScript transpilation
-- Real-time logs via WebSocket in resizable terminal panel
-- Console + Preview (iframe) + Shell (xterm.js) bottom tabs
-- Run/Stop buttons with execution state indication
-- **Git version control**: Full source control panel with commit, branch, diff, checkout, and history tracking — stores file snapshots in PostgreSQL JSON columns
-- **Git blame view**: In-editor blame annotations showing per-line commit attribution with colored markers, toggled via breadcrumb bar button
-- **Deployments panel**: Sidebar panel showing publish status, URL, deployment history
-- **Settings panel**: In-sidebar settings with theme toggle, font size, tab size, word wrap controls
-- Project settings dialog (rename, change language)
-- Publish/share projects with toggle and shareable URL
-- Public shared project view (read-only with code execution)
-- Dark mode with accurate design tokens
-- Public demo project (read-only)
-- **Skeleton loading states**: Full IDE skeleton, file tree skeletons, dashboard card skeletons
-- **HTML Preview**: Local HTML preview via srcdoc iframe when runner is offline — auto-combines HTML + linked CSS/JS from project files, auto-refreshes on save, live preview auto-refresh on file save
-- **Inline AI Completions**: Ghost text suggestions in the editor (Tab to accept, Escape to dismiss), debounced API calls with per-editor instance isolation, quota-tracked
-- **GitHub Integration**: Import repos from GitHub, export/push projects to GitHub, GitHub panel in Source Control sidebar with repo list, search filter, private/public toggle
-- **Per-Project Environment Variables**: CRUD env vars panel in IDE sidebar, env vars injected into code execution
-- **Project Templates**: Template picker on Dashboard (React, Express, Python Flask, Node CLI, HTML/CSS/JS)
-- **File Upload**: Upload files/assets into projects via file explorer (max 5 files, 2MB each)
-- **Extended Language Support**: Go, Ruby, C/C++, Java, Bash execution and CodeMirror language modes
-- **Pricing Page**: Free/Pro/Team tiers with feature comparison, Stripe billing stub routes
-- **Real Terminal**: node-pty PTY management with WebSocket terminal connections
-- **Run UX**: Run button auto-opens terminal, shows run separator with timestamp, displays exit code on completion
-- **File creation flow**: New files from AI agent or manual creation auto-open in tab, expand parent folders, and show file explorer
-- **Dashboard empty states**: Progress animation during AI generation, error panel with retry, "Create New Project" card, improved empty states with CTAs
-- **Error boundary**: React error boundary with reload button and styled error display
-- **Security**: Multi-layered sandbox (AST analysis + runtime wrappers + OS-level isolation via ulimit/nice/unshare + process isolation + resource limits + FS isolation), CSRF protection with token validation, Helmet.js security headers (CSP, HSTS, X-Frame-Options), path traversal prevention, agent loop limit (10 iterations max), sandbox="allow-scripts" on preview iframes
-- **Rate Limiting**: Per-user + per-IP execution rate limiting (10 runs/min), global execution pool (5 max concurrent, 20 max queue with priority), concurrent execution queue (3 max per user), AI rate limiting (20 req/min chat, 5 req/min generate), express-rate-limit on all API endpoints
-- **Audit Logging**: All code executions logged to `execution_logs` table with userId, language, exitCode, durationMs, securityViolation, codeHash, ipAddress
-- **Monitoring**: `/api/health` (DB status, memory, uptime, execution stats), `/api/metrics` (system metrics, error buffer), error tracking middleware
-- **WebSocket**: Heartbeat ping/pong (30s), per-IP connection limits (max 5), message rate limiting (30/10s), polling fallback after 3 failures, connection quality indicator in status bar
-- **Workspace live mode**: connect to runner.e-code.ai VPS for real cloud workspaces
-- **Dual-mode file explorer**: Runner FS API when workspace running, DB fallback when stopped
+**Code Execution**: Features a multi-layered sandbox for secure code execution, including AST-based analysis, runtime policy wrappers, OS-level isolation (ulimit, nice, unshare), and resource limits (e.g., 10s timeout, 64MB memory). A worker pool manages concurrent executions with per-user rate limiting.
 
-## Keyboard Shortcuts
-- Cmd+S: Save current file
-- Cmd+K / Cmd+Shift+P: Command palette
-- Cmd+B: Toggle sidebar
-- Cmd+J: Toggle terminal
-- Cmd+\: Toggle preview panel
-- Cmd+Shift+F: Search across files
-- Cmd+Shift+G: Toggle Git source control panel
-- Cmd+Enter / F5: Run project
+**Deployment Engine**: Supports four deployment types (Autoscale, Static, Reserved VM, Scheduled) with versioned rollbacks, build logs, configurable machine resources, deployment secrets, and custom domain management with Let's Encrypt SSL. A Process Manager (`server/processManager.ts`) handles process lifecycle, health checks, crash detection, and real-time log streaming.
 
-## Design System
-- **E-Code orange logo**: SVG three-block mark (#F26522) used throughout (header, auth, empty state, footer, status bar)
-- **Syntax theme**: Keywords #FF6166 (red), Strings #0CCE6B (green), Functions #56B6C2 (teal), Numbers #FF9940 (orange), Types #FFCB6B (yellow), Comments #676D7E (muted italic), Default text #CFD7E6
-- **Color tokens**: #0E1525 (bars/nav), #1C2333 (panels/editor), #2B3245 (borders/surface), #323B4F (hover), #0079F2 (accent blue), #0CCE6B (green run), #7C65CB (AI purple), #F26522 (E-Code orange), #F5F9FC (text primary), #9DA2B0 (text secondary), #676D7E (text muted)
-- **Fonts**: IBM Plex Sans (UI), IBM Plex Mono / JetBrains Mono (code/terminal)
+**Authentication**: Session-based authentication using `express-session` and `bcrypt`. Supports OAuth 2.0 providers (GitHub, Google, Apple, X/Twitter) with CSRF validation. Includes user banning and login activity tracking.
 
-## API Routes
-- `POST /api/auth/register` - Register
-- `POST /api/auth/login` - Login
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/me` - Current user
-- `GET /api/health` - Health check (DB, memory, uptime, execution pool status)
-- `GET /api/metrics` - System metrics + error buffer (auth-gated details)
-- `GET /api/user/usage` - User quota/usage stats (daily runs, AI calls, storage, projects)
-- `GET /api/projects` - List user projects
-- `POST /api/projects` - Create project (enforces project limit quota)
-- `POST /api/projects/generate` - AI-generate project from prompt (Claude)
-- `GET /api/projects/:id` - Get project
-- `PATCH /api/projects/:id` - Update project (name, language)
-- `DELETE /api/projects/:id` - Delete project
-- `POST /api/projects/:id/duplicate` - Duplicate project
-- `GET /api/projects/:projectId/files` - List files
-- `POST /api/projects/:projectId/files` - Create file
-- `PATCH /api/files/:id` - Update file content or rename
-- `DELETE /api/files/:id` - Delete file
-- `POST /api/projects/:projectId/run` - Execute code (quota + rate limit enforced)
-- `GET /api/projects/:projectId/poll` - Polling fallback for WS (auth + access control)
-- `POST /api/projects/:id/publish` - Toggle publish status
-- `GET /api/projects/:projectId/git/commits` - List commits (query: branch)
-- `GET /api/projects/:projectId/git/commits/:commitId` - Get commit with snapshot
-- `POST /api/projects/:projectId/git/commits` - Create commit (snapshots files)
-- `GET /api/projects/:projectId/git/branches` - List branches
-- `POST /api/projects/:projectId/git/branches` - Create branch
-- `DELETE /api/projects/:projectId/git/branches/:branchId` - Delete branch
-- `POST /api/projects/:projectId/git/checkout` - Restore files from commit/branch
-- `GET /api/projects/:projectId/git/diff` - Compare current files to last commit
-- `GET /api/projects/:projectId/git/blame/:filename` - Per-line blame attribution across commit history
-- `GET /api/shared/:id` - Get published project (public, no auth)
-- `GET /api/demo/project` - Get demo project
-- `POST /api/demo/run` - Execute demo code
-- `POST /api/ai/chat` - AI chat (streaming SSE, quota enforced)
-- `POST /api/ai/complete` - Inline AI code completion (quota enforced)
-- `POST /api/ai/agent` - AI agent with tool use (quota enforced)
-- `GET /api/github/user` - Get authenticated GitHub user
-- `GET /api/github/repos` - List user's GitHub repos
-- `POST /api/github/import` - Import GitHub repo as new project
-- `POST /api/github/export` - Export project to new GitHub repo
-- `GET /api/projects/:projectId/env-vars` - List project env vars
-- `POST /api/projects/:projectId/env-vars` - Create env var
-- `PATCH /api/projects/:projectId/env-vars/:id` - Update env var
-- `DELETE /api/projects/:projectId/env-vars/:id` - Delete env var
-- `POST /api/projects/:projectId/upload` - Upload files to project
-- `GET /api/templates` - List project templates
-- `POST /api/billing/checkout` - Create Stripe checkout session
-- `POST /api/billing/portal` - Open Stripe billing portal
-- `GET /api/billing/status` - Get billing/subscription status
-- `POST /api/billing/webhook` - Stripe webhook handler
-- `POST /api/auth/github` - GitHub OAuth login
-- `POST /api/auth/forgot-password` - Send password reset email
-- `POST /api/auth/reset-password` - Reset password with token
-- `POST /api/auth/send-verification` - Send email verification
-- `POST /api/auth/verify-email` - Verify email token
-- `PUT /api/user/profile` - Update display name/avatar
-- `PUT /api/user/password` - Change password
-- `DELETE /api/user/account` - Delete account (GDPR)
-- `GET /api/user/export` - Export user data (GDPR)
-- `GET /api/teams` - List user teams
-- `POST /api/teams` - Create team
-- `PUT /api/teams/:id` - Update team
-- `DELETE /api/teams/:id` - Delete team
-- `POST /api/teams/:id/invite` - Invite member
-- `POST /api/teams/:id/remove` - Remove member
-- `POST /api/teams/accept-invite` - Accept invitation
-- `GET /api/admin/stats` - Admin platform stats
-- `GET /api/admin/users` - Admin user list
-- `POST /api/admin/users/:id/role` - Admin update user role
-- `GET /api/projects/:id/packages` - List project packages
-- `POST /api/projects/:id/packages/add` - Add package
-- `POST /api/projects/:id/packages/remove` - Remove package
-- `POST /api/analytics/track` - Track analytics event
-- `POST /api/projects/:id/deploy` - Deploy project (real build pipeline)
-- `POST /api/projects/:id/deploy/rollback` - Rollback deployment to version
-- `GET /api/projects/:id/deploy/versions` - List deployment versions
-- `DELETE /api/projects/:id/deploy/teardown` - Tear down deployment
-- `POST /api/projects/:id/domains` - Add custom domain
-- `POST /api/projects/:id/domains/:domainId/verify` - Verify domain DNS
-- `DELETE /api/projects/:id/domains/:domainId` - Remove custom domain
-- `GET /api/projects/:id/domains` - List custom domains
-- `GET /api/admin/execution-pool` - Execution pool metrics (admin only)
-- `GET /deployed/:slug/{*filePath}` - Serve deployed project files
-- `GET /api/runner/status` - Check runner VPS health
-- `POST /api/workspaces/:projectId` - Init/provision workspace
-- `POST /api/workspaces/:projectId/start` - Start workspace
-- `POST /api/workspaces/:projectId/stop` - Stop workspace
-- `GET /api/workspaces/:projectId/status` - Get workspace status
-- `GET /api/workspaces/:projectId/terminal-url` - Get terminal WebSocket URL
-- `GET /api/workspaces/:projectId/preview-url` - Get live preview URL
-- `GET /api/workspaces/:projectId/fs` - List runner FS directory
-- `GET /api/workspaces/:projectId/fs/read` - Read file from runner FS
-- `POST /api/workspaces/:projectId/fs/write` - Write file to runner FS
-- `POST /api/workspaces/:projectId/fs/mkdir` - Create directory on runner FS
-- `DELETE /api/workspaces/:projectId/fs/rm` - Delete file/dir on runner FS
-- `POST /api/workspaces/:projectId/fs/rename` - Rename file/dir on runner FS
+**AI Integration**: Supports Anthropic Claude Sonnet, OpenAI GPT-4o, and Google Gemini Flash models. The AI agent offers various modes (Economy, Power, Turbo) with credit-based usage. It includes tool-use capabilities for file operations, skill creation, downloadable file generation (PDF, DOCX, XLSX, PPTX, CSV), and web search (Tavily API with Google/Bing fallback). A message queue system allows users to manage follow-up messages during streaming. Modular AI agent services support DALL-E 3, NanoBanana (Stable Diffusion XL), Brave Image Search, and ElevenLabs TTS.
 
-## WebSocket
-- Path: `/ws?projectId=<id>` (noServer mode with manual upgrade handling to avoid conflicts with Vite HMR at `/vite-hmr`)
-- Messages: `run_log` (real-time output), `run_status` (started/completed/failed)
-- Per-IP connection limit (5), message rate limiting (30/10s), heartbeat (30s), polling fallback
+**Project Structure**: Introduces a Multi-Artifact Architecture allowing projects to support various output formats (web-app, mobile-app, slides, video, 3D game, document, spreadsheet, design). Each artifact has its own configuration and entry point. Dedicated artifact types like Mobile App, Slides, and Video have specialized editors and AI tools. A Design Canvas provides an infinite visual board workspace with HTML mockups and annotations.
 
-## Important Files
-- `shared/schema.ts` - Drizzle schema + Zod insert schemas (indexed columns), PLAN_LIMITS config
-- `server/routes.ts` - All API routes (auth, projects, files, runs, publish, workspaces, AI, demo, health, metrics, usage)
-- `server/email.ts` - Email sending module (nodemailer, SMTP with console fallback)
-- `server/runnerClient.ts` - Runner VPS HTTP client
-- `server/storage.ts` - IStorage interface + DatabaseStorage implementation (includes quota methods)
-- `server/executor.ts` - Multi-layered sandboxed code execution (AST analysis, runtime wrappers, OS-level ulimit/nice/unshare isolation)
-- `server/rateLimiter.ts` - Per-user/IP rate limiting, global execution pool (5 concurrent), execution queue with priority, metrics tracking
-- `server/executionPool.ts` - Queue-based worker pool (8 max concurrent, 50 max queue), per-user rate limiting
-- `server/deploymentEngine.ts` - Real deployment build pipeline with versioned rollback and static file serving
-- `server/domainManager.ts` - Custom domain management with DNS verification and SSL provisioning
-- `server/index.ts` - Express setup with Helmet.js security headers
-- `client/src/App.tsx` - Root app with ErrorBoundary, routing, providers
-- `client/src/pages/Project.tsx` - Full IDE page (VS Code layout, activity bar, AI agent panel, editor, terminal, command palette, deployments panel, connection quality indicator)
-- `client/src/pages/Dashboard.tsx` - Project list with AI prompt generation, live usage quotas display
-- `client/src/pages/Auth.tsx` - Login/register page
-- `client/src/pages/VerifyEmail.tsx` - Email verification page (handles token from URL)
-- `client/src/pages/Settings.tsx` - Account settings (profile, password, danger zone)
-- `client/src/pages/SharedProject.tsx` - Public shared project view
-- `client/src/components/CodeEditor.tsx` - CodeMirror 6 wrapper with syntax theme, autocomplete, lint, cursor tracking
-- `client/src/components/AIPanel.tsx` - AI agent panel with markdown rendering, model selection, chat/agent modes
-- `client/src/components/CommandPalette.tsx` - Cmd+K command palette with file switching and actions
-- `client/src/components/WorkspaceTerminal.tsx` - xterm.js terminal panel
-- `client/src/components/GitHubPanel.tsx` - GitHub import/export panel in Source Control sidebar
-- `client/src/components/EnvVarsPanel.tsx` - Per-project environment variables panel
-- `client/src/components/AICompletions.tsx` - Inline AI ghost text completion extension for CodeMirror
-- `client/src/pages/ForgotPassword.tsx` - Forgot password page
-- `client/src/pages/ResetPassword.tsx` - Reset password with token page
-- `client/src/pages/Teams.tsx` - Team management page
-- `client/src/pages/Admin.tsx` - Admin dashboard page
-- `client/src/pages/Terms.tsx` - Terms of Service
-- `client/src/pages/Privacy.tsx` - Privacy Policy
-- `server/terminal.ts` - node-pty PTY session management with WebSocket relay
-- `server/github.ts` - GitHub API proxy via Replit connectors SDK
-- `server/templates.ts` - Project template definitions
-- `client/src/pages/Pricing.tsx` - Pricing page with tier comparison
-- `client/src/hooks/use-websocket.ts` - WebSocket hook with polling fallback, reconnection, connection quality tracking
+**Version Control**: Full Git integration using `isomorphic-git` for operations like init, add, commit, log, branch, checkout, diff, status, and blame. Includes GitHub synchronization (push, pull, clone) and a visual merge conflict resolution UI. Automatic git repo backups with gzip compression ensure disaster recovery. Per-file versioning provides historical snapshots and diff views.
 
-## IDE Layout (Desktop)
-- **Activity Bar** (48px, far left): Explorer, Search, AI Agent, Git (with dirty badge), Deployments, Preview, Settings -- active icon has left-2 border indicator (blue #0079F2, purple for AI)
-- **AI Agent Panel** (45% width, toggleable): Chat/agent mode toggle, model selection (Claude/GPT), rich markdown rendering, file operation indicators, apply-to-file code blocks
-- **File Explorer** (240px, toggleable): Nested folder tree with expand/collapse, colored file type icons, create/rename/delete
-- **Header Bar** (h-11/44px): Left (E-Code orange logo > chevron > project name), Center (green Run pill button), Right (Invite + Publish + kebab menu)
-- **Breadcrumbs**: Path segments between tab bar and editor (src > components > App.tsx)
-- **Search Panel** (300px, toggleable via Ctrl+Shift+F): Full-text search across all project files
-- **Editor** (center): CodeMirror 6 with tabs + syntax theme + autocomplete + lint + cursor position tracking
-- **Deployments Panel**: Publish status, URL, history, custom domain placeholder
-- **Settings Panel**: Theme toggle, editor font size/tab size/word wrap controls, about section
-- **Webview Panel** (right side, ~40%, resizable): Live preview with URL bar, refresh, open-in-new-tab
-- **Bottom Panel** (resizable): Console + Shell tabs with xterm.js terminal
-- **Status Bar** (h-6, bottom): git branch "main", workspace status, WS connection quality indicator, problems count, language picker, cursor Ln/Col, tab size, encoding, Prettier, E-Code logo
-- **Mobile**: bottom nav bar (Files/Editor/Terminal/Preview/AI) -- single-pane navigation
+**Collaboration**: Real-time collaborative editing via WebSocket using Yjs CRDT for conflict-free document synchronization, with user presence indicators and remote cursors. A project invite system enables sharing with configurable roles and invite links.
 
-## Tech Stack
-- React 19, Wouter, TanStack Query
-- Express 5, express-session, connect-pg-simple, bcrypt, express-rate-limit
-- Drizzle ORM, PostgreSQL
-- Anthropic SDK + OpenAI SDK + Google GenAI SDK (via Replit AI Integrations)
-- CodeMirror 6 (@uiw/react-codemirror + language packages + custom theme)
-- WebSocket (ws library)
-- Helmet.js (security headers)
-- Nodemailer (email sending)
-- Acorn + Acorn-Walk (JS AST analysis)
-- esbuild (TypeScript transpilation)
-- IBM Plex Sans / IBM Plex Mono / JetBrains Mono fonts
+**Developer Tools**: Includes a customizable Keyboard Shortcuts system, a structured Console Panel with run history, an AI Plan Mode for generating structured task lists, and a comprehensive User Settings panel. Dependency Management features a package panel with registry search, import guessing, and version pinning. SSH Panel and Key Management allow users to add and manage SSH public keys for remote access.
 
-## Environment Variables (for production)
-- `DATABASE_URL` - PostgreSQL connection string (auto-provided by Replit)
-- `SMTP_HOST` - SMTP server hostname (e.g., smtp.sendgrid.net)
-- `SMTP_PORT` - SMTP port (default: 587)
-- `SMTP_USER` - SMTP username
-- `SMTP_PASS` - SMTP password/API key
-- `EMAIL_FROM` - From address for emails (default: noreply@e-code.ai)
-- `APP_URL` - Public URL for email links (default: auto-detected from REPL_SLUG)
-- `STRIPE_SECRET_KEY` - Stripe API secret key
-- `STRIPE_PRO_PRICE_ID` - Stripe price ID for Pro plan
-- `STRIPE_TEAM_PRICE_ID` - Stripe price ID for Team plan
-- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
+**Storage and Database**: Each project receives its own PostgreSQL schema for data isolation. A Database Panel provides a table browser, SQL Runner, and masked credentials display. An App Storage v2 system offers bucket-based object storage with folder organization, access management, and quota enforcement.
+
+**Key Features**:
+- **Workflows**: Multi-step build/run pipelines with configurable triggers and execution modes.
+- **Monitoring**: Metrics collection (CPU, memory, load, requests) for deployed projects with configurable alerts.
+- **Threads**: Code discussion threads with line number references.
+- **Build in Parallel (Tasks)**: Kanban board for parallel task execution with AI plan integration.
+- **Checkpoints**: Full project state snapshots with a visual timeline for rollback/roll-forward.
+- **CLUI System**: Command Line UI for account management, global search, and workspace actions.
+- **Replit Config System**: Full support for `.replit` and `replit.nix` configuration files.
+
+## External Dependencies
+- **PostgreSQL**: Primary database for all application data.
+- **Nodemailer**: For sending emails (password resets, verification, invites).
+- **Stripe**: For billing, subscriptions, and payment processing.
+- **Anthropic Claude Sonnet, OpenAI GPT-4o, Google Gemini Flash**: AI model providers for chat, agent, and project generation.
+- **Tavily API**: Primary web search for AI agent.
+- **Brave Search API**: For web image search.
+- **ElevenLabs**: For Text-to-Speech functionality.
+- **DALL-E 3**: For AI image generation.
+- **NanoBanana (Stable Diffusion XL)**: Fallback AI image generation.
+- **GitHub API**: For Git integration (import, export, sync).
+- **Figma API**: For AI-powered React component generation from design contexts.
+- **Vercel, Bolt, Lovable**: Integrated import sources for projects.
+- **Slack (via @slack/bolt)**: For automation triggers.
+- **Telegram (via telegraf)**: For automation triggers.
+- **node-cron**: For cron job scheduling in automations.
+- **node-pty**: For real terminal emulation.
+- **ws**: WebSocket library for real-time communication.
+- **Yjs**: CRDT library for collaborative editing.
+- **Helmet.js**: For enhancing security headers.
+- **Acorn, Acorn-Walk**: For JavaScript AST analysis.
+- **esbuild**: For TypeScript transpilation.
+- **pdfkit, docx, exceljs, pptxgenjs**: For generating various document formats.
