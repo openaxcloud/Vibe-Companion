@@ -304,7 +304,7 @@ async function testIntegrationConnection(
       }
       case "GitHub": {
         const res = await fetch("https://api.github.com/user", {
-          headers: { Authorization: `Bearer ${config.GITHUB_TOKEN}`, "User-Agent": "Replit-IDE" },
+          headers: { Authorization: `Bearer ${config.GITHUB_TOKEN}`, "User-Agent": "E-Code-IDE" },
           signal: AbortSignal.timeout(timeout),
         });
         return res.ok ? { success: true, message: "Token valid" } : { success: false, message: `HTTP ${res.status}` };
@@ -711,8 +711,8 @@ async function testIntegrationConnection(
         });
         return hexRes.ok ? { success: true, message: "Connected to Hex" } : { success: false, message: `HTTP ${hexRes.status}` };
       }
-      case "Replit Auth": {
-        return { success: true, message: "Replit Auth is a zero-setup managed integration — no API keys required" };
+      case "E-Code Auth": {
+        return { success: true, message: "E-Code Auth is a zero-setup managed integration — no API keys required" };
       }
       default: {
         const hasValues = Object.values(config).some(v => v && v.trim().length > 0);
@@ -2155,7 +2155,7 @@ export async function registerRoutes(
   // --- REPLIT OAUTH ---
   app.get("/api/auth/replit", (req: Request, res: Response) => {
     const clientId = process.env.REPLIT_CLIENT_ID;
-    if (!clientId) return res.status(500).json({ message: "Replit Auth not configured" });
+    if (!clientId) return res.status(500).json({ message: "E-Code Auth not configured" });
     const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/replit/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
@@ -7798,7 +7798,7 @@ export async function registerRoutes(
     baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
     defaultHeaders: {
       "HTTP-Referer": "https://replit.com",
-      "X-Title": "Replit IDE",
+      "X-Title": "E-Code IDE",
     },
   });
 
@@ -8575,7 +8575,7 @@ ${formatInstruction}`;
       const existingFiles = await storage.getFiles(projectId);
       const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
 
-      const planSystemPrompt = `You are a senior software architect and project planner embedded in Replit IDE. Your role is to help users plan, brainstorm, and create structured task lists for their projects.
+      const planSystemPrompt = `You are a senior software architect and project planner embedded in E-Code IDE. Your role is to help users plan, brainstorm, and create structured task lists for their projects.
 
 Current project: "${project.name}" (${project.language})
 Existing files:
@@ -8974,7 +8974,7 @@ Any closing remarks...`;
       const modelsRes = await fetch(`${openrouterBaseUrl}/models`, {
         headers: {
           "HTTP-Referer": "https://replit.com",
-          "X-Title": "Replit IDE",
+          "X-Title": "E-Code IDE",
           "X-OpenRouter-Privacy": "1",
           ...(openrouter.apiKey ? { "Authorization": `Bearer ${openrouter.apiKey}` } : {}),
         },
@@ -9101,7 +9101,7 @@ Any closing remarks...`;
         } catch {}
       }
 
-      const systemPrompt = `${resolved.systemPromptPrefix}You are an expert coding assistant embedded in Replit IDE. You help users write, debug, and improve code.
+      const systemPrompt = `${resolved.systemPromptPrefix}You are an expert coding assistant embedded in E-Code IDE. You help users write, debug, and improve code.
 
 Rules:
 - Always provide COMPLETE, WORKING code — never truncate, abbreviate, or use "..." to skip sections.
@@ -10009,7 +10009,7 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         ? `\n\nThis is a VIDEO project. The user is creating a video composition. You have access to the create_video_scene and edit_video_scene tools to create/modify video scenes. Each scene has an id, order, duration (seconds), backgroundColor, elements array, and transition type. Element types: text, image, shape, overlay. Each element has position (x, y as %), size (width, height as %), startTime, endTime, style, and animation.`
         : (outputTypeContextMap[(project as any).outputType] || "");
 
-      const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an AI coding agent inside Replit IDE. You can create and edit files in the user's project.
+      const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an AI coding agent inside E-Code IDE. You can create and edit files in the user's project.
 
 Current project: "${project.name}" (${project.language}, type: ${project.projectType || "web-app"}${isMobileProject ? ", mobile-app" : ""})
 Existing files:
@@ -11468,7 +11468,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       const liteModifiedFiles = new Set<string>();
       const fileList = existingFiles.map(f => `- ${f.filename}`).join("\n");
 
-      const liteSystemPrompt = `You are a fast AI coding agent in Replit IDE. Make quick, targeted changes only.
+      const liteSystemPrompt = `You are a fast AI coding agent in E-Code IDE. Make quick, targeted changes only.
 
 Project: "${project.name}" (${project.language})
 Files:
@@ -11999,7 +11999,7 @@ Rules:
       const timeout = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; ReplitIDE/1.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; ECodeIDE/1.0)",
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
         },
         signal: controller.signal,

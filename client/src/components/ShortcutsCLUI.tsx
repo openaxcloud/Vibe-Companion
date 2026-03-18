@@ -59,8 +59,8 @@ export default function ShortcutsCLUI({ open, onClose }: ShortcutsCLUIProps) {
   }, [query, doSearch]);
 
   const quickActions = [
-    { id: "new-repl", label: "Create New Repl", icon: <Plus className="w-4 h-4" />, action: () => { onClose(); setLocation("/dashboard"); } },
-    { id: "my-repls", label: "My Repls", icon: <Folder className="w-4 h-4" />, action: () => { onClose(); setLocation("/dashboard"); } },
+    { id: "new-project", label: "Create New Project", icon: <Plus className="w-4 h-4" />, action: () => { onClose(); setLocation("/dashboard"); } },
+    { id: "my-projects", label: "My Projects", icon: <Folder className="w-4 h-4" />, action: () => { onClose(); setLocation("/dashboard"); } },
     { id: "cli", label: "Open CLI", icon: <Code2 className="w-4 h-4" />, action: () => { onClose(); setLocation("/cli"); } },
   ];
 

@@ -1221,7 +1221,7 @@ export class DatabaseStorage implements IStorage {
       userId: "demo", name: "hello-world-demo", language: "javascript", isDemo: true,
     }).returning();
     await db.insert(files).values([
-      { projectId: demoProject.id, filename: "index.js", content: `// Welcome to Replit!\n// This is a read-only demo project.\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nfor (let i = 0; i < 10; i++) {\n  console.log(\`fib(\${i}) = \${fibonacci(i)}\`);\n}\n\nconsole.log("\\nHello from Replit!");\n` },
+      { projectId: demoProject.id, filename: "index.js", content: `// Welcome to E-Code!\n// This is a read-only demo project.\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nfor (let i = 0; i < 10; i++) {\n  console.log(\`fib(\${i}) = \${fibonacci(i)}\`);\n}\n\nconsole.log("\\nHello from E-Code!");\n` },
       { projectId: demoProject.id, filename: "utils.js", content: `// Utility functions\n\nfunction formatDate(date) {\n  return new Intl.DateTimeFormat('en-US', {\n    year: 'numeric',\n    month: 'long',\n    day: 'numeric'\n  }).format(date);\n}\n\nconsole.log("Today is:", formatDate(new Date()));\n` },
     ]);
   }
@@ -2985,7 +2985,7 @@ export class DatabaseStorage implements IStorage {
       { name: "Supabase", category: "Backend Services", description: "Open source Firebase alternative", icon: "zap", envVarKeys: ["SUPABASE_URL", "SUPABASE_ANON_KEY"], connectorType: "apikey" as const, connectionLevel: "project" as const, providerUrl: "https://supabase.com" },
 
       // Authentication
-      { name: "Replit Auth", category: "Authentication", description: "Sign in with Replit — zero-setup OAuth for deployed apps", icon: "user-check", envVarKeys: [] },
+      { name: "E-Code Auth", category: "Authentication", description: "Sign in with E-Code — zero-setup OAuth for deployed apps", icon: "user-check", envVarKeys: [] },
     ];
     for (const entry of entries) {
       await db.insert(integrationCatalog).values(entry).onConflictDoUpdate({

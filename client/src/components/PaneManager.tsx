@@ -715,7 +715,7 @@ export function FloatingPaneWrapper({
   );
 }
 
-const BROADCAST_CHANNEL_NAME = "replit-workspace-sync";
+const BROADCAST_CHANNEL_NAME = "ecode-workspace-sync";
 
 export type PaneBroadcastMessage =
   | { type: "tab-opened"; tabId: string }

@@ -6,7 +6,7 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587", 10);
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const EMAIL_FROM = process.env.EMAIL_FROM || "noreply@e-code.ai";
-const APP_URL = process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`;
+const APP_URL = process.env.APP_URL || `https://${process.env.APP_DOMAIN || 'e-code.ai'}`;
 
 const smtpConfigured = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 

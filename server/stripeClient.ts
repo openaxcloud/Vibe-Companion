@@ -13,7 +13,7 @@ async function getStripeCredentials(): Promise<{ secretKey: string; webhookSecre
         `https://${connectorsHostname}/proxy/stripe/config`,
         {
           headers: {
-            "X-Replit-Identity": replIdentity,
+            "X-Ecode-Identity": replIdentity,
           },
         }
       );

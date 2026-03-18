@@ -630,7 +630,7 @@ export default function Settings() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = "replit-data-export.json"; a.click();
+      a.href = url; a.download = "ecode-data-export.json"; a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Data exported" });
     } catch (err: any) {
@@ -757,14 +757,14 @@ export default function Settings() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <ThemeCard
-                    name="Replit Dark"
+                    name="E-Code Dark"
                     scheme="dark"
                     isActive={!activeTheme.id && activeTheme.baseScheme === "dark"}
                     colors={["#0E1525", "#F5F9FC", "#0079F2", "#0CCE6B", "#F44747", "#2B3245"]}
                     onClick={() => setActiveTheme(BUILTIN_DARK)}
                   />
                   <ThemeCard
-                    name="Replit Light"
+                    name="E-Code Light"
                     scheme="light"
                     isActive={!activeTheme.id && activeTheme.baseScheme === "light"}
                     colors={["#FFFFFF", "#0F172A", "#0079F2", "#16A34A", "#DC2626", "#D1D5DB"]}

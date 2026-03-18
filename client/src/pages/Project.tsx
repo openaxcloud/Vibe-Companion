@@ -3372,64 +3372,6 @@ function _projectPage() {
     return <>{parts.map((p, i) => <span key={i} style={p.color ? { color: p.color } : undefined}>{p.text}</span>)}</>;
   }, []);
 
-  if (projectQuery.isLoading) {
-    return (
-      <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden">
-        <div className="flex items-center px-3 h-11 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 gap-2">
-          <Skeleton className="w-7 h-7 rounded-lg bg-[var(--ide-surface)]" />
-          <Skeleton className="w-3 h-3 rounded bg-[var(--ide-surface)]" />
-          <Skeleton className="w-32 h-4 rounded bg-[var(--ide-surface)]" />
-          <div className="flex-1" />
-          <Skeleton className="w-16 h-7 rounded-full bg-[var(--ide-surface)]" />
-        </div>
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-12 bg-[var(--ide-bg)] border-r border-[var(--ide-border)] flex flex-col items-center py-2 gap-2 shrink-0">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="w-6 h-6 rounded bg-[var(--ide-surface)]" />
-            ))}
-          </div>
-          <div className="w-[240px] bg-[var(--ide-panel)] border-r border-[var(--ide-border)] flex flex-col shrink-0">
-            <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)]">
-              <Skeleton className="w-12 h-3 rounded bg-[var(--ide-surface)]" />
-              <div className="flex gap-1">
-                <Skeleton className="w-5 h-5 rounded bg-[var(--ide-surface)]" />
-                <Skeleton className="w-5 h-5 rounded bg-[var(--ide-surface)]" />
-              </div>
-            </div>
-            <div className="flex-1 py-2 px-2 space-y-1">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
-                  <Skeleton className="w-4 h-4 rounded-[3px] bg-[var(--ide-surface)]" />
-                  <Skeleton className={`h-3 rounded bg-[var(--ide-surface)] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div className="flex items-center bg-[var(--ide-bg)] border-b border-[var(--ide-border)] h-9 px-1 gap-1">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="w-24 h-6 rounded bg-[var(--ide-surface)]" />
-              ))}
-            </div>
-            <div className="flex-1 bg-[var(--ide-panel)] p-4 space-y-2">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} className={`h-3 rounded bg-[var(--ide-surface)] ${i % 4 === 0 ? "w-3/4" : i % 4 === 1 ? "w-1/2" : i % 4 === 2 ? "w-5/6" : "w-2/3"}`} />
-              ))}
-            </div>
-            <div className="h-[220px] border-t border-[var(--ide-border)] bg-[var(--ide-panel)] p-3 space-y-2">
-              <Skeleton className="w-16 h-3 rounded bg-[var(--ide-surface)]" />
-              <Skeleton className="w-full h-3 rounded bg-[var(--ide-surface)]" />
-              <Skeleton className="w-3/4 h-3 rounded bg-[var(--ide-surface)]" />
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center px-3 h-6 bg-[var(--ide-bg)] border-t border-[var(--ide-border)]/60 shrink-0">
-          <Skeleton className="w-16 h-2.5 rounded bg-[var(--ide-surface)]" />
-        </div>
-      </div>
-    );
-  }
-
   const isMobile = viewMode === "mobile";
   const isTablet = viewMode === "tablet";
   const { hasExternalKeyboard, isTabletDevice } = useExternalKeyboardDetection();
@@ -4738,6 +4680,64 @@ function _projectPage() {
     wsSendMessage({ type: "stdin", data });
   }, [wsSendMessage]);
 
+  if (projectQuery.isLoading) {
+    return (
+      <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden">
+        <div className="flex items-center px-3 h-11 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 gap-2">
+          <Skeleton className="w-7 h-7 rounded-lg bg-[var(--ide-surface)]" />
+          <Skeleton className="w-3 h-3 rounded bg-[var(--ide-surface)]" />
+          <Skeleton className="w-32 h-4 rounded bg-[var(--ide-surface)]" />
+          <div className="flex-1" />
+          <Skeleton className="w-16 h-7 rounded-full bg-[var(--ide-surface)]" />
+        </div>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-12 bg-[var(--ide-bg)] border-r border-[var(--ide-border)] flex flex-col items-center py-2 gap-2 shrink-0">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="w-6 h-6 rounded bg-[var(--ide-surface)]" />
+            ))}
+          </div>
+          <div className="w-[240px] bg-[var(--ide-panel)] border-r border-[var(--ide-border)] flex flex-col shrink-0">
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)]">
+              <Skeleton className="w-12 h-3 rounded bg-[var(--ide-surface)]" />
+              <div className="flex gap-1">
+                <Skeleton className="w-5 h-5 rounded bg-[var(--ide-surface)]" />
+                <Skeleton className="w-5 h-5 rounded bg-[var(--ide-surface)]" />
+              </div>
+            </div>
+            <div className="flex-1 py-2 px-2 space-y-1">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 px-1 py-[5px]">
+                  <Skeleton className="w-4 h-4 rounded-[3px] bg-[var(--ide-surface)]" />
+                  <Skeleton className={`h-3 rounded bg-[var(--ide-surface)] ${i % 3 === 0 ? "w-24" : i % 3 === 1 ? "w-20" : "w-16"}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <div className="flex items-center bg-[var(--ide-bg)] border-b border-[var(--ide-border)] h-9 px-1 gap-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="w-24 h-6 rounded bg-[var(--ide-surface)]" />
+              ))}
+            </div>
+            <div className="flex-1 bg-[var(--ide-panel)] p-4 space-y-2">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <Skeleton key={i} className={`h-3 rounded bg-[var(--ide-surface)] ${i % 4 === 0 ? "w-3/4" : i % 4 === 1 ? "w-1/2" : i % 4 === 2 ? "w-5/6" : "w-2/3"}`} />
+              ))}
+            </div>
+            <div className="h-[220px] border-t border-[var(--ide-border)] bg-[var(--ide-panel)] p-3 space-y-2">
+              <Skeleton className="w-16 h-3 rounded bg-[var(--ide-surface)]" />
+              <Skeleton className="w-full h-3 rounded bg-[var(--ide-surface)]" />
+              <Skeleton className="w-3/4 h-3 rounded bg-[var(--ide-surface)]" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center px-3 h-6 bg-[var(--ide-bg)] border-t border-[var(--ide-border)]/60 shrink-0">
+          <Skeleton className="w-16 h-2.5 rounded bg-[var(--ide-surface)]" />
+        </div>
+      </div>
+    );
+  }
+
   const consoleTabContent = (
     <div className="flex-1 overflow-hidden flex flex-col bg-[var(--ide-panel)] animate-fade-in">
       <ConsolePanel
@@ -5304,7 +5304,7 @@ function _projectPage() {
         <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] animate-fade-in overflow-y-auto">
           <div className="max-w-md text-center px-6 py-8">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F26522]/10 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
-              <svg width="40" height="40" viewBox="0 0 32 32" fill="none" data-testid="img-replit-logo">
+              <svg width="40" height="40" viewBox="0 0 32 32" fill="none" data-testid="img-ecode-logo">
                 <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
                 <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
                 <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
@@ -5736,7 +5736,7 @@ function _projectPage() {
                             onClick={() => setSelectedWorkflowMutation.mutate(null)}
                             data-testid="run-option-default"
                           >
-                            <Play className="w-3 h-3" /> Run Replit App
+                            <Play className="w-3 h-3" /> Run App
                             {!(projectQuery.data as any)?.selectedWorkflowId && <Check className="w-3 h-3 ml-auto text-[#0CCE6B]" />}
                           </button>
                           {(runButtonWorkflowsQuery.data || []).map((wf) => (
@@ -7056,7 +7056,7 @@ function _projectPage() {
             </div>
             </TooltipProvider>
 
-            {/* AI AGENT PANEL — Main panel like Replit Agent (when open) */}
+            {/* AI AGENT PANEL — Main panel (when open) */}
             {aiPanelOpen && (
               <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[var(--ide-border)]`} data-testid="ai-agent-panel">
                 <AIPanel
