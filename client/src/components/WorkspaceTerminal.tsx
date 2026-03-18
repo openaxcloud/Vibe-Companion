@@ -114,7 +114,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
         socketRef.current.send(JSON.stringify({ type: "resize", cols, rows }));
       }
     });
-  }, []);
+  }, [accessibleTerminal, shellBell]);
 
   const closeSocket = useCallback((intentional: boolean) => {
     if (retryTimeoutRef.current) {

@@ -57,6 +57,16 @@ import * as fs from "fs";
 import { importFromGitHub, importFromZip, importFromFigma, importFromVercel, importFromBolt, importFromLovable, validateImportSource, startAsyncImport, startAsyncZipImport, getImportJob, validateZipBuffer, fetchFigmaDesignContext } from "./importService";
 import { handleLSPConnection } from "./lspBridge";
 
+/** Sanitize error messages to avoid leaking internal details (DB schema, connection strings, API keys) */
+function safeError(err: any, fallback: string): string {
+  const msg = err instanceof Error ? err.message : String(err || "");
+  // Block messages containing connection strings, SQL internals, or API keys
+  const sensitive = /password|connection|ECONNREFUSED|ENOTFOUND|at\s+\S+\.\w+\s+\(|SELECT |INSERT |UPDATE |DELETE |pg_|sk-[a-zA-Z0-9]/i;
+  if (sensitive.test(msg)) return fallback;
+  // Truncate to prevent oversized error responses
+  return msg.slice(0, 200) || fallback;
+}
+
 async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
   if (dbCommits.length === 0) return undefined;
@@ -1905,7 +1915,7 @@ export async function registerRoutes(
       await storage.trackEvent(user.id, "login", { method: "github" });
       return res.json({ id: user.id, email: user.email, displayName: user.displayName, csrfToken: req.session.csrfToken });
     } catch (err: any) {
-      return res.status(500).json({ message: "GitHub authentication failed: " + (err.message || "Unknown error") });
+      return res.status(500).json({ message: "GitHub authentication failed: " + safeError(err, "Unknown error") });
     }
   });
 
@@ -8217,7 +8227,7 @@ ${formatInstruction}`;
       res.json({ text: transcription.text });
     } catch (err: any) {
       log(`Transcription error: ${err.message}`, "ai");
-      res.status(500).json({ error: "Transcription failed: " + (err.message || "unknown error") });
+      res.status(500).json({ error: "Transcription failed: " + safeError(err, "unknown error") });
     }
   });
 
@@ -8272,7 +8282,7 @@ ${formatInstruction}`;
         res.write(`data: ${JSON.stringify({ type: "error", error: "TTS failed" })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: "TTS failed: " + (err.message || "unknown error") });
+        res.status(500).json({ error: "TTS failed: " + safeError(err, "unknown error") });
       }
     }
   });
@@ -8324,7 +8334,7 @@ ${formatInstruction}`;
         res.write(`data: ${JSON.stringify({ type: "error", error: "Audio response failed" })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: "Audio response failed: " + (err.message || "unknown error") });
+        res.status(500).json({ error: "Audio response failed: " + safeError(err, "unknown error") });
       }
     }
   });
@@ -8359,7 +8369,7 @@ ${formatInstruction}`;
       res.json({ image: `data:image/png;base64,${base64}` });
     } catch (err: any) {
       log(`Image generation error: ${err.message}`, "ai");
-      res.status(500).json({ error: "Image generation failed: " + (err.message || "unknown error") });
+      res.status(500).json({ error: "Image generation failed: " + safeError(err, "unknown error") });
     }
   });
 
@@ -12943,7 +12953,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         client.release();
       }
     } catch (err: any) {
-      res.json({ error: err.message || "Query failed" });
+      res.json({ error: safeError(err, "Query failed") });
     }
   });
 
@@ -12962,7 +12972,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       );
       res.json({ tables: result.rows.map((r: any) => r.tablename) });
     } catch (err: any) {
-      res.json({ error: err.message || "Failed to list tables" });
+      res.json({ error: safeError(err, "Failed to list tables") });
     }
   });
 
@@ -13013,10 +13023,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
         dataQuery += ` ORDER BY "${sortCol}" ${sortDir}`;
       }
 
-      dataQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+      const countParams = [...params];
+      params.push(limit, offset);
+      dataQuery += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
       const [countRes, dataRes] = await Promise.all([
-        pool.query(countQuery, params),
+        pool.query(countQuery, countParams),
         pool.query(dataQuery, params),
       ]);
 
@@ -13035,7 +13047,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         offset,
       });
     } catch (err: any) {
-      res.json({ error: err.message || "Failed to fetch table data" });
+      res.json({ error: safeError(err, "Failed to fetch table data") });
     }
   });
 
@@ -13115,7 +13127,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
         freeLimitBytes: 10 * 1024 * 1024 * 1024,
       });
     } catch (err: any) {
-      res.json({ error: err.message || "Failed to get usage" });
+      res.json({ error: safeError(err, "Failed to get usage") });
     }
   });
 
@@ -13155,7 +13167,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
       res.json({ message: `Removed ${droppedTables.length} tables`, droppedTables });
     } catch (err: any) {
-      res.status(500).json({ error: err.message || "Failed to remove database" });
+      res.status(500).json({ error: safeError(err, "Failed to remove database") });
     }
   });
 
@@ -13208,7 +13220,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
       res.json({ files: testFiles, framework });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, "Failed to discover tests") });
     }
   });
 
