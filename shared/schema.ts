@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -634,10 +634,10 @@ export const userQuotas = pgTable("user_quotas", {
 export const creditUsage = pgTable("credit_usage", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
-  mode: text("mode").notNull(),
+  creditCost: integer("credits_used").notNull(),
+  mode: text("agent_mode").notNull(),
   model: text("model").notNull(),
-  creditCost: integer("credit_cost").notNull(),
-  endpoint: text("endpoint").notNull(),
+  endpoint: text("endpoint"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -2481,11 +2481,11 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   projectId: varchar("project_id", { length: 36 }),
   provider: text("provider").notNull(),
   model: text("model").notNull(),
+  endpoint: text("endpoint"),
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
-  estimatedCost: integer("estimated_cost").notNull().default(0),
+  estimatedCost: real("cost_cents").notNull().default(0),
   credentialMode: text("credential_mode").notNull().default("managed"),
-  endpoint: text("endpoint"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("ai_usage_logs_user_idx").on(table.userId),
