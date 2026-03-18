@@ -1,5 +1,10 @@
 import EnvVarsPanel from '@/components/EnvVarsPanel';
 
-export function ReplitSecretsPanel({ projectId }: { projectId: string }) {
-  return <EnvVarsPanel projectId={projectId} onClose={() => {}} />;
+interface ReplitSecretsPanelProps {
+  projectId: string;
+  onClose?: () => void;
+}
+
+export function ReplitSecretsPanel({ projectId, onClose }: ReplitSecretsPanelProps) {
+  return <EnvVarsPanel projectId={projectId} onClose={onClose || (() => {})} />;
 }

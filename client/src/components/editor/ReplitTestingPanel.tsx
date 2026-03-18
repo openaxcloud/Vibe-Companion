@@ -1,5 +1,10 @@
 import TestRunnerPanel from '@/components/TestRunnerPanel';
 
-export function ReplitTestingPanel({ projectId }: { projectId: string }) {
-  return <TestRunnerPanel projectId={projectId} onClose={() => {}} />;
+interface ReplitTestingPanelProps {
+  projectId: string;
+  onClose?: () => void;
+}
+
+export function ReplitTestingPanel({ projectId, onClose }: ReplitTestingPanelProps) {
+  return <TestRunnerPanel projectId={projectId} onClose={onClose || (() => {})} />;
 }

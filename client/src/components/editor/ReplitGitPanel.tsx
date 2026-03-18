@@ -1,5 +1,19 @@
 import GitHubPanel from '@/components/GitHubPanel';
 
-export function ReplitGitPanel({ projectId }: { projectId: string }) {
-  return <GitHubPanel projectId={projectId} projectName="project" />;
+interface ReplitGitPanelProps {
+  projectId: string;
+  projectName?: string;
+  onImported?: (newProjectId?: string) => void;
+  onCloned?: () => void;
+}
+
+export function ReplitGitPanel({ projectId, projectName, onImported, onCloned }: ReplitGitPanelProps) {
+  return (
+    <GitHubPanel
+      projectId={projectId}
+      projectName={projectName || 'project'}
+      onImported={onImported}
+      onCloned={onCloned}
+    />
+  );
 }

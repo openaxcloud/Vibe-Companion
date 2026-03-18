@@ -1,5 +1,10 @@
 import AppStoragePanelOrig from '@/components/AppStoragePanel';
 
-export function AppStoragePanel({ projectId }: { projectId: string }) {
-  return <AppStoragePanelOrig projectId={projectId} onClose={() => {}} />;
+interface AppStoragePanelWrapperProps {
+  projectId: string;
+  onClose?: () => void;
+}
+
+export function AppStoragePanel({ projectId, onClose }: AppStoragePanelWrapperProps) {
+  return <AppStoragePanelOrig projectId={projectId} onClose={onClose || (() => {})} />;
 }
