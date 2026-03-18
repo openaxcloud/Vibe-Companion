@@ -618,7 +618,7 @@ export class LSPClient {
               const editTo = endLine.from + te.range.end.character;
               changes.push({ from: editFrom, to: editTo, insert: te.newText });
             } else {
-              changes.push({ from, to, insert: te.newText });
+              changes.push({ from, to, insert: (te as any).newText });
             }
 
             for (const ae of additionalEdits) {

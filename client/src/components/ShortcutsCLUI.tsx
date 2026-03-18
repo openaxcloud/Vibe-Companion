@@ -23,7 +23,7 @@ export default function ShortcutsCLUI({ open, onClose }: ShortcutsCLUIProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
     if (open) {

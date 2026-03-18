@@ -94,7 +94,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       const res = await fetch(`/api/projects/${projectId}/canvas/frames`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify({
           name: "Untitled Frame",
@@ -126,7 +126,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       const res = await fetch(`/api/projects/${projectId}/canvas/annotations`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify({
           type,
@@ -152,7 +152,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       const res = await fetch(`/api/projects/${projectId}/canvas/frames/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify(data),
       });
@@ -169,7 +169,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       const res = await fetch(`/api/projects/${projectId}/canvas/annotations/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify(data),
       });
@@ -186,7 +186,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       await fetch(`/api/projects/${projectId}/canvas/frames/${id}`, {
         method: "DELETE",
-        headers: { "x-csrf-token": getCsrfToken() },
+        headers: { "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
       });
       setFrames(prev => prev.filter(f => f.id !== id));
@@ -200,7 +200,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       await fetch(`/api/projects/${projectId}/canvas/annotations/${id}`, {
         method: "DELETE",
-        headers: { "x-csrf-token": getCsrfToken() },
+        headers: { "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
       });
       setAnnotations(prev => prev.filter(a => a.id !== id));
@@ -216,7 +216,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
     try {
       const res = await fetch(`/api/projects/${projectId}/canvas/frames`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() as string },
         credentials: "include",
         body: JSON.stringify({
           name: `${frame.name} (copy)`,

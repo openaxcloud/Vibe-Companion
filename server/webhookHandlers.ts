@@ -63,7 +63,7 @@ async function reconcileUserPlan(customerId: string, eventContext?: { eventType:
       await storage.updateUserPlan(userId, planKey, customerId, sub.id);
       log(`Reconciled user ${userId}: plan=${planKey}, subscription=${sub.id}`, "stripe");
     } else if (eventContext?.eventType === "checkout.session.completed" && eventContext.checkoutMode === "payment") {
-      const planKey = await deriveOneTimePlanFromCheckout(customerId, eventContext.checkoutPriceId, db, sql);
+      const planKey = await deriveOneTimePlanFromCheckout(customerId, eventContext.checkoutPriceId, db as any, sql);
       await storage.updateUserPlan(userId, planKey, customerId, null);
       log(`Reconciled user ${userId}: plan=${planKey} (one-time payment)`, "stripe");
     } else if (eventContext?.eventType === "customer.subscription.deleted" || eventContext?.eventType === "invoice.payment_failed") {

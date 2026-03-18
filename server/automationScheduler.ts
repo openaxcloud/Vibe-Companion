@@ -1,10 +1,11 @@
+// @ts-ignore
 import cron from "node-cron";
 import { storage } from "./storage";
 import { executeCode } from "./executor";
 import { log } from "./index";
 import crypto from "crypto";
 
-const scheduledJobs = new Map<string, cron.ScheduledTask>();
+const scheduledJobs = new Map<string, any>();
 
 export function generateWebhookToken(): string {
   return crypto.randomBytes(24).toString("hex");

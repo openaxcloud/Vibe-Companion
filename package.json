@@ -9,7 +9,8 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -118,6 +119,7 @@
     "p-retry": "^7.1.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "patch-package": "^8.0.1",
     "pdfkit": "^0.18.0",
     "pg": "^8.16.3",
     "pptxgenjs": "^4.0.1",

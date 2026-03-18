@@ -151,6 +151,16 @@ import {
 } from "@shared/schema";
 import { encrypt, decrypt, migrateToEncrypted } from "./encryption";
 
+function hexColorDistance(hex1: string, hex2: string): number {
+  const toRgb = (h: string) => {
+    const c = h.replace("#", "");
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+  };
+  const [r1, g1, b1] = toRgb(hex1);
+  const [r2, g2, b2] = toRgb(hex2);
+  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -871,7 +881,7 @@ export class DatabaseStorage implements IStorage {
     const layouts = ((prefs.paneLayouts || {}) as Record<string, unknown>);
     layouts[projectId] = layout;
     const merged = { ...prefs, paneLayouts: layouts };
-    await db.update(users).set({ preferences: merged }).where(eq(users.id, userId));
+    await db.update(users).set({ preferences: merged as any }).where(eq(users.id, userId));
   }
 
   async deleteUser(id: string): Promise<boolean> {
@@ -1396,7 +1406,7 @@ export class DatabaseStorage implements IStorage {
       return { allowed: false, quota, creditCost };
     }
 
-    await db.insert(creditUsage).values({ userId, mode, model, creditCost, endpoint });
+    await db.insert(creditUsage).values({ userId, mode, model, creditCost, endpoint } as any);
     return { allowed: true, quota: result[0], creditCost };
   }
 
@@ -1607,7 +1617,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       if (meteredItem) {
-        await stripe.subscriptionItems.createUsageRecord(meteredItem.id, {
+        await (stripe.subscriptionItems as any).createUsageRecord(meteredItem.id, {
           quantity: credits,
           timestamp: Math.floor(Date.now() / 1000),
           action: "increment",
@@ -3948,7 +3958,7 @@ export class DatabaseStorage implements IStorage {
       mapped = mapped.filter(t => {
         const gc = t.globalColors;
         const allColors = [gc.background, gc.outline, gc.foreground, gc.primary, gc.positive, gc.negative].map(c => c.toLowerCase());
-        return allColors.some(c => c === target || colorDistance(c, target) < 60);
+        return allColors.some(c => c === target || hexColorDistance(c, target) < 60);
       });
     }
     return mapped;
@@ -4167,7 +4177,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createGitBackup(data: InsertGitBackup): Promise<GitBackup> {
-    const [backup] = await db.insert(gitBackups).values(data).returning();
+    const [backup] = await db.insert(gitBackups).values(data as any).returning();
     return backup;
   }
 
@@ -4715,7 +4725,7 @@ export class DatabaseStorage implements IStorage {
     }).from(aiUsageLogs)
       .where(and(...conditions))
       .groupBy(aiUsageLogs.projectId, aiUsageLogs.provider);
-    return rows;
+    return rows as any;
   }
 }
 

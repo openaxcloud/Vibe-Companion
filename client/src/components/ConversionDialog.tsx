@@ -33,7 +33,7 @@ export default function ConversionDialog({ open, onOpenChange, projectId, frameI
     try {
       const res = await fetch(`/api/projects/${projectId}/conversions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
         credentials: "include",
         body: JSON.stringify({ frameId, targetArtifactType: selectedType }),
       });

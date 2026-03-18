@@ -107,7 +107,7 @@ export default function ConfigPanel({ projectId, onClose }: ConfigPanelProps) {
     mutationFn: async (config: ReplitConfig) => {
       const res = await fetch(`/api/projects/${projectId}/config`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
+        headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
         credentials: "include",
         body: JSON.stringify({ replit: config, nix: { deps: nixDeps } }),
       });

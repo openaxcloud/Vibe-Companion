@@ -98,7 +98,7 @@ export default function Admin() {
     onError: (err: any) => { toast({ title: "Failed to unban user", description: err.message, variant: "destructive" }); },
   });
 
-  if (!user?.isAdmin) {
+  if (!(user as any)?.isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--ide-bg)] text-[var(--ide-text)]">
         <div className="text-center" data-testid="text-admin-denied">

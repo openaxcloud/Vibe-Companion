@@ -794,7 +794,7 @@ export async function executeCode(
         cp.on("error", () => { res({ success: false, stderr: "rustc not found" }); });
       });
       if (!rustCompile.success) {
-        return { output: "", error: rustCompile.stderr || "Rust compilation failed", exitCode: 1 };
+        return { output: "", error: rustCompile.stderr || "Rust compilation failed", exitCode: 1 } as any;
       }
       command = join(sandboxDir, "main");
       args = [];

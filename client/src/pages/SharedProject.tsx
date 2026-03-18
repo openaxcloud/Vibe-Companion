@@ -278,7 +278,7 @@ export default function SharedProject() {
             size="sm"
             variant="ghost"
             className="h-7 px-3 text-xs font-medium gap-1.5 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-[var(--ide-border)]"
-            onClick={() => forkMutation.mutate()}
+            onClick={() => forkMutation.mutate(undefined)}
             disabled={forkMutation.isPending}
             data-testid="button-fork-shared"
           >

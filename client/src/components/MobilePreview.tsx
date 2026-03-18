@@ -279,7 +279,7 @@ export default function MobilePreview({ previewUrl, previewHtml, projectName, ex
         <div className="flex-1 flex items-center justify-center overflow-auto" style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)" }}>
           <div className="bg-[var(--ide-panel)] rounded-xl border border-[var(--ide-border)] shadow-xl max-w-sm w-full mx-4">
             <QRCodeDisplay
-              expoGoUrl={expoGoUrl}
+              expoGoUrl={expoGoUrl ?? null}
               projectName={projectName}
             />
           </div>

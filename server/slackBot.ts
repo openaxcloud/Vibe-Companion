@@ -74,7 +74,7 @@ export async function startSlackBot(automationId: string, botToken: string, sign
 
     app.message(async ({ message, say }) => {
       try {
-        const msg = message as Record<string, unknown>;
+        const msg = message as unknown as Record<string, unknown>;
         const ts = (msg.ts as string) || "";
         if (handledTimestamps.has(ts)) return;
         handledTimestamps.add(ts);

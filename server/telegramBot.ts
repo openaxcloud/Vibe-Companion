@@ -68,7 +68,7 @@ export async function startTelegramBot(automationId: string, botToken: string): 
 
     bot.on("message", async (ctx) => {
       try {
-        const msg = ctx.message as Record<string, unknown>;
+        const msg = ctx.message as unknown as Record<string, unknown>;
         const text = (msg.text as string) || "";
 
         if (text.startsWith("/")) {

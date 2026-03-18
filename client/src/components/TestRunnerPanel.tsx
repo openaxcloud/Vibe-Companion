@@ -89,7 +89,7 @@ export default function TestRunnerPanel({ projectId, onClose }: TestRunnerPanelP
         <Button
           size="sm"
           className="h-7 px-4 text-[11px] bg-[#0CCE6B] hover:bg-[#0CCE6B]/80 text-black rounded-md font-semibold gap-1.5"
-          onClick={() => runTestsMutation.mutate()}
+          onClick={() => runTestsMutation.mutate(undefined)}
           disabled={runTestsMutation.isPending}
           data-testid="button-run-all-tests"
         >
