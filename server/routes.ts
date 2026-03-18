@@ -3969,11 +3969,12 @@ export async function registerRoutes(
         token,
         createdBy: req.session.userId,
         role: ["viewer", "editor"].includes(req.body.role) ? req.body.role : "editor",
-        maxUses: req.body.maxUses || null,
+        maxUses: (typeof req.body.maxUses === "number" && Number.isInteger(req.body.maxUses) && req.body.maxUses > 0) ? req.body.maxUses : null,
         expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : null,
       });
       res.json({ ...link, url: `/invite/${token}` });
-    } catch (err) {
+    } catch (err: any) {
+      log(`Error creating invite link: ${err.message}`, "routes");
       res.status(500).json({ message: "Failed to create invite link" });
     }
   });
