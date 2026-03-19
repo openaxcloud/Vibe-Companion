@@ -291,6 +291,11 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     blameEnabled,
     setBlameEnabled,
     blameData,
+    // Merge conflicts
+    mergeConflicts,
+    setMergeConflicts,
+    mergeResolutions,
+    setMergeResolutions,
   } = workspace;
 
   const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
@@ -736,7 +741,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={() => handleTabClose('mcp')} /></Suspense>;
     }
     if (currentTab.id === 'merge-conflicts') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={[]} resolutions={[]} onClose={() => handleTabClose('merge-conflicts')} onMergeComplete={() => {}} onAbort={() => handleTabClose('merge-conflicts')} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={mergeConflicts} resolutions={mergeResolutions} onClose={() => handleTabClose('merge-conflicts')} onMergeComplete={() => { setMergeConflicts([]); setMergeResolutions([]); handleTabClose('merge-conflicts'); }} onAbort={() => { setMergeConflicts([]); setMergeResolutions([]); handleTabClose('merge-conflicts'); }} onResolutionChange={(updated) => setMergeResolutions(updated)} /></Suspense>;
     }
     if (currentTab.id === 'monitoring') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={() => handleTabClose('monitoring')} /></Suspense>;

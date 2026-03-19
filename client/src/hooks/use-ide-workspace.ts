@@ -158,6 +158,10 @@ export function useIDEWorkspace(projectId: string) {
   const [currentBranch, setCurrentBranch] = useState('main');
   const [pendingAIMessage, setPendingAIMessage] = useState<string | null>(null);
 
+  // Merge conflict state
+  const [mergeConflicts, setMergeConflicts] = useState<MergeConflictFile[]>([]);
+  const [mergeResolutions, setMergeResolutions] = useState<MergeResolution[]>([]);
+
   // User preferences
   const [userPrefs, setUserPrefsLocal] = useState<UserPreferences>({ ...DEFAULT_PREFERENCES });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -241,6 +245,30 @@ export function useIDEWorkspace(projectId: string) {
     enabled: !!projectId,
     staleTime: 5000,
   });
+
+  // Merge conflict detection
+  const mergeStatusQuery = useQuery<{ status: string; conflicts?: MergeConflictFile[]; resolutions?: MergeResolution[]; branch?: string }>({
+    queryKey: ['/api/projects', projectId, 'git/merge-status'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/git/merge-status`, { credentials: 'include' });
+      if (!res.ok) return { status: 'none' };
+      return res.json();
+    },
+    enabled: !!projectId,
+    staleTime: 30000,
+  });
+
+  useEffect(() => {
+    if (mergeStatusQuery.data && mergeStatusQuery.data.status === 'in_progress' && mergeStatusQuery.data.conflicts) {
+      setMergeConflicts(mergeStatusQuery.data.conflicts);
+      setMergeResolutions(mergeStatusQuery.data.resolutions || []);
+      // Auto-open merge conflicts tab when conflicts detected
+      if (!openTabs.includes('merge-conflicts')) {
+        setOpenTabs(prev => [...prev, 'merge-conflicts']);
+        setActiveFileId('merge-conflicts');
+      }
+    }
+  }, [mergeStatusQuery.data]);
 
   const project = projectQuery.data;
   const isLoadingProject = projectQuery.isLoading;
@@ -1319,6 +1347,12 @@ export function useIDEWorkspace(projectId: string) {
     // Git blame
     blameEnabled,
     setBlameEnabled,
+
+    // Merge conflicts
+    mergeConflicts,
+    setMergeConflicts,
+    mergeResolutions,
+    setMergeResolutions,
     blameData: blameQuery.data,
 
     // WebSocket
