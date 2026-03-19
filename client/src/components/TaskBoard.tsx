@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, TouchEvent as ReactTouchEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Button } from "@/components/ui/button";
 import {
-  Loader2, MoreVertical, CheckCircle2, Circle, Play,
-  X, ChevronRight, Clock, Zap, ArrowRight, LayoutGrid, List,
-  Plus, Send,
+  Loader2, MoreVertical, Play,
+  X, ChevronRight, Zap, ArrowRight, LayoutGrid, List,
 } from "lucide-react";
 import TaskReviewDrawer from "./TaskReviewDrawer";
 
@@ -156,8 +154,15 @@ function TaskCard({
     const close = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
+    const escClose = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("keydown", escClose);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", escClose);
+    };
   }, [menuOpen]);
 
   const timestamp = task.completedAt || task.startedAt || task.createdAt;
@@ -183,7 +188,7 @@ function TaskCard({
             <MoreVertical className="w-4 h-4 text-[var(--tb-text-dimmest)]" />
           </button>
           {menuOpen && (
-            <div className="absolute top-0 left-7 z-50 min-w-[160px] rounded-lg border border-[var(--tb-border)] bg-[var(--tb-card-bg)] shadow-lg py-1" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute top-7 right-0 z-50 min-w-[160px] rounded-lg border border-[var(--tb-border)] bg-[var(--tb-card-bg)] shadow-lg py-1" onClick={(e) => e.stopPropagation()}>
               {task.status === "draft" && (
                 <button className="flex items-center gap-2 w-full px-3 py-1.5 text-[14px] text-[var(--tb-text)] hover:bg-[var(--tb-border)]/50 transition-colors" onClick={() => { setMenuOpen(false); onAccept(task.id); }}>
                   <Play className="w-4 h-4" /> Start task
@@ -384,12 +389,17 @@ export default function TaskBoard({
     }
   }, [wsMessages, projectId, queryClient]);
 
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const clearError = () => setMutationError(null);
+
   const acceptMutation = useMutation({
     mutationFn: async (taskId: string) => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/tasks/${taskId}/accept`);
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }),
+    onSuccess: () => { clearError(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }); },
+    onError: () => setMutationError("Failed to start task"),
   });
 
   const applyMutation = useMutation({
@@ -397,7 +407,8 @@ export default function TaskBoard({
       const res = await apiRequest("POST", `/api/projects/${projectId}/tasks/${taskId}/apply`);
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }),
+    onSuccess: () => { clearError(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }); },
+    onError: () => setMutationError("Failed to apply changes"),
   });
 
   const dismissMutation = useMutation({
@@ -405,7 +416,8 @@ export default function TaskBoard({
       const res = await apiRequest("POST", `/api/projects/${projectId}/tasks/${taskId}/dismiss`);
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }),
+    onSuccess: () => { clearError(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }); },
+    onError: () => setMutationError("Failed to dismiss task"),
   });
 
   const deleteMutation = useMutation({
@@ -413,7 +425,8 @@ export default function TaskBoard({
       const res = await apiRequest("DELETE", `/api/projects/${projectId}/tasks/${taskId}`);
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }),
+    onSuccess: () => { clearError(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }); },
+    onError: () => setMutationError("Failed to delete task"),
   });
 
   const bulkAcceptMutation = useMutation({
@@ -421,7 +434,8 @@ export default function TaskBoard({
       const res = await apiRequest("POST", `/api/projects/${projectId}/tasks/bulk-accept`, { taskIds });
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }),
+    onSuccess: () => { clearError(); queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }); },
+    onError: () => setMutationError("Failed to accept tasks"),
   });
 
   const tasks = tasksQuery.data || [];
@@ -547,6 +561,16 @@ export default function TaskBoard({
           </button>
         </div>
       </div>
+
+      {/* Error feedback */}
+      {mutationError && (
+        <div className="flex items-center justify-between px-3 py-2 bg-red-500/10 border-b border-red-500/20 text-[12px] text-red-400 shrink-0">
+          <span>{mutationError}</span>
+          <button className="text-red-400 hover:text-red-300 ml-2" onClick={clearError}>
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       {tasksQuery.isLoading ? (

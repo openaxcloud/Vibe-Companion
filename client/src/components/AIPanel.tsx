@@ -469,6 +469,49 @@ function PlanTaskChecklist({ tasks, onTaskStatusChange }: {
   );
 }
 
+function ProposedTaskCard({ task, index }: { task: any; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] overflow-hidden transition-all hover:border-[var(--ide-text-muted)]/30" data-testid={`proposed-task-${index}`}>
+      <div className="flex items-center gap-2.5 p-3">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+          <circle cx="5.332" cy="5.338" r="5.332" fill="#A6A6A6" />
+          <circle cx="18.663" cy="5.338" r="5.332" fill="#A6A6A6" />
+          <circle cx="5.332" cy="18.668" r="5.332" fill="#A6A6A6" />
+          <circle cx="18.663" cy="18.668" r="5.332" fill="#A6A6A6" />
+        </svg>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-[13px] font-medium text-[var(--ide-text)] truncate">{task.title}</h4>
+          {task.description && <p className="text-[12px] text-[var(--ide-text-muted)] mt-0.5 line-clamp-2">{task.description}</p>}
+        </div>
+        {task.plan && task.plan.length > 0 && (
+          <button
+            className="text-[11px] text-[#009118] hover:text-[#006B12] shrink-0 px-2 py-1 rounded hover:bg-[#009118]/10 transition-colors"
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+          >
+            {expanded ? "Hide plan" : "View plan"}
+          </button>
+        )}
+      </div>
+      {expanded && task.plan && task.plan.length > 0 && (
+        <div className="px-3 pb-3 pt-0 border-t border-[var(--ide-border)]">
+          <div className="pt-2 space-y-1">
+            {(task.plan as string[]).map((step: string, j: number) => (
+              <div key={j} className="flex items-start gap-2 text-[12px] text-[var(--ide-text-secondary)] py-0.5">
+                <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] text-[var(--ide-text-muted)] text-[9px] font-medium flex items-center justify-center shrink-0 mt-0.5">{j + 1}</span>
+                <span>{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="px-3 pb-2 text-[11px] text-[var(--ide-text-muted)]">
+        Draft {task.dependsOn && task.dependsOn.length > 0 ? `\u2022 Depends on task ${task.dependsOn.map((d: any) => Number(d) + 1).join(", ")}` : ""}
+      </div>
+    </div>
+  );
+}
+
 function WebSearchIndicator({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 py-2 px-1" data-testid="web-search-indicator">
@@ -3630,48 +3673,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </div>
 
               {/* Task cards */}
-              {proposedTasks.map((task: any, i: number) => {
-                const [expanded, setExpanded] = React.useState(false);
-                return (
-                  <div key={task.id || i} className="rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] overflow-hidden transition-all hover:border-[var(--ide-text-muted)]/30" data-testid={`proposed-task-${i}`}>
-                    <div className="flex items-center gap-2.5 p-3">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                        <circle cx="5.332" cy="5.338" r="5.332" fill="#A6A6A6" />
-                        <circle cx="18.663" cy="5.338" r="5.332" fill="#A6A6A6" />
-                        <circle cx="5.332" cy="18.668" r="5.332" fill="#A6A6A6" />
-                        <circle cx="18.663" cy="18.668" r="5.332" fill="#A6A6A6" />
-                      </svg>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-[13px] font-medium text-[var(--ide-text)] truncate">{task.title}</h4>
-                        {task.description && <p className="text-[12px] text-[var(--ide-text-muted)] mt-0.5 line-clamp-2">{task.description}</p>}
-                      </div>
-                      {task.plan && task.plan.length > 0 && (
-                        <button
-                          className="text-[11px] text-[#009118] hover:text-[#006B12] shrink-0 px-2 py-1 rounded hover:bg-[#009118]/10 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-                        >
-                          {expanded ? "Hide plan" : "View plan"}
-                        </button>
-                      )}
-                    </div>
-                    {expanded && task.plan && task.plan.length > 0 && (
-                      <div className="px-3 pb-3 pt-0 border-t border-[var(--ide-border)]">
-                        <div className="pt-2 space-y-1">
-                          {(task.plan as string[]).map((step: string, j: number) => (
-                            <div key={j} className="flex items-start gap-2 text-[12px] text-[var(--ide-text-secondary)] py-0.5">
-                              <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] text-[var(--ide-text-muted)] text-[9px] font-medium flex items-center justify-center shrink-0 mt-0.5">{j + 1}</span>
-                              <span>{step}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="px-3 pb-2 text-[11px] text-[var(--ide-text-muted)]">
-                      Draft {task.dependsOn && task.dependsOn.length > 0 ? `\u2022 Depends on task ${task.dependsOn.map((d: any) => Number(d) + 1).join(", ")}` : ""}
-                    </div>
-                  </div>
-                );
-              })}
+              {proposedTasks.map((task: any, i: number) => (
+                <ProposedTaskCard key={task.id || i} task={task} index={i} />
+              ))}
 
               {/* Accept / Revise buttons (Replit-style) */}
               <div className="flex gap-2 pt-1">

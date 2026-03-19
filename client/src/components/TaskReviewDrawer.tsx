@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Button } from "@/components/ui/button";
 import {
-  Loader2, ChevronLeft, Send, CheckCircle2, Circle,
-  X, FileCode, Clock, GitMerge, ChevronDown, Plus,
-  ArrowUp,
+  Loader2, ChevronLeft, CheckCircle2, Circle,
+  X, FileCode, Plus, ArrowUp,
 } from "lucide-react";
 
 interface Task {
@@ -90,6 +88,8 @@ export default function TaskReviewDrawer({
   onDismiss: (id: string) => void;
 }) {
   const [messageInput, setMessageInput] = useState("");
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [dismissLoading, setDismissLoading] = useState(false);
 
   const taskDetailQuery = useQuery<Task>({
     queryKey: ["/api/projects", projectId, "tasks", task.id],
@@ -192,22 +192,30 @@ export default function TaskReviewDrawer({
 
               <div className="flex gap-2">
                 <button
-                  className="h-8 px-5 rounded-lg bg-[var(--trd-surface)] text-[var(--trd-text)] text-[14px] hover:bg-[var(--trd-border)] transition-colors shrink-0"
-                  onClick={() => onDismiss(task.id)}
+                  className="h-8 px-5 rounded-lg bg-[var(--trd-surface)] text-[var(--trd-text)] text-[14px] hover:bg-[var(--trd-border)] transition-colors shrink-0 disabled:opacity-50"
+                  onClick={() => { setDismissLoading(true); onDismiss(task.id); }}
+                  disabled={dismissLoading || applyLoading}
                   data-testid="button-dismiss-task"
                 >
-                  Dismiss
+                  {dismissLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Dismiss"}
                 </button>
                 <button
-                  className="flex-1 h-8 rounded-lg text-white text-[14px] flex items-center justify-center gap-2 transition-colors"
+                  className="flex-1 h-8 rounded-lg text-white text-[14px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   style={{ backgroundColor: "var(--trd-positive-bg)" }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--trd-positive-hover)"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "var(--trd-positive-bg)"}
-                  onClick={() => onApply(task.id)}
+                  onMouseEnter={(e) => !applyLoading && (e.currentTarget.style.backgroundColor = "var(--trd-positive-hover)")}
+                  onMouseLeave={(e) => !applyLoading && (e.currentTarget.style.backgroundColor = "var(--trd-positive-bg)")}
+                  onClick={() => { setApplyLoading(true); onApply(task.id); }}
+                  disabled={applyLoading || dismissLoading}
                   data-testid="button-apply-task"
                 >
-                  <span>Apply changes to main version</span>
-                  <ApplyIcon />
+                  {applyLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <span>Apply changes to main version</span>
+                      <ApplyIcon />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
