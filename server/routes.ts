@@ -17446,6 +17446,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const { prompt, model } = req.body;
       if (!prompt) return res.status(400).json({ message: "Prompt is required" });
 
+      // Resolve agent mode to pick the right model for task decomposition
+      const quota = await storage.getUserQuota(req.session.userId!);
+      const proposeResolved = resolveTopAgentMode(req.body, quota.plan || "free");
+
       const projectFiles = await storage.getFiles(project.id);
       const fileList = projectFiles.map(f => f.filename).join(", ");
       const systemPrompt = `You are a task decomposition agent. Break the user's request into discrete, parallel tasks.
@@ -17463,28 +17467,55 @@ Example format:
 
 Respond ONLY with the JSON array, no other text.`;
 
+      const proposeModelId = proposeResolved.modelId;
+      const proposeSelectedModel = model || "claude";
+      const proposeProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", perplexity: "perplexity", mistral: "mistral" };
+      const proposeProvider = proposeProviderMap[proposeSelectedModel] || "anthropic";
+
       let responseText = "";
       try {
-        const anthropic = new Anthropic();
-        const result = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: prompt }],
-        });
-        responseText = result.content.map((b: any) => b.type === "text" ? b.text : "").join("");
-      } catch {
-        try {
-          const openai = new OpenAI();
-          const result = await openai.chat.completions.create({
-            model: "gpt-4o",
-            max_tokens: 2000,
+        if (proposeProvider === "anthropic") {
+          const proposeAnthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
+          const result = await proposeAnthropic.messages.create({
+            model: proposeModelId,
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages: [{ role: "user", content: prompt }],
+          });
+          responseText = result.content.map((b: any) => b.type === "text" ? b.text : "").join("");
+        } else {
+          const proposeOpenai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+          const result = await proposeOpenai.chat.completions.create({
+            model: proposeModelId,
+            max_tokens: 4096,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
           });
           responseText = result.choices[0]?.message?.content || "";
+        }
+      } catch (proposeErr: any) {
+        // Fallback: try the other provider
+        try {
+          if (proposeProvider === "anthropic") {
+            const fallbackOpenai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+            const result = await fallbackOpenai.chat.completions.create({
+              model: "gpt-4o",
+              max_tokens: 4096,
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
+            });
+            responseText = result.choices[0]?.message?.content || "";
+          } else {
+            const fallbackAnthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
+            const result = await fallbackAnthropic.messages.create({
+              model: "claude-sonnet-4-6",
+              max_tokens: 4096,
+              system: systemPrompt,
+              messages: [{ role: "user", content: prompt }],
+            });
+            responseText = result.content.map((b: any) => b.type === "text" ? b.text : "").join("");
+          }
         } catch {
           return res.status(500).json({ message: "AI service unavailable" });
         }
