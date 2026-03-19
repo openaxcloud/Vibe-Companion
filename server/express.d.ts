@@ -1,5 +1,5 @@
-// Override Express req.query to avoid ParsedQs type errors.
-// All query parameters are strings at runtime when accessed individually.
+// Override Express req.query to simplify string types.
+// This prevents ParsedQs union type errors throughout routes.ts.
 import "express-serve-static-core";
 
 declare module "express-serve-static-core" {
