@@ -1863,7 +1863,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const csrfToken = getCsrfToken();
-      if (csrfToken && (isAgent || isLite)) fetchHeaders["X-CSRF-Token"] = csrfToken;
+      if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: fetchHeaders,
@@ -2065,7 +2065,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
-      if (retryToken && (isAgent || isLite)) retryHeaders["X-CSRF-Token"] = retryToken;
+      if (retryToken) retryHeaders["X-CSRF-Token"] = retryToken;
       persistMessage("user", retryInput);
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {

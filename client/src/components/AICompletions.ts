@@ -2,6 +2,7 @@ import { ViewPlugin, Decoration, type DecorationSet, EditorView, WidgetType } fr
 import { StateField, StateEffect, type Extension } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
+import { getCsrfToken } from "@/lib/queryClient";
 
 const setGhostText = StateEffect.define<{ pos: number; text: string } | null>();
 
@@ -45,9 +46,12 @@ async function fetchCompletion(code: string, cursorOffset: number, language: str
   if (abortController) abortController.abort();
   abortController = new AbortController();
   try {
+    const completeHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    const ct = getCsrfToken();
+    if (ct) completeHeaders["X-CSRF-Token"] = ct;
     const res = await fetch("/api/ai/complete", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: completeHeaders,
       body: JSON.stringify({ code, cursorOffset, language }),
       signal: abortController.signal,
       credentials: "include",

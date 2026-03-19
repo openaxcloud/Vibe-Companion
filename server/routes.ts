@@ -937,9 +937,7 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/reset-password",
   "/api/auth/send-verification",
   "/api/csrf-token",
-  // Demo routes require CSRF - removed from exemptions for security
-  "/api/ai/chat",
-  "/api/ai/complete",
+  // Webhook/external endpoints that cannot send CSRF tokens
   "/api/billing/webhook",
   "/api/feedback",
   "/api/stripe/webhook",
@@ -9318,13 +9316,14 @@ Rules:
       res.end();
     } catch (error: any) {
       const selectedModel = req.body?.model || "claude";
-      const errorMsg = selectedModel === "openrouter" ? formatOpenRouterError(error) : error.message;
-      log(`AI chat error: ${errorMsg}`, "ai");
+      const rawMsg = selectedModel === "openrouter" ? formatOpenRouterError(error) : error.message;
+      const errorMsg = safeError(rawMsg, "AI service error");
+      log(`AI chat error: ${rawMsg}`, "ai");
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: errorMsg || "AI service error" });
+        res.status(500).json({ message: errorMsg });
       }
     }
   });
@@ -11440,14 +11439,15 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       res.end();
     } catch (error: any) {
       const agentModel = req.body?.model || "claude";
-      const agentErrorMsg = agentModel === "openrouter" ? formatOpenRouterError(error) : error.message;
-      log(`AI agent error: ${agentErrorMsg}`, "ai");
+      const agentRawMsg = agentModel === "openrouter" ? formatOpenRouterError(error) : error.message;
+      const agentErrorMsg = safeError(agentRawMsg, "AI agent error");
+      log(`AI agent error: ${agentRawMsg}`, "ai");
       agentFileOpsCount.value = 0;
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ type: "error", message: agentErrorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: agentErrorMsg || "AI agent error" });
+        res.status(500).json({ message: agentErrorMsg });
       }
     }
   });
@@ -11818,13 +11818,14 @@ Rules:
       res.end();
     } catch (error: any) {
       const liteModel = req.body?.model || "claude";
-      const liteErrorMsg = liteModel === "openrouter" ? formatOpenRouterError(error) : error.message;
-      log(`AI lite error: ${liteErrorMsg}`, "ai");
+      const liteRawMsg = liteModel === "openrouter" ? formatOpenRouterError(error) : error.message;
+      const liteErrorMsg = safeError(liteRawMsg, "AI lite error");
+      log(`AI lite error: ${liteRawMsg}`, "ai");
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ type: "error", message: liteErrorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: liteErrorMsg || "AI lite error" });
+        res.status(500).json({ message: liteErrorMsg });
       }
     }
   });
@@ -12211,11 +12212,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
       res.end();
     } catch (error: any) {
       log(`AI web-search error: ${error.message}`, "ai");
+      const wsErrorMsg = safeError(error, "Web search error");
       if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ type: "error", message: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "error", message: wsErrorMsg })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ message: "Web search error" });
+        res.status(500).json({ message: wsErrorMsg });
       }
     }
   });
