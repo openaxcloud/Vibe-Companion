@@ -12,7 +12,8 @@ export type MobileTab =
   | 'visual-editor' | 'console' | 'resources' | 'logs'
   | 'automations' | 'config' | 'feedback' | 'github' | 'integrations'
   | 'mcp' | 'merge-conflicts' | 'monitoring' | 'networking' | 'publishing'
-  | 'skills' | 'ssh' | 'threads' | 'test-runner' | 'security-scanner' | 'backup';
+  | 'skills' | 'ssh' | 'threads' | 'test-runner' | 'security-scanner' | 'backup'
+  | 'tasks';
 
 interface OpenTab {
   id: string;

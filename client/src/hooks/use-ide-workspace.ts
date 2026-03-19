@@ -32,11 +32,12 @@ export interface FileItem {
 export type ActivityItem =
   | 'files' | 'search' | 'git' | 'packages' | 'debug'
   | 'terminal' | 'agent' | 'deploy' | 'secrets' | 'database'
-  | 'preview' | 'workflows' | 'history' | 'extensions' | 'settings';
+  | 'preview' | 'workflows' | 'history' | 'extensions' | 'settings'
+  | 'tasks';
 
 export const availableTools = [
   'preview', 'terminal', 'git', 'packages', 'secrets', 'database',
-  'deployment', 'search', 'debugger', 'settings', 'history',
+  'deployment', 'search', 'debugger', 'settings', 'history', 'tasks',
   'checkpoints', 'workflows', 'extensions', 'collaboration',
   'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
   'slides', 'video', 'animation', 'design', 'storage', 'themes',
