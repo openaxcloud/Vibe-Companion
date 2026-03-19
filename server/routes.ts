@@ -17408,7 +17408,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       }
       const allSuccess = results.every(r => r.success);
       if (allSuccess) {
-        await storage.updateTask(task.id, { status: "done", completedAt: new Date(), errorMessage: undefined });
+        await storage.updateTask(task.id, { status: "done", completedAt: new Date(), errorMessage: "" });
         const doneTask = await storage.getTask(task.id);
         if (doneTask) taskBroadcast(task.projectId, "update", { task: doneTask });
         broadcastToProject(task.projectId, { type: "files_changed" });
