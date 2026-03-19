@@ -9,7 +9,10 @@ export type MobileTab =
   | 'extensions' | 'workflows' | 'debug' | 'testing' | 'security'
   | 'collaboration' | 'search' | 'actions' | 'tools'
   | 'slides' | 'video' | 'animation' | 'design' | 'tests'
-  | 'visual-editor' | 'console' | 'resources' | 'logs';
+  | 'visual-editor' | 'console' | 'resources' | 'logs'
+  | 'automations' | 'config' | 'feedback' | 'github' | 'integrations'
+  | 'mcp' | 'merge-conflicts' | 'monitoring' | 'networking' | 'publishing'
+  | 'skills' | 'ssh' | 'threads' | 'test-runner' | 'security-scanner' | 'backup';
 
 interface OpenTab {
   id: string;

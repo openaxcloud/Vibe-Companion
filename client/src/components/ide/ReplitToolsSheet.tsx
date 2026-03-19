@@ -14,6 +14,8 @@ import {
   Zap, Layers, Search, HardDrive, Presentation, Video,
   Play, Paintbrush, Palette, FlaskConical, Users, Eye,
   ScrollText, Activity, Wand2,
+  Bot, Inbox, Github, Plug, Cpu, Network, Upload,
+  Sparkles, Server, MessageCircle, ShieldCheck, Wrench,
 } from 'lucide-react';
 
 interface ToolDefinition {
@@ -62,6 +64,23 @@ const tools: ToolDefinition[] = [
   { id: 'security', label: 'Security', description: 'Scan for vulnerabilities and issues', icon: Shield, category: 'Development', color: '#E54D4D' },
   { id: 'settings', label: 'Settings', description: 'Editor and workspace settings', icon: Zap, category: 'Settings', color: '#0079F2' },
   { id: 'terminal', label: 'Terminal', description: 'Embedded terminal emulator', icon: Terminal, category: 'Core', color: '#0CCE6B' },
+  // Re-integrated panels
+  { id: 'github', label: 'GitHub', description: 'Push, pull, and sync with GitHub', icon: Github, category: 'Core', color: '#F0F6FC' },
+  { id: 'automations', label: 'Automations', description: 'Automate tasks with agents', icon: Bot, category: 'AI', color: '#0CCE6B' },
+  { id: 'config', label: 'Config', description: 'Edit .replit and Nix configuration', icon: FileCode, category: 'Settings', color: '#0079F2' },
+  { id: 'feedback', label: 'Feedback Inbox', description: 'View and manage user feedback', icon: Inbox, category: 'Services', color: '#F5A623' },
+  { id: 'integrations', label: 'Integrations', description: 'Connect third-party services', icon: Plug, category: 'Services', color: '#7C65CB' },
+  { id: 'mcp', label: 'MCP', description: 'Model Context Protocol tools', icon: Cpu, category: 'AI', color: '#0079F2' },
+  { id: 'merge-conflicts', label: 'Merge Conflicts', description: 'Resolve git merge conflicts', icon: GitBranch, category: 'Development', color: '#E54D4D' },
+  { id: 'monitoring', label: 'Monitoring', description: 'Application metrics and alerts', icon: BarChart3, category: 'Monitoring', color: '#10B981' },
+  { id: 'networking', label: 'Networking', description: 'Manage ports and network config', icon: Network, category: 'Infrastructure', color: '#0079F2' },
+  { id: 'publishing', label: 'Publishing', description: 'Publish and distribute your project', icon: Upload, category: 'Deploy', color: '#0CCE6B' },
+  { id: 'skills', label: 'Skills', description: 'AI agent skills and capabilities', icon: Sparkles, category: 'AI', color: '#F5A623' },
+  { id: 'ssh', label: 'SSH', description: 'Secure shell access to workspace', icon: Server, category: 'Infrastructure', color: '#6B7280' },
+  { id: 'threads', label: 'Threads', description: 'Discussion threads on code', icon: MessageCircle, category: 'Core', color: '#7C65CB' },
+  { id: 'test-runner', label: 'Test Runner', description: 'Execute and monitor test suites', icon: FlaskConical, category: 'Development', color: '#0CCE6B' },
+  { id: 'security-scanner', label: 'Security Scanner', description: 'Deep security vulnerability scanning', icon: ShieldCheck, category: 'Development', color: '#E54D4D' },
+  { id: 'backup', label: 'Backup & Recovery', description: 'Backup and restore project data', icon: HardDrive, category: 'Infrastructure', color: '#0079F2' },
 ];
 
 interface ReplitToolsSheetProps {

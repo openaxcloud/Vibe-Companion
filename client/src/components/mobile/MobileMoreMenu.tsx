@@ -4,6 +4,9 @@ import {
   X, GitBranch, Package, Key, Database, Settings, Bug,
   Users, GitMerge, Clock, Puzzle, Shield, Rocket, Globe,
   Zap, Layers, Search, Keyboard, Terminal,
+  Bot, FileCode, Inbox, Github, Plug, Cpu, Network,
+  Upload, Sparkles, Server, MessageCircle, FlaskConical,
+  ShieldCheck, HardDrive, Wrench,
 } from 'lucide-react';
 
 interface MobileMoreMenuProps {
@@ -32,6 +35,22 @@ interface MobileMoreMenuProps {
   onOpenGlobalSearch?: () => void;
   onOpenQuickFileSearch?: () => void;
   onOpenKeyboardShortcuts?: () => void;
+  onOpenAutomations?: () => void;
+  onOpenConfig?: () => void;
+  onOpenFeedback?: () => void;
+  onOpenGitHub?: () => void;
+  onOpenIntegrations?: () => void;
+  onOpenMCP?: () => void;
+  onOpenMergeConflicts?: () => void;
+  onOpenMonitoring?: () => void;
+  onOpenNetworking?: () => void;
+  onOpenPublishing?: () => void;
+  onOpenSkills?: () => void;
+  onOpenSSH?: () => void;
+  onOpenThreads?: () => void;
+  onOpenTestRunner?: () => void;
+  onOpenSecurityScanner?: () => void;
+  onOpenBackup?: () => void;
   problemsCount?: number;
 }
 
@@ -51,6 +70,22 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
     { label: 'Collaboration', icon: Users, color: '#7C65CB', action: handlers.onOpenCollaboration },
     { label: 'Settings', icon: Settings, color: '#6B7280', action: handlers.onOpenSettings },
     { label: 'Shortcuts', icon: Keyboard, color: '#9CA3AF', action: handlers.onOpenKeyboardShortcuts },
+    { label: 'GitHub', icon: Github, color: '#F0F6FC', action: handlers.onOpenGitHub },
+    { label: 'Automations', icon: Bot, color: '#0CCE6B', action: handlers.onOpenAutomations },
+    { label: 'Config', icon: FileCode, color: '#0079F2', action: handlers.onOpenConfig },
+    { label: 'Feedback', icon: Inbox, color: '#F5A623', action: handlers.onOpenFeedback },
+    { label: 'Integrations', icon: Plug, color: '#7C65CB', action: handlers.onOpenIntegrations },
+    { label: 'MCP', icon: Cpu, color: '#0079F2', action: handlers.onOpenMCP },
+    { label: 'Conflicts', icon: GitMerge, color: '#E54D4D', action: handlers.onOpenMergeConflicts },
+    { label: 'Monitoring', icon: Zap, color: '#10B981', action: handlers.onOpenMonitoring },
+    { label: 'Networking', icon: Network, color: '#0079F2', action: handlers.onOpenNetworking },
+    { label: 'Publishing', icon: Upload, color: '#0CCE6B', action: handlers.onOpenPublishing },
+    { label: 'Skills', icon: Sparkles, color: '#F5A623', action: handlers.onOpenSkills },
+    { label: 'SSH', icon: Server, color: '#6B7280', action: handlers.onOpenSSH },
+    { label: 'Threads', icon: MessageCircle, color: '#7C65CB', action: handlers.onOpenThreads },
+    { label: 'Test Runner', icon: FlaskConical, color: '#0CCE6B', action: handlers.onOpenTestRunner },
+    { label: 'Scanner', icon: ShieldCheck, color: '#E54D4D', action: handlers.onOpenSecurityScanner },
+    { label: 'Backup', icon: HardDrive, color: '#0079F2', action: handlers.onOpenBackup },
   ];
 
   if (inline) {

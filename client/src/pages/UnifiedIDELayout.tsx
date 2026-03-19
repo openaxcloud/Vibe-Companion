@@ -107,6 +107,24 @@ const AnimationPreview = instrumentedLazy(() => import('@/components/AnimationPr
 const DesignCanvas = instrumentedLazy(() => import('@/components/DesignCanvas'), 'DesignCanvas');
 const ConversionDialog = instrumentedLazy(() => import('@/components/ConversionDialog'), 'ConversionDialog');
 
+// Re-integrated panels from legacy layout
+const AutomationsPanel = instrumentedLazy(() => import('@/components/AutomationsPanel'), 'AutomationsPanel');
+const BackupRecoverySection = instrumentedLazy(() => import('@/components/BackupRecoverySection'), 'BackupRecoverySection');
+const ConfigPanel = instrumentedLazy(() => import('@/components/ConfigPanel'), 'ConfigPanel');
+const FeedbackInboxPanel = instrumentedLazy(() => import('@/components/FeedbackInboxPanel'), 'FeedbackInboxPanel');
+const GitHubPanel = instrumentedLazy(() => import('@/components/GitHubPanel'), 'GitHubPanel');
+const IntegrationsPanel = instrumentedLazy(() => import('@/components/IntegrationsPanel'), 'IntegrationsPanel');
+const MCPPanel = instrumentedLazy(() => import('@/components/MCPPanel'), 'MCPPanel');
+const MergeConflictPanel = instrumentedLazy(() => import('@/components/MergeConflictPanel'), 'MergeConflictPanel');
+const MonitoringPanel = instrumentedLazy(() => import('@/components/MonitoringPanel'), 'MonitoringPanel');
+const NetworkingPanel = instrumentedLazy(() => import('@/components/NetworkingPanel'), 'NetworkingPanel');
+const PublishingPanel = instrumentedLazy(() => import('@/components/PublishingPanel'), 'PublishingPanel');
+const SkillsPanel = instrumentedLazy(() => import('@/components/SkillsPanel'), 'SkillsPanel');
+const SSHPanel = instrumentedLazy(() => import('@/components/SSHPanel'), 'SSHPanel');
+const ThreadsPanel = instrumentedLazy(() => import('@/components/ThreadsPanel'), 'ThreadsPanel');
+const TestRunnerPanel = instrumentedLazy(() => import('@/components/TestRunnerPanel'), 'TestRunnerPanel');
+const SecurityScannerPanel = instrumentedLazy(() => import('@/components/SecurityScannerPanel'), 'SecurityScannerPanel');
+
 interface UnifiedIDELayoutProps {
   projectId: string;
   className?: string;
@@ -393,6 +411,12 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     extensions: 'Extensions', packages: 'Packages', terminal: 'Terminal',
     debug: 'Debug', checkpoints: 'Checkpoints', security: 'Security',
     collaboration: 'Collaboration', search: 'Search',
+    automations: 'Automations', config: 'Config', feedback: 'Feedback',
+    github: 'GitHub', integrations: 'Integrations', mcp: 'MCP',
+    'merge-conflicts': 'Merge Conflicts', monitoring: 'Monitoring',
+    networking: 'Networking', publishing: 'Publishing', skills: 'Skills',
+    ssh: 'SSH', threads: 'Threads', 'test-runner': 'Test Runner',
+    'security-scanner': 'Scanner', backup: 'Backup',
   };
 
   const handleAddOpenTab = useCallback((toolId: string) => {
@@ -550,6 +574,38 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><LogsViewerPanel projectId={projectId} /></Suspense>;
       case 'collaboration':
         return user ? <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><CollaborationPanel projectId={parseInt(projectId, 10)} currentUser={user} /></Suspense> : null;
+      case 'automations':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><AutomationsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'backup':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><BackupRecoverySection projectId={projectId} /></Suspense>;
+      case 'config':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ConfigPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'feedback':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><FeedbackInboxPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} onSendToAI={(text) => { setPendingAIMessage(text); setMobileActiveTab('agent'); }} /></Suspense>;
+      case 'github':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GitHubPanel projectId={projectId} projectName={projectName} /></Suspense>;
+      case 'integrations':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><IntegrationsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'mcp':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'merge-conflicts':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={[]} resolutions={[]} onClose={() => setMobileActiveTab('agent')} onMergeComplete={() => {}} onAbort={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'monitoring':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'networking':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><NetworkingPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'publishing':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><PublishingPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'skills':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SkillsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'ssh':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SSHPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'threads':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ThreadsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'test-runner':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><TestRunnerPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+      case 'security-scanner':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'more':
         return null;
       default:
@@ -658,6 +714,54 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     if (currentTab.id === 'testing' || currentTab.id === 'tests') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTestingPanel projectId={projectId} /></Suspense>;
     }
+    if (currentTab.id === 'automations') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><AutomationsPanel projectId={projectId} onClose={() => handleTabClose('automations')} /></Suspense>;
+    }
+    if (currentTab.id === 'backup') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><BackupRecoverySection projectId={projectId} /></Suspense>;
+    }
+    if (currentTab.id === 'config') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ConfigPanel projectId={projectId} onClose={() => handleTabClose('config')} /></Suspense>;
+    }
+    if (currentTab.id === 'feedback') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><FeedbackInboxPanel projectId={projectId} onClose={() => handleTabClose('feedback')} onSendToAI={(text) => { setPendingAIMessage(text); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} /></Suspense>;
+    }
+    if (currentTab.id === 'github') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GitHubPanel projectId={projectId} projectName={projectName} /></Suspense>;
+    }
+    if (currentTab.id === 'integrations') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><IntegrationsPanel projectId={projectId} onClose={() => handleTabClose('integrations')} /></Suspense>;
+    }
+    if (currentTab.id === 'mcp') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={() => handleTabClose('mcp')} /></Suspense>;
+    }
+    if (currentTab.id === 'merge-conflicts') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={[]} resolutions={[]} onClose={() => handleTabClose('merge-conflicts')} onMergeComplete={() => {}} onAbort={() => handleTabClose('merge-conflicts')} /></Suspense>;
+    }
+    if (currentTab.id === 'monitoring') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={() => handleTabClose('monitoring')} /></Suspense>;
+    }
+    if (currentTab.id === 'networking') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><NetworkingPanel projectId={projectId} onClose={() => handleTabClose('networking')} /></Suspense>;
+    }
+    if (currentTab.id === 'publishing') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><PublishingPanel projectId={projectId} onClose={() => handleTabClose('publishing')} /></Suspense>;
+    }
+    if (currentTab.id === 'skills') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SkillsPanel projectId={projectId} onClose={() => handleTabClose('skills')} /></Suspense>;
+    }
+    if (currentTab.id === 'ssh') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SSHPanel projectId={projectId} onClose={() => handleTabClose('ssh')} /></Suspense>;
+    }
+    if (currentTab.id === 'threads') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ThreadsPanel projectId={projectId} onClose={() => handleTabClose('threads')} /></Suspense>;
+    }
+    if (currentTab.id === 'test-runner') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><TestRunnerPanel projectId={projectId} onClose={() => handleTabClose('test-runner')} /></Suspense>;
+    }
+    if (currentTab.id === 'security-scanner') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={() => handleTabClose('security-scanner')} /></Suspense>;
+    }
 
     return <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-xs">Select a file or tool</div>;
   };
@@ -730,6 +834,22 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
             onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
             onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
+            onOpenAutomations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('automations'); }}
+            onOpenConfig={() => { setShowMobileMoreMenu(false); handleAddOpenTab('config'); }}
+            onOpenFeedback={() => { setShowMobileMoreMenu(false); handleAddOpenTab('feedback'); }}
+            onOpenGitHub={() => { setShowMobileMoreMenu(false); handleAddOpenTab('github'); }}
+            onOpenIntegrations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('integrations'); }}
+            onOpenMCP={() => { setShowMobileMoreMenu(false); handleAddOpenTab('mcp'); }}
+            onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
+            onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
+            onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
+            onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
+            onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
+            onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
+            onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}
+            onOpenTestRunner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('test-runner'); }}
+            onOpenSecurityScanner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security-scanner'); }}
+            onOpenBackup={() => { setShowMobileMoreMenu(false); handleAddOpenTab('backup'); }}
             problemsCount={errorsCount}
           />
         </Suspense>

@@ -41,6 +41,10 @@ export const availableTools = [
   'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
   'slides', 'video', 'animation', 'design', 'storage', 'themes',
   'testing', 'auth',
+  // Re-integrated panels from legacy layout
+  'automations', 'config', 'feedback', 'github', 'integrations',
+  'mcp', 'merge-conflicts', 'monitoring', 'networking', 'publishing',
+  'skills', 'ssh', 'threads', 'test-runner', 'security-scanner', 'backup',
 ];
 
 interface LogEntry {
@@ -944,7 +948,10 @@ export function useIDEWorkspace(projectId: string) {
     return openTabs.map(tabId => {
       const isFileTab = !tabId.startsWith('__') && !['preview', 'terminal', 'git', 'packages', 'secrets', 'database',
         'deployment', 'search', 'debugger', 'settings', 'history', 'checkpoints', 'workflows', 'extensions',
-        'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor'].includes(tabId);
+        'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
+        'automations', 'config', 'feedback', 'github', 'integrations', 'mcp', 'merge-conflicts',
+        'monitoring', 'networking', 'publishing', 'skills', 'ssh', 'threads', 'test-runner',
+        'security-scanner', 'backup'].includes(tabId);
 
       if (isFileTab) {
         const file = filesQuery.data?.find(f => String(f.id) === tabId);
@@ -966,6 +973,12 @@ export function useIDEWorkspace(projectId: string) {
         workflows: 'Workflows', extensions: 'Extensions', collaboration: 'Collaboration',
         security: 'Security', shell: 'Shell', console: 'Console',
         resources: 'Resources', logs: 'Logs', 'visual-editor': 'Visual Editor',
+        automations: 'Automations', config: 'Config', feedback: 'Feedback',
+        github: 'GitHub', integrations: 'Integrations', mcp: 'MCP',
+        'merge-conflicts': 'Merge Conflicts', monitoring: 'Monitoring',
+        networking: 'Networking', publishing: 'Publishing', skills: 'Skills',
+        ssh: 'SSH', threads: 'Threads', 'test-runner': 'Test Runner',
+        'security-scanner': 'Security Scanner', backup: 'Backup',
       };
 
       return {
@@ -980,7 +993,10 @@ export function useIDEWorkspace(projectId: string) {
     if (!activeFileId) return '';
     const isFile = !['preview', 'terminal', 'git', 'packages', 'secrets', 'database',
       'deployment', 'search', 'debugger', 'settings', 'history', 'checkpoints', 'workflows', 'extensions',
-      'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor'].includes(activeFileId);
+      'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
+      'automations', 'config', 'feedback', 'github', 'integrations', 'mcp', 'merge-conflicts',
+      'monitoring', 'networking', 'publishing', 'skills', 'ssh', 'threads', 'test-runner',
+      'security-scanner', 'backup'].includes(activeFileId);
     return isFile ? `file:${activeFileId}` : activeFileId;
   }, [activeFileId]);
 
