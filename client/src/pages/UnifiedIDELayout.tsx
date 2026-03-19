@@ -39,8 +39,20 @@ import {
   Monitor,
   Bot,
   MoreHorizontal,
+  Loader2,
+  Check,
+  Copy,
+  ExternalLink,
+  Lock,
+  Power,
+  Settings,
 } from 'lucide-react';
 import { ECodeLoading } from '@/components/ECodeLoading';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import type { ProjectGuest } from '@shared/schema';
 
 import { TopNavBar } from '@/components/ide/TopNavBar';
 import { StatusBar } from '@/components/ide/StatusBar';
@@ -94,6 +106,13 @@ const AppStoragePanel = instrumentedLazy(() => import('@/components/editor/AppSt
 const ReplitConsolePanel = instrumentedLazy(() => import('@/components/ide/ReplitConsolePanel').then(mod => ({ default: mod.ReplitConsolePanel })), 'ReplitConsolePanel');
 const ResourcesPanel = instrumentedLazy(() => import('@/components/ide/ResourcesPanel').then(mod => ({ default: mod.ResourcesPanel })), 'ResourcesPanel');
 const LogsViewerPanel = instrumentedLazy(() => import('@/components/ide/LogsViewerPanel').then(mod => ({ default: mod.LogsViewerPanel })), 'LogsViewerPanel');
+
+// Specialized editors
+const SlideEditor = instrumentedLazy(() => import('@/components/SlideEditor'), 'SlideEditor');
+const VideoEditor = instrumentedLazy(() => import('@/components/VideoEditor'), 'VideoEditor');
+const AnimationPreview = instrumentedLazy(() => import('@/components/AnimationPreview'), 'AnimationPreview');
+const DesignCanvas = instrumentedLazy(() => import('@/components/DesignCanvas'), 'DesignCanvas');
+const ConversionDialog = instrumentedLazy(() => import('@/components/ConversionDialog'), 'ConversionDialog');
 
 import { ShortcutHint, ShortcutTester } from '@/components/utilities';
 import { useAutonomousBuildStore } from '@/stores/autonomousBuildStore';
@@ -188,6 +207,85 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     setPendingAIMessage,
     userPrefs,
     creditBalance,
+    // New exports
+    updateProjectMutation,
+    visibilityMutation,
+    inviteGuestMutation,
+    removeGuestMutation,
+    frameworkPublishMutation,
+    frameworkUnpublishMutation,
+    deploySettingsMutation,
+    forkMutation,
+    uploadFileMutation,
+    createArtifactMutation,
+    applyVisualEditMutation,
+    // Workspace management
+    wsLoading,
+    runnerOnline,
+    handleStartWorkspace,
+    handleStopWorkspace,
+    // Visual editor
+    visualEditorActive,
+    selectedVEElement,
+    setSelectedVEElement,
+    handleVisualEditorToggle,
+    // Dialog state
+    projectSettingsOpen,
+    setProjectSettingsOpen,
+    publishDialogOpen,
+    setPublishDialogOpen,
+    inviteDialogOpen,
+    setInviteDialogOpen,
+    inviteLink,
+    inviteLinkCopied,
+    inviteLoading,
+    handleGenerateInviteLink,
+    handleCopyInviteLink,
+    copyShareUrl,
+    animationExportOpen,
+    setAnimationExportOpen,
+    conversionDialogOpen,
+    setConversionDialogOpen,
+    conversionFrameId,
+    conversionFrameName,
+    conversionTargetType,
+    addArtifactDialogOpen,
+    setAddArtifactDialogOpen,
+    newArtifactName,
+    setNewArtifactName,
+    newArtifactType,
+    setNewArtifactType,
+    // Framework
+    frameworkCheckbox,
+    setFrameworkCheckbox,
+    frameworkDesc,
+    setFrameworkDesc,
+    frameworkCategory,
+    setFrameworkCategory,
+    frameworkCoverUrl,
+    setFrameworkCoverUrl,
+    // Deploy dialog
+    deployIsPrivate,
+    setDeployIsPrivate,
+    deployInviteEmail,
+    setDeployInviteEmail,
+    // Project settings form
+    projectNameInput,
+    setProjectNameInput,
+    projectLangInput,
+    setProjectLangInput,
+    // Guests
+    guestsQuery,
+    // Workspace mode
+    workspaceMode,
+    setWorkspaceMode,
+    // Split editor
+    splitEditorFileId,
+    setSplitEditorFileId,
+    // Git blame
+    blameEnabled,
+    setBlameEnabled,
+    blameData,
   } = workspace;
 
   // Activity bar click handler
@@ -523,6 +621,27 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     if (currentTab.id === 'visual-editor') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><VisualEditorPanel projectId={projectId} /></Suspense>;
     }
+    if (currentTab.id === 'slides') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Slides..." /></div>}><SlideEditor projectId={projectId} /></Suspense>;
+    }
+    if (currentTab.id === 'video') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Video..." /></div>}><VideoEditor projectId={projectId} /></Suspense>;
+    }
+    if (currentTab.id === 'animation') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Animation..." /></div>}><AnimationPreview projectId={projectId} previewUrl={livePreviewUrl} exportDialogOpen={animationExportOpen} onExportDialogClose={() => setAnimationExportOpen(false)} /></Suspense>;
+    }
+    if (currentTab.id === 'design') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Design..." /></div>}><DesignCanvas projectId={projectId} /></Suspense>;
+    }
+    if (currentTab.id === 'storage') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><AppStoragePanel projectId={projectId} /></Suspense>;
+    }
+    if (currentTab.id === 'themes') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitThemesPanel projectId={projectId} /></Suspense>;
+    }
+    if (currentTab.id === 'testing' || currentTab.id === 'tests') {
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTestingPanel projectId={projectId} /></Suspense>;
+    }
 
     return <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-xs">Select a file or tool</div>;
   };
@@ -711,6 +830,10 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onToggleFileExplorer={() => setShowFileExplorer((prev: boolean) => !prev)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
           onOpenGlobalSearch={() => { setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }}
+          onProjectSettings={() => setProjectSettingsOpen(true)}
+          onPublish={() => setPublishDialogOpen(true)}
+          onInvite={() => setInviteDialogOpen(true)}
+          onFork={() => forkMutation.mutate()}
         />
 
         {/* Tab Bar */}
@@ -866,6 +989,10 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           deploymentStatus={deploymentStatus as any}
           deploymentUrl={publishState?.url}
           onDeployClick={() => { setLeftPanelTab('deployment'); setDeploymentTab('logs'); }}
+          wsStatus={wsStatus}
+          onStartWorkspace={handleStartWorkspace}
+          onStopWorkspace={handleStopWorkspace}
+          wsLoading={wsLoading}
         />
       </div>
 
@@ -917,6 +1044,266 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onToolSelect={(tool: string) => { setShowCommandPalette(false); handleAddTool(tool); }}
         />
       </Suspense>
+
+      {/* ═══ Project Settings Dialog ═══ */}
+      <Dialog open={projectSettingsOpen} onOpenChange={setProjectSettingsOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Project Settings</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Configure your project</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); updateProjectMutation.mutate({ name: projectNameInput, language: projectLangInput }); }} className="space-y-3 mt-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Name</Label>
+              <Input value={projectNameInput} onChange={(e) => setProjectNameInput(e.target.value)} className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Language</Label>
+              <div className="flex flex-wrap gap-2">
+                {['javascript', 'typescript', 'python', 'go', 'ruby', 'cpp', 'java', 'rust', 'bash', 'html'].map((lang) => (
+                  <button key={lang} type="button" onClick={() => setProjectLangInput(lang)} className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${projectLangInput === lang ? 'bg-[#0079F2] text-white' : 'bg-[var(--ide-bg)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] border border-[var(--ide-border)]'}`}>
+                    {lang}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button type="submit" className="w-full h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" disabled={updateProjectMutation.isPending}>
+              {updateProjectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save Changes'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Publish Dialog ═══ */}
+      <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-[#0CCE6B]" /> Publish Project
+            </DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Make your project publicly accessible via a shareable link</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="p-3 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)] space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--ide-text)]">Visibility</p>
+                  <p className="text-[11px] text-[var(--ide-text-secondary)] mt-0.5">Control who can access this project</p>
+                </div>
+                <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${workspace.project?.visibility === 'private' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : workspace.project?.visibility === 'team' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>{workspace.project?.visibility === 'private' ? 'Private' : workspace.project?.visibility === 'team' ? 'Team' : 'Public'}</span>
+              </div>
+              <div className="flex gap-2">
+                {['public', 'private', 'team'].map((v) => (
+                  <button key={v} onClick={() => visibilityMutation.mutate(v)} disabled={visibilityMutation.isPending} className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium border transition-all ${workspace.project?.visibility === v ? 'bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/30' : 'bg-[var(--ide-panel)] text-[var(--ide-text-muted)] border-[var(--ide-border)] hover:text-[var(--ide-text-secondary)]'}`}>
+                    {v === 'public' ? 'Public' : v === 'private' ? 'Private' : 'Team'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
+                  <div>
+                    <p className="text-[11px] text-[var(--ide-text)] font-medium">Private Deployment</p>
+                    <p className="text-[9px] text-[var(--ide-text-muted)]">Require sign-in to access deployed app</p>
+                  </div>
+                </div>
+                <Switch checked={deployIsPrivate} onCheckedChange={(v) => { setDeployIsPrivate(v); if (workspace.project?.isPublished) deploySettingsMutation.mutate({ isPrivate: v }); }} />
+              </div>
+              {workspace.project?.visibility === 'private' && (
+                <div className="space-y-2 border-t border-[var(--ide-border)] pt-3">
+                  <p className="text-[11px] text-[var(--ide-text-secondary)] font-medium">Invited Guests</p>
+                  <div className="flex gap-2">
+                    <Input placeholder="Email address" value={deployInviteEmail} onChange={(e) => setDeployInviteEmail(e.target.value)} className="bg-[var(--ide-panel)] border-[var(--ide-border)] h-8 text-xs text-[var(--ide-text)] rounded-lg flex-1" onKeyDown={(e) => { if (e.key === 'Enter' && deployInviteEmail.trim()) { inviteGuestMutation.mutate({ email: deployInviteEmail.trim(), role: 'viewer' }); setDeployInviteEmail(''); } }} />
+                    <Button size="sm" className="h-8 px-3 text-[11px] bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" onClick={() => { if (deployInviteEmail.trim()) { inviteGuestMutation.mutate({ email: deployInviteEmail.trim(), role: 'viewer' }); setDeployInviteEmail(''); } }}>Invite</Button>
+                  </div>
+                  {(guestsQuery.data || []).length > 0 && (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {(guestsQuery.data || []).map((guest: ProjectGuest) => (
+                        <div key={guest.id} className="flex items-center justify-between px-2 py-1.5 rounded-md bg-[var(--ide-panel)] border border-[var(--ide-border)]/50">
+                          <div>
+                            <span className="text-[11px] text-[var(--ide-text)]">{guest.email}</span>
+                            <span className="text-[9px] text-[var(--ide-text-muted)] ml-2">{guest.acceptedAt ? 'Accepted' : 'Pending'}</span>
+                          </div>
+                          <button onClick={() => removeGuestMutation.mutate(guest.id)} className="text-[var(--ide-text-muted)] hover:text-red-400 transition-colors">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--ide-panel)] border border-[var(--ide-border)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--ide-text)]">{workspace.project?.name}</p>
+                <p className="text-[11px] text-[var(--ide-text-secondary)] mt-0.5">{workspace.project?.language} · {filesRaw?.length || 0} files</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[var(--ide-text-secondary)]">{workspace.project?.isPublished ? 'Published' : 'Draft'}</span>
+                <Switch checked={workspace.project?.isPublished || false} onCheckedChange={() => workspace.publishMutation.mutate()} disabled={workspace.publishMutation.isPending} />
+              </div>
+            </div>
+
+            {workspace.project?.isPublished && (
+              <div className="space-y-2">
+                <Label className="text-[11px] text-[var(--ide-text-secondary)]">Shareable URL</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={`${window.location.origin}/shared/${projectId}`} className="bg-[var(--ide-panel)] border-[var(--ide-border)] h-9 text-xs text-[var(--ide-text)] rounded-lg flex-1" />
+                  <Button size="sm" variant="ghost" className="h-9 px-3 shrink-0" onClick={copyShareUrl}>
+                    <Copy className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-9 px-3 shrink-0" onClick={() => window.open(`/shared/${projectId}`, '_blank')}>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-[var(--ide-border)] pt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--ide-text)]">Publish as Developer Framework</p>
+                  <p className="text-[11px] text-[var(--ide-text-secondary)] mt-0.5">Let others discover and fork this project</p>
+                </div>
+                <Switch checked={workspace.project?.isDevFramework || frameworkCheckbox} onCheckedChange={(checked) => { if (workspace.project?.isDevFramework && !checked) { frameworkUnpublishMutation.mutate(); setFrameworkCheckbox(false); } else { setFrameworkCheckbox(checked); } }} disabled={frameworkPublishMutation.isPending || frameworkUnpublishMutation.isPending} />
+              </div>
+              {(frameworkCheckbox || workspace.project?.isDevFramework) && !workspace.project?.isDevFramework && (
+                <div className="space-y-3 pl-1">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-[var(--ide-text-secondary)]">Description</Label>
+                    <Input value={frameworkDesc} onChange={(e) => setFrameworkDesc(e.target.value)} placeholder="A brief description of your framework..." className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-xs text-[var(--ide-text)] rounded-lg" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-[var(--ide-text-secondary)]">Category</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['frontend', 'backend', 'fullstack', 'systems', 'scripting', 'other'].map((cat) => (
+                        <button key={cat} type="button" onClick={() => setFrameworkCategory(cat)} className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${frameworkCategory === cat ? 'bg-[#0079F2] text-white' : 'bg-[var(--ide-bg)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] border border-[var(--ide-border)]'}`}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-[var(--ide-text-secondary)]">Cover Image URL (optional)</Label>
+                    <Input value={frameworkCoverUrl} onChange={(e) => setFrameworkCoverUrl(e.target.value)} placeholder="https://example.com/cover.png" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-xs text-[var(--ide-text)] rounded-lg" />
+                  </div>
+                  <Button className="w-full h-9 bg-[#0CCE6B] hover:bg-[#0AB85E] text-black rounded-lg text-xs font-medium" disabled={frameworkPublishMutation.isPending} onClick={() => frameworkPublishMutation.mutate({ description: frameworkDesc, category: frameworkCategory, coverUrl: frameworkCoverUrl })}>
+                    {frameworkPublishMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Publish Framework'}
+                  </Button>
+                </div>
+              )}
+              {workspace.project?.isDevFramework && (
+                <div className="p-2.5 rounded-lg bg-[#0CCE6B]/10 border border-[#0CCE6B]/20">
+                  <p className="text-[11px] text-[#0CCE6B] font-medium flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5" /> Published as Developer Framework
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Invite Collaborators Dialog ═══ */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Invite Collaborators</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Share this link to invite others to collaborate in real-time</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {inviteLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" />
+              </div>
+            ) : inviteLink ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-[var(--ide-text-secondary)]">Invite Link</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={inviteLink} className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-xs text-[var(--ide-text)] rounded-lg flex-1 font-mono" />
+                    <Button size="sm" variant="ghost" className="h-9 px-3 shrink-0" onClick={handleCopyInviteLink}>
+                      {inviteLinkCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-[var(--ide-text-muted)]">Anyone with this link can join your project as an editor.</p>
+                <Button variant="outline" size="sm" className="w-full h-8 text-xs border-[var(--ide-border)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={handleGenerateInviteLink}>
+                  Generate New Link
+                </Button>
+              </>
+            ) : (
+              <Button className="w-full h-9 bg-[#0079F2] hover:bg-[#0068D6] text-white rounded-lg text-xs font-medium" onClick={handleGenerateInviteLink}>
+                Generate Invite Link
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Add Artifact Dialog ═══ */}
+      <Dialog open={addArtifactDialogOpen} onOpenChange={setAddArtifactDialogOpen}>
+        <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--ide-text)] text-base">Add Artifact</DialogTitle>
+            <DialogDescription className="text-[var(--ide-text-secondary)] text-xs">Add a new artifact to this project</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); if (newArtifactName.trim()) createArtifactMutation.mutate({ name: newArtifactName.trim(), type: newArtifactType }); }} className="space-y-3 mt-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Name</Label>
+              <Input value={newArtifactName} onChange={(e) => setNewArtifactName(e.target.value)} placeholder="My Artifact" className="bg-[var(--ide-bg)] border-[var(--ide-border)] h-9 text-sm text-[var(--ide-text)] rounded-lg focus:border-[#0079F2]" autoFocus required />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-[var(--ide-text-secondary)]">Type</Label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {['web-app', 'mobile-app', 'slides', 'animation', 'design', 'data-visualization', 'automation', '3d-game', 'document', 'spreadsheet'].map((t) => (
+                  <button key={t} type="button" className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg border text-[9px] font-medium transition-all ${newArtifactType === t ? 'border-[#0079F2] bg-[#0079F2]/10 text-[#0079F2]' : 'border-[var(--ide-border)] hover:border-[var(--ide-text-muted)] text-[var(--ide-text-muted)]'}`} onClick={() => setNewArtifactType(t)}>
+                    <span className="leading-tight text-center">{t.replace(/-/g, ' ')}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" className="flex-1 h-9 text-xs rounded-lg" onClick={() => setAddArtifactDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" className="flex-1 h-9 bg-[#0079F2] hover:bg-[#006AD4] text-white rounded-lg text-xs font-medium" disabled={!newArtifactName.trim() || createArtifactMutation.isPending}>
+                {createArtifactMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Conversion Dialog ═══ */}
+      {conversionDialogOpen && (
+        <Suspense fallback={null}>
+          <ConversionDialog open={conversionDialogOpen} onOpenChange={setConversionDialogOpen} projectId={projectId} frameId={conversionFrameId} frameName={conversionFrameName} initialTargetType={conversionTargetType} />
+        </Suspense>
+      )}
+
+      {/* ═══ Animation Export ═══ */}
+      {animationExportOpen && (
+        <Suspense fallback={null}>
+          <AnimationPreview projectId={projectId} previewUrl={livePreviewUrl} exportDialogOpen={animationExportOpen} onExportDialogClose={() => setAnimationExportOpen(false)} />
+        </Suspense>
+      )}
+
+      {/* ═══ Split Editor ═══ */}
+      {splitEditorFileId && (
+        <Dialog open={!!splitEditorFileId} onOpenChange={(open) => { if (!open) setSplitEditorFileId(null); }}>
+          <DialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-xl sm:max-w-4xl h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="text-[var(--ide-text)] text-base">Split View</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden">
+              <Suspense fallback={<ECodeLoading size="md" />}>
+                <ReplitMonacoEditor projectId={projectId} fileId={splitEditorFileId} fileContents={fileContents} onCodeChange={handleCodeChange} onCursorChange={handleCursorChange} fontSize={userPrefs?.fontSize} tabSize={userPrefs?.tabSize} wordWrap={userPrefs?.wordWrap} minimap={userPrefs?.minimap} filename={filesRaw?.find((f: any) => String(f.id) === splitEditorFileId)?.filename} />
+              </Suspense>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

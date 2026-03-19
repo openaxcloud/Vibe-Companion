@@ -15,6 +15,10 @@ interface StatusBarProps {
   deploymentStatus?: 'idle' | 'deploying' | 'live' | 'failed';
   deploymentUrl?: string;
   onDeployClick?: () => void;
+  wsStatus?: string;
+  onStartWorkspace?: () => void;
+  onStopWorkspace?: () => void;
+  wsLoading?: boolean;
 }
 
 export function StatusBar({
@@ -28,6 +32,10 @@ export function StatusBar({
   problems = { errors: 0, warnings: 0 },
   deploymentStatus = 'idle',
   onDeployClick,
+  wsStatus,
+  onStartWorkspace,
+  onStopWorkspace,
+  wsLoading,
 }: StatusBarProps) {
   return (
     <TooltipProvider delayDuration={200}>
@@ -83,6 +91,27 @@ export function StatusBar({
               >
                 <Rocket className="w-2.5 h-2.5" />
                 <span className="font-medium">Live</span>
+              </button>
+            </>
+          )}
+
+          {wsStatus && wsStatus !== 'none' && (
+            <>
+              <span className="w-px h-3 bg-[var(--ide-surface)]" />
+              <button
+                onClick={wsStatus === 'running' ? onStopWorkspace : onStartWorkspace}
+                disabled={wsLoading}
+                className={cn(
+                  'flex items-center gap-1 px-1.5 h-5 rounded text-[10px] transition-colors',
+                  wsStatus === 'running' ? 'text-[#0CCE6B] hover:bg-[#0CCE6B]/10' : 'text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60',
+                )}
+                data-testid="status-workspace"
+              >
+                <span className={cn(
+                  'w-[5px] h-[5px] rounded-full',
+                  wsStatus === 'running' ? 'bg-[#0CCE6B]' : wsStatus === 'starting' ? 'bg-amber-400 animate-pulse' : wsStatus === 'error' ? 'bg-red-400' : 'bg-[var(--ide-text-muted)]',
+                )} />
+                <span className="font-medium capitalize">{wsLoading ? 'Loading...' : `WS: ${wsStatus}`}</span>
               </button>
             </>
           )}

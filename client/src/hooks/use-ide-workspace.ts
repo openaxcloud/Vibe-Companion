@@ -9,6 +9,8 @@ import type { Project as ProjectType, File, ProjectGuest, Artifact } from '@shar
 import type { UserPreferences, MergeConflictFile, MergeResolution } from '@shared/schema';
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from '@shared/schema';
 import { detectLanguage } from '@/components/CodeEditor';
+import type { SelectedElement, VisualEdit } from '@/components/VisualEditor';
+import { injectVisualEditorScript, activateVisualEditor, deactivateVisualEditor } from '@/components/VisualEditor';
 
 export interface TabItem {
   id: string;
@@ -37,6 +39,8 @@ export const availableTools = [
   'deployment', 'search', 'debugger', 'settings', 'history',
   'checkpoints', 'workflows', 'extensions', 'collaboration',
   'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
+  'slides', 'video', 'animation', 'design', 'storage', 'themes',
+  'testing', 'auth',
 ];
 
 interface LogEntry {
@@ -92,6 +96,59 @@ export function useIDEWorkspace(projectId: string) {
   const [agentToolsSettings, setAgentToolsSettings] = useState<Record<string, any>>({});
   const [showFileExplorer, setShowFileExplorer] = useState(true);
   const [executionId, setExecutionId] = useState<string | null>(null);
+
+  // Workspace management state
+  const [wsLoading, setWsLoading] = useState(false);
+  const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
+
+  // Visual editor state
+  const [visualEditorActive, setVisualEditorActive] = useState(false);
+  const [selectedVEElement, setSelectedVEElement] = useState<SelectedElement | null>(null);
+  const [visualEditorIframeId, setVisualEditorIframeId] = useState('webview-tab-iframe');
+
+  // Dialog state
+  const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [animationExportOpen, setAnimationExportOpen] = useState(false);
+  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
+  const [conversionFrameId, setConversionFrameId] = useState('');
+  const [conversionFrameName, setConversionFrameName] = useState('');
+  const [conversionTargetType, setConversionTargetType] = useState<string | undefined>(undefined);
+  const [addArtifactDialogOpen, setAddArtifactDialogOpen] = useState(false);
+  const [newArtifactName, setNewArtifactName] = useState('');
+  const [newArtifactType, setNewArtifactType] = useState('web-app');
+
+  // Framework publishing state
+  const [frameworkCheckbox, setFrameworkCheckbox] = useState(false);
+  const [frameworkDesc, setFrameworkDesc] = useState('');
+  const [frameworkCategory, setFrameworkCategory] = useState('other');
+  const [frameworkCoverUrl, setFrameworkCoverUrl] = useState('');
+
+  // Deploy dialog state
+  const [deployIsPrivate, setDeployIsPrivate] = useState(false);
+  const [deployShowBadge, setDeployShowBadge] = useState(true);
+  const [deployEnableFeedback, setDeployEnableFeedback] = useState(false);
+  const [deployInviteEmail, setDeployInviteEmail] = useState('');
+
+  // Project settings form state
+  const [projectNameInput, setProjectNameInput] = useState('');
+  const [projectLangInput, setProjectLangInput] = useState('');
+
+  // Workspace mode
+  const [workspaceMode, setWorkspaceMode] = useState<'editor' | 'canvas'>('editor');
+
+  // Tab pinning state
+  const [pinnedTabs, setPinnedTabs] = useState<Set<string>>(new Set());
+
+  // Split editor state
+  const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
+
+  // Git blame
+  const [blameEnabled, setBlameEnabled] = useState(false);
 
   // Git state
   const [currentBranch, setCurrentBranch] = useState('main');
@@ -446,6 +503,393 @@ export function useIDEWorkspace(projectId: string) {
   });
 
   // ═══════════════════════════════════════════════
+  // UPDATE PROJECT MUTATION
+  // ═══════════════════════════════════════════════
+  const updateProjectMutation = useMutation({
+    mutationFn: async (data: { name?: string; language?: string }) => {
+      const res = await apiRequest('PATCH', `/api/projects/${projectId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      setProjectSettingsOpen(false);
+      toast({ title: 'Project updated' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to update project', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // VISIBILITY MUTATION
+  // ═══════════════════════════════════════════════
+  const visibilityMutation = useMutation({
+    mutationFn: async (visibility: string) => {
+      const res = await apiRequest('PATCH', `/api/projects/${projectId}/visibility`, { visibility });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to update visibility', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // GUESTS QUERY & MUTATIONS
+  // ═══════════════════════════════════════════════
+  const guestsQuery = useQuery<ProjectGuest[]>({
+    queryKey: ['/api/projects', projectId, 'guests'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/guests`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: project?.visibility === 'private',
+  });
+
+  const inviteGuestMutation = useMutation({
+    mutationFn: async ({ email, role }: { email: string; role: string }) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/guests`, { email, role });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'guests'] });
+      toast({ title: 'Guest invited' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to invite guest', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const removeGuestMutation = useMutation({
+    mutationFn: async (guestId: string) => {
+      await apiRequest('DELETE', `/api/projects/${projectId}/guests/${guestId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'guests'] });
+      toast({ title: 'Guest removed' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to remove guest', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // INVITE LINK
+  // ═══════════════════════════════════════════════
+  const handleGenerateInviteLink = useCallback(async () => {
+    if (!projectId) return;
+    setInviteLoading(true);
+    setInviteLinkCopied(false);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/invite-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'editor' }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to create invite link');
+      const data = await res.json();
+      const fullUrl = `${window.location.origin}/invite/${data.token}`;
+      setInviteLink(fullUrl);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to generate invite link', variant: 'destructive' });
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [projectId]);
+
+  const handleCopyInviteLink = useCallback(() => {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setInviteLinkCopied(true);
+      setTimeout(() => setInviteLinkCopied(false), 2000);
+    });
+  }, [inviteLink]);
+
+  const copyShareUrl = useCallback(() => {
+    const url = `${window.location.origin}/shared/${projectId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast({ title: 'URL copied to clipboard' });
+    });
+  }, [projectId]);
+
+  // ═══════════════════════════════════════════════
+  // FRAMEWORK PUBLISH / UNPUBLISH
+  // ═══════════════════════════════════════════════
+  const frameworkPublishMutation = useMutation({
+    mutationFn: async (data: { description?: string; category?: string; coverUrl?: string }) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/publish-as-framework`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      toast({ title: 'Published as Developer Framework' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Framework publish failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const frameworkUnpublishMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/unpublish-framework`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      toast({ title: 'Removed from frameworks catalog' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Unpublish failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // DEPLOY SETTINGS MUTATION
+  // ═══════════════════════════════════════════════
+  const deploySettingsMutation = useMutation({
+    mutationFn: async (settings: { isPrivate?: boolean; showBadge?: boolean; enableFeedback?: boolean }) => {
+      const res = await apiRequest('PATCH', `/api/projects/${projectId}/deploy/settings`, settings);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'deployments'] });
+      toast({ title: 'Settings updated' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // FORK MUTATION
+  // ═══════════════════════════════════════════════
+  const forkMutation = useMutation({
+    mutationFn: async (visibility?: string) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/fork`, { visibility: visibility || 'public' });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      toast({ title: 'Project forked!', description: `Created "${data.name}"` });
+      window.location.href = `/project/${data.id}`;
+    },
+    onError: (err: any) => {
+      toast({ title: 'Fork failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // WORKSPACE MANAGEMENT
+  // ═══════════════════════════════════════════════
+  const workspaceStatusQuery = useQuery({
+    queryKey: ['/api/workspaces', projectId, 'status'],
+    queryFn: async () => {
+      const res = await fetch(`/api/workspaces/${projectId}/status`, { credentials: 'include' });
+      if (res.status === 404) return { status: 'none' };
+      if (!res.ok) return { status: 'error' };
+      return res.json();
+    },
+    refetchInterval: wsStatus === 'starting' || wsStatus === 'running' ? 5000 : false,
+  });
+
+  useEffect(() => {
+    if (workspaceStatusQuery.data?.status) {
+      setWsStatus(workspaceStatusQuery.data.status);
+    }
+  }, [workspaceStatusQuery.data]);
+
+  const initWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/workspaces/${projectId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (!data.online) {
+        setRunnerOnline(false);
+        setWsStatus('offline');
+        toast({ title: 'Runner offline', description: 'The runner VPS is not yet deployed', variant: 'destructive' });
+      } else if (data.error) {
+        setRunnerOnline(true);
+        setWsStatus('error');
+        toast({ title: 'Workspace error', description: data.error, variant: 'destructive' });
+      } else {
+        setRunnerOnline(true);
+        setWsStatus('stopped');
+        queryClient.invalidateQueries({ queryKey: ['/api/workspaces', projectId, 'status'] });
+      }
+    },
+    onError: () => {
+      setWsStatus('error');
+    },
+  });
+
+  const startWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      setWsLoading(true);
+      const res = await apiRequest('POST', `/api/workspaces/${projectId}/start`);
+      return res.json();
+    },
+    onSuccess: () => {
+      setWsStatus('running');
+      setWsLoading(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/workspaces', projectId, 'status'] });
+      toast({ title: 'Workspace started' });
+    },
+    onError: () => {
+      setWsStatus('error');
+      setWsLoading(false);
+      toast({ title: 'Failed to start workspace', variant: 'destructive' });
+    },
+  });
+
+  const stopWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      setWsLoading(true);
+      const res = await apiRequest('POST', `/api/workspaces/${projectId}/stop`);
+      return res.json();
+    },
+    onSuccess: () => {
+      setWsStatus('stopped');
+      setWsLoading(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/workspaces', projectId, 'status'] });
+      toast({ title: 'Workspace stopped' });
+    },
+    onError: () => {
+      setWsStatus('error');
+      setWsLoading(false);
+    },
+  });
+
+  const handleStartWorkspace = useCallback(() => {
+    if (wsStatus === 'none' || wsStatus === 'offline') {
+      initWorkspaceMutation.mutate();
+    } else if (wsStatus === 'stopped' || wsStatus === 'error') {
+      setWsStatus('starting');
+      startWorkspaceMutation.mutate();
+    }
+  }, [wsStatus, initWorkspaceMutation, startWorkspaceMutation]);
+
+  const handleStopWorkspace = useCallback(() => {
+    if (wsStatus === 'running') {
+      stopWorkspaceMutation.mutate();
+    }
+  }, [wsStatus, stopWorkspaceMutation]);
+
+  // ═══════════════════════════════════════════════
+  // UPLOAD FILE
+  // ═══════════════════════════════════════════════
+  const uploadFileMutation = useMutation({
+    mutationFn: async (files: globalThis.File[]) => {
+      const formData = new FormData();
+      files.forEach(f => formData.append('files', f));
+      const res = await fetch(`/api/projects/${projectId}/upload`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateFs();
+      toast({ title: 'Files uploaded' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // CREATE ARTIFACT MUTATION
+  // ═══════════════════════════════════════════════
+  const createArtifactMutation = useMutation({
+    mutationFn: async ({ name, type }: { name: string; type: string }) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/artifacts`, { name, type });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'artifacts'] });
+      setAddArtifactDialogOpen(false);
+      setNewArtifactName('');
+      toast({ title: 'Artifact created' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to create artifact', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // VISUAL EDITOR
+  // ═══════════════════════════════════════════════
+  const handleVisualEditorToggle = useCallback((iframeId: string) => {
+    setVisualEditorActive(prev => {
+      if (prev && visualEditorIframeId === iframeId) {
+        deactivateVisualEditor(iframeId);
+        setSelectedVEElement(null);
+        return false;
+      }
+      setVisualEditorIframeId(iframeId);
+      activateVisualEditor(iframeId);
+      return true;
+    });
+  }, [visualEditorIframeId]);
+
+  const applyVisualEditMutation = useMutation({
+    mutationFn: async (edit: VisualEdit) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/visual-edit`, edit);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Visual edit applied' });
+      invalidateFs();
+    },
+    onError: (err: any) => {
+      toast({ title: 'Visual edit failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  // ═══════════════════════════════════════════════
+  // GIT BLAME QUERY
+  // ═══════════════════════════════════════════════
+  const blameQuery = useQuery({
+    queryKey: ['/api/projects', projectId, 'git/blame', activeFileId],
+    queryFn: async () => {
+      if (!activeFileId) return null;
+      const file = filesQuery.data?.find(f => String(f.id) === activeFileId);
+      if (!file) return null;
+      const res = await fetch(`/api/projects/${projectId}/git/blame?file=${encodeURIComponent(file.filename)}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!projectId && !!activeFileId && blameEnabled,
+    staleTime: 10000,
+  });
+
+  // Sync project settings form state when project loads
+  useEffect(() => {
+    if (project) {
+      setProjectNameInput(project.name || '');
+      setProjectLangInput(project.language || '');
+    }
+  }, [project]);
+
+  // Restore workspace mode from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`workspace-mode-${projectId}`);
+      if (saved === 'canvas') setWorkspaceMode('canvas');
+    } catch {}
+  }, [projectId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`workspace-mode-${projectId}`, workspaceMode);
+    } catch {}
+  }, [workspaceMode, projectId]);
+
+  // ═══════════════════════════════════════════════
   // TAB MANAGEMENT
   // ═══════════════════════════════════════════════
   const openFile = useCallback((file: File) => {
@@ -507,7 +951,8 @@ export function useIDEWorkspace(projectId: string) {
         return {
           id: `file:${tabId}`,
           label: file?.filename?.split('/').pop() || tabId,
-          closable: true,
+          closable: !pinnedTabs.has(tabId),
+          pinned: pinnedTabs.has(tabId),
           modified: dirtyFiles.has(tabId),
           path: file?.filename,
         };
@@ -584,16 +1029,34 @@ export function useIDEWorkspace(projectId: string) {
     });
   }, []);
 
-  const handleTabPin = useCallback((_tabId: string) => {
-    // Tab pinning is visual-only in new layout
+  const handleTabPin = useCallback((tabId: string) => {
+    const realId = tabId.startsWith('file:') ? tabId.slice(5) : tabId;
+    setPinnedTabs(prev => {
+      const next = new Set(prev);
+      if (next.has(realId)) {
+        next.delete(realId);
+      } else {
+        next.add(realId);
+      }
+      return next;
+    });
   }, []);
 
-  const handleTabDuplicate = useCallback((_tabId: string) => {
-    toast({ title: 'Tab duplicated' });
-  }, []);
+  const handleTabDuplicate = useCallback((tabId: string) => {
+    const realId = tabId.startsWith('file:') ? tabId.slice(5) : tabId;
+    const file = filesQuery.data?.find(f => String(f.id) === realId);
+    if (file) {
+      const dupId = `dup:${Date.now()}:${realId}`;
+      setOpenTabs(prev => [...prev, dupId]);
+      setFileContents(prev => ({ ...prev, [dupId]: file.content }));
+      setActiveFileId(dupId);
+    }
+  }, [filesQuery.data]);
 
-  const handleSplitRight = useCallback((_tabId: string) => {
-    toast({ title: 'Split view', description: 'Split view coming soon' });
+  const handleSplitRight = useCallback((tabId: string) => {
+    const realId = tabId.startsWith('file:') ? tabId.slice(5) : tabId;
+    setSplitEditorFileId(realId);
+    toast({ title: 'Split editor opened' });
   }, []);
 
   const handleAddTool = useCallback((toolId: string) => {
@@ -741,6 +1204,106 @@ export function useIDEWorkspace(projectId: string) {
     deleteFileMutation,
     renameFileMutation,
     publishMutation,
+    updateProjectMutation,
+    visibilityMutation,
+    inviteGuestMutation,
+    removeGuestMutation,
+    frameworkPublishMutation,
+    frameworkUnpublishMutation,
+    deploySettingsMutation,
+    forkMutation,
+    uploadFileMutation,
+    createArtifactMutation,
+    applyVisualEditMutation,
+
+    // Workspace management
+    wsLoading,
+    runnerOnline,
+    handleStartWorkspace,
+    handleStopWorkspace,
+    initWorkspaceMutation,
+    startWorkspaceMutation,
+    stopWorkspaceMutation,
+
+    // Visual editor
+    visualEditorActive,
+    setVisualEditorActive,
+    selectedVEElement,
+    setSelectedVEElement,
+    visualEditorIframeId,
+    handleVisualEditorToggle,
+
+    // Dialog state
+    projectSettingsOpen,
+    setProjectSettingsOpen,
+    publishDialogOpen,
+    setPublishDialogOpen,
+    inviteDialogOpen,
+    setInviteDialogOpen,
+    inviteLink,
+    inviteLinkCopied,
+    inviteLoading,
+    handleGenerateInviteLink,
+    handleCopyInviteLink,
+    copyShareUrl,
+    animationExportOpen,
+    setAnimationExportOpen,
+    conversionDialogOpen,
+    setConversionDialogOpen,
+    conversionFrameId,
+    setConversionFrameId,
+    conversionFrameName,
+    setConversionFrameName,
+    conversionTargetType,
+    setConversionTargetType,
+    addArtifactDialogOpen,
+    setAddArtifactDialogOpen,
+    newArtifactName,
+    setNewArtifactName,
+    newArtifactType,
+    setNewArtifactType,
+
+    // Framework state
+    frameworkCheckbox,
+    setFrameworkCheckbox,
+    frameworkDesc,
+    setFrameworkDesc,
+    frameworkCategory,
+    setFrameworkCategory,
+    frameworkCoverUrl,
+    setFrameworkCoverUrl,
+
+    // Deploy dialog state
+    deployIsPrivate,
+    setDeployIsPrivate,
+    deployShowBadge,
+    setDeployShowBadge,
+    deployEnableFeedback,
+    setDeployEnableFeedback,
+    deployInviteEmail,
+    setDeployInviteEmail,
+
+    // Project settings form
+    projectNameInput,
+    setProjectNameInput,
+    projectLangInput,
+    setProjectLangInput,
+
+    // Guests
+    guestsQuery,
+
+    // Workspace mode
+    workspaceMode,
+    setWorkspaceMode,
+
+    // Split editor
+    splitEditorFileId,
+    setSplitEditorFileId,
+
+    // Git blame
+    blameEnabled,
+    setBlameEnabled,
+    blameData: blameQuery.data,
 
     // WebSocket
     wsConnected,
