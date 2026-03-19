@@ -1,18 +1,45 @@
+import { Button } from '@/components/ui/button';
+import {
+  Command,
+  Circle,
+  GitBranch,
+  Wifi,
+  WifiOff,
+  Bell,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+  Cpu,
+  HardDrive,
+  Clock,
+  Rocket,
+  Globe,
+  XCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { GitBranch, AlertCircle, Wifi, WifiOff, Keyboard, Wand2, Rocket } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+
+export type DeploymentStatus = 'idle' | 'deploying' | 'live' | 'failed';
 
 interface StatusBarProps {
   gitBranch: string;
   isRunning: boolean;
   cursorPosition: { line: number; column: number };
-  language?: string;
-  encoding?: string;
-  onShowShortcuts?: () => void;
-  isConnected?: boolean;
-  lastSaved?: Date | null;
+  language: string;
+  encoding: string;
+  onShowShortcuts: () => void;
+  notifications?: number;
   problems?: { errors: number; warnings: number };
-  deploymentStatus?: 'idle' | 'deploying' | 'live' | 'failed';
+  isConnected?: boolean;
+  cpuUsage?: number;
+  memoryUsage?: number;
+  lastSaved?: Date | null;
+  deploymentStatus?: DeploymentStatus;
   deploymentUrl?: string;
   onDeployClick?: () => void;
   wsStatus?: string;
@@ -25,26 +52,53 @@ export function StatusBar({
   gitBranch,
   isRunning,
   cursorPosition,
-  language = 'TypeScript',
-  encoding = 'UTF-8',
+  language,
+  encoding,
   onShowShortcuts,
-  isConnected = true,
+  notifications = 0,
   problems = { errors: 0, warnings: 0 },
+  isConnected = true,
+  cpuUsage,
+  memoryUsage,
+  lastSaved,
   deploymentStatus = 'idle',
+  deploymentUrl,
   onDeployClick,
   wsStatus,
   onStartWorkspace,
   onStopWorkspace,
   wsLoading,
 }: StatusBarProps) {
+  const formatTime = (date: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="flex items-center justify-between px-2 h-6 bg-[var(--ide-bg)] border-t border-[var(--ide-border)]/60 shrink-0">
-        <div className="flex items-center gap-2">
+    <TooltipProvider>
+      <div
+        className={cn(
+          'h-[22px] flex items-center text-[10px]',
+          'bg-[var(--ide-bg)] border-t border-[var(--ide-border)]',
+          'shrink-0'
+        )}
+        data-testid="status-bar"
+      >
+        <div className="flex items-center h-full">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)] transition-colors" data-testid="button-git-branch">
-                <GitBranch className="w-3 h-3" />
+              <button
+                className={cn(
+                  'flex items-center gap-1 h-full px-2',
+                  'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                  'hover:bg-[var(--ide-surface)] transition-colors'
+                )}
+                data-testid="status-git-branch"
+              >
+                <GitBranch className="h-2.5 w-2.5" />
                 <span className="font-medium">{gitBranch}</span>
               </button>
             </TooltipTrigger>
@@ -53,89 +107,299 @@ export function StatusBar({
             </TooltipContent>
           </Tooltip>
 
-          <span className="w-px h-3 bg-[var(--ide-surface)]" />
-
-          <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)] transition-colors" data-testid="button-problems">
-            <AlertCircle className="w-3 h-3" />
-            <span>{problems.errors}</span>
-            <span className="text-[var(--ide-text-muted)]">·</span>
-            <span>{problems.warnings}</span>
-          </button>
-
-          <span className="w-px h-3 bg-[var(--ide-surface)]" />
-
-          <span className="flex items-center gap-1.5 text-[10px] text-[var(--ide-text-muted)]">
-            <span className={cn(
-              'w-[5px] h-[5px] rounded-full',
-              isRunning
-                ? 'bg-[#0CCE6B] shadow-[0_0_6px_rgba(12,206,107,0.6)] animate-pulse'
-                : isConnected
-                  ? 'bg-[#4A5068]'
-                  : 'bg-red-400 animate-pulse'
-            )} />
-            {isRunning ? 'Running' : isConnected ? 'Ready' : 'Offline'}
-          </span>
-
-          <span className="flex items-center gap-1 text-[10px] text-[var(--ide-text-muted)]">
-            {isConnected ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5 text-red-400" />}
-            {isConnected ? 'WS' : 'Off'}
-          </span>
-
-          {deploymentStatus === 'live' && (
-            <>
-              <span className="w-px h-3 bg-[var(--ide-surface)]" />
-              <button
-                onClick={onDeployClick}
-                className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#0CCE6B] hover:bg-[#0CCE6B]/10 transition-colors"
-                data-testid="status-deployment"
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  'flex items-center gap-1 h-full px-1.5',
+                  'hover:bg-[var(--ide-surface)] transition-colors cursor-default'
+                )}
               >
-                <Rocket className="w-2.5 h-2.5" />
-                <span className="font-medium">Live</span>
-              </button>
-            </>
+                {isConnected ? (
+                  <Wifi className="h-2.5 w-2.5 text-[#0CCE6B]" />
+                ) : (
+                  <WifiOff className="h-2.5 w-2.5 text-red-500" />
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  'flex items-center gap-1 h-full px-1.5',
+                  'hover:bg-[var(--ide-surface)] transition-colors cursor-default'
+                )}
+                data-testid="status-running"
+              >
+                {isRunning ? (
+                  <>
+                    <Loader2 className="h-2.5 w-2.5 text-[#0CCE6B] animate-spin" />
+                    <span className="text-[#0CCE6B]">Running</span>
+                  </>
+                ) : (
+                  <>
+                    <Circle className="h-2 w-2 fill-[var(--ide-text-muted)] text-[var(--ide-text-muted)]" />
+                    <span className="text-[var(--ide-text-muted)]">Stopped</span>
+                  </>
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              {isRunning ? 'Server is running' : 'Server is stopped'}
+            </TooltipContent>
+          </Tooltip>
+
+          {(problems.errors > 0 || problems.warnings > 0) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className={cn(
+                    'flex items-center gap-1.5 h-full px-2',
+                    'hover:bg-[var(--ide-surface)] transition-colors'
+                  )}
+                  data-testid="status-problems"
+                >
+                  {problems.errors > 0 && (
+                    <span className="flex items-center gap-0.5 text-red-500">
+                      <AlertCircle className="h-3 w-3" />
+                      {problems.errors}
+                    </span>
+                  )}
+                  {problems.warnings > 0 && (
+                    <span className="flex items-center gap-0.5 text-amber-500">
+                      <AlertCircle className="h-3 w-3" />
+                      {problems.warnings}
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                {problems.errors} errors, {problems.warnings} warnings
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {deploymentStatus !== 'idle' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onDeployClick}
+                  className={cn(
+                    'flex items-center gap-1.5 h-full px-2',
+                    'hover:bg-[var(--ide-surface)] transition-colors'
+                  )}
+                  data-testid="status-deployment"
+                >
+                  {deploymentStatus === 'deploying' && (
+                    <>
+                      <Loader2 className="h-3 w-3 text-[#7C65CB] animate-spin" />
+                      <span className="text-[#7C65CB]">Deploying...</span>
+                    </>
+                  )}
+                  {deploymentStatus === 'live' && (
+                    <>
+                      <Globe className="h-3 w-3 text-[#0CCE6B]" />
+                      <span className="text-[#0CCE6B]">Live</span>
+                    </>
+                  )}
+                  {deploymentStatus === 'failed' && (
+                    <>
+                      <XCircle className="h-3 w-3 text-red-500" />
+                      <span className="text-red-500">Failed</span>
+                    </>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                {deploymentStatus === 'deploying' && 'Deployment in progress...'}
+                {deploymentStatus === 'live' && (deploymentUrl ? `Live at ${deploymentUrl}` : 'Deployment is live')}
+                {deploymentStatus === 'failed' && 'Deployment failed - click to view logs'}
+              </TooltipContent>
+            </Tooltip>
           )}
 
           {wsStatus && wsStatus !== 'none' && (
-            <>
-              <span className="w-px h-3 bg-[var(--ide-surface)]" />
-              <button
-                onClick={wsStatus === 'running' ? onStopWorkspace : onStartWorkspace}
-                disabled={wsLoading}
-                className={cn(
-                  'flex items-center gap-1 px-1.5 h-5 rounded text-[10px] transition-colors',
-                  wsStatus === 'running' ? 'text-[#0CCE6B] hover:bg-[#0CCE6B]/10' : 'text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60',
-                )}
-                data-testid="status-workspace"
-              >
-                <span className={cn(
-                  'w-[5px] h-[5px] rounded-full',
-                  wsStatus === 'running' ? 'bg-[#0CCE6B]' : wsStatus === 'starting' ? 'bg-amber-400 animate-pulse' : wsStatus === 'error' ? 'bg-red-400' : 'bg-[var(--ide-text-muted)]',
-                )} />
-                <span className="font-medium capitalize">{wsLoading ? 'Loading...' : `WS: ${wsStatus}`}</span>
-              </button>
-            </>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={wsStatus === 'running' ? onStopWorkspace : onStartWorkspace}
+                  disabled={wsLoading}
+                  className={cn(
+                    'flex items-center gap-1 h-full px-1.5 transition-colors',
+                    wsStatus === 'running' ? 'text-[#0CCE6B] hover:bg-[#0CCE6B]/10' : 'text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]',
+                  )}
+                  data-testid="status-workspace"
+                >
+                  <span className={cn(
+                    'w-[5px] h-[5px] rounded-full',
+                    wsStatus === 'running' ? 'bg-[#0CCE6B]' : wsStatus === 'starting' ? 'bg-amber-400 animate-pulse' : wsStatus === 'error' ? 'bg-red-400' : 'bg-[var(--ide-text-muted)]',
+                  )} />
+                  <span className="font-medium capitalize">{wsLoading ? 'Loading...' : `WS: ${wsStatus}`}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                {wsStatus === 'running' ? 'Click to stop workspace' : 'Click to start workspace'}
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-cursor-position">
-            Ln {cursorPosition.line}, Col {cursorPosition.column}
-          </span>
-          <span className="text-[10px] text-[var(--ide-text-secondary)] capitalize">{language}</span>
-          <span className="text-[10px] text-[var(--ide-text-muted)]">{encoding}</span>
-          <span className="text-[10px] text-[var(--ide-text-muted)]">LF</span>
+        <div className="flex-1" />
+
+        <div className="flex items-center h-full">
+          {lastSaved && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={cn(
+                    'flex items-center gap-1 h-full px-2',
+                    'text-[var(--ide-text-muted)]',
+                    'hover:bg-[var(--ide-surface)] transition-colors cursor-default'
+                  )}
+                >
+                  <CheckCircle className="h-3 w-3 text-[#0CCE6B]" />
+                  <span>{formatTime(lastSaved)}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                Last saved: {lastSaved.toLocaleString()}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {(cpuUsage !== undefined || memoryUsage !== undefined) && (
+            <div className="flex items-center gap-2 h-full px-2 text-[var(--ide-text-muted)]">
+              {cpuUsage !== undefined && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="flex items-center gap-1 cursor-default">
+                      <Cpu className="h-3 w-3" />
+                      {cpuUsage}%
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                    CPU Usage: {cpuUsage}%
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {memoryUsage !== undefined && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="flex items-center gap-1 cursor-default">
+                      <HardDrive className="h-3 w-3" />
+                      {memoryUsage}%
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                    Memory Usage: {memoryUsage}%
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60 transition-colors" data-testid="button-prettier">
-                <Wand2 className="w-3 h-3" />
-                <span>Prettier</span>
+              <button
+                className={cn(
+                  'flex items-center gap-1 h-full px-1.5',
+                  'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                  'hover:bg-[var(--ide-surface)] transition-colors',
+                  'font-mono text-[9px]'
+                )}
+                data-testid="status-cursor"
+              >
+                <span>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
-              Format Document
+              Go to Line
             </TooltipContent>
           </Tooltip>
-          <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1">
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className={cn(
+                  'flex items-center h-full px-1.5',
+                  'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                  'hover:bg-[var(--ide-surface)] transition-colors'
+                )}
+                data-testid="status-language"
+              >
+                {language}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              Select Language Mode
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className={cn(
+                  'flex items-center h-full px-1.5',
+                  'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                  'hover:bg-[var(--ide-surface)] transition-colors'
+                )}
+                data-testid="status-encoding"
+              >
+                {encoding}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              Select Encoding
+            </TooltipContent>
+          </Tooltip>
+
+          {notifications > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className={cn(
+                    'flex items-center gap-1 h-full px-2',
+                    'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                    'hover:bg-[var(--ide-surface)] transition-colors'
+                  )}
+                >
+                  <Bell className="h-3 w-3" />
+                  <span className="font-medium">{notifications}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+                {notifications} notification{notifications > 1 ? 's' : ''}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onShowShortcuts}
+                data-testid="button-show-shortcuts"
+                className={cn(
+                  'h-full px-2 rounded-none',
+                  'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                  'hover:bg-[var(--ide-surface)]'
+                )}
+              >
+                <Command className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              Keyboard Shortcuts
+            </TooltipContent>
+          </Tooltip>
+
+          <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1 px-2">
             <svg width="9" height="9" viewBox="0 0 32 32" fill="none">
               <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="currentColor"/>
               <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="currentColor"/>

@@ -981,14 +981,15 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           projectSlug={String(project?.id || projectId)}
           ownerUsername={user?.displayName || user?.email || ''}
           projectId={projectId}
-          isDeployed={false}
+          isDeployed={!!publishState?.url}
           onRun={handleRunStop}
           isRunning={isRunning}
-          tabs={tabs}
+          tabs={[]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onTabClose={handleTabClose}
           onTabReorder={handleTabReorder}
+          showTabs={false}
           onOpenToolsSheet={() => setShowToolsSheet(true)}
           availableTools={availableTools}
           onAddTool={handleAddTool}
