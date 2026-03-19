@@ -76,7 +76,7 @@ export function ReplitMobileInputBar({
   return (
     <div
       className={cn(
-        "fixed left-0 right-0 z-30 px-3 pt-1 bg-gradient-to-t from-[var(--ide-bg)] via-[var(--ide-bg)] to-transparent transition-[bottom] duration-200",
+        "fixed left-0 right-0 z-40 px-3 pt-1 bg-gradient-to-t from-[var(--ide-bg)] via-[var(--ide-bg)] to-transparent transition-[bottom] duration-200",
         keyboardVisible ? "bottom-0" : "bottom-[52px]"
       )}
       style={{

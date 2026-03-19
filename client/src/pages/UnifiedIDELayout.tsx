@@ -17,6 +17,7 @@ import { useDeviceType } from '@/hooks/use-media-query';
 import { useConnectionStatus } from '@/hooks/use-connection-status';
 import { useProblemsCount } from '@/hooks/use-problems-count';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/components/ThemeProvider';
 import { instrumentedLazy } from '@/utils/instrumented-lazy';
 import {
   ResizableHandle,
@@ -213,6 +214,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     pendingAIMessage,
     setPendingAIMessage,
     userPrefs,
+    savePrefs,
     creditBalance,
     // New exports
     updateProjectMutation,
@@ -299,6 +301,28 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     mergeResolutions,
     setMergeResolutions,
   } = workspace;
+
+  const { setTheme: setGlobalTheme } = useTheme();
+
+  // Sync userPrefs theme with ThemeProvider on load and changes
+  useEffect(() => {
+    if (userPrefs?.theme === 'dark' || userPrefs?.theme === 'light') {
+      setGlobalTheme(userPrefs.theme as 'dark' | 'light');
+    }
+  }, [userPrefs?.theme, setGlobalTheme]);
+
+  // Auto-run on initial load (like Replit)
+  const hasAutoRun = useRef(false);
+  useEffect(() => {
+    if (hasAutoRun.current) return;
+    if (isRunning) { hasAutoRun.current = true; return; }
+    const filesReady = files && files.length > 0;
+    const projectLoaded = !!project;
+    if (filesReady && projectLoaded) {
+      hasAutoRun.current = true;
+      handleRunStop();
+    }
+  }, [files, project, isRunning, handleRunStop]);
 
   const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
 
@@ -545,7 +569,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'history':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
       case 'settings':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
       case 'extensions':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ExtensionsMarketplace projectId={parseInt(projectId, 10)} className="h-full" /></Suspense>;
       case 'workflows':
@@ -664,7 +688,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitDebuggerPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'settings') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
     }
     if (currentTab.id === 'history' || currentTab.id === 'rewind') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
@@ -785,16 +809,19 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       <div className={cn('flex flex-col h-screen w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} data-testid="mobile-layout" data-ide-layout="unified">
         <ReplitMobileHeader
           activeTab={mobileActiveTab}
-          onBack={() => window.history.back()}
+          onBack={() => window.location.href = '/dashboard'}
           onHistory={() => handleAddOpenTab('history')}
           onNewTab={() => setShowQuickFileSearch(true)}
           onMore={() => setShowMobileMoreMenu(true)}
+          isRunning={isRunning}
+          onRunStop={handleRunStop}
+          projectName={projectName}
         />
 
         <div
           className="flex-1 overflow-hidden"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
-          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '3rem' }}
+          style={{ paddingBottom: mobileActiveTab === 'agent' ? '8rem' : '0.5rem' }}
         >
           <div key={mobileActiveTab} className="h-full overflow-auto animate-fade-in">
             {renderMobileContent()}
@@ -892,21 +919,37 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   if (deviceType === 'tablet') {
     return (
       <div className={cn('flex flex-col h-screen w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} data-testid="tablet-layout" data-ide-layout="unified">
-        <header className="flex items-center justify-between h-12 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setShowFileExplorer(!showFileExplorer)} className="h-9 w-9">
+        <header className="flex items-center justify-between h-12 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] z-50 relative">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Button variant="ghost" size="icon" onClick={() => setShowFileExplorer(!showFileExplorer)} className="h-9 w-9 shrink-0">
               {showFileExplorer ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
             </Button>
-            <span className="font-medium text-[var(--ide-text)] text-[13px]">{projectName}</span>
+            <span className="font-medium text-[var(--ide-text)] text-[13px] truncate">{projectName}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              size="sm"
+              className={cn(
+                'h-8 px-4 text-[11px] font-semibold rounded-full gap-1.5 transition-all',
+                isRunning
+                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+                  : 'bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_8px_rgba(12,206,107,0.3)]'
+              )}
+              onClick={handleRunStop}
+            >
+              {isRunning ? (
+                <><Layers className="w-3 h-3" /> Stop</>
+              ) : (
+                <><Zap className="w-3 h-3" /> Run</>
+              )}
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setShowToolsSheet(true)} className="h-9 w-9">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto" style={{ paddingBottom: mobileActiveTab === 'agent' ? '8rem' : '3.5rem' }}>
+        <div className="flex-1 overflow-auto" style={{ paddingBottom: mobileActiveTab === 'agent' ? '8.5rem' : '0.5rem' }}>
           {renderMobileContent()}
         </div>
 

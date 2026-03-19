@@ -58,6 +58,8 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
   if (!isOpen && !inline) return null;
 
   const menuItems = [
+    { label: 'Search', icon: Search, color: '#4B9EF5', action: handlers.onOpenGlobalSearch },
+    { label: 'Checkpoints', icon: Layers, color: '#10B981', action: handlers.onOpenCheckpoints },
     { label: 'Git', icon: GitBranch, color: '#F26522', action: handlers.onOpenGit },
     { label: 'Packages', icon: Package, color: '#0CCE6B', action: handlers.onOpenPackages },
     { label: 'Secrets', icon: Key, color: '#F5A623', action: handlers.onOpenSecrets },
@@ -98,7 +100,7 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
           {menuItems.map(({ label, icon: Icon, color, action }) => (
             <button
               key={label}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
+              className="flex flex-col items-center justify-center gap-1.5 py-3 min-h-[56px] rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
               onClick={action}
             >
               <Icon className="w-5 h-5" style={{ color }} />
@@ -127,7 +129,7 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
           {menuItems.map(({ label, icon: Icon, color, action }) => (
             <button
               key={label}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
+              className="flex flex-col items-center justify-center gap-1.5 py-3 min-h-[56px] rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
               onClick={() => { action?.(); onClose(); }}
             >
               <Icon className="w-5 h-5" style={{ color }} />
