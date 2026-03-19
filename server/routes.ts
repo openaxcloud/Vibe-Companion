@@ -886,7 +886,7 @@ function resolveTopAgentMode(body: any, userPlan: string): { modelId: string; ma
   } else {
     effectiveAgentMode = turbo ? "turbo" : tier;
     modelId = (turbo ? AGENT_MODE_MODELS.turbo : AGENT_MODE_MODELS[tier])?.[selectedModel] || AGENT_MODE_MODELS.economy[selectedModel] || "claude-sonnet-4-6";
-    maxTokens = turbo ? 32768 : (tier === "power" ? 16384 : 16384);
+    maxTokens = turbo ? 16384 : (tier === "power" ? 16384 : 16384);
   }
 
   if (effectiveAgentMode === "turbo" && (userPlan === "free" || !userPlan)) {
