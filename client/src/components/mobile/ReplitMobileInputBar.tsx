@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Send, Mic, Paperclip, Slash, ChevronDown } from 'lucide-react';
+import { Send, Mic, Paperclip } from 'lucide-react';
 
 interface ReplitMobileInputBarProps {
   placeholder?: string;
@@ -22,26 +22,69 @@ export function ReplitMobileInputBar({
   placeholder = "Ask the AI agent...",
   onSubmit,
   isWorking,
-  agentMode,
-  onModeChange,
-  onSlashCommand,
   onAttach,
   onVoice,
   isRecording,
   pendingAttachmentsCount,
 }: ReplitMobileInputBarProps) {
   const [value, setValue] = useState('');
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Detect virtual keyboard via visualViewport API
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      const heightDiff = window.innerHeight - vv.height;
+      setKeyboardVisible(heightDiff > 150);
+    };
+
+    vv.addEventListener('resize', handleResize);
+    vv.addEventListener('scroll', handleResize);
+    return () => {
+      vv.removeEventListener('resize', handleResize);
+      vv.removeEventListener('scroll', handleResize);
+    };
+  }, []);
+
+  // Scroll input into view when keyboard opens
+  const handleFocus = useCallback(() => {
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 300);
+  }, []);
 
   const handleSubmit = () => {
     if (value.trim() && !isWorking) {
       onSubmit(value.trim());
       setValue('');
+      // Auto-resize textarea back to 1 row
+      if (inputRef.current) inputRef.current.style.height = 'auto';
     }
   };
 
+  // Auto-resize textarea
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  };
+
   return (
-    <div className="fixed bottom-[52px] left-0 right-0 z-30 px-3 pb-2 pt-1 bg-gradient-to-t from-[var(--ide-bg)] via-[var(--ide-bg)] to-transparent" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}>
+    <div
+      className={cn(
+        "fixed left-0 right-0 z-30 px-3 pt-1 bg-gradient-to-t from-[var(--ide-bg)] via-[var(--ide-bg)] to-transparent transition-[bottom] duration-200",
+        keyboardVisible ? "bottom-0" : "bottom-[52px]"
+      )}
+      style={{
+        paddingBottom: keyboardVisible
+          ? '8px'
+          : 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+      }}
+    >
       <div className="flex items-end gap-2 bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-2xl px-3 py-2 shadow-lg">
         {onAttach && (
           <button
@@ -59,7 +102,8 @@ export function ReplitMobileInputBar({
         <textarea
           ref={inputRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={handleInput}
+          onFocus={handleFocus}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -68,7 +112,10 @@ export function ReplitMobileInputBar({
           }}
           placeholder={placeholder}
           rows={1}
-          className="flex-1 bg-transparent text-[13px] text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] outline-none resize-none min-h-[32px] max-h-[120px] py-1"
+          enterKeyHint="send"
+          autoComplete="off"
+          autoCorrect="off"
+          className="flex-1 bg-transparent text-[13px] text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] outline-none resize-none min-h-[32px] max-h-[120px] py-1 mobile-scroll"
           style={{ scrollbarWidth: 'none' }}
         />
         <div className="flex items-center gap-1 shrink-0">
