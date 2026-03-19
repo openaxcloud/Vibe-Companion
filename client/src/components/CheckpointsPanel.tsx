@@ -19,6 +19,9 @@ interface CheckpointData {
   trigger: string;
   fileCount: number;
   packageCount?: number;
+  sizeBytes?: number;
+  creditsCost?: number;
+  gitCommitHash?: string | null;
   createdAt: string;
 }
 
@@ -275,8 +278,8 @@ export default function CheckpointsPanel({ projectId, onClose }: { projectId: st
                         <p className="text-[11px] text-[var(--ide-text)] leading-snug line-clamp-2" data-testid={`text-checkpoint-desc-${cp.id}`}>
                           {cp.description}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[9px] text-[var(--ide-text-muted)] font-mono">{cp.id.slice(0, 7)}</span>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <span className="text-[9px] text-[var(--ide-text-muted)] font-mono">{cp.gitCommitHash || cp.id.slice(0, 7)}</span>
                           <span className="text-[9px] text-[#4A5068]">&middot;</span>
                           <span className="text-[9px] text-[#4A5068]">
                             {new Date(cp.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
@@ -288,6 +291,20 @@ export default function CheckpointsPanel({ projectId, onClose }: { projectId: st
                             <>
                               <span className="text-[9px] text-[#4A5068]">&middot;</span>
                               <span className="text-[9px] text-[#4A5068]">{cp.fileCount} files</span>
+                            </>
+                          )}
+                          {(cp.sizeBytes != null && cp.sizeBytes > 0) && (
+                            <>
+                              <span className="text-[9px] text-[#4A5068]">&middot;</span>
+                              <span className="text-[9px] text-[#4A5068]">
+                                {cp.sizeBytes < 1024 ? `${cp.sizeBytes} B` : cp.sizeBytes < 1048576 ? `${(cp.sizeBytes / 1024).toFixed(1)} KB` : `${(cp.sizeBytes / 1048576).toFixed(1)} MB`}
+                              </span>
+                            </>
+                          )}
+                          {(cp.creditsCost != null && cp.creditsCost > 0) && (
+                            <>
+                              <span className="text-[9px] text-[#4A5068]">&middot;</span>
+                              <span className="text-[9px] text-[#0CCE6B]">{cp.creditsCost} credits</span>
                             </>
                           )}
                         </div>
