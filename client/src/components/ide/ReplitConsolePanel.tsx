@@ -3,7 +3,7 @@ import ConsolePanel from '@/components/ConsolePanel';
 interface ReplitConsolePanelProps {
   projectId: string;
   isRunning: boolean;
-  logs: { id: number; text: string; type: string }[];
+  logs: { id: number; text: string; type: 'info' | 'error' | 'success' }[];
   onStop?: () => Promise<void> | void;
   onAskAI?: (text: string) => void;
   activeFileName?: string;

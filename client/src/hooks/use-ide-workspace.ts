@@ -1008,7 +1008,7 @@ export function useIDEWorkspace(projectId: string) {
     if (!openTabs.includes(fileId)) {
       setOpenTabs(prev => [...prev, fileId]);
     }
-    const existing = filesQuery.data?.find(f => f.id === file.id);
+    const existing = filesQuery.data?.find(f => String(f.id) === String(file.id));
     if (existing && fileContents[fileId] === undefined) {
       setFileContents(prev => ({ ...prev, [fileId]: existing.content }));
     }
@@ -1084,7 +1084,7 @@ export function useIDEWorkspace(projectId: string) {
   const publishState = useMemo(() => {
     if (!project) return null;
     return {
-      status: project.isPublished ? 'live' as const : 'idle' as const,
+      status: project.isPublished ? 'live' as 'live' | 'idle' | 'publishing' | 'failed' : 'idle' as 'live' | 'idle' | 'publishing' | 'failed',
       url: project.isPublished ? `${window.location.origin}/shared/${projectId}` : undefined,
     };
   }, [project, projectId]);

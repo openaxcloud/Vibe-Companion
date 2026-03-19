@@ -506,7 +506,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'terminal':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTerminalPanel projectId={projectId} /></Suspense>;
       case 'files':
-        return <ReplitFileExplorer projectId={projectId} onFileSelect={handleFileSelect} selectedFileId={selectedFileId} />;
+        return <ReplitFileExplorer projectId={projectId} files={filesRaw || []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} />;
       case 'history':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
       case 'settings':
@@ -829,7 +829,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         <TopNavBar
           projectName={projectName}
           projectSlug={String(project?.id || projectId)}
-          ownerUsername={user?.username || ''}
+          ownerUsername={user?.displayName || user?.email || ''}
           projectId={projectId}
           isDeployed={false}
           onRun={handleRunStop}
@@ -849,7 +849,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onProjectSettings={() => setProjectSettingsOpen(true)}
           onPublish={() => setPublishDialogOpen(true)}
           onInvite={() => setInviteDialogOpen(true)}
-          onFork={() => forkMutation.mutate()}
+          onFork={() => forkMutation.mutate(undefined)}
         />
 
         {/* Tab Bar */}
@@ -981,7 +981,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   <ReplitFileExplorer
                     projectId={projectId}
                     files={filesRaw || []}
-                    onFileSelect={handleFileSelect}
+                    onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })}
                     selectedFileId={activeFileId}
                     dirtyFiles={dirtyFiles}
                   />
@@ -1020,7 +1020,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           id: f.id.toString(),
           name: f.name,
           type: 'file' as const,
-          path: f.path,
+          path: f.path || '',
           content: f.content || ''
         }))}
         onFileSelect={(file) => {
@@ -1047,17 +1047,25 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       <Suspense fallback={null}>
         <CommandPalette
           open={showCommandPalette}
-          onOpenChange={setShowCommandPalette}
-          files={files as any}
-          onFileSelect={(file: any) => {
+          onClose={() => setShowCommandPalette(false)}
+          files={filesRaw as any}
+          isRunning={isRunning}
+          onRun={handleRunStop}
+          onNewFile={() => {}}
+          onNewFolder={() => {}}
+          onToggleTerminal={() => handleAddTool('terminal')}
+          onToggleAI={() => { setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }}
+          onTogglePreview={() => handleAddTool('preview')}
+          onToggleSidebar={() => setShowFileExplorer(prev => !prev)}
+          onProjectSettings={() => setProjectSettingsOpen(true)}
+          onPublish={() => setPublishDialogOpen(true)}
+          onGoToDashboard={() => { window.location.href = '/dashboard'; }}
+          onOpenFile={(file: any) => {
             setShowCommandPalette(false);
-            if (typeof file === 'number') {
-              handleFileSelect({ id: file, name: '' });
-            } else {
-              handleFileSelect({ id: file.id, name: file.name });
-            }
+            handleFileSelect({ id: typeof file.id === 'string' ? parseInt(file.id, 10) : file.id, name: file.filename || file.name || '' });
           }}
-          onToolSelect={(tool: string) => { setShowCommandPalette(false); handleAddTool(tool); }}
+          onForkProject={() => forkMutation.mutate('public')}
+          projectId={projectId}
         />
       </Suspense>
 
