@@ -7,7 +7,12 @@ export type MobileTab =
   | 'shell' | 'storage' | 'terminal' | 'files' | 'history'
   | 'themes' | 'multiplayers' | 'checkpoints' | 'settings'
   | 'extensions' | 'workflows' | 'debug' | 'testing' | 'security'
-  | 'collaboration' | 'search' | 'actions' | 'tools';
+  | 'collaboration' | 'search' | 'actions' | 'tools'
+  | 'slides' | 'video' | 'animation' | 'design' | 'tests'
+  | 'visual-editor' | 'console' | 'resources' | 'logs'
+  | 'automations' | 'config' | 'feedback' | 'github' | 'integrations'
+  | 'mcp' | 'merge-conflicts' | 'monitoring' | 'networking' | 'publishing'
+  | 'skills' | 'ssh' | 'threads' | 'test-runner' | 'security-scanner' | 'backup';
 
 interface OpenTab {
   id: string;

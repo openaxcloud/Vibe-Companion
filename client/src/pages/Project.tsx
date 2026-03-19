@@ -73,6 +73,8 @@ import {
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import AIPanel from "@/components/AIPanel";
+import { ReplitActivityBar, type ActivityItem } from "@/components/ide/ReplitActivityBar";
+import { StatusBar } from "@/components/ide/StatusBar";
 import { playNotificationSound, sendPushNotification } from "@/lib/notifications";
 import ConsolePanel from "@/components/ConsolePanel";
 import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
@@ -6728,351 +6730,63 @@ function _projectPage() {
           {/* === TABLET + DESKTOP LAYOUT: VS Code style === */}
           <div className="flex flex-1 overflow-hidden">
             {/* ACTIVITY BAR */}
-            <TooltipProvider delayDuration={200}>
-            <div className="w-12 bg-[var(--ide-bg)] border-r border-[var(--ide-border)] flex flex-col items-center py-1 shrink-0" data-testid="activity-bar">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0 ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { const shouldOpen = !sidebarOpen || aiPanelOpen || openPanelTabs.length > 0; setSidebarOpen(shouldOpen); setAiPanelOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); }}
-                    data-testid="activity-explorer"
-                  >
-                    {sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0 && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <PanelLeft className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Files</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${searchPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("search")}
-                    data-testid="activity-search"
-                  >
-                    {searchPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <Search className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Search</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${aiPanelOpen ? "text-[#7C65CB]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => { setAiPanelOpen(!aiPanelOpen); if (!aiPanelOpen) { setSidebarOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); } }}
-                    data-testid="activity-ai"
-                  >
-                    {aiPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#7C65CB]" />}
-                    <Sparkles className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">AI Agent</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${gitPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("git")}
-                    data-testid="activity-git"
-                  >
-                    {gitPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
-                    <GitBranch className="w-5 h-5" />
-                    {(gitDiffQuery.data?.changes?.length || 0) > 0 && <span className="absolute top-1.5 right-2 min-w-[16px] h-4 rounded-full bg-[#0079F2] flex items-center justify-center px-1"><span className="text-[9px] font-bold text-white">{gitDiffQuery.data?.changes?.length}</span></span>}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Source Control</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${isPanelOpen("fileHistory") ? "text-[#F5A623]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("fileHistory")}
-                    data-testid="activity-file-history"
-                  >
-                    {isPanelOpen("fileHistory") && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
-                    <Clock className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">File History</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${deploymentsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("deployments")}
-                    data-testid="activity-deployments"
-                  >
-                    {deploymentsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <Rocket className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Deployments</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${packagesPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("packages")}
-                    data-testid="activity-packages"
-                  >
-                    {packagesPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
-                    <Package className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Packages</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${databasePanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("database")}
-                    data-testid="activity-database"
-                  >
-                    {databasePanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F26522]" />}
-                    <Database className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Database</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${testsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("tests")}
-                    data-testid="activity-tests"
-                  >
-                    {testsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
-                    <FlaskConical className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Tests</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${securityPanelOpen ? "text-[#E54D4D]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("security")}
-                    data-testid="activity-security"
-                  >
-                    {securityPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#E54D4D]" />}
-                    <Shield className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Security Scanner</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${authPanelOpen ? "text-[#0CCE6B]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("auth")}
-                    data-testid="activity-auth"
-                  >
-                    {authPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
-                    <ShieldCheck className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Auth</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${storagePanelOpen ? "text-[#7C65CB]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("storage")}
-                    data-testid="activity-storage"
-                  >
-                    {storagePanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#7C65CB]" />}
-                    <HardDrive className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">App Storage</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${integrationsPanelOpen ? "text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("integrations")}
-                    data-testid="activity-integrations"
-                  >
-                    {integrationsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <Puzzle className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Integrations</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${automationsPanelOpen ? "text-[#F5A623]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("automations")}
-                    data-testid="activity-automations"
-                  >
-                    {automationsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
-                    <Zap className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Automations</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${workflowsPanelOpen ? "text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("workflows")}
-                    data-testid="activity-workflows"
-                  >
-                    {workflowsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <GitMerge className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Workflows</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${monitoringPanelOpen ? "text-[#10B981]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("monitoring")}
-                    data-testid="activity-monitoring"
-                  >
-                    {monitoringPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#10B981]" />}
-                    <Activity className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Monitoring</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${threadsPanelOpen ? "text-[#8B5CF6]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("threads")}
-                    data-testid="activity-threads"
-                  >
-                    {threadsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#8B5CF6]" />}
-                    <MessageSquare className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Threads</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${networkingPanelOpen ? "text-[#06B6D4]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("networking")}
-                    data-testid="activity-networking"
-                  >
-                    {networkingPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#06B6D4]" />}
-                    <Network className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Networking</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${inboxPanelOpen ? "text-[#0079F2]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("inbox")}
-                    data-testid="activity-inbox"
-                  >
-                    {inboxPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <Inbox className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Feedback Inbox</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openSpecialTab(SPECIAL_TABS.WEBVIEW)}
-                    data-testid="activity-webview"
-                  >
-                    {openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <Monitor className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Webview</TooltipContent>
-              </Tooltip>
+            <ReplitActivityBar
+              activeItem={
+                aiPanelOpen ? 'agent' :
+                activePanelTab === 'search' ? 'search' :
+                activePanelTab === 'git' ? 'git' :
+                activePanelTab === 'deployments' ? 'deploy' :
+                activePanelTab === 'packages' ? 'packages' :
+                activePanelTab === 'database' ? 'database' :
+                activePanelTab === 'tests' ? 'debug' :
+                activePanelTab === 'envVars' ? 'secrets' :
+                activePanelTab === 'workflows' ? 'workflows' :
+                activePanelTab === 'fileHistory' ? 'history' :
+                activePanelTab === 'integrations' ? 'extensions' :
+                activePanelTab === 'settings' ? 'settings' :
+                (openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL) ? 'terminal' :
+                (openTabs.includes(SPECIAL_TABS.WEBVIEW) && activeFileId === SPECIAL_TABS.WEBVIEW) ? 'preview' :
+                sidebarOpen ? 'files' : 'files'
+              }
+              onItemClick={(item: ActivityItem) => {
+                switch (item) {
+                  case 'files':
+                    setSidebarOpen(!sidebarOpen); setAiPanelOpen(false); setOpenPanelTabs([]); setActivePanelTab(null);
+                    break;
+                  case 'search': openPanel("search"); break;
+                  case 'git': openPanel("git"); break;
+                  case 'agent':
+                    setAiPanelOpen(!aiPanelOpen);
+                    if (!aiPanelOpen) { setSidebarOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); }
+                    break;
+                  case 'deploy': openPanel("deployments"); break;
+                  case 'packages': openPanel("packages"); break;
+                  case 'database': openPanel("database"); break;
+                  case 'debug': openPanel("tests"); break;
+                  case 'secrets': openPanel("envVars"); break;
+                  case 'terminal': openSpecialTab(SPECIAL_TABS.SHELL); break;
+                  case 'preview': openSpecialTab(SPECIAL_TABS.WEBVIEW); break;
+                  case 'workflows': openPanel("workflows"); break;
+                  case 'history': openPanel("fileHistory"); break;
+                  case 'extensions': openPanel("integrations"); break;
+                  case 'settings': openPanel("settings"); break;
+                }
+              }}
+              isCollapsed={!sidebarOpen && !aiPanelOpen && openPanelTabs.length === 0}
+              onToggleCollapse={() => {
+                setSidebarOpen(!sidebarOpen);
+                setAiPanelOpen(false);
+                setOpenPanelTabs([]);
+                setActivePanelTab(null);
+              }}
+              badgeCounts={{
+                git: (gitDiffQuery.data?.changes?.length || 0) > 0 ? gitDiffQuery.data?.changes?.length : undefined,
+              }}
+            />
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL ? "text-[#0CCE6B]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openSpecialTab(SPECIAL_TABS.SHELL)}
-                    data-testid="activity-shell"
-                  >
-                    {openTabs.includes(SPECIAL_TABS.SHELL) && activeFileId === SPECIAL_TABS.SHELL && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0CCE6B]" />}
-                    <Hash className="w-5 h-5" />
-                    {wsStatus === "running" && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] border border-[var(--ide-bg)]" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Shell</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE ? "text-[#F5A623]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openSpecialTab(SPECIAL_TABS.CONSOLE)}
-                    data-testid="activity-console"
-                  >
-                    {openTabs.includes(SPECIAL_TABS.CONSOLE) && activeFileId === SPECIAL_TABS.CONSOLE && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#F5A623]" />}
-                    <Terminal className="w-5 h-5" />
-                    {isRunning && <span className="absolute top-1.5 right-2 w-[6px] h-[6px] rounded-full bg-[#0CCE6B] animate-pulse border border-[var(--ide-bg)]" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Console</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className={`relative w-full h-10 flex items-center justify-center transition-colors ${settingsPanelOpen ? "text-[var(--ide-text)]" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"}`}
-                    onClick={() => openPanel("settings")}
-                    data-testid="activity-settings"
-                  >
-                    {settingsPanelOpen && <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#0079F2]" />}
-                    <Settings className="w-5 h-5" />
-                    <span className={`absolute bottom-1.5 right-2 w-[6px] h-[6px] rounded-full border border-[var(--ide-bg)] ${wsStatus === "running" ? "bg-[#0CCE6B]" : wsStatus === "starting" ? "bg-yellow-400 animate-pulse" : wsStatus === "error" ? "bg-red-400" : wsStatus === "offline" ? "bg-orange-400" : "bg-[var(--ide-text-muted)]"}`} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Settings</TooltipContent>
-              </Tooltip>
-
-              <div className="flex-1" />
-
-              <div className="flex flex-col items-center mb-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 cursor-pointer hover:ring-2 hover:ring-[#0079F2]/50 transition-all"
-                      style={{ background: "linear-gradient(135deg, #F26522, #E84D8A)" }}
-                      data-testid="activity-user-avatar"
-                    >
-                      {(() => {
-                        const name = user?.displayName || user?.email || "";
-                        const parts = name.split(/[\s@]+/).filter(Boolean);
-                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-                        return name.slice(0, 2).toUpperCase() || "U";
-                      })()}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right" align="end" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
-                    <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setLocation("/settings")} data-testid="menu-account-settings">
-                      <Settings className="w-3.5 h-3.5" /> Account Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 text-xs text-[var(--ide-text-secondary)] focus:bg-[var(--ide-surface)] focus:text-[var(--ide-text)] cursor-pointer" onClick={() => setCommandPaletteOpen(true)} data-testid="menu-keyboard-shortcuts">
-                      <Keyboard className="w-3.5 h-3.5" /> Keyboard Shortcuts
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-[var(--ide-surface)]" />
-                    <DropdownMenuItem className="gap-2 text-xs text-red-400 focus:bg-[var(--ide-surface)] focus:text-red-300 cursor-pointer" onClick={() => logoutMutation.mutate()} data-testid="menu-sign-out">
-                      <LogOut className="w-3.5 h-3.5" /> Sign Out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-            </TooltipProvider>
-
-            {/* AI AGENT PANEL — Main panel (when open) */}
+            {/* LEFT PANEL: AI AGENT or TOOL PANELS */}
             {aiPanelOpen && (
-              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[340px]" : "w-[50%] max-w-[700px] min-w-[380px]"} shrink-0 border-r border-[var(--ide-border)]`} data-testid="ai-agent-panel">
+              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[340px]" : "w-[30%] max-w-[500px] min-w-[320px]"} shrink-0 border-r border-[var(--ide-border)]`} data-testid="ai-agent-panel">
                 <AIPanel
                   key={`ai-desktop-${projectId}`}
                   context={(activeFile || isRunnerTab) ? { language: project?.language || "javascript", filename: activeFileName, code: currentCode } : undefined}
@@ -7113,9 +6827,9 @@ function _projectPage() {
               </div>
             )}
 
-            {/* TABBED TOOL PANELS */}
+            {/* LEFT PANEL: TABBED TOOL PANELS */}
             {openPanelTabs.length > 0 && !aiPanelOpen && (
-              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[280px]" : "w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="tool-panel-container">
+              <div className={`${(isTablet && !isKeyboardModeActive) ? "w-[280px]" : "w-[30%] max-w-[500px] min-w-[300px]"} shrink-0 border-r border-[var(--ide-border)] bg-[var(--ide-panel)] flex flex-col`} data-testid="tool-panel-container">
                 <div className="flex items-center h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0 overflow-hidden" data-testid="panel-tab-bar">
                   <div className="flex items-center flex-1 min-w-0 overflow-x-auto scrollbar-hide h-full"
                     onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
@@ -8561,44 +8275,9 @@ function _projectPage() {
               </div>
             )}
 
-            <ResizablePanelGroup direction="horizontal" autoSaveId="ide-horizontal" className="flex-1 min-w-0">
-            {/* FILE EXPLORER SIDEBAR */}
-                <ResizablePanel
-                  id="sidebar"
-                  order={1}
-                  ref={sidebarPanelRef}
-                  defaultSize={sidebarShouldBeOpen ? 15 : 0}
-                  minSize={10}
-                  maxSize={30}
-                  collapsible
-                  collapsedSize={0}
-                  onCollapse={() => setSidebarOpen(false)}
-                  onExpand={() => { setSidebarOpen(true); setAiPanelOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); }}
-                  className="overflow-hidden"
-                  data-testid="panel-sidebar"
-                >
-                  <div className="h-full">
-                    {sidebarContent}
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle
-                  className="w-px bg-[var(--ide-border)] hover:bg-[#0079F2] active:bg-[#0079F2] transition-colors group"
-                  data-testid="handle-sidebar"
-                  onDoubleClick={() => {
-                    if (sidebarPanelRef.current?.isCollapsed()) {
-                      sidebarPanelRef.current.expand();
-                    } else {
-                      sidebarPanelRef.current?.collapse();
-                    }
-                  }}
-                >
-                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 flex items-center justify-center pointer-events-none">
-                    <div className="w-[3px] h-6 rounded-full bg-[var(--ide-border)] group-hover:bg-[#0079F2] group-active:bg-[#0079F2] transition-colors opacity-0 group-hover:opacity-100" />
-                  </div>
-                </ResizableHandle>
-
+            <ResizablePanelGroup direction="horizontal" autoSaveId="ide-horizontal-v2" className="flex-1 min-w-0">
             {/* MAIN EDITOR + TERMINAL AREA */}
-            <ResizablePanel id="editor-main" order={2} defaultSize={85} minSize={30}>
+            <ResizablePanel id="editor-main" order={1} defaultSize={52} minSize={30}>
               <div ref={editorPreviewContainerRef} className="h-full overflow-hidden min-w-0 relative">
                 <ResizablePanelGroup direction="vertical" autoSaveId="ide-vertical">
                   <ResizablePanel id="editor-area" order={1} defaultSize={70} minSize={20}>
@@ -8698,11 +8377,11 @@ function _projectPage() {
                 </ResizableHandle>
                 <ResizablePanel
                   id="preview"
-                  order={3}
+                  order={2}
                   ref={previewPanelRef}
-                  defaultSize={previewPanelOpen ? 40 : 0}
+                  defaultSize={previewPanelOpen ? 30 : 0}
                   minSize={15}
-                  maxSize={70}
+                  maxSize={60}
                   collapsible
                   collapsedSize={0}
                   onCollapse={() => setPreviewPanelOpen(false)}
@@ -8874,176 +8553,57 @@ function _projectPage() {
                     </div>
                   </div>
                 </ResizablePanel>
+                <ResizableHandle
+                  className="w-px bg-[var(--ide-border)] hover:bg-[#0079F2] active:bg-[#0079F2] transition-colors group"
+                  data-testid="handle-sidebar"
+                  onDoubleClick={() => {
+                    if (sidebarPanelRef.current?.isCollapsed()) {
+                      sidebarPanelRef.current.expand();
+                    } else {
+                      sidebarPanelRef.current?.collapse();
+                    }
+                  }}
+                >
+                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 flex items-center justify-center pointer-events-none">
+                    <div className="w-[3px] h-6 rounded-full bg-[var(--ide-border)] group-hover:bg-[#0079F2] group-active:bg-[#0079F2] transition-colors opacity-0 group-hover:opacity-100" />
+                  </div>
+                </ResizableHandle>
+                {/* FILE EXPLORER SIDEBAR (Right Panel) */}
+                <ResizablePanel
+                  id="sidebar"
+                  order={3}
+                  ref={sidebarPanelRef}
+                  defaultSize={sidebarShouldBeOpen ? 18 : 0}
+                  minSize={10}
+                  maxSize={30}
+                  collapsible
+                  collapsedSize={0}
+                  onCollapse={() => setSidebarOpen(false)}
+                  onExpand={() => { setSidebarOpen(true); setAiPanelOpen(false); setOpenPanelTabs([]); setActivePanelTab(null); }}
+                  className="overflow-hidden"
+                  data-testid="panel-sidebar"
+                >
+                  <div className="h-full">
+                    {sidebarContent}
+                  </div>
+                </ResizablePanel>
             </ResizablePanelGroup>
 
           </div>
 
           {/* STATUS BAR */}
-          <TooltipProvider delayDuration={200}>
-          <div className="flex items-center justify-between px-2 h-6 bg-[var(--ide-bg)] border-t border-[var(--ide-border)]/60 shrink-0">
-            <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)] transition-colors" onClick={() => openPanel("git")} data-testid="button-git-branch">
-                    <GitBranch className="w-3 h-3" />
-                    <span className="font-medium">{currentBranch}</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
-                  Current branch: {currentBranch}
-                </TooltipContent>
-              </Tooltip>
-
-              <span className="w-px h-3 bg-[var(--ide-surface)]" />
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)] transition-colors"
-                    onClick={() => toast({ title: "Problems", description: "No problems detected in workspace." })}
-                    data-testid="button-problems"
-                  >
-                    <AlertCircle className="w-3 h-3" />
-                    <span>0</span>
-                    <X className="w-2.5 h-2.5 ml-0.5" />
-                    <span>0</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
-                  No Problems
-                </TooltipContent>
-              </Tooltip>
-
-              <span className="w-px h-3 bg-[var(--ide-surface)]" />
-
-              <span className="flex items-center gap-1.5 text-[10px] text-[var(--ide-text-muted)]">
-                <span className={`w-[5px] h-[5px] rounded-full ${wsStatus === "running" ? "bg-[#0CCE6B] shadow-[0_0_6px_rgba(12,206,107,0.6)] animate-pulse" : wsStatus === "starting" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.5)] animate-pulse" : wsStatus === "error" ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)] animate-pulse" : "bg-[#4A5068]"}`} />
-                {wsStatus === "running" ? "Workspace Running" : wsStatus === "starting" ? "Starting Workspace..." : wsStatus === "none" ? "Ready" : wsStatus === "stopped" ? "Workspace Stopped" : wsStatus === "error" ? "Workspace Error" : wsStatus === "offline" ? "Offline" : wsStatus}
-              </span>
-              <span
-                className={`text-[10px] flex items-center gap-1 cursor-pointer ${
-                  connectionQuality === "excellent" ? "text-[#0CCE6B]" :
-                  connectionQuality === "good" ? "text-[#4A9F6E]" :
-                  connectionQuality === "poor" ? "text-yellow-400" :
-                  connectionQuality === "polling" ? "text-orange-400" :
-                  "text-red-400"
-                }`}
-                data-testid="status-connection-quality"
-                onClick={connectionQuality === "polling" || connectionQuality === "disconnected" ? retryWebSocket : undefined}
-                title={
-                  connectionQuality === "excellent" ? "Excellent connection" :
-                  connectionQuality === "good" ? "Good connection" :
-                  connectionQuality === "poor" ? "Poor connection" :
-                  connectionQuality === "polling" ? "Polling fallback (click to retry WS)" :
-                  "Disconnected (click to retry)"
-                }
-              >
-                <Wifi className="w-2.5 h-2.5" />
-                {connectionQuality === "polling" ? "Poll" :
-                 connectionQuality === "disconnected" ? "Off" :
-                 "WS"}
-              </span>
-              {remoteUsers.length > 0 && (
-                <span className="text-[10px] flex items-center gap-1 text-[var(--ide-text-muted)]" data-testid="status-collaborators">
-                  <Users className="w-2.5 h-2.5" />
-                  {remoteUsers.length + 1}
-                </span>
-              )}
-
-              {creditBalanceQuery.data && creditBalanceQuery.data.monthlyCreditsIncluded > 0 && (
-                <>
-                  <span className="w-px h-3 bg-[var(--ide-surface)]" />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        className={`flex items-center gap-1 px-1.5 h-5 rounded text-[10px] transition-colors ${
-                          creditBalanceQuery.data.exhausted
-                            ? "text-red-400 bg-red-400/10 hover:bg-red-400/20"
-                            : creditBalanceQuery.data.lowCredits
-                            ? "text-orange-400 bg-orange-400/10 hover:bg-orange-400/20"
-                            : "text-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text)]"
-                        }`}
-                        onClick={() => setLocation("/settings")}
-                        data-testid="status-credit-balance"
-                      >
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span className="font-medium">
-                          {creditBalanceQuery.data.remaining} credits
-                        </span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
-                      {creditBalanceQuery.data.remaining} / {creditBalanceQuery.data.monthlyCreditsIncluded} monthly credits remaining
-                      {creditBalanceQuery.data.overageEnabled && " (overage enabled)"}
-                    </TooltipContent>
-                  </Tooltip>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isKeyboardModeActive && (
-                <div className="flex items-center gap-1.5 mr-2" data-testid="keyboard-shortcut-hints">
-                  <Keyboard className="w-3 h-3 text-[#0079F2]" />
-                  <span className="text-[9px] text-[var(--ide-text-muted)]">
-                    <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[8px]">⌘K</kbd> Cmds
-                  </span>
-                  <span className="text-[9px] text-[var(--ide-text-muted)]">
-                    <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[8px]">⌘S</kbd> Save
-                  </span>
-                  <span className="text-[9px] text-[var(--ide-text-muted)]">
-                    <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[8px]">⌘P</kbd> Files
-                  </span>
-                  <span className="w-px h-3 bg-[var(--ide-surface)]" />
-                </div>
-              )}
-              {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-cursor-position">Ln {cursorLine}, Col {cursorCol}</span>}
-              {activeFileName && <span className="text-[10px] text-[var(--ide-text-secondary)]" data-testid="text-tab-size">Spaces: {editorTabSize}</span>}
-              {activeFileName && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="text-[10px] text-[var(--ide-text-secondary)] capitalize hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/60 px-1.5 h-5 rounded transition-colors cursor-pointer" data-testid="button-language-selector">
-                      {editorLanguage}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" align="end" className="w-40 p-1 bg-[var(--ide-panel)] border-[var(--ide-border)] rounded-lg shadow-2xl">
-                    {["javascript", "typescript", "python", "go", "rust", "cpp", "java", "ruby", "bash", "html", "css", "json", "markdown"].map((lang) => (
-                      <button
-                        key={lang}
-                        className={`w-full text-left px-2.5 py-1.5 text-[11px] rounded capitalize transition-colors ${lang === editorLanguage ? "bg-[#0079F2]/20 text-[#0079F2]" : "text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)] hover:text-[var(--ide-text)]"}`}
-                        data-testid={`lang-option-${lang}`}
-                      >
-                        {lang}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              )}
-              {activeFileName && <span className="text-[10px] text-[#4A5068]">UTF-8</span>}
-              {activeFileName && <span className="text-[10px] text-[#4A5068]">LF</span>}
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="flex items-center gap-1 px-1.5 h-5 rounded text-[10px] text-[#4A5068] hover:bg-[var(--ide-surface)]/60 hover:text-[var(--ide-text-secondary)] transition-colors" data-testid="button-prettier">
-                    <Wand2 className="w-3 h-3" />
-                    <span>Prettier</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
-                  Format Document
-                </TooltipContent>
-              </Tooltip>
-
-              <span className="text-[10px] text-[#4A5068] flex items-center gap-1">
-                <svg width="9" height="9" viewBox="0 0 32 32" fill="none">
-                  <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="currentColor"/>
-                  <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="currentColor"/>
-                  <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="currentColor"/>
-                </svg>
-                E-Code
-              </span>
-            </div>
-          </div>
-          </TooltipProvider>
+          <StatusBar
+            gitBranch={currentBranch}
+            isRunning={isRunning}
+            cursorPosition={{ line: cursorLine, column: cursorCol }}
+            language={editorLanguage}
+            encoding="UTF-8"
+            isConnected={connected}
+            problems={{ errors: 0, warnings: 0 }}
+            deploymentStatus={project?.isPublished ? 'live' : 'idle'}
+            onShowShortcuts={() => setShortcutsOpen(true)}
+            onDeployClick={() => openPanel("deployments")}
+          />
         </>
       )}
 

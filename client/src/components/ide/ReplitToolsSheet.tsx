@@ -11,7 +11,11 @@ import {
   Terminal, Database, Globe, Key, GitBranch, Package,
   Brain, Rocket, Bug, Workflow, Clock, Puzzle,
   FileCode, MessageSquare, BarChart3, Shield,
-  Zap, Layers, Search, HardDrive
+  Zap, Layers, Search, HardDrive, Presentation, Video,
+  Play, Paintbrush, Palette, FlaskConical, Users, Eye,
+  ScrollText, Activity, Wand2,
+  Bot, Inbox, Github, Plug, Cpu, Network, Upload,
+  Sparkles, Server, MessageCircle, ShieldCheck, Wrench,
 } from 'lucide-react';
 
 interface ToolDefinition {
@@ -44,6 +48,39 @@ const tools: ToolDefinition[] = [
   { id: 'docker', label: 'Docker', description: 'Containerized environments', icon: Layers, category: 'Infrastructure', color: '#0079F2' },
   { id: 'search', label: 'Search & Replace', description: 'Find and replace across files', icon: Search, category: 'Core', color: '#0079F2' },
   { id: 'storage', label: 'Object Storage', description: 'Store files and assets', icon: HardDrive, category: 'Services', color: '#7C65CB' },
+  { id: 'slides', label: 'Slide Editor', description: 'Create presentations with slides', icon: Presentation, category: 'Creative', color: '#F5A623' },
+  { id: 'video', label: 'Video Editor', description: 'Edit videos with scenes and effects', icon: Video, category: 'Creative', color: '#E54D4D' },
+  { id: 'animation', label: 'Animation Preview', description: 'Preview and export animations', icon: Play, category: 'Creative', color: '#0CCE6B' },
+  { id: 'design', label: 'Design Canvas', description: 'Visual design with frames and annotations', icon: Paintbrush, category: 'Creative', color: '#7C65CB' },
+  { id: 'themes', label: 'Themes', description: 'Customize IDE appearance and themes', icon: Palette, category: 'Settings', color: '#F26522' },
+  { id: 'testing', label: 'Tests', description: 'Run and manage test suites', icon: FlaskConical, category: 'Development', color: '#0CCE6B' },
+  { id: 'collaboration', label: 'Collaboration', description: 'Real-time multiplayer editing', icon: Users, category: 'Core', color: '#0079F2' },
+  { id: 'checkpoints', label: 'Checkpoints', description: 'Save and restore project states', icon: Clock, category: 'Development', color: '#7C65CB' },
+  { id: 'console', label: 'Console', description: 'View application output and logs', icon: Terminal, category: 'Core', color: '#0CCE6B' },
+  { id: 'resources', label: 'Resources', description: 'Monitor CPU, memory and disk usage', icon: Activity, category: 'Monitoring', color: '#10B981' },
+  { id: 'logs', label: 'Logs Viewer', description: 'Browse application and deployment logs', icon: ScrollText, category: 'Monitoring', color: '#0079F2' },
+  { id: 'visual-editor', label: 'Visual Editor', description: 'Point-and-click UI editing', icon: Wand2, category: 'Creative', color: '#7C65CB' },
+  { id: 'preview', label: 'Web Preview', description: 'Preview your running web application', icon: Eye, category: 'Core', color: '#0079F2' },
+  { id: 'security', label: 'Security', description: 'Scan for vulnerabilities and issues', icon: Shield, category: 'Development', color: '#E54D4D' },
+  { id: 'settings', label: 'Settings', description: 'Editor and workspace settings', icon: Zap, category: 'Settings', color: '#0079F2' },
+  { id: 'terminal', label: 'Terminal', description: 'Embedded terminal emulator', icon: Terminal, category: 'Core', color: '#0CCE6B' },
+  // Re-integrated panels
+  { id: 'github', label: 'GitHub', description: 'Push, pull, and sync with GitHub', icon: Github, category: 'Core', color: '#F0F6FC' },
+  { id: 'automations', label: 'Automations', description: 'Automate tasks with agents', icon: Bot, category: 'AI', color: '#0CCE6B' },
+  { id: 'config', label: 'Config', description: 'Edit .replit and Nix configuration', icon: FileCode, category: 'Settings', color: '#0079F2' },
+  { id: 'feedback', label: 'Feedback Inbox', description: 'View and manage user feedback', icon: Inbox, category: 'Services', color: '#F5A623' },
+  { id: 'integrations', label: 'Integrations', description: 'Connect third-party services', icon: Plug, category: 'Services', color: '#7C65CB' },
+  { id: 'mcp', label: 'MCP', description: 'Model Context Protocol tools', icon: Cpu, category: 'AI', color: '#0079F2' },
+  { id: 'merge-conflicts', label: 'Merge Conflicts', description: 'Resolve git merge conflicts', icon: GitBranch, category: 'Development', color: '#E54D4D' },
+  { id: 'monitoring', label: 'Monitoring', description: 'Application metrics and alerts', icon: BarChart3, category: 'Monitoring', color: '#10B981' },
+  { id: 'networking', label: 'Networking', description: 'Manage ports and network config', icon: Network, category: 'Infrastructure', color: '#0079F2' },
+  { id: 'publishing', label: 'Publishing', description: 'Publish and distribute your project', icon: Upload, category: 'Deploy', color: '#0CCE6B' },
+  { id: 'skills', label: 'Skills', description: 'AI agent skills and capabilities', icon: Sparkles, category: 'AI', color: '#F5A623' },
+  { id: 'ssh', label: 'SSH', description: 'Secure shell access to workspace', icon: Server, category: 'Infrastructure', color: '#6B7280' },
+  { id: 'threads', label: 'Threads', description: 'Discussion threads on code', icon: MessageCircle, category: 'Core', color: '#7C65CB' },
+  { id: 'test-runner', label: 'Test Runner', description: 'Execute and monitor test suites', icon: FlaskConical, category: 'Development', color: '#0CCE6B' },
+  { id: 'security-scanner', label: 'Security Scanner', description: 'Deep security vulnerability scanning', icon: ShieldCheck, category: 'Development', color: '#E54D4D' },
+  { id: 'backup', label: 'Backup & Recovery', description: 'Backup and restore project data', icon: HardDrive, category: 'Infrastructure', color: '#0079F2' },
 ];
 
 interface ReplitToolsSheetProps {

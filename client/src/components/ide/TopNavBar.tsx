@@ -35,6 +35,10 @@ interface TopNavBarProps {
   showTabs?: boolean;
   onOpenCommandPalette?: () => void;
   onOpenGlobalSearch?: () => void;
+  onProjectSettings?: () => void;
+  onPublish?: () => void;
+  onInvite?: () => void;
+  onFork?: () => void;
 }
 
 export function TopNavBar({
@@ -48,6 +52,10 @@ export function TopNavBar({
   onToggleFileExplorer,
   onOpenCommandPalette,
   onOpenGlobalSearch,
+  onProjectSettings,
+  onPublish,
+  onInvite,
+  onFork,
 }: TopNavBarProps) {
   return (
     <div className="flex items-center h-11 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] shrink-0 z-40">
@@ -120,6 +128,36 @@ export function TopNavBar({
               Command Palette (⌘K)
             </TooltipContent>
           </Tooltip>
+          {onInvite && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md" onClick={onInvite} data-testid="button-invite">
+                  <Users className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Invite Collaborators</TooltipContent>
+            </Tooltip>
+          )}
+          {onPublish && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md" onClick={onPublish} data-testid="button-publish">
+                  <Rocket className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Publish</TooltipContent>
+            </Tooltip>
+          )}
+          {onProjectSettings && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md" onClick={onProjectSettings} data-testid="button-project-settings">
+                  <Settings className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Project Settings</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
