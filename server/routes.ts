@@ -1,6 +1,14 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+
+/** Safely extract a query parameter as string, handling ParsedQs union type */
+function qstr(val: unknown): string {
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return String(val[0] ?? '');
+  return '';
+}
+
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import session from "express-session";
