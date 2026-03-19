@@ -66,8 +66,9 @@ export function ReplitAgentPanelV3({
   onCanvasFrameCreate,
   onConvertFrame,
   canvasFrames,
+  hideInput,
+  onExternalInput,
 }: ReplitAgentPanelV3Props) {
-  // Build context from active file props
   const context = (activeFileId && activeFileName && activeFileContent != null)
     ? {
         language: activeFileLanguage || 'javascript',
@@ -92,6 +93,8 @@ export function ReplitAgentPanelV3({
         onCanvasFrameCreate={onCanvasFrameCreate}
         onConvertFrame={onConvertFrame}
         canvasFrames={canvasFrames}
+        hideInput={hideInput}
+        onExternalInput={onExternalInput}
       />
     </div>
   );

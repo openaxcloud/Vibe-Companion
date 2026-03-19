@@ -365,6 +365,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
   const [showTabSwitcher, setShowTabSwitcher] = useState(false);
   const [mobileAgentHandlers, setMobileAgentHandlers] = useState<ExternalInputHandlers | null>(null);
+  const [mobileAIMode, setMobileAIMode] = useState<'chat' | 'agent' | 'plan'>('agent');
+  const [mobileAgentMode, setMobileAgentMode] = useState<'economy' | 'power' | 'turbo'>(() => {
+    try { return (localStorage.getItem('mobile-agent-mode') as any) || 'economy'; } catch { return 'economy'; }
+  });
+  const [mobileAgentToolsConfig, setMobileAgentToolsConfig] = useState({
+    liteMode: false, webSearch: true, appTesting: false, codeOptimizations: false, architect: false, turbo: false,
+  });
 
   // Tab content animation
   const [displayedTab, setDisplayedTab] = useState(activeTab);
@@ -806,8 +813,12 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             placeholder="What would you like to build?"
             onSubmit={(value) => mobileAgentHandlers?.handleSubmit?.(value)}
             isWorking={mobileAgentHandlers?.isWorking}
-            agentMode={mobileAgentHandlers?.agentMode}
-            onModeChange={(mode) => mobileAgentHandlers?.onModeChange?.(mode)}
+            aiMode={mobileAIMode}
+            onAIModeChange={setMobileAIMode}
+            agentMode={mobileAgentMode}
+            onAgentModeChange={(m) => { setMobileAgentMode(m); try { localStorage.setItem('mobile-agent-mode', m); } catch {} mobileAgentHandlers?.onModeChange?.(m); }}
+            agentToolsConfig={mobileAgentToolsConfig}
+            onAgentToolsConfigChange={setMobileAgentToolsConfig}
           />
         )}
 
@@ -915,6 +926,12 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             placeholder="What would you like to build?"
             onSubmit={(value) => mobileAgentHandlers?.handleSubmit?.(value)}
             isWorking={mobileAgentHandlers?.isWorking}
+            aiMode={mobileAIMode}
+            onAIModeChange={setMobileAIMode}
+            agentMode={mobileAgentMode}
+            onAgentModeChange={(m) => { setMobileAgentMode(m); try { localStorage.setItem('mobile-agent-mode', m); } catch {} mobileAgentHandlers?.onModeChange?.(m); }}
+            agentToolsConfig={mobileAgentToolsConfig}
+            onAgentToolsConfigChange={setMobileAgentToolsConfig}
           />
         )}
 
