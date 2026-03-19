@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Loader2, ChevronLeft, CheckCircle2, Circle,
-  X, FileCode, Plus, ArrowUp,
+  X, FileCode, Plus, ArrowUp, AlertTriangle, GitMerge,
 } from "lucide-react";
 
 interface Task {
@@ -44,6 +44,104 @@ interface FileDiff {
   added: number;
   removed: number;
   modified: boolean;
+}
+
+interface MergeConflict {
+  filename: string;
+  type: string;
+  mainContent?: string;
+  taskContent?: string;
+  originalContent?: string;
+  mergedWithMarkers?: string;
+}
+
+function ConflictResolutionPanel({
+  conflicts,
+  projectId,
+  taskId,
+  onResolved,
+}: {
+  conflicts: MergeConflict[];
+  projectId: string;
+  taskId: string;
+  onResolved: () => void;
+}) {
+  const [resolutions, setResolutions] = useState<Record<string, "accept_main" | "accept_task">>({});
+  const [resolving, setResolving] = useState(false);
+
+  const allResolved = conflicts.every(c => resolutions[c.filename]);
+
+  const handleResolveAll = async () => {
+    setResolving(true);
+    try {
+      const body = {
+        resolutions: conflicts.map(c => ({
+          filename: c.filename,
+          resolution: resolutions[c.filename] || "accept_main",
+        })),
+      };
+      const res = await fetch(`/api/projects/${projectId}/tasks/${taskId}/resolve-all-conflicts`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        onResolved();
+      }
+    } catch {}
+    setResolving(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-[14px] text-amber-500">
+        <AlertTriangle className="w-4 h-4" />
+        <span className="font-medium">{conflicts.length} file{conflicts.length !== 1 ? "s" : ""} with conflicts</span>
+      </div>
+      {conflicts.map((conflict) => (
+        <div key={conflict.filename} className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <GitMerge className="w-3.5 h-3.5 text-amber-500" />
+            <span className="text-[13px] font-mono text-[var(--trd-text)]">{conflict.filename}</span>
+          </div>
+          <p className="text-[12px] text-[var(--trd-text-dim)] mb-2">
+            Both the main version and this task modified this file.
+          </p>
+          <div className="flex gap-2">
+            <button
+              className={`flex-1 h-7 rounded-lg text-[12px] font-medium transition-colors border ${
+                resolutions[conflict.filename] === "accept_main"
+                  ? "bg-[#0079F2]/15 border-[#0079F2]/30 text-[#0079F2]"
+                  : "bg-[var(--trd-surface)] border-[var(--trd-border)] text-[var(--trd-text-dim)] hover:bg-[var(--trd-border)]"
+              }`}
+              onClick={() => setResolutions(r => ({ ...r, [conflict.filename]: "accept_main" }))}
+            >
+              Keep main
+            </button>
+            <button
+              className={`flex-1 h-7 rounded-lg text-[12px] font-medium transition-colors border ${
+                resolutions[conflict.filename] === "accept_task"
+                  ? "bg-[#009118]/15 border-[#009118]/30 text-[#009118]"
+                  : "bg-[var(--trd-surface)] border-[var(--trd-border)] text-[var(--trd-text-dim)] hover:bg-[var(--trd-border)]"
+              }`}
+              onClick={() => setResolutions(r => ({ ...r, [conflict.filename]: "accept_task" }))}
+            >
+              Accept task
+            </button>
+          </div>
+        </div>
+      ))}
+      <button
+        className="w-full h-8 rounded-lg text-white text-[13px] font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+        style={{ backgroundColor: allResolved ? "var(--trd-positive-bg)" : "var(--trd-text-dimmest)" }}
+        disabled={!allResolved || resolving}
+        onClick={handleResolveAll}
+      >
+        {resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply resolved files"}
+      </button>
+    </div>
+  );
 }
 
 function SparkleIcon() {
@@ -90,6 +188,26 @@ export default function TaskReviewDrawer({
   const [messageInput, setMessageInput] = useState("");
   const [applyLoading, setApplyLoading] = useState(false);
   const [dismissLoading, setDismissLoading] = useState(false);
+  const [conflicts, setConflicts] = useState<MergeConflict[]>([]);
+
+  const handleApply = async () => {
+    setApplyLoading(true);
+    setConflicts([]);
+    try {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/tasks/${task.id}/apply`);
+      const data = await res.json();
+      if (data.success) {
+        onApply(task.id);
+      } else if (data.conflicts && data.conflicts.length > 0) {
+        setConflicts(data.conflicts);
+        setApplyLoading(false);
+      } else {
+        setApplyLoading(false);
+      }
+    } catch {
+      setApplyLoading(false);
+    }
+  };
 
   const taskDetailQuery = useQuery<Task>({
     queryKey: ["/api/projects", projectId, "tasks", task.id],
@@ -204,7 +322,7 @@ export default function TaskReviewDrawer({
                   style={{ backgroundColor: "var(--trd-positive-bg)" }}
                   onMouseEnter={(e) => !applyLoading && (e.currentTarget.style.backgroundColor = "var(--trd-positive-hover)")}
                   onMouseLeave={(e) => !applyLoading && (e.currentTarget.style.backgroundColor = "var(--trd-positive-bg)")}
-                  onClick={() => { setApplyLoading(true); onApply(task.id); }}
+                  onClick={handleApply}
                   disabled={applyLoading || dismissLoading}
                   data-testid="button-apply-task"
                 >
@@ -301,6 +419,24 @@ export default function TaskReviewDrawer({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Conflict Resolution */}
+          {conflicts.length > 0 && (
+            <ConflictResolutionPanel
+              conflicts={conflicts}
+              projectId={projectId}
+              taskId={task.id}
+              onResolved={() => { setConflicts([]); onApply(task.id); }}
+            />
+          )}
+
+          {/* Error message */}
+          {task.errorMessage && conflicts.length === 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-[12px] text-red-400">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{task.errorMessage}</span>
             </div>
           )}
 

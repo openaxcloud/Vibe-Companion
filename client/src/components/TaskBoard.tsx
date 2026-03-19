@@ -472,7 +472,7 @@ export default function TaskBoard({
         task={selectedTask}
         projectId={projectId}
         onClose={() => setSelectedTask(null)}
-        onApply={(id) => { applyMutation.mutate(id); setSelectedTask(null); }}
+        onApply={() => { queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] }); setSelectedTask(null); }}
         onDismiss={(id) => { dismissMutation.mutate(id); setSelectedTask(null); }}
       />
     );

@@ -17229,7 +17229,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
 
   // ===================== TASK SYSTEM ROUTES =====================
   const { executeTask, acceptAndExecuteTask, bulkAcceptTasks, cancelTask } = await import("./taskExecutor");
-  const { mergeTaskToMain, getTaskDiff } = await import("./mergeEngine");
+  const { mergeTaskToMain, getTaskDiff, resolveConflict } = await import("./mergeEngine");
 
   const taskBroadcast = (projectId: string, type: string, data: any) => {
     broadcastToProject(projectId, { type: `task_${type}`, ...data });
@@ -17374,6 +17374,45 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (dismissed) taskBroadcast(task.projectId, "update", { task: dismissed });
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to dismiss task" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/:taskId/resolve-conflict", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { filename, resolution, manualContent } = req.body;
+      if (!filename || !resolution) return res.status(400).json({ message: "filename and resolution are required" });
+      const result = await resolveConflict(task.id, task.projectId, filename, resolution, manualContent);
+      if (result.success) {
+        broadcastToProject(task.projectId, { type: "files_changed" });
+        taskBroadcast(task.projectId, "update", { task });
+      }
+      res.json(result);
+    } catch { res.status(500).json({ message: "Failed to resolve conflict" }); }
+  });
+
+  app.post("/api/projects/:id/tasks/:taskId/resolve-all-conflicts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const task = await storage.getTask(req.params.taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+      if (!await verifyProjectAccess(task.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+      const { resolutions } = req.body;
+      if (!resolutions || !Array.isArray(resolutions)) return res.status(400).json({ message: "resolutions array is required" });
+      const results = [];
+      for (const r of resolutions) {
+        const result = await resolveConflict(task.id, task.projectId, r.filename, r.resolution, r.manualContent);
+        results.push({ filename: r.filename, ...result });
+      }
+      const allSuccess = results.every(r => r.success);
+      if (allSuccess) {
+        await storage.updateTask(task.id, { status: "done", completedAt: new Date(), errorMessage: undefined });
+        const doneTask = await storage.getTask(task.id);
+        if (doneTask) taskBroadcast(task.projectId, "update", { task: doneTask });
+        broadcastToProject(task.projectId, { type: "files_changed" });
+      }
+      res.json({ success: allSuccess, results });
+    } catch { res.status(500).json({ message: "Failed to resolve conflicts" }); }
   });
 
   app.get("/api/projects/:id/tasks/:taskId/messages", requireAuth, async (req: Request, res: Response) => {
