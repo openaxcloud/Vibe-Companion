@@ -9,7 +9,7 @@ let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI | null {
   if (!_openai) {
     try {
-      _openai = new OpenAI();
+      _openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
     } catch {
       return null;
     }

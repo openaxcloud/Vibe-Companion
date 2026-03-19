@@ -4261,9 +4261,9 @@ export async function registerRoutes(
   app.post("/api/deploy/schedule-to-cron", requireAuth, async (req: Request, res: Response) => {
     try {
       const { description } = z.object({ description: z.string().min(1).max(500) }).parse(req.body);
-      const anthropic = new Anthropic();
+      const anthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
       const message = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 100,
         messages: [{
           role: "user",
@@ -13409,9 +13409,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         return res.json({ message: "Update project files" });
       }
 
-      const anthropic = new Anthropic();
+      const anthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 100,
         messages: [{
           role: "user",

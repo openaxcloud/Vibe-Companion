@@ -140,7 +140,7 @@ async function executeStepWithAI(
       baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
     });
     const result = await anthropic.messages.create({
-      model: process.env.TASK_AI_MODEL || "claude-sonnet-4-20250514",
+      model: process.env.TASK_AI_MODEL || "claude-sonnet-4-6",
       max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: "user", content: `Implement step: ${stepTitle}` }],
