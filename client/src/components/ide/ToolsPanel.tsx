@@ -3,6 +3,8 @@ import {
   Globe, Terminal, GitBranch, Package, Key, Database,
   Rocket, Search, Bug, Settings, Clock, GitMerge,
   Puzzle, Users, Shield, BarChart3, FileText, Layers,
+  Presentation, Video, Play, Paintbrush, Palette, FlaskConical,
+  HardDrive, Wand2, ScrollText, Activity, Eye, ShieldCheck,
 } from 'lucide-react';
 
 interface ToolsPanelProps {
@@ -27,6 +29,20 @@ const toolConfig: Record<string, { icon: React.ComponentType<any>; label: string
   extensions: { icon: Puzzle, label: 'Extensions', color: '#0CCE6B', desc: 'Add-ons' },
   collaboration: { icon: Users, label: 'Collab', color: '#7C65CB', desc: 'Team features' },
   security: { icon: Shield, label: 'Security', color: '#7C65CB', desc: 'Vulnerability scan' },
+  shell: { icon: Terminal, label: 'Shell', color: '#0CCE6B', desc: 'System shell' },
+  console: { icon: Terminal, label: 'Console', color: '#0CCE6B', desc: 'App output' },
+  resources: { icon: Activity, label: 'Resources', color: '#10B981', desc: 'System metrics' },
+  logs: { icon: ScrollText, label: 'Logs', color: '#0079F2', desc: 'View logs' },
+  'visual-editor': { icon: Wand2, label: 'Visual Editor', color: '#7C65CB', desc: 'Point & click UI' },
+  slides: { icon: Presentation, label: 'Slides', color: '#F5A623', desc: 'Presentations' },
+  video: { icon: Video, label: 'Video', color: '#E54D4D', desc: 'Video editor' },
+  animation: { icon: Play, label: 'Animation', color: '#0CCE6B', desc: 'Motion preview' },
+  design: { icon: Paintbrush, label: 'Design', color: '#7C65CB', desc: 'Design canvas' },
+  storage: { icon: HardDrive, label: 'Storage', color: '#7C65CB', desc: 'Object storage' },
+  themes: { icon: Palette, label: 'Themes', color: '#F26522', desc: 'Appearance' },
+  testing: { icon: FlaskConical, label: 'Tests', color: '#0CCE6B', desc: 'Test runner' },
+  auth: { icon: ShieldCheck, label: 'Auth', color: '#0CCE6B', desc: 'Authentication' },
+  checkpoints: { icon: Clock, label: 'Checkpoints', color: '#7C65CB', desc: 'Save states' },
 };
 
 export function ToolsPanel({ availableTools, onSelectTool, activeTabs = [] }: ToolsPanelProps) {

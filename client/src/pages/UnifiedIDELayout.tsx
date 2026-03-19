@@ -33,19 +33,12 @@ import {
   Rocket,
   PanelLeftOpen,
   PanelLeftClose,
-  ChevronLeft,
-  Code,
-  Terminal,
-  Monitor,
-  Bot,
   MoreHorizontal,
   Loader2,
   Check,
   Copy,
   ExternalLink,
   Lock,
-  Power,
-  Settings,
 } from 'lucide-react';
 import { ECodeLoading } from '@/components/ECodeLoading';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -114,10 +107,6 @@ const AnimationPreview = instrumentedLazy(() => import('@/components/AnimationPr
 const DesignCanvas = instrumentedLazy(() => import('@/components/DesignCanvas'), 'DesignCanvas');
 const ConversionDialog = instrumentedLazy(() => import('@/components/ConversionDialog'), 'ConversionDialog');
 
-import { ShortcutHint, ShortcutTester } from '@/components/utilities';
-import { useAutonomousBuildStore } from '@/stores/autonomousBuildStore';
-import { useSchemaWarmingStore } from '@/stores/schemaWarmingStore';
-
 interface UnifiedIDELayoutProps {
   projectId: string;
   className?: string;
@@ -131,9 +120,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const deviceType = useDeviceType();
   const { toast } = useToast();
   const connectionStatus = useConnectionStatus();
-  const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
   const { errorsCount } = useProblemsCount(projectId);
-  const { isReady: isSchemaReady } = useSchemaWarmingStore();
 
   const workspace = useIDEWorkspace(projectId);
 
@@ -287,6 +274,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     setBlameEnabled,
     blameData,
   } = workspace;
+
+  const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
 
   // Activity bar click handler
   const handleActivityItemClick = useCallback((item: ActivityItem) => {
@@ -534,6 +523,33 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GlobalSearch isOpen={true} inline={true} onClose={() => setMobileActiveTab('agent')} projectId={projectId} onFileSelect={(file: any) => handleFileSelect({ id: file.id, name: file.name })} /></Suspense>;
       case 'checkpoints':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><UnifiedCheckpointsPanel projectId={projectId} maxHeight="calc(100vh - 120px)" /></Suspense>;
+      case 'slides':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Slides..." /></div>}><SlideEditor projectId={projectId} /></Suspense>;
+      case 'video':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Video..." /></div>}><VideoEditor projectId={projectId} /></Suspense>;
+      case 'animation':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Animation..." /></div>}><AnimationPreview projectId={projectId} previewUrl={livePreviewUrl} /></Suspense>;
+      case 'design':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Design..." /></div>}><DesignCanvas projectId={projectId} /></Suspense>;
+      case 'themes':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitThemesPanel projectId={projectId} /></Suspense>;
+      case 'testing':
+      case 'tests':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTestingPanel projectId={projectId} /></Suspense>;
+      case 'storage':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><AppStoragePanel projectId={projectId} /></Suspense>;
+      case 'auth':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitAuthPanel projectId={projectId} /></Suspense>;
+      case 'visual-editor':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><VisualEditorPanel projectId={projectId} /></Suspense>;
+      case 'console':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} logs={logs} onStop={handleRunStop} onAskAI={(text) => { setPendingAIMessage(text); }} activeFileName={activeFileName || undefined} currentConsoleRunId={currentConsoleRunId} /></Suspense>;
+      case 'resources':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ResourcesPanel projectId={projectId} /></Suspense>;
+      case 'logs':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><LogsViewerPanel projectId={projectId} /></Suspense>;
+      case 'collaboration':
+        return user ? <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><CollaborationPanel projectId={parseInt(projectId, 10)} currentUser={user} /></Suspense> : null;
       case 'more':
         return null;
       default:

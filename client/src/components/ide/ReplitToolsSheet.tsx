@@ -11,7 +11,9 @@ import {
   Terminal, Database, Globe, Key, GitBranch, Package,
   Brain, Rocket, Bug, Workflow, Clock, Puzzle,
   FileCode, MessageSquare, BarChart3, Shield,
-  Zap, Layers, Search, HardDrive
+  Zap, Layers, Search, HardDrive, Presentation, Video,
+  Play, Paintbrush, Palette, FlaskConical, Users, Eye,
+  ScrollText, Activity, Wand2,
 } from 'lucide-react';
 
 interface ToolDefinition {
@@ -44,6 +46,22 @@ const tools: ToolDefinition[] = [
   { id: 'docker', label: 'Docker', description: 'Containerized environments', icon: Layers, category: 'Infrastructure', color: '#0079F2' },
   { id: 'search', label: 'Search & Replace', description: 'Find and replace across files', icon: Search, category: 'Core', color: '#0079F2' },
   { id: 'storage', label: 'Object Storage', description: 'Store files and assets', icon: HardDrive, category: 'Services', color: '#7C65CB' },
+  { id: 'slides', label: 'Slide Editor', description: 'Create presentations with slides', icon: Presentation, category: 'Creative', color: '#F5A623' },
+  { id: 'video', label: 'Video Editor', description: 'Edit videos with scenes and effects', icon: Video, category: 'Creative', color: '#E54D4D' },
+  { id: 'animation', label: 'Animation Preview', description: 'Preview and export animations', icon: Play, category: 'Creative', color: '#0CCE6B' },
+  { id: 'design', label: 'Design Canvas', description: 'Visual design with frames and annotations', icon: Paintbrush, category: 'Creative', color: '#7C65CB' },
+  { id: 'themes', label: 'Themes', description: 'Customize IDE appearance and themes', icon: Palette, category: 'Settings', color: '#F26522' },
+  { id: 'testing', label: 'Tests', description: 'Run and manage test suites', icon: FlaskConical, category: 'Development', color: '#0CCE6B' },
+  { id: 'collaboration', label: 'Collaboration', description: 'Real-time multiplayer editing', icon: Users, category: 'Core', color: '#0079F2' },
+  { id: 'checkpoints', label: 'Checkpoints', description: 'Save and restore project states', icon: Clock, category: 'Development', color: '#7C65CB' },
+  { id: 'console', label: 'Console', description: 'View application output and logs', icon: Terminal, category: 'Core', color: '#0CCE6B' },
+  { id: 'resources', label: 'Resources', description: 'Monitor CPU, memory and disk usage', icon: Activity, category: 'Monitoring', color: '#10B981' },
+  { id: 'logs', label: 'Logs Viewer', description: 'Browse application and deployment logs', icon: ScrollText, category: 'Monitoring', color: '#0079F2' },
+  { id: 'visual-editor', label: 'Visual Editor', description: 'Point-and-click UI editing', icon: Wand2, category: 'Creative', color: '#7C65CB' },
+  { id: 'preview', label: 'Web Preview', description: 'Preview your running web application', icon: Eye, category: 'Core', color: '#0079F2' },
+  { id: 'security', label: 'Security', description: 'Scan for vulnerabilities and issues', icon: Shield, category: 'Development', color: '#E54D4D' },
+  { id: 'settings', label: 'Settings', description: 'Editor and workspace settings', icon: Zap, category: 'Settings', color: '#0079F2' },
+  { id: 'terminal', label: 'Terminal', description: 'Embedded terminal emulator', icon: Terminal, category: 'Core', color: '#0CCE6B' },
 ];
 
 interface ReplitToolsSheetProps {
