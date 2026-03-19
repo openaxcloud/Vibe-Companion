@@ -39,6 +39,7 @@ import CheckpointsPanel from "@/components/CheckpointsPanel";
 import SSHPanel from "@/components/SSHPanel";
 import FeedbackInboxPanel from "@/components/FeedbackInboxPanel";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
+import { useTheme } from "@/components/ThemeProvider";
 import type { UserPreferences, MergeConflictFile, MergeResolution } from "@shared/schema";
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from "@shared/schema";
 import MergeConflictPanel from "@/components/MergeConflictPanel";
@@ -852,9 +853,15 @@ function _projectPage() {
     savePrefs({ wordWrap: v });
   }, [savePrefs]);
 
+  const { setTheme: setGlobalTheme } = useTheme();
+
   const setEditorTheme = useCallback((v: string) => {
     savePrefs({ theme: v });
-  }, [savePrefs]);
+    // Sync with global ThemeProvider for immediate visual effect
+    if (v === 'dark' || v === 'light') {
+      setGlobalTheme(v as 'dark' | 'light');
+    }
+  }, [savePrefs, setGlobalTheme]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -880,6 +887,12 @@ function _projectPage() {
       root.style.removeProperty("--ide-panel");
       root.style.removeProperty("--ide-text");
       root.style.removeProperty("--ide-border");
+      // Apply dark/light class for built-in themes
+      if (userPrefs.theme === "dark") {
+        root.classList.add("dark");
+      } else {
+        root.classList.remove("dark");
+      }
     }
     return () => {
       root.style.removeProperty("--ide-bg");
@@ -887,7 +900,7 @@ function _projectPage() {
       root.style.removeProperty("--ide-text");
       root.style.removeProperty("--ide-border");
     };
-  }, [userPrefs.communityTheme, userPrefs.customTheme]);
+  }, [userPrefs.communityTheme, userPrefs.customTheme, userPrefs.theme]);
 
   const [splitEditorFileId, setSplitEditorFileId] = useState<string | null>(null);
   const [splitEditorWidth, setSplitEditorWidth] = useState(50);

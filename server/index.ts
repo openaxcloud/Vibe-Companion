@@ -270,17 +270,125 @@ async function initTaskTables() {
   if (!process.env.DATABASE_URL) return;
   try {
     const { pool } = await import("./db");
-    const migrationPath = path.resolve(
-      import.meta.dirname || __dirname,
-      "../migrations/0017_tasks_queue_notifications.sql",
-    );
-    if (fs.existsSync(migrationPath)) {
-      const sql = fs.readFileSync(migrationPath, "utf-8");
-      await pool.query(sql);
-      log("Task system tables ready", "tasks");
+
+    // Try migration file first, fall back to inline SQL
+    let migrationSql = "";
+    const possiblePaths = [
+      path.resolve(import.meta.dirname || __dirname || process.cwd(), "../migrations/0017_tasks_queue_notifications.sql"),
+      path.resolve(process.cwd(), "migrations/0017_tasks_queue_notifications.sql"),
+      path.resolve(process.cwd(), "../migrations/0017_tasks_queue_notifications.sql"),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        migrationSql = fs.readFileSync(p, "utf-8");
+        break;
+      }
     }
-  } catch (err) {
-    console.error("Failed to init task tables:", err);
+
+    if (!migrationSql) {
+      // Inline fallback - ensures tables always exist
+      migrationSql = `
+        CREATE TABLE IF NOT EXISTS "tasks" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "project_id" varchar(36) NOT NULL,
+          "user_id" varchar(36) NOT NULL,
+          "title" text NOT NULL,
+          "description" text NOT NULL DEFAULT '',
+          "plan" json,
+          "status" text NOT NULL DEFAULT 'draft',
+          "depends_on" json DEFAULT '[]',
+          "priority" integer NOT NULL DEFAULT 0,
+          "progress" integer NOT NULL DEFAULT 0,
+          "result" text,
+          "error_message" text,
+          "created_at" timestamp NOT NULL DEFAULT now(),
+          "updated_at" timestamp NOT NULL DEFAULT now(),
+          "started_at" timestamp,
+          "completed_at" timestamp
+        );
+        CREATE INDEX IF NOT EXISTS "tasks_project_idx" ON "tasks" ("project_id");
+        CREATE INDEX IF NOT EXISTS "tasks_user_idx" ON "tasks" ("user_id");
+        CREATE INDEX IF NOT EXISTS "tasks_status_idx" ON "tasks" ("status");
+
+        CREATE TABLE IF NOT EXISTS "task_steps" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "task_id" varchar(36) NOT NULL,
+          "order_index" integer NOT NULL DEFAULT 0,
+          "title" text NOT NULL,
+          "description" text NOT NULL DEFAULT '',
+          "status" text NOT NULL DEFAULT 'pending',
+          "output" text,
+          "started_at" timestamp,
+          "completed_at" timestamp
+        );
+        CREATE INDEX IF NOT EXISTS "task_steps_task_idx" ON "task_steps" ("task_id");
+
+        CREATE TABLE IF NOT EXISTS "task_messages" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "task_id" varchar(36) NOT NULL,
+          "role" text NOT NULL,
+          "content" text NOT NULL,
+          "created_at" timestamp NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS "task_messages_task_idx" ON "task_messages" ("task_id");
+
+        CREATE TABLE IF NOT EXISTS "task_file_snapshots" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "task_id" varchar(36) NOT NULL,
+          "filename" text NOT NULL,
+          "content" text NOT NULL DEFAULT '',
+          "original_content" text NOT NULL DEFAULT '',
+          "is_modified" boolean NOT NULL DEFAULT false,
+          "created_at" timestamp NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS "task_file_snapshots_task_idx" ON "task_file_snapshots" ("task_id");
+        CREATE UNIQUE INDEX IF NOT EXISTS "task_file_snapshots_task_file_unique" ON "task_file_snapshots" ("task_id", "filename");
+
+        CREATE TABLE IF NOT EXISTS "queued_messages" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "conversation_id" varchar(36) NOT NULL,
+          "project_id" varchar(36) NOT NULL,
+          "user_id" varchar(36) NOT NULL,
+          "content" text NOT NULL,
+          "attachments" json,
+          "position" integer NOT NULL DEFAULT 0,
+          "status" text NOT NULL DEFAULT 'pending',
+          "created_at" timestamp NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS "queued_msg_conv_idx" ON "queued_messages" ("conversation_id");
+        CREATE INDEX IF NOT EXISTS "queued_msg_project_user_idx" ON "queued_messages" ("project_id", "user_id");
+
+        CREATE TABLE IF NOT EXISTS "notifications" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "user_id" varchar(36) NOT NULL,
+          "type" text NOT NULL DEFAULT 'info',
+          "title" text NOT NULL,
+          "message" text NOT NULL DEFAULT '',
+          "link" text,
+          "read" boolean NOT NULL DEFAULT false,
+          "created_at" timestamp NOT NULL DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS "notifications_user_idx" ON "notifications" ("user_id");
+
+        CREATE TABLE IF NOT EXISTS "notification_preferences" (
+          "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+          "user_id" varchar(36) NOT NULL UNIQUE,
+          "email_enabled" boolean NOT NULL DEFAULT true,
+          "push_enabled" boolean NOT NULL DEFAULT true,
+          "agent_complete" boolean NOT NULL DEFAULT true,
+          "deployment_status" boolean NOT NULL DEFAULT true,
+          "security_alerts" boolean NOT NULL DEFAULT true,
+          "billing_alerts" boolean NOT NULL DEFAULT true,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+      log("Migration file not found, using inline SQL fallback", "tasks");
+    }
+
+    await pool.query(migrationSql);
+    log("Task system tables ready", "tasks");
+  } catch (err: any) {
+    console.error("Failed to init task tables:", err?.message || err);
   }
 }
 
