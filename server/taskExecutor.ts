@@ -2,6 +2,8 @@ import { storage } from "./storage";
 import { log } from "./index";
 import type { Task, TaskStep } from "@shared/schema";
 import { TASK_LIMITS } from "@shared/schema";
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 interface TaskExecutorOptions {
   onTaskUpdate?: (task: Task) => void;
@@ -64,6 +66,135 @@ export async function createFileSnapshot(taskId: string, projectId: string): Pro
   log(`Created file snapshot for task ${taskId} with ${projectFiles.length} files`, "task");
 }
 
+/**
+ * Build a system prompt for the AI to implement a specific step of a task.
+ * The AI receives the full file context and returns JSON with file modifications.
+ */
+function buildStepPrompt(
+  task: Task,
+  stepTitle: string,
+  stepIndex: number,
+  totalSteps: number,
+  files: { filename: string; content: string }[],
+  previousStepOutputs: string[],
+): string {
+  const fileContext = files
+    .filter(f => !f.filename.match(/\.(png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp3|mp4|zip|tar|gz)$/i))
+    .map(f => `--- ${f.filename} ---\n${f.content}`)
+    .join("\n\n");
+
+  return `You are an expert software engineer implementing a task step-by-step.
+
+## Task: ${task.title}
+${task.description ? `Description: ${task.description}` : ""}
+
+## Current Step (${stepIndex + 1}/${totalSteps}): ${stepTitle}
+
+${previousStepOutputs.length > 0 ? `## Previous Steps Completed:\n${previousStepOutputs.map((o, i) => `${i + 1}. ${o}`).join("\n")}\n` : ""}
+
+## Current Project Files:
+${fileContext}
+
+## Instructions:
+Implement ONLY the current step. Return a JSON object with the files you need to create or modify.
+
+IMPORTANT RULES:
+- Only include files that actually need changes for this step
+- Return the COMPLETE new content for each modified file (not a diff)
+- For new files, include the full content
+- Do NOT modify files that don't need changes
+- Write clean, production-quality code
+- Follow existing code style and conventions
+
+Respond with ONLY a JSON object in this exact format, no other text:
+{
+  "files": {
+    "path/to/file.ts": "full file content here",
+    "path/to/new-file.ts": "full new file content here"
+  },
+  "summary": "Brief description of what was done"
+}`;
+}
+
+/**
+ * Call the AI API to execute a single task step.
+ * Tries Anthropic first, falls back to OpenAI.
+ */
+async function executeStepWithAI(
+  task: Task,
+  stepTitle: string,
+  stepIndex: number,
+  totalSteps: number,
+  currentFiles: { filename: string; content: string }[],
+  previousOutputs: string[],
+  signal: AbortSignal,
+): Promise<{ files: Record<string, string>; summary: string }> {
+  const systemPrompt = buildStepPrompt(task, stepTitle, stepIndex, totalSteps, currentFiles, previousOutputs);
+
+  let responseText = "";
+
+  // Try Anthropic first
+  try {
+    const anthropic = new Anthropic({
+      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+    });
+    const result = await anthropic.messages.create({
+      model: process.env.TASK_AI_MODEL || "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: "user", content: `Implement step: ${stepTitle}` }],
+    });
+
+    if (signal.aborted) throw new Error("Task cancelled");
+
+    responseText = result.content
+      .map((b: any) => (b.type === "text" ? b.text : ""))
+      .join("");
+  } catch (anthropicErr: any) {
+    if (signal.aborted || anthropicErr.message === "Task cancelled") throw new Error("Task cancelled");
+
+    // Fallback to OpenAI
+    try {
+      const openai = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+      const result = await openai.chat.completions.create({
+        model: process.env.TASK_AI_MODEL_OPENAI || "gpt-4o",
+        max_tokens: 8192,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Implement step: ${stepTitle}` },
+        ],
+      });
+
+      if (signal.aborted) throw new Error("Task cancelled");
+
+      responseText = result.choices[0]?.message?.content || "";
+    } catch (openaiErr: any) {
+      if (signal.aborted) throw new Error("Task cancelled");
+      throw new Error(`AI unavailable: ${anthropicErr.message} / ${openaiErr.message}`);
+    }
+  }
+
+  // Parse the JSON response
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("AI returned invalid response format");
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      files: parsed.files || {},
+      summary: parsed.summary || stepTitle,
+    };
+  } catch {
+    throw new Error("Failed to parse AI response as JSON");
+  }
+}
+
 export async function executeTask(
   taskId: string,
   options?: TaskExecutorOptions,
@@ -90,69 +221,105 @@ export async function executeTask(
     await storage.addTaskMessage({ taskId, role: "system", content: `Task started: ${task.title}` });
     options?.onMessage?.(taskId, "system", `Task started: ${task.title}`);
 
+    // Snapshot project files at task start
     await createFileSnapshot(taskId, task.projectId);
 
-    const steps = await storage.getTaskSteps(taskId);
-    const totalSteps = steps.length || 1;
-    let completedSteps = 0;
-
+    // Resolve steps — use existing steps or create from plan
+    let steps = await storage.getTaskSteps(taskId);
     if (steps.length === 0) {
       const planSteps = (task.plan as string[]) || [];
-      for (let i = 0; i < planSteps.length; i++) {
-        if (controller.signal.aborted) throw new Error("Task cancelled");
-
+      if (planSteps.length === 0) {
+        // Single-step task: use the task title as the step
         const step = await storage.createTaskStep({
           taskId,
-          orderIndex: i,
-          title: planSteps[i],
-          description: planSteps[i],
+          orderIndex: 0,
+          title: task.title,
+          description: task.description || task.title,
         });
-
-        await storage.updateTaskStep(step.id, { status: "running", startedAt: new Date() });
-        options?.onStepUpdate?.(taskId, { ...step, status: "running" });
-
-        await storage.addTaskMessage({ taskId, role: "assistant", content: `Working on: ${planSteps[i]}` });
-        options?.onMessage?.(taskId, "assistant", `Working on: ${planSteps[i]}`);
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const snapshots = await storage.getTaskFileSnapshots(taskId);
-        if (snapshots.length > 0) {
-          const targetFile = snapshots[Math.floor(Math.random() * snapshots.length)];
-          const marker = `\n// Task ${taskId} - Step ${i + 1}: ${planSteps[i]}\n`;
-          await storage.updateTaskFileSnapshot(taskId, targetFile.filename, targetFile.content + marker);
+        steps = [step];
+      } else {
+        for (let i = 0; i < planSteps.length; i++) {
+          const step = await storage.createTaskStep({
+            taskId,
+            orderIndex: i,
+            title: planSteps[i],
+            description: planSteps[i],
+          });
+          steps.push(step);
         }
-
-        await storage.updateTaskStep(step.id, { status: "completed", output: `Completed: ${planSteps[i]}`, completedAt: new Date() });
-        const completedStep = await storage.getTaskSteps(taskId).then(s => s.find(x => x.id === step.id));
-        if (completedStep) options?.onStepUpdate?.(taskId, completedStep);
-
-        completedSteps++;
-        const progress = Math.round((completedSteps / planSteps.length) * 100);
-        await storage.updateTask(taskId, { progress });
-      }
-    } else {
-      for (const step of steps) {
-        if (controller.signal.aborted) throw new Error("Task cancelled");
-
-        await storage.updateTaskStep(step.id, { status: "running", startedAt: new Date() });
-        options?.onStepUpdate?.(taskId, { ...step, status: "running" });
-
-        await storage.addTaskMessage({ taskId, role: "assistant", content: `Working on: ${step.title}` });
-        options?.onMessage?.(taskId, "assistant", `Working on: ${step.title}`);
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        await storage.updateTaskStep(step.id, { status: "completed", output: `Completed: ${step.title}`, completedAt: new Date() });
-        const completedStep = await storage.getTaskSteps(taskId).then(s => s.find(x => x.id === step.id));
-        if (completedStep) options?.onStepUpdate?.(taskId, completedStep);
-
-        completedSteps++;
-        const progress = Math.round((completedSteps / totalSteps) * 100);
-        await storage.updateTask(taskId, { progress });
       }
     }
 
+    const previousOutputs: string[] = [];
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (controller.signal.aborted) throw new Error("Task cancelled");
+
+      // Mark step running
+      await storage.updateTaskStep(step.id, { status: "running", startedAt: new Date() });
+      options?.onStepUpdate?.(taskId, { ...step, status: "running" });
+
+      await storage.addTaskMessage({ taskId, role: "assistant", content: `Working on: ${step.title}` });
+      options?.onMessage?.(taskId, "assistant", `Working on: ${step.title}`);
+
+      // Get current file state (includes changes from previous steps)
+      const snapshots = await storage.getTaskFileSnapshots(taskId);
+      const currentFiles = snapshots.map(s => ({ filename: s.filename, content: s.content }));
+
+      // Call AI to implement this step
+      const result = await executeStepWithAI(
+        task,
+        step.title,
+        i,
+        steps.length,
+        currentFiles,
+        previousOutputs,
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) throw new Error("Task cancelled");
+
+      // Apply AI-generated file changes to snapshots
+      let filesChanged = 0;
+      for (const [filename, content] of Object.entries(result.files)) {
+        const existingSnapshot = snapshots.find(s => s.filename === filename);
+        if (existingSnapshot) {
+          if (existingSnapshot.content !== content) {
+            await storage.updateTaskFileSnapshot(taskId, filename, content);
+            filesChanged++;
+          }
+        } else {
+          // New file — create snapshot with empty original
+          await storage.createTaskFileSnapshot({
+            taskId,
+            filename,
+            content,
+            originalContent: "",
+          });
+          filesChanged++;
+        }
+      }
+
+      previousOutputs.push(result.summary);
+
+      // Mark step complete
+      const output = `${result.summary} (${filesChanged} file${filesChanged !== 1 ? "s" : ""} changed)`;
+      await storage.updateTaskStep(step.id, { status: "completed", output, completedAt: new Date() });
+      const completedStep = await storage.getTaskSteps(taskId).then(s => s.find(x => x.id === step.id));
+      if (completedStep) options?.onStepUpdate?.(taskId, completedStep);
+
+      await storage.addTaskMessage({ taskId, role: "assistant", content: output });
+      options?.onMessage?.(taskId, "assistant", output);
+
+      // Update progress
+      const progress = Math.round(((i + 1) / steps.length) * 100);
+      await storage.updateTask(taskId, { progress });
+      const progressTask = await storage.getTask(taskId);
+      if (progressTask) options?.onTaskUpdate?.(progressTask);
+    }
+
+    // Task complete — mark as ready for review
     await storage.updateTask(taskId, { status: "ready", progress: 100, completedAt: new Date() });
     const readyTask = await storage.getTask(taskId);
     if (readyTask) options?.onTaskUpdate?.(readyTask);
@@ -160,6 +327,7 @@ export async function executeTask(
     await storage.addTaskMessage({ taskId, role: "system", content: "Task completed and ready for review" });
     options?.onMessage?.(taskId, "system", "Task completed and ready for review");
 
+    // Process any queued tasks now that a slot is freed
     await processQueuedTasks(task.projectId, options);
 
     return { success: true };
@@ -171,6 +339,7 @@ export async function executeTask(
       return { success: false, error: "Task cancelled" };
     }
 
+    log(`Task ${taskId} failed: ${err.message}`, "task");
     await storage.updateTask(taskId, { status: "draft", errorMessage: err.message });
     const failedTask = await storage.getTask(taskId);
     if (failedTask) options?.onTaskUpdate?.(failedTask);
