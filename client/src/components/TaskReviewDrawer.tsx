@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Loader2, ChevronLeft, Send, Sparkles, CheckCircle2, Circle,
-  ArrowRight, X, FileCode, Clock, GitMerge,
+  Loader2, ChevronLeft, Send, CheckCircle2, Circle,
+  X, FileCode, Clock, GitMerge, ChevronDown, Plus,
+  ArrowUp,
 } from "lucide-react";
 
 interface Task {
@@ -53,6 +53,25 @@ function SparkleIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
       <path fill="#009118" d="M18.662 0a5.332 5.332 0 0 1 .001 10.664l-.412.01a8 8 0 0 0-7.577 7.59l-.01.398-.008.274A5.331 5.331 0 0 1 0 18.662a5.332 5.332 0 0 1 5.332-5.332l.398-.01a8 8 0 0 0 7.59-7.576l.011-.412A5.331 5.331 0 0 1 18.662 0Z" />
       <path fill="#6CD97E" d="m18.663 13.33.273.007a5.332 5.332 0 1 1-5.598 5.6l-.007-.275.006-.265a5.38 5.38 0 0 1 .137-.963c.006-.026.01-.052.017-.078a5.34 5.34 0 0 1 .485-.074c.011 0 .023-.003.034-.005.09-.009.18-.014.27-.02l.274-.006ZM5.332 0a5.332 5.332 0 0 1 5.332 5.332l-.008.274a5.332 5.332 0 0 1-5.324 5.058l-.274-.007A5.332 5.332 0 0 1 5.332 0Z" />
+    </svg>
+  );
+}
+
+function ApplyIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path fillRule="evenodd" d="M6 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM2.25 6a3.75 3.75 0 1 1 4.527 3.67 8.25 8.25 0 0 0 7.554 7.553A3.751 3.751 0 0 1 21.75 18a3.75 3.75 0 0 1-7.43.726 9.75 9.75 0 0 1-7.57-4.53V21a.75.75 0 0 1-1.5 0V9.675A3.751 3.751 0 0 1 2.25 6ZM18 15.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function ActiveSparkleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <circle cx="5.332" cy="5.338" r="5.332" fill="#A8D4FF" className="animate-pulse" />
+      <circle cx="18.663" cy="5.338" r="5.332" fill="#57ABFF" className="animate-pulse" style={{ animationDelay: "0.15s" }} />
+      <circle cx="5.332" cy="18.668" r="5.332" fill="#57ABFF" className="animate-pulse" style={{ animationDelay: "0.3s" }} />
+      <circle cx="18.663" cy="18.668" r="5.332" fill="#A8D4FF" className="animate-pulse" style={{ animationDelay: "0.45s" }} />
     </svg>
   );
 }
@@ -110,131 +129,185 @@ export default function TaskReviewDrawer({
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }} data-testid="task-review-drawer">
-      <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+    <div className="trd-wrap flex flex-col h-full" data-testid="task-review-drawer">
+      <style>{`
+        .trd-wrap {
+          --trd-bg: var(--ide-bg, #F6F6F4);
+          --trd-surface: var(--ide-surface, #F1F1EE);
+          --trd-border: var(--ide-border, #DEDAD5);
+          --trd-border-strong: var(--ide-border, #CAC4BE);
+          --trd-text: var(--ide-text, #1D1D1D);
+          --trd-text-dim: var(--ide-text-muted, #5C5C5C);
+          --trd-text-dimmest: var(--ide-text-muted, #858585);
+          --trd-positive-bg: hsla(140, 50%, 33%, 1);
+          --trd-positive-hover: hsla(140, 50%, 28%, 1);
+          font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+        }
+        @keyframes trd-fade {
+          from { transform: translateY(8px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .trd-animate { animation: trd-fade 300ms ease-out forwards; }
+      `}</style>
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--trd-border)] shrink-0">
         <button
-          className="flex items-center gap-1.5 text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
+          className="flex items-center gap-1.5 text-[13px] text-[var(--trd-text-dim)] hover:text-[var(--trd-text)] transition-colors"
           onClick={onClose}
           data-testid="button-back-tasks"
         >
-          <ChevronLeft className="w-3 h-3" />
+          <ChevronLeft className="w-4 h-4" />
           <span>Back to tasks</span>
         </button>
-        <X className="w-3.5 h-3.5 text-[var(--ide-text-muted)] cursor-pointer hover:text-[var(--ide-text)]" onClick={onClose} />
+        <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--trd-surface)] transition-colors" onClick={onClose}>
+          <X className="w-4 h-4 text-[var(--trd-text-dim)]" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
+        <div className="p-4 space-y-4">
+
+          {/* Ready for review banner (Replit-style) */}
           {task.status === "ready" && (
-            <div className="mb-4 p-3 bg-[var(--ide-surface)] rounded-lg border border-[var(--ide-border)]" data-testid="task-ready-banner">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-lg bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
+            <div className="trd-animate rounded-lg border border-[var(--trd-border-strong)] bg-[var(--trd-bg)] p-3 shadow-sm" data-testid="task-ready-banner">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-[var(--trd-surface)] border border-[var(--trd-border)] flex items-center justify-center">
                   <SparkleIcon />
                 </div>
-                <span className="text-[14px] text-[var(--ide-text)]">Ready for review</span>
+                <span className="text-[14px] text-[var(--trd-text)]">Ready for review</span>
               </div>
 
-              <div className="mb-2">
-                <span className="text-[13px] text-[var(--ide-text-muted)]">
+              <div className="mb-1">
+                <span className="text-[13px] text-[var(--trd-text-dim)]">
                   Task #{task.priority + 1}: {task.title}
                 </span>
               </div>
 
               {task.description && (
-                <p className="text-[12px] text-[var(--ide-text-muted)] mb-3 line-clamp-3">
+                <p className="text-[12px] text-[var(--trd-text-dimmest)] line-clamp-3 mb-3 leading-relaxed">
                   {task.description}
                 </p>
               )}
 
               <div className="flex gap-2">
                 <button
-                  className="h-8 px-4 rounded-lg bg-[var(--ide-bg)] text-[var(--ide-text)] text-[14px] hover:bg-[var(--ide-hover)] transition-colors shrink-0"
+                  className="h-8 px-5 rounded-lg bg-[var(--trd-surface)] text-[var(--trd-text)] text-[14px] hover:bg-[var(--trd-border)] transition-colors shrink-0"
                   onClick={() => onDismiss(task.id)}
                   data-testid="button-dismiss-task"
                 >
                   Dismiss
                 </button>
                 <button
-                  className="flex-1 h-8 rounded-lg bg-[hsla(140,50%,33%,1)] text-white text-[14px] flex items-center justify-center gap-2 hover:bg-[hsla(140,50%,28%,1)] transition-colors"
+                  className="flex-1 h-8 rounded-lg text-white text-[14px] flex items-center justify-center gap-2 transition-colors"
+                  style={{ backgroundColor: "var(--trd-positive-bg)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--trd-positive-hover)"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "var(--trd-positive-bg)"}
                   onClick={() => onApply(task.id)}
                   data-testid="button-apply-task"
                 >
-                  <GitMerge className="w-4 h-4" />
-                  Apply changes to main version
+                  <span>Apply changes to main version</span>
+                  <ApplyIcon />
                 </button>
               </div>
             </div>
           )}
 
-          <div className="mb-3">
-            <h3 className="text-[14px] font-semibold text-[var(--ide-text)]" data-testid="text-task-detail-title">
+          {/* Active task banner */}
+          {(task.status === "active" || task.status === "applying") && (
+            <div className="trd-animate rounded-lg border border-[#0079F2]/20 bg-[#0079F2]/5 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <ActiveSparkleIcon />
+                <span className="text-[14px] text-[var(--trd-text)]">
+                  {task.status === "applying" ? "Applying changes..." : "Working on task..."}
+                </span>
+              </div>
+              {task.progress > 0 && (
+                <div className="h-1.5 bg-[var(--trd-border)] rounded-full overflow-hidden">
+                  <div className="h-full bg-[#0079F2] rounded-full transition-all duration-500" style={{ width: `${task.progress}%` }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Task info */}
+          <div>
+            <h3 className="text-[15px] font-medium text-[var(--trd-text)]" data-testid="text-task-detail-title">
               {task.title}
             </h3>
             {task.description && (
-              <p className="text-[12px] text-[var(--ide-text-muted)] mt-1">{task.description}</p>
+              <p className="text-[13px] text-[var(--trd-text-dim)] mt-1 leading-relaxed">{task.description}</p>
             )}
             <div className="flex items-center gap-2 mt-2">
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
                 task.status === "active" ? "bg-[#0079F2]/10 text-[#0079F2]" :
-                task.status === "ready" ? "bg-[#0CCE6B]/10 text-[#0CCE6B]" :
+                task.status === "ready" ? "bg-[#009118]/10 text-[#009118]" :
                 task.status === "done" ? "bg-[#6B7280]/10 text-[#6B7280]" :
+                task.status === "applying" ? "bg-[#7C3AED]/10 text-[#7C3AED]" :
                 "bg-[#8E8F97]/10 text-[#8E8F97]"
               }`} data-testid="text-task-status">
-                {task.status}
+                {task.status === "active" ? "Active" :
+                 task.status === "ready" ? "Ready" :
+                 task.status === "done" ? "Done" :
+                 task.status === "applying" ? "Applying" :
+                 task.status === "queued" ? "Queued" : "Draft"}
               </span>
               {task.progress > 0 && task.progress < 100 && (
-                <span className="text-[10px] text-[var(--ide-text-muted)]">{task.progress}%</span>
+                <span className="text-[11px] text-[var(--trd-text-dimmest)]">{task.progress}%</span>
               )}
             </div>
           </div>
 
+          {/* Steps */}
           {steps.length > 0 && (
-            <div className="mb-3">
-              <h4 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-1.5">Steps</h4>
+            <div>
+              <h4 className="text-[12px] font-medium text-[var(--trd-text-dim)] uppercase tracking-wider mb-2">Steps</h4>
               <div className="space-y-1">
                 {steps.map((step, i) => (
-                  <div key={step.id || i} className="flex items-center gap-2 py-1 px-2 rounded bg-[var(--ide-surface)]" data-testid={`step-${step.id || i}`}>
+                  <div key={step.id || i} className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-[var(--trd-surface)]" data-testid={`step-${step.id || i}`}>
                     {step.status === "completed" ? (
-                      <CheckCircle2 className="w-3 h-3 text-[#0CCE6B] shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#009118] shrink-0" />
                     ) : step.status === "running" ? (
-                      <Loader2 className="w-3 h-3 text-[#0079F2] animate-spin shrink-0" />
+                      <Loader2 className="w-3.5 h-3.5 text-[#0079F2] animate-spin shrink-0" />
                     ) : (
-                      <Circle className="w-3 h-3 text-[#8E8F97] shrink-0" />
+                      <Circle className="w-3.5 h-3.5 text-[#8E8F97] shrink-0" />
                     )}
-                    <span className="text-[11px] text-[var(--ide-text)]">{step.title}</span>
+                    <span className="text-[13px] text-[var(--trd-text)]">{step.title}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* File changes */}
           {diffs.length > 0 && (
-            <div className="mb-3">
-              <h4 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-1.5">Changes</h4>
+            <div>
+              <h4 className="text-[12px] font-medium text-[var(--trd-text-dim)] uppercase tracking-wider mb-2">Changes</h4>
               <div className="space-y-1">
                 {diffs.map((diff, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1 px-2 rounded bg-[var(--ide-surface)]">
-                    <FileCode className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />
-                    <span className="text-[11px] text-[var(--ide-text)] flex-1 truncate">{diff.filename}</span>
-                    {diff.added > 0 && <span className="text-[9px] text-[#0CCE6B]">+{diff.added}</span>}
-                    {diff.removed > 0 && <span className="text-[9px] text-[#E54D4D]">-{diff.removed}</span>}
+                  <div key={i} className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-[var(--trd-surface)]">
+                    <FileCode className="w-3.5 h-3.5 text-[var(--trd-text-dimmest)] shrink-0" />
+                    <span className="text-[13px] text-[var(--trd-text)] flex-1 truncate font-mono">{diff.filename}</span>
+                    {diff.added > 0 && <span className="text-[11px] text-[#009118] font-mono">+{diff.added}</span>}
+                    {diff.removed > 0 && <span className="text-[11px] text-[#E54D4D] font-mono">-{diff.removed}</span>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* Activity / Messages */}
           {messages.length > 0 && (
-            <div className="mb-3">
-              <h4 className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider mb-1.5">Activity</h4>
+            <div>
+              <h4 className="text-[12px] font-medium text-[var(--trd-text-dim)] uppercase tracking-wider mb-2">Activity</h4>
               <div className="space-y-1.5">
                 {messages.map((msg) => (
-                  <div key={msg.id} className={`px-2.5 py-1.5 rounded-lg text-[11px] ${
+                  <div key={msg.id} className={`px-3 py-2 rounded-lg text-[13px] leading-relaxed ${
                     msg.role === "system"
-                      ? "bg-[var(--ide-bg)] text-[var(--ide-text-muted)] italic"
+                      ? "bg-[var(--trd-bg)] text-[var(--trd-text-dimmest)] italic border border-[var(--trd-border)]"
                       : msg.role === "user"
-                      ? "bg-[#0079F2]/10 text-[var(--ide-text)]"
-                      : "bg-[var(--ide-surface)] text-[var(--ide-text)]"
+                      ? "bg-[#0079F2]/8 text-[var(--trd-text)] border border-[#0079F2]/15"
+                      : "bg-[var(--trd-surface)] text-[var(--trd-text)] border border-[var(--trd-border)]"
                   }`} data-testid={`task-message-${msg.id}`}>
                     {msg.content}
                   </div>
@@ -245,25 +318,38 @@ export default function TaskReviewDrawer({
         </div>
       </div>
 
-      <div className="px-3 py-2 border-t border-[var(--ide-border)] shrink-0">
-        <div className="flex gap-1.5">
-          <Input
-            placeholder="Message agent..."
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSendMessage(); }}
-            className="h-7 text-xs bg-[var(--ide-bg)] flex-1"
-            data-testid="input-task-message"
-          />
-          <Button
-            size="icon"
-            className="w-7 h-7"
-            onClick={handleSendMessage}
-            disabled={!messageInput.trim() || sendMessageMutation.isPending}
-            data-testid="button-send-task-message"
-          >
-            {sendMessageMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-          </Button>
+      {/* Message agent input (Replit-style) */}
+      <div className="border-t border-[var(--trd-border)] bg-[var(--trd-bg)] shrink-0">
+        <div className="p-2">
+          <div className="rounded-lg border border-[var(--trd-border-strong)] bg-[var(--trd-bg)] overflow-hidden">
+            <div className="px-3 py-2">
+              <input
+                type="text"
+                placeholder="Message agent..."
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                className="w-full bg-transparent text-[14px] text-[var(--trd-text)] placeholder:text-[var(--trd-text-dimmest)] outline-none"
+                data-testid="input-task-message"
+              />
+            </div>
+            <div className="flex items-center justify-between px-2 pb-2">
+              <button className="w-6 h-6 flex items-center justify-center rounded text-[var(--trd-text-dimmest)] hover:text-[var(--trd-text-dim)] transition-colors">
+                <Plus className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-white transition-colors"
+                  style={{ backgroundColor: messageInput.trim() ? "hsla(210, 100%, 74%, 1)" : "hsla(210, 100%, 74%, 0.4)" }}
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim() || sendMessageMutation.isPending}
+                  data-testid="button-send-task-message"
+                >
+                  {sendMessageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

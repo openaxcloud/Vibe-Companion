@@ -3465,7 +3465,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 <Bot className="w-3 h-3" /> Agent
               </button>
               <button
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "plan" ? "bg-[#0079F2]/25 text-[#0079F2] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "plan" ? "bg-[#009118]/25 text-[#009118] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
                 onClick={() => setMode("plan")}
                 data-testid="mode-plan"
               >
@@ -3537,13 +3537,16 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       {topMode === "plan" && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#F59E0B]/15 bg-gradient-to-r from-[#F59E0B]/10 to-[#F59E0B]/5 text-[10px] text-[#F59E0B] shrink-0">
-          <div className="w-4 h-4 rounded bg-[#F59E0B]/20 flex items-center justify-center">
-            <Map className="w-2.5 h-2.5" />
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#009118]/15 bg-gradient-to-r from-[#009118]/10 to-[#009118]/5 text-[10px] text-[#009118] shrink-0">
+          <div className="w-4 h-4 rounded bg-[#009118]/20 flex items-center justify-center">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+              <path fill="#009118" d="M18.662 0a5.332 5.332 0 0 1 .001 10.664l-.412.01a8 8 0 0 0-7.577 7.59l-.01.398-.008.274A5.331 5.331 0 0 1 0 18.662a5.332 5.332 0 0 1 5.332-5.332l.398-.01a8 8 0 0 0 7.59-7.576l.011-.412A5.331 5.331 0 0 1 18.662 0Z" />
+              <path fill="#6CD97E" d="m18.663 13.33.273.007a5.332 5.332 0 1 1-5.598 5.6l-.007-.275.006-.265a5.38 5.38 0 0 1 .137-.963c.006-.026.01-.052.017-.078a5.34 5.34 0 0 1 .485-.074c.011 0 .023-.003.034-.005.09-.009.18-.014.27-.02l.274-.006ZM5.332 0a5.332 5.332 0 0 1 5.332 5.332l-.008.274a5.332 5.332 0 0 1-5.324 5.058l-.274-.007A5.332 5.332 0 0 1 5.332 0Z" />
+            </svg>
           </div>
-          <span className="font-medium">Plan mode</span>
-          <span className="text-[#F59E0B]/60">—</span>
-          <span className="text-[#F59E0B]/70">Brainstorm and create structured task lists</span>
+          <span className="font-medium">Build in Parallel</span>
+          <span className="text-[#009118]/60">—</span>
+          <span className="text-[#009118]/70">Agent breaks work into parallel tasks</span>
         </div>
       )}
 
@@ -3566,25 +3569,33 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       {mode === "plan" && !showTaskBoard && (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4" style={{ fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
           {proposedTasks.length === 0 && !planLoading && (
             <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0079F2]/25 to-[#0079F2]/5 flex items-center justify-center mb-5 ring-1 ring-[#0079F2]/20 shadow-lg shadow-[#0079F2]/10">
-                <Zap className="w-8 h-8 text-[#0079F2]" />
+              <div className="w-14 h-14 rounded-2xl bg-[#009118]/10 flex items-center justify-center mb-5 ring-1 ring-[#009118]/15">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <path fill="#009118" d="M18.662 0a5.332 5.332 0 0 1 .001 10.664l-.412.01a8 8 0 0 0-7.577 7.59l-.01.398-.008.274A5.331 5.331 0 0 1 0 18.662a5.332 5.332 0 0 1 5.332-5.332l.398-.01a8 8 0 0 0 7.59-7.576l.011-.412A5.331 5.331 0 0 1 18.662 0Z" />
+                  <path fill="#6CD97E" d="m18.663 13.33.273.007a5.332 5.332 0 1 1-5.598 5.6l-.007-.275.006-.265a5.38 5.38 0 0 1 .137-.963c.006-.026.01-.052.017-.078a5.34 5.34 0 0 1 .485-.074c.011 0 .023-.003.034-.005.09-.009.18-.014.27-.02l.274-.006ZM5.332 0a5.332 5.332 0 0 1 5.332 5.332l-.008.274a5.332 5.332 0 0 1-5.324 5.058l-.274-.007A5.332 5.332 0 0 1 5.332 0Z" />
+                </svg>
               </div>
-              <p className="text-[17px] font-bold text-[var(--ide-text)] mb-1.5 tracking-tight" data-testid="text-plan-title">
-                Plan Mode
+              <p className="text-[17px] font-medium text-[var(--ide-text)] mb-1.5" data-testid="text-plan-title">
+                Build in Parallel
               </p>
-              <p className="text-[12px] text-[var(--ide-text-secondary)] max-w-[320px] leading-relaxed mb-4">
-                Describe what you want to build and AI will break it into parallel tasks that execute independently.
+              <p className="text-[13px] text-[var(--ide-text-secondary)] max-w-[320px] leading-relaxed mb-5">
+                Describe what you want to build. Agent will break it into discrete tasks that run simultaneously in isolated copies of your project.
               </p>
               {projectId && (
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[12px] text-[var(--ide-text)] hover:border-[#0079F2]/30 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[13px] text-[var(--ide-text)] hover:border-[#009118]/30 transition-colors"
                   onClick={() => setShowTaskBoard(true)}
                   data-testid="button-view-tasks"
                 >
-                  <Zap className="w-3.5 h-3.5 text-[#0079F2]" />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <circle cx="5.332" cy="5.338" r="5.332" fill="#A6A6A6" />
+                    <circle cx="18.663" cy="5.338" r="5.332" fill="#A6A6A6" />
+                    <circle cx="5.332" cy="18.668" r="5.332" fill="#A6A6A6" />
+                    <circle cx="18.663" cy="18.668" r="5.332" fill="#A6A6A6" />
+                  </svg>
                   View Task Board
                 </button>
               )}
@@ -3592,41 +3603,80 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           )}
           {planLoading && (
             <div className="flex flex-col items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 text-[#0079F2] animate-spin mb-3" />
-              <p className="text-[12px] text-[var(--ide-text-muted)]">Analyzing and creating task plan...</p>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="mb-3 animate-spin" style={{ animationDuration: "2s" }}>
+                <circle cx="5.332" cy="5.338" r="5.332" fill="#A8D4FF" />
+                <circle cx="18.663" cy="5.338" r="5.332" fill="#57ABFF" />
+                <circle cx="5.332" cy="18.668" r="5.332" fill="#57ABFF" />
+                <circle cx="18.663" cy="18.668" r="5.332" fill="#A8D4FF" />
+                <path fill="#57ABFF" d="M18.662 0a5.332 5.332 0 0 1 .001 10.664l-.412.01a8 8 0 0 0-7.577 7.59l-.01.398-.008.274A5.331 5.331 0 0 1 0 18.662a5.332 5.332 0 0 1 5.332-5.332l.398-.01a8 8 0 0 0 7.59-7.576l.011-.412A5.331 5.331 0 0 1 18.662 0Z" />
+              </svg>
+              <p className="text-[13px] text-[var(--ide-text-muted)]">Analyzing and creating tasks...</p>
             </div>
           )}
           {proposedTasks.length > 0 && (
             <div className="space-y-3 animate-[fade-in_0.3s_ease-out]">
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-4 h-4 text-[#0079F2]" />
-                <span className="text-[13px] font-semibold text-[var(--ide-text)]">Proposed Tasks</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#0079F2]/10 text-[#0079F2]">{proposedTasks.length}</span>
+              {/* Task plans created header */}
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="w-7 h-7 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] flex items-center justify-center">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path fill="#009118" d="M18.662 0a5.332 5.332 0 0 1 .001 10.664l-.412.01a8 8 0 0 0-7.577 7.59l-.01.398-.008.274A5.331 5.331 0 0 1 0 18.662a5.332 5.332 0 0 1 5.332-5.332l.398-.01a8 8 0 0 0 7.59-7.576l.011-.412A5.331 5.331 0 0 1 18.662 0Z" />
+                    <path fill="#6CD97E" d="m18.663 13.33.273.007a5.332 5.332 0 1 1-5.598 5.6l-.007-.275.006-.265a5.38 5.38 0 0 1 .137-.963c.006-.026.01-.052.017-.078a5.34 5.34 0 0 1 .485-.074c.011 0 .023-.003.034-.005.09-.009.18-.014.27-.02l.274-.006ZM5.332 0a5.332 5.332 0 0 1 5.332 5.332l-.008.274a5.332 5.332 0 0 1-5.324 5.058l-.274-.007A5.332 5.332 0 0 1 5.332 0Z" />
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-[14px] font-medium text-[var(--ide-text)]">Task plans created</span>
+                  <span className="text-[12px] text-[var(--ide-text-muted)] ml-2">{proposedTasks.length} tasks</span>
+                </div>
               </div>
-              {proposedTasks.map((task: any, i: number) => (
-                <div key={task.id || i} className="p-3 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)]" data-testid={`proposed-task-${i}`}>
-                  <div className="flex items-start gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#0079F2]/15 text-[#0079F2] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-[12px] font-medium text-[var(--ide-text)]">{task.title}</h4>
-                      {task.description && <p className="text-[10px] text-[var(--ide-text-muted)] mt-0.5">{task.description}</p>}
+
+              {/* Task cards */}
+              {proposedTasks.map((task: any, i: number) => {
+                const [expanded, setExpanded] = React.useState(false);
+                return (
+                  <div key={task.id || i} className="rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] overflow-hidden transition-all hover:border-[var(--ide-text-muted)]/30" data-testid={`proposed-task-${i}`}>
+                    <div className="flex items-center gap-2.5 p-3">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                        <circle cx="5.332" cy="5.338" r="5.332" fill="#A6A6A6" />
+                        <circle cx="18.663" cy="5.338" r="5.332" fill="#A6A6A6" />
+                        <circle cx="5.332" cy="18.668" r="5.332" fill="#A6A6A6" />
+                        <circle cx="18.663" cy="18.668" r="5.332" fill="#A6A6A6" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-[13px] font-medium text-[var(--ide-text)] truncate">{task.title}</h4>
+                        {task.description && <p className="text-[12px] text-[var(--ide-text-muted)] mt-0.5 line-clamp-2">{task.description}</p>}
+                      </div>
                       {task.plan && task.plan.length > 0 && (
-                        <div className="mt-1.5 space-y-0.5">
+                        <button
+                          className="text-[11px] text-[#009118] hover:text-[#006B12] shrink-0 px-2 py-1 rounded hover:bg-[#009118]/10 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+                        >
+                          {expanded ? "Hide plan" : "View plan"}
+                        </button>
+                      )}
+                    </div>
+                    {expanded && task.plan && task.plan.length > 0 && (
+                      <div className="px-3 pb-3 pt-0 border-t border-[var(--ide-border)]">
+                        <div className="pt-2 space-y-1">
                           {(task.plan as string[]).map((step: string, j: number) => (
-                            <div key={j} className="flex items-center gap-1.5 text-[10px] text-[var(--ide-text-secondary)]">
-                              <span className="w-1 h-1 rounded-full bg-[var(--ide-text-muted)]" />
-                              {step}
+                            <div key={j} className="flex items-start gap-2 text-[12px] text-[var(--ide-text-secondary)] py-0.5">
+                              <span className="w-4 h-4 rounded-full bg-[var(--ide-bg)] text-[var(--ide-text-muted)] text-[9px] font-medium flex items-center justify-center shrink-0 mt-0.5">{j + 1}</span>
+                              <span>{step}</span>
                             </div>
                           ))}
                         </div>
-                      )}
+                      </div>
+                    )}
+                    <div className="px-3 pb-2 text-[11px] text-[var(--ide-text-muted)]">
+                      Draft {task.dependsOn && task.dependsOn.length > 0 ? `\u2022 Depends on task ${task.dependsOn.map((d: any) => Number(d) + 1).join(", ")}` : ""}
                     </div>
                   </div>
-                </div>
-              ))}
-              <div className="flex gap-2 pt-2">
+                );
+              })}
+
+              {/* Accept / Revise buttons (Replit-style) */}
+              <div className="flex gap-2 pt-1">
                 <button
-                  className="flex-1 h-9 rounded-lg bg-[var(--ide-bg)] text-[var(--ide-text)] text-[12px] border border-[var(--ide-border)] hover:bg-[var(--ide-surface)] transition-colors"
+                  className="h-9 px-5 rounded-lg bg-[var(--ide-bg)] text-[var(--ide-text)] text-[13px] border border-[var(--ide-border)] hover:bg-[var(--ide-surface)] transition-colors"
                   onClick={async () => {
                     if (projectId && proposedTasks.length > 0) {
                       try {
@@ -3643,15 +3693,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   }}
                   data-testid="button-discard-plan"
                 >
-                  Discard
+                  Revise plan
                 </button>
                 <button
-                  className="flex-1 h-9 rounded-lg bg-[#0079F2] text-white text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-[#0069D2] transition-colors"
+                  className="flex-1 h-9 rounded-lg text-white text-[13px] font-medium flex items-center justify-center gap-2 transition-colors"
+                  style={{ backgroundColor: "hsla(140, 50%, 33%, 1)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "hsla(140, 50%, 28%, 1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "hsla(140, 50%, 33%, 1)")}
                   onClick={acceptProposedTasks}
                   data-testid="button-accept-plan"
                 >
-                  <Zap className="w-3.5 h-3.5" />
-                  Accept & Start All
+                  Accept tasks
                 </button>
               </div>
             </div>
