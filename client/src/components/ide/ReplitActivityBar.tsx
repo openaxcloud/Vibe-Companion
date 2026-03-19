@@ -2,14 +2,15 @@ import { cn } from '@/lib/utils';
 import {
   FolderOpen, Search, GitBranch, Package, Bug, Terminal,
   Bot, Rocket, Key, Database, Globe, GitMerge, Clock,
-  Puzzle, Settings, PanelLeftClose, PanelLeftOpen,
+  Puzzle, Settings, PanelLeftClose, PanelLeftOpen, ListTodo,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export type ActivityItem =
   | 'files' | 'search' | 'git' | 'packages' | 'debug'
   | 'terminal' | 'agent' | 'deploy' | 'secrets' | 'database'
-  | 'preview' | 'workflows' | 'history' | 'extensions' | 'settings';
+  | 'preview' | 'workflows' | 'history' | 'extensions' | 'settings'
+  | 'tasks';
 
 interface ActivityBarItem {
   id: ActivityItem;
@@ -27,6 +28,7 @@ const activityItems: ActivityBarItem[] = [
   { id: 'terminal', icon: Terminal, label: 'Terminal', section: 'top' },
   { id: 'agent', icon: Bot, label: 'AI Agent', section: 'top' },
   { id: 'deploy', icon: Rocket, label: 'Deploy', section: 'top' },
+  { id: 'tasks', icon: ListTodo, label: 'Tasks', section: 'top' },
   { id: 'preview', icon: Globe, label: 'Preview', section: 'top' },
   { id: 'settings', icon: Settings, label: 'Settings', section: 'bottom' },
 ];

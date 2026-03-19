@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Loader2, MoreVertical, Play,
   X, ChevronRight, Zap, ArrowRight, LayoutGrid, List,
+  Plus, Send,
 } from "lucide-react";
 import TaskReviewDrawer from "./TaskReviewDrawer";
 
@@ -438,6 +439,33 @@ export default function TaskBoard({
     onError: () => setMutationError("Failed to accept tasks"),
   });
 
+  const [newTaskPrompt, setNewTaskPrompt] = useState("");
+  const [proposing, setProposing] = useState(false);
+
+  const proposeMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      setProposing(true);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/tasks/propose`, { prompt });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to create tasks" }));
+        throw new Error(err.message || "Failed to create tasks");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      clearError();
+      setNewTaskPrompt("");
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
+    },
+    onError: (err: Error) => setMutationError(err.message),
+    onSettled: () => setProposing(false),
+  });
+
+  const handlePropose = () => {
+    if (!newTaskPrompt.trim() || proposing) return;
+    proposeMutation.mutate(newTaskPrompt.trim());
+  };
+
   const tasks = tasksQuery.data || [];
   const columns = STATUS_COLUMNS.map(col => ({
     ...col,
@@ -572,6 +600,30 @@ export default function TaskBoard({
         </div>
       )}
 
+      {/* Task creation input bar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--tb-border)] shrink-0">
+        <div className="flex-1 flex items-center gap-2 bg-[var(--tb-col-bg)] rounded-lg px-3 py-1.5 border border-[var(--tb-border)] focus-within:border-[#009118]/40">
+          <input
+            type="text"
+            className="flex-1 bg-transparent text-[13px] text-[var(--tb-text)] placeholder:text-[var(--tb-text-dimmest)] outline-none"
+            placeholder="Describe what to build... Agent will create parallel tasks"
+            value={newTaskPrompt}
+            onChange={(e) => setNewTaskPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handlePropose(); } }}
+            disabled={proposing}
+            data-testid="input-new-task"
+          />
+          <button
+            className="w-7 h-7 flex items-center justify-center rounded-md bg-[#009118] hover:bg-[#007a14] text-white transition-colors disabled:opacity-40"
+            onClick={handlePropose}
+            disabled={!newTaskPrompt.trim() || proposing}
+            data-testid="button-propose-tasks"
+          >
+            {proposing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </div>
+
       {/* Content */}
       {tasksQuery.isLoading ? (
         <div className="flex items-center justify-center flex-1">
@@ -584,7 +636,7 @@ export default function TaskBoard({
           </div>
           <h3 className="text-[15px] font-medium text-[var(--tb-text)] mb-1" data-testid="text-no-tasks">No tasks yet</h3>
           <p className="text-[13px] text-[var(--tb-text-dimmest)] max-w-[280px] leading-relaxed">
-            Describe what you want to build and Agent will break it into parallel tasks
+            Describe what you want to build above.{"\n"}Agent will break it into parallel tasks that run simultaneously.
           </p>
         </div>
       ) : viewMode === "thread" ? (

@@ -39,6 +39,7 @@ import {
   Copy,
   ExternalLink,
   Lock,
+  ListTodo,
 } from 'lucide-react';
 import { ECodeLoading } from '@/components/ECodeLoading';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -98,6 +99,7 @@ const ShellPanel = instrumentedLazy(() => import('@/components/editor/ShellPanel
 const AppStoragePanel = instrumentedLazy(() => import('@/components/editor/AppStoragePanel').then(mod => ({ default: mod.AppStoragePanel })), 'AppStoragePanel');
 const ReplitConsolePanel = instrumentedLazy(() => import('@/components/ide/ReplitConsolePanel').then(mod => ({ default: mod.ReplitConsolePanel })), 'ReplitConsolePanel');
 const ResourcesPanel = instrumentedLazy(() => import('@/components/ide/ResourcesPanel').then(mod => ({ default: mod.ResourcesPanel })), 'ResourcesPanel');
+const TaskBoard = instrumentedLazy(() => import('@/components/TaskBoard'), 'TaskBoard');
 const LogsViewerPanel = instrumentedLazy(() => import('@/components/ide/LogsViewerPanel').then(mod => ({ default: mod.LogsViewerPanel })), 'LogsViewerPanel');
 
 // Specialized editors
@@ -347,6 +349,10 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'extensions':
         handleAddTool('extensions');
         break;
+      case 'tasks':
+        setIsSidebarCollapsed(false);
+        setLeftPanelTab('tasks');
+        break;
       case 'settings':
         handleAddTool('settings');
         break;
@@ -550,6 +556,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MobileSecurityPanel projectId={projectId} /></Suspense>;
       case 'search':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GlobalSearch isOpen={true} inline={true} onClose={() => setMobileActiveTab('agent')} projectId={projectId} onFileSelect={(file: any) => handleFileSelect({ id: file.id, name: file.name })} /></Suspense>;
+      case 'tasks':
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tasks..." /></div>}><TaskBoard projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'checkpoints':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><UnifiedCheckpointsPanel projectId={projectId} maxHeight="calc(100vh - 120px)" /></Suspense>;
       case 'slides':
@@ -1017,6 +1025,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                     <TabsTrigger value="deployment" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-deployment" onClick={() => setDeploymentTab('deploy')}>
                       <Rocket className="h-3.5 w-3.5" /> Deploy
                     </TabsTrigger>
+                    <TabsTrigger value="tasks" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-tasks">
+                      <ListTodo className="h-3.5 w-3.5" /> Tasks
+                    </TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount>
@@ -1063,6 +1074,12 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   <TabsContent value="deployment" className="flex-1 mt-0 overflow-hidden">
                     <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Deploy..." /></div>}>
                       <ReplitDeploymentPanel projectId={projectId} defaultTab={deploymentTab || 'deploy'} />
+                    </Suspense>
+                  </TabsContent>
+
+                  <TabsContent value="tasks" className="flex-1 mt-0 overflow-hidden">
+                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Tasks..." /></div>}>
+                      <TaskBoard projectId={projectId} onClose={() => setLeftPanelTab('agent')} />
                     </Suspense>
                   </TabsContent>
                 </Tabs>

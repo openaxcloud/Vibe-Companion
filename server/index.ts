@@ -13,6 +13,8 @@ import { startAutoMetricsCollector, startResourceSnapshotCollector, stopAutoMetr
 import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from "./deploymentEngine";
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
+import fs from "fs";
+import path from "path";
 
 // Global error handlers to prevent silent crashes
 process.on("uncaughtException", (error) => {
@@ -264,8 +266,27 @@ async function initStripe() {
   }
 }
 
+async function initTaskTables() {
+  if (!process.env.DATABASE_URL) return;
+  try {
+    const { pool } = await import("./db");
+    const migrationPath = path.resolve(
+      import.meta.dirname || __dirname,
+      "../migrations/0017_tasks_queue_notifications.sql",
+    );
+    if (fs.existsSync(migrationPath)) {
+      const sql = fs.readFileSync(migrationPath, "utf-8");
+      await pool.query(sql);
+      log("Task system tables ready", "tasks");
+    }
+  } catch (err) {
+    console.error("Failed to init task tables:", err);
+  }
+}
+
 (async () => {
   await initStripe();
+  await initTaskTables();
 
   await registerRoutes(httpServer, app);
 
