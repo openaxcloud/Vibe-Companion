@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RunnerWorkspaceButton } from '@/components/ide/RunnerWorkspaceButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -16,44 +17,49 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Play,
-  Square,
-  Settings,
-  User,
-  LogOut,
+import { 
+  Code, 
+  Play, 
+  Square, 
+  Settings, 
+  User, 
+  LogOut, 
+  Plus,
   X,
   Menu,
+  Eye,
   FileCode,
+  MoreHorizontal,
   Home,
   Shield,
+  Crown,
   ChevronDown,
   Sun,
   Moon,
   Monitor,
+  Bell,
+  Clock,
   Users,
-  Search,
-  Rocket,
-  FolderOpen,
-  PanelLeftClose,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { WorkspaceSettings } from '@/components/WorkspaceSettings';
+import { AddTabMenu } from './AddTabMenu';
+import { ReplitPublishButton } from './ReplitPublishButton';
 import { useTheme } from '@/components/ThemeProvider';
 import { useLocation } from 'wouter';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 interface Tab {
   id: string;
   label: string;
   icon?: any;
   closable?: boolean;
+}
+
+interface AvailableTool {
+  id: string;
+  label: string;
+  icon: string;
 }
 
 interface TopNavBarProps {
@@ -72,7 +78,7 @@ interface TopNavBarProps {
   onTabReorder?: (fromIndex: number, toIndex: number) => void;
   onAddTab?: () => void;
   onOpenToolsSheet?: () => void;
-  availableTools?: string[];
+  availableTools?: AvailableTool[];
   onAddTool?: (toolId: string) => void;
   showFileExplorer: boolean;
   onToggleFileExplorer: () => void;
@@ -84,10 +90,6 @@ interface TopNavBarProps {
   showTabs?: boolean;
   onOpenCommandPalette?: () => void;
   onOpenGlobalSearch?: () => void;
-  onProjectSettings?: () => void;
-  onPublish?: () => void;
-  onInvite?: () => void;
-  onFork?: () => void;
 }
 
 export function TopNavBar({
@@ -118,33 +120,31 @@ export function TopNavBar({
   showTabs = true,
   onOpenCommandPalette,
   onOpenGlobalSearch,
-  onProjectSettings,
-  onPublish,
-  onInvite,
-  onFork,
 }: TopNavBarProps) {
-  const { user, logout } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const { theme, setTheme } = useTheme();
   const [, navigate] = useLocation();
   const [showSettings, setShowSettings] = useState(false);
-
+  
   const handleLogout = async () => {
-    logout.mutate();
+    logoutMutation.mutate();
     navigate('/login');
   };
-
-  const isAdmin = (user as any)?.role === 'admin' || (user as any)?.role === 'super_admin' || (user as any)?.isAdmin;
-
+  
+  // Check if user is admin (using role field)
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  
   return (
-    <div className="h-11 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] flex items-center px-2 gap-1 shrink-0 z-40" data-testid="top-nav">
+    <div className="h-11 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] flex items-center px-2 gap-1" data-testid="top-nav">
+      {/* Main Menu Dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 hover:bg-[var(--ide-surface)] transition-colors rounded-md"
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0 hover:bg-[var(--ecode-sidebar-hover)] transition-colors rounded-md"
           >
-            <Menu className="w-4 h-4 text-[var(--ide-text-muted)]" />
+            <Menu className="w-4 h-4 text-[var(--ecode-text-muted)]" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="start">
@@ -152,17 +152,17 @@ export function TopNavBar({
             <Home className="w-4 h-4 mr-2" />
             Home
           </DropdownMenuItem>
-
+          
           {isAdmin && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
+              <DropdownMenuItem 
                 className="py-2"
                 onClick={() => navigate('/admin')}
               >
-                <Shield className="w-4 h-4 mr-2 text-[#7C65CB]" />
+                <Shield className="w-4 h-4 mr-2 text-[var(--ecode-accent)]" />
                 <span className="font-medium">Admin Dashboard</span>
-                <Badge
+                <Badge 
                   variant="default"
                   className="ml-auto text-[10px] h-4 px-1.5"
                 >
@@ -173,33 +173,24 @@ export function TopNavBar({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-
+      
+      {/* Logo & Project Name - Replit style */}
       <div className="flex items-center gap-1.5 pl-1 group cursor-default">
-        <button
-          className="shrink-0 hover:opacity-80 transition-opacity"
-          onClick={() => navigate('/dashboard')}
-          title="Home"
-        >
-          <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-            <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-            <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-            <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-          </svg>
-        </button>
-        <span className="text-[12px] text-[#F26522] font-bold tracking-tight">E-Code</span>
-        <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />
+        <span className="text-[12px] text-[var(--ecode-accent)] font-bold tracking-tight">E-Code</span>
+        <span className="text-[var(--ecode-text-muted)] text-[10px]">/</span>
         <div className="relative flex items-center gap-1">
-          <span className="text-[12px] font-medium truncate max-w-[140px] text-[var(--ide-text)]" data-testid="text-project-name">{projectName}</span>
+          <span className="text-[12px] font-medium truncate max-w-[140px] text-[var(--ecode-text)]">{projectName}</span>
           {projectDescription && (
-            <div className="absolute left-0 top-full mt-1 w-64 p-2 bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[100] text-[11px] text-[var(--ide-text-muted)] leading-relaxed">
+            <div className="absolute left-0 top-full mt-1 w-64 p-2 bg-[var(--ecode-surface)] border border-[var(--ecode-border)] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[100] text-[11px] text-[var(--ecode-text-muted)] leading-relaxed">
               {projectDescription}
             </div>
           )}
         </div>
       </div>
-
+      
+      {/* Tabs with Drag-and-Drop Reorder - All tabs visible with scroll */}
       {showTabs ? (
-        <div className="flex-1 flex items-center gap-1 overflow-x-auto ml-2" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-[var(--ecode-border)] dark:scrollbar-thumb-[var(--ecode-border)]">
           {tabs.map((tab, index) => {
             const Icon = tab.icon;
             return (
@@ -229,17 +220,17 @@ export function TopNavBar({
                 data-testid={`tab-${tab.id}`}
                 className={cn(
                   "flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-md transition-all duration-200 cursor-grab active:cursor-grabbing",
-                  "hover:bg-[var(--ide-surface)] hover:shadow-sm",
-                  activeTab === tab.id
-                    ? "bg-[var(--ide-surface)] shadow-sm border border-[var(--ide-border)]"
-                    : "bg-transparent"
+                  "hover:bg-[var(--ecode-sidebar-hover)] hover:shadow-sm",
+                  activeTab === tab.id 
+                    ? "bg-[var(--ecode-sidebar-bg)] shadow-sm border border-[var(--ecode-border)]" 
+                    : "bg-[var(--ecode-surface)]"
                 )}
               >
-                {Icon && <Icon className="h-3.5 w-3.5" />}
+                {Icon && <Icon className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />}
                 <span className="max-w-[120px] truncate font-medium">{tab.label}</span>
                 {tab.closable && (
                   <X
-                    className="h-3 w-3 opacity-70 hover:opacity-100 hover:text-red-500 transition-all"
+                    className="h-3 w-3 opacity-70 hover:opacity-100 hover:text-destructive transition-all"
                     onClick={(e) => {
                       e.stopPropagation();
                       onTabClose(tab.id);
@@ -249,12 +240,17 @@ export function TopNavBar({
               </button>
             );
           })}
+          
+          {/* Enhanced Add Tab Menu */}
+          {onAddTool && <AddTabMenu onAddTool={onAddTool} availableTools={availableTools} onOpenToolsSheet={onOpenToolsSheet} />}
         </div>
       ) : (
         <div className="flex-1" />
       )}
-
+      
+      {/* Right Actions */}
       <div className="flex items-center gap-0.5">
+        {/* Collaboration Toggle */}
         {onToggleCollaboration && (
           <Button
             variant={showCollaboration ? "secondary" : "ghost"}
@@ -262,11 +258,11 @@ export function TopNavBar({
             onClick={onToggleCollaboration}
             data-testid="button-toggle-collaboration"
             className={cn(
-              "h-8 w-8 p-0 rounded-md relative",
-              showCollaboration && "bg-[var(--ide-surface)]"
+              "h-8 w-8 p-0 rounded-md",
+              showCollaboration && "bg-[var(--ecode-sidebar-hover)]"
             )}
           >
-            <Users className="h-4 w-4 text-[var(--ide-text-muted)]" />
+            <Users className="h-4 w-4" />
             {collaboratorCount > 0 && (
               <Badge variant="secondary" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] font-bold">
                 {collaboratorCount}
@@ -274,103 +270,71 @@ export function TopNavBar({
             )}
           </Button>
         )}
-
-        <TooltipProvider delayDuration={300}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md"
-                onClick={onToggleFileExplorer}
-                data-testid="button-toggle-explorer"
-              >
-                {showFileExplorer ? <PanelLeftClose className="w-3.5 h-3.5" /> : <FolderOpen className="w-3.5 h-3.5" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">
-              {showFileExplorer ? 'Hide Files' : 'Show Files'}
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md"
-                onClick={onOpenCommandPalette}
-                data-testid="button-command-palette"
-              >
-                <Search className="w-3.5 h-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">
-              Command Palette
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <div className="h-5 w-px bg-[var(--ide-border)] mx-1" />
-
+        
+        {/* File Explorer Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggleFileExplorer}
+          data-testid="button-toggle-explorer"
+          className="h-8 w-8 p-0 rounded-md hover:bg-[var(--ecode-sidebar-hover)]"
+        >
+          <FileCode className="h-4 w-4 text-[var(--ecode-text-muted)]" />
+        </Button>
+        
+        {/* Divider */}
+        <div className="h-5 w-px bg-[var(--ecode-border)] mx-1" />
+        
+        {/* Run/Stop Button - Replit style green */}
         <Button
           variant={isRunning ? "destructive" : "default"}
           size="sm"
           onClick={onRun}
-          data-testid="button-run"
+          data-testid="button-run-stop"
           className={cn(
-            "h-7 px-3 gap-1.5 text-[12px] font-semibold rounded-full transition-all",
-            isRunning
-              ? "bg-red-500 hover:bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"
-              : "bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_12px_rgba(12,206,107,0.3)]"
+            "h-7 px-3 gap-1.5 text-[12px] font-semibold rounded-md transition-all",
+            isRunning 
+              ? "bg-red-500 hover:bg-red-600 text-white" 
+              : "bg-[hsl(142,72%,42%)] hover:bg-[hsl(142,72%,38%)] text-white"
           )}
         >
           {isRunning ? (
-            <><Square className="h-3 w-3 fill-current" /><span>Stop</span></>
+            <>
+              <Square className="h-3 w-3 fill-current" />
+              <span>Stop</span>
+            </>
           ) : (
-            <><Play className="h-3 w-3 fill-current" /><span>Run</span></>
+            <>
+              <Play className="h-3 w-3 fill-current" />
+              <span>Run</span>
+            </>
           )}
         </Button>
+        
+        {/* Runner Workspace — only visible when RUNNER_BASE_URL is configured */}
+        <RunnerWorkspaceButton projectId={projectId} />
 
-        {onPublish && (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md" onClick={onPublish} data-testid="button-publish">
-                  <Rocket className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Publish</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-
-        {onInvite && (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] rounded-md" onClick={onInvite} data-testid="button-invite">
-                  <Users className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)] text-xs">Invite</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-
-        <div className="h-5 w-px bg-[var(--ide-border)] mx-1" />
-
+        {/* Publish Button */}
+        <ReplitPublishButton
+          projectId={projectId}
+          onOpenLogs={onOpenDeployLogs}
+          onOpenAnalytics={onOpenDeployAnalytics}
+        />
+        
+        {/* Theme Switcher */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 rounded-md hover:bg-[var(--ide-surface)]"
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 rounded-md hover:bg-[var(--ecode-sidebar-hover)]"
             >
               {theme === "light" ? (
-                <Sun className="h-4 w-4 text-[var(--ide-text-muted)]" />
+                <Sun className="h-4 w-4 text-[var(--ecode-text-muted)]" />
+              ) : theme === "dark" ? (
+                <Moon className="h-4 w-4 text-[var(--ecode-text-muted)]" />
               ) : (
-                <Moon className="h-4 w-4 text-[var(--ide-text-muted)]" />
+                <Monitor className="h-4 w-4 text-[var(--ecode-text-muted)]" />
               )}
             </Button>
           </DropdownMenuTrigger>
@@ -383,21 +347,26 @@ export function TopNavBar({
               <Moon className="w-4 h-4 mr-2" />
               Dark
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("system")} className="text-[13px]">
+              <Monitor className="w-4 h-4 mr-2" />
+              System
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
+        
+        {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 rounded-full p-0 hover:ring-2 hover:ring-[#7C65CB]/30 transition-all"
+              className="h-8 w-8 rounded-full p-0 hover:ring-2 hover:ring-[var(--ecode-accent)]/30 transition-all"
               data-testid="button-user-menu"
             >
               <Avatar className="h-7 w-7">
-                <AvatarImage src={(user as any)?.profileImageUrl || undefined} />
-                <AvatarFallback className="text-[11px] bg-[#7C65CB] text-white font-semibold">
-                  {(user as any)?.username?.charAt(0).toUpperCase() || (user as any)?.displayName?.charAt(0).toUpperCase() || 'U'}
+                <AvatarImage src={user?.profileImageUrl || undefined} />
+                <AvatarFallback className="text-[11px] bg-[var(--ecode-accent)] text-white font-semibold">
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -405,8 +374,8 @@ export function TopNavBar({
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-1">
-                <p className="text-[13px] font-medium">{(user as any)?.username || (user as any)?.displayName || 'User'}</p>
-                <p className="text-[11px] text-[var(--ide-text-muted)]">{(user as any)?.email || ''}</p>
+                <p className="text-[13px] font-medium">{user?.username || 'User'}</p>
+                <p className="text-[11px] text-[var(--ecode-text-muted)]">{user?.email || ''}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -414,12 +383,10 @@ export function TopNavBar({
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            {onProjectSettings && (
-              <DropdownMenuItem onClick={onProjectSettings} className="text-[13px]">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem onClick={() => setShowSettings(true)} className="text-[13px]">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-[13px] text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
@@ -428,6 +395,18 @@ export function TopNavBar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="max-w-2xl max-h-[80vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b border-border">
+            <DialogTitle className="text-base">User Settings</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <WorkspaceSettings />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

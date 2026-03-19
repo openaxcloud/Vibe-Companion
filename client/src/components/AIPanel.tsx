@@ -129,6 +129,13 @@ interface AIPanelProps {
   onCanvasFrameCreate?: (htmlContent: string, name?: string) => void;
   onConvertFrame?: (frameId: string, frameName: string, targetType: string) => void;
   canvasFrames?: { id: string; name: string }[];
+  hideInput?: boolean;
+  onExternalInput?: (handlers: {
+    handleSubmit?: (value: string) => void;
+    isWorking?: boolean;
+    agentMode?: string;
+    onModeChange?: (mode: string) => void;
+  } | null) => void;
 }
 
 type AIModel = "claude" | "gpt" | "gemini" | "openrouter" | "perplexity" | "mistral";
@@ -775,7 +782,7 @@ function parsePlanFromResponse(content: string): { title: string; tasks: PlanTas
   }
 }
 
-function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete, onCanvasFrameCreate, onConvertFrame, canvasFrames }: AIPanelProps) {
+function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFileUpdated, onApplyCode, pendingMessage, onPendingMessageConsumed, onAgentComplete, onCanvasFrameCreate, onConvertFrame, canvasFrames, hideInput, onExternalInput }: AIPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -2027,6 +2034,26 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       processQueue();
     }
   }, [isStreaming, queuedMessages.length, processQueue]);
+
+  useEffect(() => {
+    if (!onExternalInput) return;
+    onExternalInput({
+      handleSubmit: (value: string) => {
+        setInput(value);
+        setTimeout(() => {
+          sendMessageDirect(value);
+        }, 0);
+      },
+      isWorking: isStreaming,
+      agentMode,
+      onModeChange: (m: string) => {
+        if (["economy", "power", "turbo"].includes(m)) {
+          handleAgentModeChange(m as AgentMode);
+        }
+      },
+    });
+    return () => onExternalInput(null);
+  }, [onExternalInput, isStreaming, agentMode, sendMessageDirect]);
 
   const stopStreaming = () => {
     abortRef.current?.abort();
@@ -3867,7 +3894,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         })}
       </div>
 
-      <div className="p-2.5 border-t border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+      {!hideInput && <div className="p-2.5 border-t border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
         {queuedMessages.length > 0 && (
           <div className="mb-2 rounded-lg border border-[#7C65CB]/20 bg-[#7C65CB]/5 overflow-hidden" data-testid="queue-drawer">
             <button
@@ -4310,7 +4337,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             />
           </div>
         )}
-      </div>
+      </div>}
 
       {showManagedApproval && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 rounded-xl" data-testid="dialog-managed-approval">
