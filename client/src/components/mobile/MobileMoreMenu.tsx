@@ -113,7 +113,7 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" data-testid="mobile-more-overlay">
+    <div className="fixed inset-0 z-[999] flex flex-col justify-end" data-testid="mobile-more-overlay">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-[var(--ide-bg)] border-t border-[var(--ide-border)] rounded-t-2xl animate-slide-up" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex justify-center pt-2 pb-1">
