@@ -9,7 +9,7 @@ let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI | null {
   if (!_openai) {
     try {
-      _openai = new OpenAI();
+      _openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
     } catch {
       return null;
     }
@@ -126,6 +126,31 @@ function generateFallbackDescription(trigger: string, state: CheckpointStateSnap
   return `${label} — ${parts.join(", ")}`;
 }
 
+function computeSnapshotSize(snapshot: CheckpointStateSnapshot): number {
+  let bytes = 0;
+  for (const f of snapshot.files) bytes += f.filename.length + f.content.length;
+  for (const kv of snapshot.storageKv) bytes += kv.key.length + (typeof kv.value === "string" ? kv.value.length : JSON.stringify(kv.value).length);
+  for (const ev of snapshot.envVars) bytes += ev.key.length + ev.encryptedValue.length;
+  for (const obj of snapshot.storageObjectsMeta) bytes += obj.sizeBytes || 0;
+  for (const conv of snapshot.aiConversations) {
+    bytes += (conv.title || "").length;
+    for (const msg of conv.messages) bytes += msg.content.length;
+  }
+  return bytes;
+}
+
+function computeCheckpointCost(sizeBytes: number): number {
+  // Storage cost: 0.1 credits per MB
+  const mb = sizeBytes / (1024 * 1024);
+  return Math.max(0.01, Math.round(mb * 0.1 * 100) / 100);
+}
+
+function generateCommitHash(projectId: string, desc: string): string {
+  // Generate a deterministic SHA-1-like short hash for the checkpoint commit reference
+  const crypto = require("crypto") as typeof import("crypto");
+  return crypto.createHash("sha1").update(`${projectId}-${Date.now()}-${desc}`).digest("hex").slice(0, 7);
+}
+
 export async function createCheckpoint(
   projectId: string,
   userId: string,
@@ -134,6 +159,9 @@ export async function createCheckpoint(
 ): Promise<Checkpoint> {
   const stateSnapshot = await captureProjectState(projectId);
   const desc = description || await generateAIDescription(trigger, stateSnapshot);
+  const sizeBytes = computeSnapshotSize(stateSnapshot);
+  const creditsCost = computeCheckpointCost(sizeBytes);
+  const gitCommitHash = generateCommitHash(projectId, desc);
 
   const cp = await storage.createCheckpoint({
     projectId,
@@ -142,6 +170,9 @@ export async function createCheckpoint(
     type: trigger === "manual" ? "manual" : "auto",
     trigger,
     stateSnapshot,
+    sizeBytes,
+    creditsCost,
+    gitCommitHash,
   });
 
   const position = await storage.getCheckpointPosition(projectId);

@@ -1774,6 +1774,9 @@ export const checkpoints = pgTable("checkpoints", {
   type: text("type").notNull().default("manual"),
   trigger: text("trigger").notNull().default("manual"),
   stateSnapshot: json("state_snapshot").notNull().$type<CheckpointStateSnapshot>(),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  creditsCost: real("credits_cost").notNull().default(0),
+  gitCommitHash: text("git_commit_hash"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("checkpoints_project_idx").on(table.projectId),
@@ -1786,6 +1789,9 @@ export const insertCheckpointSchema = createInsertSchema(checkpoints).pick({
   type: true,
   trigger: true,
   stateSnapshot: true,
+  sizeBytes: true,
+  creditsCost: true,
+  gitCommitHash: true,
 });
 export type InsertCheckpoint = z.infer<typeof insertCheckpointSchema>;
 export type Checkpoint = typeof checkpoints.$inferSelect;
