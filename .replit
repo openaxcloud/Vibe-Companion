@@ -4,7 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["gopls"]
+packages = ["gopls", "gir-rs"]
 
 [[ports]]
 localPort = 2222
