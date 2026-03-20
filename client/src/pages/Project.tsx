@@ -5333,11 +5333,7 @@ function _projectPage() {
         <div className="flex flex-col items-center justify-center h-full bg-[var(--ide-panel)] animate-fade-in overflow-y-auto">
           <div className="max-w-md text-center px-6 py-8">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F26522]/10 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
-              <svg width="40" height="40" viewBox="0 0 32 32" fill="none" data-testid="img-ecode-logo">
-                <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-                <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-                <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-              </svg>
+              <img src="/logo.png" alt="E-Code" width={40} height={40} className="rounded" style={{ objectFit: 'contain' }} data-testid="img-ecode-logo" />
             </div>
             <h3 className="text-xl font-semibold text-[var(--ide-text)] mb-2" data-testid="text-welcome-heading">Welcome to your project</h3>
             <p className="text-sm text-[var(--ide-text-muted)] mb-8 leading-relaxed">Get started by creating your first file or asking AI for help</p>
@@ -5723,11 +5719,7 @@ function _projectPage() {
       <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]" : "grid-cols-3 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <button className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-150 group ${"hover:bg-[var(--ide-panel)]"}`} onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
-            <svg width="16" height="16" viewBox="0 0 32 32" fill="none" className="group-hover:scale-110 transition-transform">
-              <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-              <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-              <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-            </svg>
+            <img src="/logo.png" alt="E-Code" width={16} height={16} className="rounded group-hover:scale-110 transition-transform" style={{ objectFit: 'contain' }} />
           </button>
           <ChevronRight className={`w-3 h-3 shrink-0 ${"text-[var(--ide-text-muted)]"}`} />
           <span className={`text-[13px] font-medium truncate cursor-pointer hover:text-[#0079F2] transition-colors ${isMobile ? "text-[var(--ide-text)] max-w-[120px]" : "text-[var(--ide-text)] max-w-[180px]"}`} onClick={() => setSpotlightOpen(prev => !prev)} data-testid="text-project-name">{project?.name}</span>
