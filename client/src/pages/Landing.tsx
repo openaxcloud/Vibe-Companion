@@ -320,7 +320,7 @@ export default function Landing() {
       const project = await res.json();
       setLocation(`/project/${project.id}?prompt=${encodeURIComponent(prompt)}&outputType=${outputType}`);
     } catch {
-      setLocation(`/login?signup=true&prompt=${encodeURIComponent(prompt)}&outputType=${outputType}`);
+      setLocation(`/login?prompt=${encodeURIComponent(prompt)}&outputType=${outputType}`);
     } finally {
       setPromptLoading(false);
     }
@@ -368,7 +368,7 @@ export default function Landing() {
               <Sparkles className="w-4 h-4 shrink-0" />
               <span className="truncate">Prompt ready: "{incomingPrompt.slice(0, 80)}{incomingPrompt.length > 80 ? "..." : ""}"</span>
             </div>
-            <Link href={`/login?signup=true&prompt=${encodeURIComponent(incomingPrompt)}&outputType=${incomingStack === "design" ? "design" : "web"}`}>
+            <Link href={`/login?prompt=${encodeURIComponent(incomingPrompt)}&outputType=${incomingStack === "design" ? "design" : "web"}`}>
               <Button className="h-8 px-4 text-xs font-medium bg-[#0079F2] hover:bg-[#006AD8] text-white rounded-lg whitespace-nowrap" data-testid="button-signin-to-build">
                 Sign up to build
               </Button>
@@ -393,8 +393,8 @@ export default function Landing() {
           <Link href="/login">
             <Button variant="ghost" className="hidden md:inline-flex text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)]" data-testid="nav-login">Log in</Button>
           </Link>
-          <Link href="/login?signup=true">
-            <Button className="hidden md:inline-flex h-9 px-5 text-sm font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="nav-signup">Sign up</Button>
+          <Link href="/login">
+            <Button className="hidden md:inline-flex h-9 px-5 text-sm font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="nav-signup">Log in</Button>
           </Link>
           <button
             className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors"
@@ -426,8 +426,8 @@ export default function Landing() {
             <a href="https://docs.e-code.ai" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="mobile-nav-learn">Learn</a>
             <div className="my-3 border-t border-[var(--ide-border)]/50" />
             <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-login">Log in</Link>
-            <Link href="/login?signup=true" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full h-11 text-[15px] font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl" data-testid="mobile-nav-signup">Sign up</Button>
+            <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+              <Button className="w-full h-11 text-[15px] font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl" data-testid="mobile-nav-signup">Log in</Button>
             </Link>
           </nav>
         </div>
@@ -454,7 +454,7 @@ export default function Landing() {
         <p className="text-xs text-[var(--ide-text-muted)] mt-6 mb-12">No credit card required. Free tier included.</p>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
-          <Link href="/login?signup=true">
+          <Link href="/login">
             <Button className="h-11 px-7 text-sm font-semibold bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] rounded-xl shadow-[0_0_20px_rgba(12,206,107,0.3)] hover:shadow-[0_0_30px_rgba(12,206,107,0.4)] transition-all gap-2 btn-premium" data-testid="cta-signup">
               Start building for free <ArrowRight className="w-4 h-4" />
             </Button>
@@ -528,7 +528,7 @@ export default function Landing() {
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-5xl font-bold mb-6">Ready to start building?</h2>
           <p className="text-[var(--ide-text-secondary)] text-lg mb-10">Join thousands of developers building and deploying on E-Code.</p>
-          <Link href="/login?signup=true">
+          <Link href="/login">
             <Button className="h-14 px-10 text-lg font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl shadow-[0_0_20px_rgba(0,121,242,0.3)] hover:shadow-[0_0_30px_rgba(0,121,242,0.4)] transition-all gap-2 btn-premium" data-testid="cta-bottom-signup">
               Get started for free <ChevronRight className="w-5 h-5" />
             </Button>
