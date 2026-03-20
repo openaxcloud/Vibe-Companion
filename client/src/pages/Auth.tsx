@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Eye, Github, UserCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCsrfToken } from "@/lib/queryClient";
 
 function AnimatedGrid() {
   return (
@@ -58,6 +58,7 @@ export default function Auth() {
   const { login, register, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const params = new URLSearchParams(search);
+  const initialParamsRef = useRef(new URLSearchParams(search));
   const [isLogin, setIsLogin] = useState(!params.get("signup"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -99,23 +100,12 @@ export default function Auth() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const pendingPrompt = params.get("prompt");
-    const pendingOutputType = params.get("outputType") || "web";
+    const ip = initialParamsRef.current;
+    const pendingPrompt = ip.get("prompt");
+    const pendingOutputType = ip.get("outputType") || "web";
     if (pendingPrompt && !promptHandled.current) {
       promptHandled.current = true;
-      (async () => {
-        try {
-          const res = await apiRequest("POST", "/api/projects", {
-            name: pendingPrompt.slice(0, 50),
-            language: "javascript",
-            outputType: pendingOutputType,
-          });
-          const project = await res.json();
-          setLocation(`/project/${project.id}?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${pendingOutputType}`);
-        } catch {
-          setLocation("/dashboard");
-        }
-      })();
+      setLocation(`/dashboard?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${pendingOutputType}`);
     } else {
       setLocation("/dashboard");
     }

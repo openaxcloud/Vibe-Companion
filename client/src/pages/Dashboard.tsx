@@ -540,13 +540,13 @@ export default function Dashboard() {
         return;
       }
       const decompressed = LZString.decompressFromEncodedURIComponent(compressedPrompt);
-      if (!decompressed) {
-        toast({ title: "Invalid link", description: "Failed to decompress the prompt. The link may be malformed.", variant: "destructive" });
+      const promptText = decompressed || decodeURIComponent(compressedPrompt);
+      if (!promptText) {
         window.history.replaceState({}, "", "/dashboard");
         return;
       }
-      const outputType = stack === "design" ? "design" : "web";
-      setAiPrompt(decompressed);
+      const outputType = params.get("outputType") || (stack === "design" ? "design" : "web");
+      setAiPrompt(promptText);
       if (outputType !== "web") {
         setSelectedCategory(outputType);
       }
