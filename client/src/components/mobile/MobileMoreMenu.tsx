@@ -101,7 +101,7 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
             <button
               key={label}
               className="flex flex-col items-center justify-center gap-1.5 py-3 min-h-[56px] rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
-              onClick={action}
+              onClick={() => action?.()}
             >
               <Icon className="w-5 h-5" style={{ color }} />
               <span className="text-[10px] font-medium text-[var(--ide-text-muted)]">{label}</span>

@@ -410,7 +410,7 @@ export function TopNavBar({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate('/profile')} className="text-[13px]">
+            <DropdownMenuItem onClick={() => navigate('/settings')} className="text-[13px]">
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>

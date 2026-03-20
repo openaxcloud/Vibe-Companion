@@ -633,7 +633,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'mcp':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'merge-conflicts':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={[]} resolutions={[]} onClose={() => setMobileActiveTab('agent')} onMergeComplete={() => {}} onAbort={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={mergeConflicts} resolutions={mergeResolutions} onClose={() => setMobileActiveTab('agent')} onMergeComplete={() => { setMergeConflicts([]); setMergeResolutions([]); setMobileActiveTab('agent'); }} onAbort={() => { setMergeConflicts([]); setMergeResolutions([]); setMobileActiveTab('agent'); }} onResolutionChange={(updated) => setMergeResolutions(updated)} /></Suspense>;
       case 'monitoring':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'networking':
@@ -651,7 +651,48 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'security-scanner':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'more':
-        return null;
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+            <MobileMoreMenu
+              projectId={projectId}
+              isOpen={false}
+              inline={true}
+              onClose={() => setMobileActiveTab('agent')}
+              onOpenGit={() => handleAddOpenTab('git')}
+              onOpenPackages={() => handleAddOpenTab('packages')}
+              onOpenSecrets={() => handleAddOpenTab('secrets')}
+              onOpenDatabase={() => handleAddOpenTab('database')}
+              onOpenSettings={() => handleAddOpenTab('settings')}
+              onOpenDebug={() => handleAddOpenTab('debug')}
+              onOpenCollaboration={() => handleAddOpenTab('collaboration')}
+              onOpenWorkflows={() => handleAddOpenTab('workflows')}
+              onOpenHistory={() => handleAddOpenTab('history')}
+              onOpenCheckpoints={() => handleAddOpenTab('checkpoints')}
+              onOpenExtensions={() => handleAddOpenTab('extensions')}
+              onOpenSecurity={() => handleAddOpenTab('security')}
+              onOpenCommandPalette={() => setShowCommandPalette(true)}
+              onOpenGlobalSearch={() => handleAddOpenTab('search')}
+              onOpenQuickFileSearch={() => setShowQuickFileSearch(true)}
+              onOpenKeyboardShortcuts={() => setShowKeyboardShortcuts(true)}
+              onOpenAutomations={() => handleAddOpenTab('automations')}
+              onOpenConfig={() => handleAddOpenTab('config')}
+              onOpenFeedback={() => handleAddOpenTab('feedback')}
+              onOpenGitHub={() => handleAddOpenTab('github')}
+              onOpenIntegrations={() => handleAddOpenTab('integrations')}
+              onOpenMCP={() => handleAddOpenTab('mcp')}
+              onOpenMergeConflicts={() => handleAddOpenTab('merge-conflicts')}
+              onOpenMonitoring={() => handleAddOpenTab('monitoring')}
+              onOpenNetworking={() => handleAddOpenTab('networking')}
+              onOpenPublishing={() => handleAddOpenTab('publishing')}
+              onOpenSkills={() => handleAddOpenTab('skills')}
+              onOpenSSH={() => handleAddOpenTab('ssh')}
+              onOpenThreads={() => handleAddOpenTab('threads')}
+              onOpenTestRunner={() => handleAddOpenTab('test-runner')}
+              onOpenSecurityScanner={() => handleAddOpenTab('security-scanner')}
+              onOpenBackup={() => handleAddOpenTab('backup')}
+            />
+          </Suspense>
+        );
       default:
         return null;
     }
@@ -992,6 +1033,46 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onAddTab={() => setShowToolsSheet(true)}
           onTabSwitcherOpen={() => setShowTabSwitcher(true)}
         />
+
+        <Suspense fallback={null}>
+          <MobileMoreMenu
+            projectId={projectId}
+            isOpen={showMobileMoreMenu}
+            onClose={() => setShowMobileMoreMenu(false)}
+            onOpenGit={() => { setShowMobileMoreMenu(false); handleAddOpenTab('git'); }}
+            onOpenPackages={() => { setShowMobileMoreMenu(false); handleAddOpenTab('packages'); }}
+            onOpenSecrets={() => { setShowMobileMoreMenu(false); handleAddOpenTab('secrets'); }}
+            onOpenDatabase={() => { setShowMobileMoreMenu(false); handleAddOpenTab('database'); }}
+            onOpenSettings={() => { setShowMobileMoreMenu(false); handleAddOpenTab('settings'); }}
+            onOpenDebug={() => { setShowMobileMoreMenu(false); handleAddOpenTab('debug'); }}
+            onOpenCollaboration={() => { setShowMobileMoreMenu(false); handleAddOpenTab('collaboration'); }}
+            onOpenWorkflows={() => { setShowMobileMoreMenu(false); handleAddOpenTab('workflows'); }}
+            onOpenHistory={() => { setShowMobileMoreMenu(false); handleAddOpenTab('history'); }}
+            onOpenCheckpoints={() => { setShowMobileMoreMenu(false); handleAddOpenTab('checkpoints'); }}
+            onOpenExtensions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('extensions'); }}
+            onOpenSecurity={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security'); }}
+            onOpenCommandPalette={() => { setShowMobileMoreMenu(false); setShowCommandPalette(true); }}
+            onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
+            onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
+            onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
+            onOpenAutomations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('automations'); }}
+            onOpenConfig={() => { setShowMobileMoreMenu(false); handleAddOpenTab('config'); }}
+            onOpenFeedback={() => { setShowMobileMoreMenu(false); handleAddOpenTab('feedback'); }}
+            onOpenGitHub={() => { setShowMobileMoreMenu(false); handleAddOpenTab('github'); }}
+            onOpenIntegrations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('integrations'); }}
+            onOpenMCP={() => { setShowMobileMoreMenu(false); handleAddOpenTab('mcp'); }}
+            onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
+            onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
+            onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
+            onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
+            onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
+            onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
+            onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}
+            onOpenTestRunner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('test-runner'); }}
+            onOpenSecurityScanner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security-scanner'); }}
+            onOpenBackup={() => { setShowMobileMoreMenu(false); handleAddOpenTab('backup'); }}
+          />
+        </Suspense>
 
         <ReplitToolsSheet
           open={showToolsSheet}
