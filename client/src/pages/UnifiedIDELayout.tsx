@@ -10,6 +10,7 @@
  */
 
 import { useState, useCallback, Suspense, useRef, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { createPanHandlers, type PanInfo } from '@/lib/native-motion';
 import { useIDEWorkspace, availableTools } from '@/hooks';
@@ -198,7 +199,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     activeFileContent,
     activeFileLanguage,
     fileContents,
+    setFileContents,
     dirtyFiles,
+    clearDirtyFile,
     handleCodeChange,
     handleCursorChange,
     wsConnected,
@@ -302,7 +305,32 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     setMergeResolutions,
   } = workspace;
 
+  const queryClient = useQueryClient();
   const { setTheme: setGlobalTheme } = useTheme();
+
+  const historyFiles = useMemo(() =>
+    filesRaw?.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) || [],
+    [filesRaw]
+  );
+
+  const handleHistoryClose = useCallback(() => {
+    setActiveActivityItem('files');
+    if (activeFileId && !isNaN(Number(activeFileId))) {
+      setActiveTab(`file:${activeFileId}`);
+    } else {
+      const firstFileTab = workspace.openTabs?.find((t: string) => !isNaN(Number(t)));
+      if (firstFileTab) {
+        setActiveTab(`file:${firstFileTab}`);
+      }
+    }
+  }, [setActiveActivityItem, setActiveTab, activeFileId, workspace.openTabs]);
+
+  const handleFileRestored = useCallback((fileId: string, filename: string, content: string) => {
+    setFileContents((prev: Record<string, string>) => ({ ...prev, [fileId]: content }));
+    clearDirtyFile(fileId);
+    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+  }, [setFileContents, clearDirtyFile, queryClient, projectId]);
+
 
   // Sync userPrefs theme with ThemeProvider on load and changes
   useEffect(() => {
@@ -574,7 +602,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'files':
         return <ReplitFileExplorer projectId={projectId} files={filesRaw || []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} />;
       case 'history':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} files={historyFiles} onClose={handleHistoryClose} onFileRestored={handleFileRestored} initialFile={activeFileName || null} /></Suspense>;
       case 'settings':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
       case 'extensions':
@@ -737,7 +765,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
     }
     if (currentTab.id === 'history' || currentTab.id === 'rewind') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} files={historyFiles} onClose={handleHistoryClose} onFileRestored={handleFileRestored} initialFile={activeFileName || null} /></Suspense>;
     }
     if (currentTab.id === 'checkpoints') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><UnifiedCheckpointsPanel projectId={projectId} /></Suspense>;

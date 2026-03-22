@@ -403,6 +403,10 @@ export function useIDEWorkspace(projectId: string) {
     }, 2000);
   }, [saveMutation]);
 
+  const clearDirtyFile = useCallback((fileId: string) => {
+    setDirtyFiles(prev => { const n = new Set(prev); n.delete(fileId); return n; });
+  }, []);
+
   // ═══════════════════════════════════════════════
   // CODE CHANGE HANDLER
   // ═══════════════════════════════════════════════
@@ -1193,6 +1197,7 @@ export function useIDEWorkspace(projectId: string) {
     fileContents,
     setFileContents,
     dirtyFiles,
+    clearDirtyFile,
     openTabs,
 
     // UI state
