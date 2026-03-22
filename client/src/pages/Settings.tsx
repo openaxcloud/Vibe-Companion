@@ -1184,7 +1184,7 @@ export default function Settings() {
                       const data = await res.json();
                       if (data.url) {
                         const portalUrl = new URL(data.url);
-                        if (!portalUrl.hostname.endsWith("stripe.com")) throw new Error("Invalid portal URL");
+                        if (portalUrl.hostname !== "billing.stripe.com" && portalUrl.hostname !== "checkout.stripe.com") throw new Error("Invalid portal URL");
                         window.location.href = data.url;
                       } else {
                         toast({ title: data.message || "Billing portal unavailable" });
