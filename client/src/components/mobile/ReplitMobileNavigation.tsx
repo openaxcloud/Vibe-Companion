@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Globe, Bot, Rocket, MoreHorizontal, Plus, Layers } from 'lucide-react';
+import { Globe, Bot, Rocket, MoreHorizontal, Terminal } from 'lucide-react';
 
 export type MobileTab =
   | 'preview' | 'agent' | 'deploy' | 'more'
@@ -39,6 +39,7 @@ interface ReplitMobileNavigationProps {
 const coreNavItems = [
   { id: 'preview' as const, icon: Globe, label: 'Preview', color: '#F5A623' },
   { id: 'agent' as const, icon: Bot, label: 'Agent', color: '#7C65CB' },
+  { id: 'terminal' as const, icon: Terminal, label: 'Terminal', color: '#4B9EF5' },
   { id: 'deploy' as const, icon: Rocket, label: 'Deploy', color: '#0CCE6B' },
   { id: 'more' as const, icon: MoreHorizontal, label: 'More', color: '#6B7280' },
 ];
@@ -56,13 +57,17 @@ export function ReplitMobileNavigation({
   onTabSwitcherOpen,
 }: ReplitMobileNavigationProps) {
   return (
-    <div className="flex items-stretch h-[52px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} data-testid="mobile-nav">
+    <div
+      className="flex items-stretch bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-50 relative"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: '56px', touchAction: 'manipulation' }}
+      data-testid="mobile-nav"
+    >
       {coreNavItems.map(({ id, icon: Icon, label, color }) => {
-        const isActive = activeTab === id;
+        const isActive = activeTab === id || (id === 'more' && !['preview', 'agent', 'terminal', 'deploy'].includes(activeTab));
         return (
           <button
             key={id}
-            className="relative flex flex-col items-center justify-center gap-0.5 flex-1 transition-all duration-150 active:scale-90"
+            className="relative flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[48px] transition-all duration-150 active:scale-95"
             style={{ color: isActive ? color : '#9CA3AF' }}
             onClick={() => {
               if (id === 'more') {
@@ -75,7 +80,7 @@ export function ReplitMobileNavigation({
           >
             {isActive && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-b-full" style={{ backgroundColor: color }} />}
             <Icon className="w-5 h-5" />
-            <span className="text-[9px] font-medium leading-none">{label}</span>
+            <span className="text-[10px] font-medium leading-none mt-0.5">{label}</span>
           </button>
         );
       })}

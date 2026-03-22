@@ -2502,3 +2502,59 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
 export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({ id: true, createdAt: true });
 export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+
+export const communityPosts = pgTable("community_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  authorName: text("author_name").notNull().default("Anonymous"),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull().default("general"),
+  likes: integer("likes").notNull().default(0),
+  replyCount: integer("reply_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("community_posts_user_idx").on(table.userId),
+  index("community_posts_created_idx").on(table.createdAt),
+]);
+
+export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, likes: true, replyCount: true, createdAt: true });
+export type InsertCommunityPost = z.infer<typeof insertCommunityPostSchema>;
+export type CommunityPost = typeof communityPosts.$inferSelect;
+
+export const communityReplies = pgTable("community_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  authorName: text("author_name").notNull().default("Anonymous"),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("community_replies_post_idx").on(table.postId),
+]);
+
+export const insertCommunityReplySchema = createInsertSchema(communityReplies).omit({ id: true, createdAt: true });
+export type InsertCommunityReply = z.infer<typeof insertCommunityReplySchema>;
+export type CommunityReply = typeof communityReplies.$inferSelect;
+
+export const communityLikes = pgTable("community_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("community_likes_unique").on(table.postId, table.userId),
+]);
+
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  email: text("email"),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  category: text("category").notNull().default("general"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("support_tickets_user_idx").on(table.userId),
+]);

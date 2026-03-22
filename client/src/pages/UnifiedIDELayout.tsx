@@ -17,6 +17,7 @@ import { useDeviceType } from '@/hooks/use-media-query';
 import { useConnectionStatus } from '@/hooks/use-connection-status';
 import { useProblemsCount } from '@/hooks/use-problems-count';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/components/ThemeProvider';
 import { instrumentedLazy } from '@/utils/instrumented-lazy';
 import {
   ResizableHandle,
@@ -71,7 +72,7 @@ const ToolsPanel = instrumentedLazy(() => import('@/components/ide/ToolsPanel').
 
 // Mobile-specific lazy components
 const MobilePreviewPanel = instrumentedLazy(() => import('@/components/mobile/MobilePreviewPanel').then(mod => ({ default: mod.MobilePreviewPanel })), 'MobilePreviewPanel');
-const MobileMoreMenu = instrumentedLazy(() => import('@/components/mobile/MobileMoreMenu').then(mod => ({ default: mod.MobileMoreMenu })), 'MobileMoreMenu');
+import { MobileMoreMenu } from '@/components/mobile/MobileMoreMenu';
 const MobileSecurityPanel = instrumentedLazy(() => import('@/components/mobile/MobileSecurityPanel').then(mod => ({ default: mod.MobileSecurityPanel })), 'MobileSecurityPanel');
 const MobileTabSwitcher = instrumentedLazy(() => import('@/components/mobile/MobileTabSwitcher').then(mod => ({ default: mod.MobileTabSwitcher })), 'MobileTabSwitcher');
 
@@ -134,7 +135,7 @@ interface UnifiedIDELayoutProps {
 
 const SWIPE_THRESHOLD = 50;
 const SWIPE_VELOCITY_THRESHOLD = 0.3;
-const mobileTabOrder: MobileTab[] = ['preview', 'agent', 'deploy', 'more'];
+const mobileTabOrder: MobileTab[] = ['preview', 'agent', 'terminal', 'deploy', 'more'];
 
 function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const deviceType = useDeviceType();
@@ -213,6 +214,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     pendingAIMessage,
     setPendingAIMessage,
     userPrefs,
+    savePrefs,
     creditBalance,
     // New exports
     updateProjectMutation,
@@ -299,6 +301,28 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     mergeResolutions,
     setMergeResolutions,
   } = workspace;
+
+  const { setTheme: setGlobalTheme } = useTheme();
+
+  // Sync userPrefs theme with ThemeProvider on load and changes
+  useEffect(() => {
+    if (userPrefs?.theme === 'dark' || userPrefs?.theme === 'light') {
+      setGlobalTheme(userPrefs.theme as 'dark' | 'light');
+    }
+  }, [userPrefs?.theme, setGlobalTheme]);
+
+  // Auto-run on initial load (like Replit)
+  const hasAutoRun = useRef(false);
+  useEffect(() => {
+    if (hasAutoRun.current) return;
+    if (isRunning) { hasAutoRun.current = true; return; }
+    const filesReady = files && files.length > 0;
+    const projectLoaded = !!project;
+    if (filesReady && projectLoaded) {
+      hasAutoRun.current = true;
+      handleRunStop();
+    }
+  }, [files, project, isRunning, handleRunStop]);
 
   const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
 
@@ -552,7 +576,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'history':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
       case 'settings':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
       case 'extensions':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ExtensionsMarketplace projectId={parseInt(projectId, 10)} className="h-full" /></Suspense>;
       case 'workflows':
@@ -609,7 +633,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'mcp':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'merge-conflicts':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={[]} resolutions={[]} onClose={() => setMobileActiveTab('agent')} onMergeComplete={() => {}} onAbort={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={mergeConflicts} resolutions={mergeResolutions} onClose={() => setMobileActiveTab('agent')} onMergeComplete={() => { setMergeConflicts([]); setMergeResolutions([]); setMobileActiveTab('agent'); }} onAbort={() => { setMergeConflicts([]); setMergeResolutions([]); setMobileActiveTab('agent'); }} onResolutionChange={(updated) => setMergeResolutions(updated)} /></Suspense>;
       case 'monitoring':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'networking':
@@ -627,7 +651,46 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'security-scanner':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
       case 'more':
-        return null;
+        return (
+          <MobileMoreMenu
+            projectId={projectId}
+            isOpen={false}
+            inline={true}
+            onClose={() => setMobileActiveTab('agent')}
+            onOpenGit={() => handleAddOpenTab('git')}
+            onOpenPackages={() => handleAddOpenTab('packages')}
+            onOpenSecrets={() => handleAddOpenTab('secrets')}
+            onOpenDatabase={() => handleAddOpenTab('database')}
+            onOpenSettings={() => handleAddOpenTab('settings')}
+            onOpenDebug={() => handleAddOpenTab('debug')}
+            onOpenCollaboration={() => handleAddOpenTab('collaboration')}
+            onOpenWorkflows={() => handleAddOpenTab('workflows')}
+            onOpenHistory={() => handleAddOpenTab('history')}
+            onOpenCheckpoints={() => handleAddOpenTab('checkpoints')}
+            onOpenExtensions={() => handleAddOpenTab('extensions')}
+            onOpenSecurity={() => handleAddOpenTab('security')}
+            onOpenCommandPalette={() => setShowCommandPalette(true)}
+            onOpenGlobalSearch={() => handleAddOpenTab('search')}
+            onOpenQuickFileSearch={() => setShowQuickFileSearch(true)}
+            onOpenKeyboardShortcuts={() => setShowKeyboardShortcuts(true)}
+            onOpenAutomations={() => handleAddOpenTab('automations')}
+            onOpenConfig={() => handleAddOpenTab('config')}
+            onOpenFeedback={() => handleAddOpenTab('feedback')}
+            onOpenGitHub={() => handleAddOpenTab('github')}
+            onOpenIntegrations={() => handleAddOpenTab('integrations')}
+            onOpenMCP={() => handleAddOpenTab('mcp')}
+            onOpenMergeConflicts={() => handleAddOpenTab('merge-conflicts')}
+            onOpenMonitoring={() => handleAddOpenTab('monitoring')}
+            onOpenNetworking={() => handleAddOpenTab('networking')}
+            onOpenPublishing={() => handleAddOpenTab('publishing')}
+            onOpenSkills={() => handleAddOpenTab('skills')}
+            onOpenSSH={() => handleAddOpenTab('ssh')}
+            onOpenThreads={() => handleAddOpenTab('threads')}
+            onOpenTestRunner={() => handleAddOpenTab('test-runner')}
+            onOpenSecurityScanner={() => handleAddOpenTab('security-scanner')}
+            onOpenBackup={() => handleAddOpenTab('backup')}
+          />
+        );
       default:
         return null;
     }
@@ -671,7 +734,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitDebuggerPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'settings') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
     }
     if (currentTab.id === 'history' || currentTab.id === 'rewind') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} /></Suspense>;
@@ -792,16 +855,19 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       <div className={cn('flex flex-col h-screen w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} data-testid="mobile-layout" data-ide-layout="unified">
         <ReplitMobileHeader
           activeTab={mobileActiveTab}
-          onBack={() => window.history.back()}
+          onBack={() => window.location.href = '/dashboard'}
           onHistory={() => handleAddOpenTab('history')}
           onNewTab={() => setShowQuickFileSearch(true)}
           onMore={() => setShowMobileMoreMenu(true)}
+          isRunning={isRunning}
+          onRunStop={handleRunStop}
+          projectName={projectName}
         />
 
         <div
           className="flex-1 overflow-hidden"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
-          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '3rem' }}
+          style={{ paddingBottom: mobileActiveTab === 'agent' ? '8rem' : '0.5rem' }}
         >
           <div key={mobileActiveTab} className="h-full overflow-auto animate-fade-in">
             {renderMobileContent()}
@@ -837,46 +903,44 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onTabSwitcherOpen={() => setShowTabSwitcher(true)}
         />
 
-        <Suspense fallback={null}>
-          <MobileMoreMenu
-            projectId={projectId}
-            isOpen={showMobileMoreMenu}
-            onClose={() => setShowMobileMoreMenu(false)}
-            onOpenGit={() => { setShowMobileMoreMenu(false); handleAddOpenTab('git'); }}
-            onOpenPackages={() => { setShowMobileMoreMenu(false); handleAddOpenTab('packages'); }}
-            onOpenSecrets={() => { setShowMobileMoreMenu(false); handleAddOpenTab('secrets'); }}
-            onOpenDatabase={() => { setShowMobileMoreMenu(false); handleAddOpenTab('database'); }}
-            onOpenSettings={() => { setShowMobileMoreMenu(false); handleAddOpenTab('settings'); }}
-            onOpenDebug={() => { setShowMobileMoreMenu(false); handleAddOpenTab('debug'); }}
-            onOpenCollaboration={() => { setShowMobileMoreMenu(false); handleAddOpenTab('collaboration'); }}
-            onOpenWorkflows={() => { setShowMobileMoreMenu(false); handleAddOpenTab('workflows'); }}
-            onOpenHistory={() => { setShowMobileMoreMenu(false); handleAddOpenTab('history'); }}
-            onOpenCheckpoints={() => { setShowMobileMoreMenu(false); handleAddOpenTab('checkpoints'); }}
-            onOpenExtensions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('extensions'); }}
-            onOpenSecurity={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security'); }}
-            onOpenCommandPalette={() => { setShowMobileMoreMenu(false); setShowCommandPalette(true); }}
-            onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
-            onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
-            onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
-            onOpenAutomations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('automations'); }}
-            onOpenConfig={() => { setShowMobileMoreMenu(false); handleAddOpenTab('config'); }}
-            onOpenFeedback={() => { setShowMobileMoreMenu(false); handleAddOpenTab('feedback'); }}
-            onOpenGitHub={() => { setShowMobileMoreMenu(false); handleAddOpenTab('github'); }}
-            onOpenIntegrations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('integrations'); }}
-            onOpenMCP={() => { setShowMobileMoreMenu(false); handleAddOpenTab('mcp'); }}
-            onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
-            onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
-            onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
-            onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
-            onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
-            onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
-            onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}
-            onOpenTestRunner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('test-runner'); }}
-            onOpenSecurityScanner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security-scanner'); }}
-            onOpenBackup={() => { setShowMobileMoreMenu(false); handleAddOpenTab('backup'); }}
-            problemsCount={errorsCount}
-          />
-        </Suspense>
+        <MobileMoreMenu
+          projectId={projectId}
+          isOpen={showMobileMoreMenu}
+          onClose={() => setShowMobileMoreMenu(false)}
+          onOpenGit={() => { setShowMobileMoreMenu(false); handleAddOpenTab('git'); }}
+          onOpenPackages={() => { setShowMobileMoreMenu(false); handleAddOpenTab('packages'); }}
+          onOpenSecrets={() => { setShowMobileMoreMenu(false); handleAddOpenTab('secrets'); }}
+          onOpenDatabase={() => { setShowMobileMoreMenu(false); handleAddOpenTab('database'); }}
+          onOpenSettings={() => { setShowMobileMoreMenu(false); handleAddOpenTab('settings'); }}
+          onOpenDebug={() => { setShowMobileMoreMenu(false); handleAddOpenTab('debug'); }}
+          onOpenCollaboration={() => { setShowMobileMoreMenu(false); handleAddOpenTab('collaboration'); }}
+          onOpenWorkflows={() => { setShowMobileMoreMenu(false); handleAddOpenTab('workflows'); }}
+          onOpenHistory={() => { setShowMobileMoreMenu(false); handleAddOpenTab('history'); }}
+          onOpenCheckpoints={() => { setShowMobileMoreMenu(false); handleAddOpenTab('checkpoints'); }}
+          onOpenExtensions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('extensions'); }}
+          onOpenSecurity={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security'); }}
+          onOpenCommandPalette={() => { setShowMobileMoreMenu(false); setShowCommandPalette(true); }}
+          onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
+          onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
+          onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
+          onOpenAutomations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('automations'); }}
+          onOpenConfig={() => { setShowMobileMoreMenu(false); handleAddOpenTab('config'); }}
+          onOpenFeedback={() => { setShowMobileMoreMenu(false); handleAddOpenTab('feedback'); }}
+          onOpenGitHub={() => { setShowMobileMoreMenu(false); handleAddOpenTab('github'); }}
+          onOpenIntegrations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('integrations'); }}
+          onOpenMCP={() => { setShowMobileMoreMenu(false); handleAddOpenTab('mcp'); }}
+          onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
+          onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
+          onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
+          onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
+          onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
+          onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
+          onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}
+          onOpenTestRunner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('test-runner'); }}
+          onOpenSecurityScanner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security-scanner'); }}
+          onOpenBackup={() => { setShowMobileMoreMenu(false); handleAddOpenTab('backup'); }}
+          problemsCount={errorsCount}
+        />
 
         <ReplitToolsSheet
           open={showToolsSheet}
@@ -903,21 +967,37 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   if (deviceType === 'tablet') {
     return (
       <div className={cn('flex flex-col h-screen w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} data-testid="tablet-layout" data-ide-layout="unified">
-        <header className="flex items-center justify-between h-12 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setShowFileExplorer(!showFileExplorer)} className="h-9 w-9">
+        <header className="flex items-center justify-between h-12 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] z-50 relative">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Button variant="ghost" size="icon" onClick={() => setShowFileExplorer(!showFileExplorer)} className="h-9 w-9 shrink-0">
               {showFileExplorer ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
             </Button>
-            <span className="font-medium text-[var(--ide-text)] text-[13px]">{projectName}</span>
+            <span className="font-medium text-[var(--ide-text)] text-[13px] truncate">{projectName}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              size="sm"
+              className={cn(
+                'h-8 px-4 text-[11px] font-semibold rounded-full gap-1.5 transition-all',
+                isRunning
+                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+                  : 'bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525] shadow-[0_0_8px_rgba(12,206,107,0.3)]'
+              )}
+              onClick={handleRunStop}
+            >
+              {isRunning ? (
+                <><Layers className="w-3 h-3" /> Stop</>
+              ) : (
+                <><Zap className="w-3 h-3" /> Run</>
+              )}
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setShowToolsSheet(true)} className="h-9 w-9">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto" style={{ paddingBottom: mobileActiveTab === 'agent' ? '8rem' : '3.5rem' }}>
+        <div className="flex-1 overflow-auto" style={{ paddingBottom: mobileActiveTab === 'agent' ? '8.5rem' : '0.5rem' }}>
           {renderMobileContent()}
         </div>
 
@@ -948,6 +1028,44 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onOpenTabSelect={handleSelectOpenTab}
           onAddTab={() => setShowToolsSheet(true)}
           onTabSwitcherOpen={() => setShowTabSwitcher(true)}
+        />
+
+        <MobileMoreMenu
+          projectId={projectId}
+          isOpen={showMobileMoreMenu}
+          onClose={() => setShowMobileMoreMenu(false)}
+          onOpenGit={() => { setShowMobileMoreMenu(false); handleAddOpenTab('git'); }}
+          onOpenPackages={() => { setShowMobileMoreMenu(false); handleAddOpenTab('packages'); }}
+          onOpenSecrets={() => { setShowMobileMoreMenu(false); handleAddOpenTab('secrets'); }}
+          onOpenDatabase={() => { setShowMobileMoreMenu(false); handleAddOpenTab('database'); }}
+          onOpenSettings={() => { setShowMobileMoreMenu(false); handleAddOpenTab('settings'); }}
+          onOpenDebug={() => { setShowMobileMoreMenu(false); handleAddOpenTab('debug'); }}
+          onOpenCollaboration={() => { setShowMobileMoreMenu(false); handleAddOpenTab('collaboration'); }}
+          onOpenWorkflows={() => { setShowMobileMoreMenu(false); handleAddOpenTab('workflows'); }}
+          onOpenHistory={() => { setShowMobileMoreMenu(false); handleAddOpenTab('history'); }}
+          onOpenCheckpoints={() => { setShowMobileMoreMenu(false); handleAddOpenTab('checkpoints'); }}
+          onOpenExtensions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('extensions'); }}
+          onOpenSecurity={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security'); }}
+          onOpenCommandPalette={() => { setShowMobileMoreMenu(false); setShowCommandPalette(true); }}
+          onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
+          onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
+          onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
+          onOpenAutomations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('automations'); }}
+          onOpenConfig={() => { setShowMobileMoreMenu(false); handleAddOpenTab('config'); }}
+          onOpenFeedback={() => { setShowMobileMoreMenu(false); handleAddOpenTab('feedback'); }}
+          onOpenGitHub={() => { setShowMobileMoreMenu(false); handleAddOpenTab('github'); }}
+          onOpenIntegrations={() => { setShowMobileMoreMenu(false); handleAddOpenTab('integrations'); }}
+          onOpenMCP={() => { setShowMobileMoreMenu(false); handleAddOpenTab('mcp'); }}
+          onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
+          onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
+          onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
+          onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
+          onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
+          onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
+          onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}
+          onOpenTestRunner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('test-runner'); }}
+          onOpenSecurityScanner={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security-scanner'); }}
+          onOpenBackup={() => { setShowMobileMoreMenu(false); handleAddOpenTab('backup'); }}
         />
 
         <ReplitToolsSheet

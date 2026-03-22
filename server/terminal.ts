@@ -1,5 +1,6 @@
 import * as pty from "node-pty";
 import * as fs from "fs";
+import * as path from "path";
 import { log } from "./index";
 
 interface TerminalSession {
@@ -10,6 +11,7 @@ interface TerminalSession {
   lastActivity: number;
   lastCommand: string;
   selected: boolean;
+  workspaceDir: string;
 }
 
 const sessions = new Map<string, TerminalSession>();
@@ -23,15 +25,69 @@ const SAFE_ENV_KEYS = new Set([
   "NODE_PATH", "RUSTUP_HOME", "CARGO_HOME", "GEM_HOME", "GEM_PATH",
 ]);
 
-function buildSafeEnv(projectId: string, projectEnvVars?: Record<string, string>): Record<string, string> {
+const WORKSPACES_ROOT = path.join(process.cwd(), "project-workspaces");
+
+const materializedProjects = new Set<string>();
+
+export function getProjectWorkspaceDir(projectId: string): string {
+  const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return path.join(WORKSPACES_ROOT, safeId);
+}
+
+function isInsideDir(base: string, target: string): boolean {
+  const resolved = path.resolve(target);
+  const resolvedBase = path.resolve(base);
+  return resolved === resolvedBase || resolved.startsWith(resolvedBase + path.sep);
+}
+
+export async function materializeProjectFiles(
+  projectId: string,
+  getFiles: () => Promise<Array<{ filename: string; content: string | null; isBinary?: boolean }>>,
+  force = false,
+): Promise<string> {
+  const dir = getProjectWorkspaceDir(projectId);
+
+  if (!force && materializedProjects.has(projectId) && fs.existsSync(dir)) {
+    return dir;
+  }
+
+  fs.mkdirSync(dir, { recursive: true });
+
+  const files = await getFiles();
+  let count = 0;
+  for (const file of files) {
+    if (file.isBinary) continue;
+    const filePath = path.join(dir, file.filename);
+    if (!isInsideDir(dir, filePath)) continue;
+    const fileDir = path.dirname(filePath);
+    fs.mkdirSync(fileDir, { recursive: true });
+    fs.writeFileSync(filePath, file.content || "", "utf-8");
+    count++;
+  }
+
+  materializedProjects.add(projectId);
+  log(`Materialized ${count} files for project ${projectId} to ${dir}`, "terminal");
+  return dir;
+}
+
+export function isProjectMaterialized(projectId: string): boolean {
+  return materializedProjects.has(projectId) && fs.existsSync(getProjectWorkspaceDir(projectId));
+}
+
+export function invalidateProjectWorkspace(projectId: string): void {
+  materializedProjects.delete(projectId);
+}
+
+function buildSafeEnv(projectId: string, workspaceDir: string, projectEnvVars?: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = {
     TERM: "xterm-256color",
     COLORTERM: "truecolor",
     PROJECT_ID: projectId,
-    HOME: process.env.HOME || "/home/runner",
+    HOME: workspaceDir,
     TMPDIR: "/tmp",
     LANG: "en_US.UTF-8",
     PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+    WORKSPACE_DIR: workspaceDir,
   };
 
   for (const key of SAFE_ENV_KEYS) {
@@ -57,6 +113,7 @@ export function createTerminalSession(
   projectId: string,
   userId: string,
   sessionId: string,
+  workspaceDir: string,
   projectEnvVars?: Record<string, string>,
 ): pty.IPty {
   const key = sessionKey(projectId, userId, sessionId);
@@ -101,14 +158,16 @@ export function createTerminalSession(
     }
   }
 
+  fs.mkdirSync(workspaceDir, { recursive: true });
+
   const shell = "/bin/bash";
-  const safeEnv = buildSafeEnv(projectId, projectEnvVars);
+  const safeEnv = buildSafeEnv(projectId, workspaceDir, projectEnvVars);
 
   const term = pty.spawn(shell, [], {
     name: "xterm-256color",
     cols: 80,
     rows: 24,
-    cwd: safeEnv.HOME,
+    cwd: workspaceDir,
     env: safeEnv,
   });
 
@@ -120,12 +179,13 @@ export function createTerminalSession(
     lastActivity: Date.now(),
     lastCommand: "",
     selected: true,
+    workspaceDir,
   };
 
   sessions.set(key, session);
   setSessionSelected(projectId, userId, sessionId);
 
-  log(`Terminal session created: ${key} (${sessions.size} active)`, "terminal");
+  log(`Terminal session created: ${key} -> ${workspaceDir} (${sessions.size} active)`, "terminal");
 
   term.onExit(() => {
     sessions.delete(key);
@@ -138,14 +198,21 @@ export function createTerminalSession(
 export function getOrCreateTerminal(
   projectId: string,
   userId: string,
+  workspaceDir: string,
   projectEnvVars?: Record<string, string>,
 ): pty.IPty {
-  return createTerminalSession(projectId, userId, "default", projectEnvVars);
+  return createTerminalSession(projectId, userId, "default", workspaceDir, projectEnvVars);
 }
 
 export function getTerminalSession(projectId: string, userId: string, sessionId: string): TerminalSession | undefined {
   const key = sessionKey(projectId, userId, sessionId);
   return sessions.get(key);
+}
+
+export function getTerminalWorkspaceDir(projectId: string, userId: string, sessionId: string = "default"): string | undefined {
+  const key = sessionKey(projectId, userId, sessionId);
+  const session = sessions.get(key);
+  return session?.workspaceDir;
 }
 
 export function listTerminalSessions(projectId: string, userId: string): Array<{ sessionId: string; lastCommand: string; lastActivity: number; selected: boolean }> {
@@ -254,11 +321,81 @@ function hasChildProcesses(pid: number): boolean {
   }
 }
 
+export function syncFileToWorkspace(projectId: string, filename: string, content: string): void {
+  if (!materializedProjects.has(projectId)) return;
+  const dir = getProjectWorkspaceDir(projectId);
+  if (!fs.existsSync(dir)) return;
+  const filePath = path.join(dir, filename);
+  if (!isInsideDir(dir, filePath)) return;
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, "utf-8");
+  } catch {}
+}
+
+export function deleteFileFromWorkspace(projectId: string, filename: string): void {
+  if (!materializedProjects.has(projectId)) return;
+  const dir = getProjectWorkspaceDir(projectId);
+  if (!fs.existsSync(dir)) return;
+  const filePath = path.join(dir, filename);
+  if (!isInsideDir(dir, filePath)) return;
+  try {
+    fs.unlinkSync(filePath);
+  } catch {}
+}
+
+export function renameFileInWorkspace(projectId: string, oldFilename: string, newFilename: string): void {
+  if (!materializedProjects.has(projectId)) return;
+  const dir = getProjectWorkspaceDir(projectId);
+  if (!fs.existsSync(dir)) return;
+  const oldPath = path.join(dir, oldFilename);
+  const newPath = path.join(dir, newFilename);
+  if (!isInsideDir(dir, oldPath) || !isInsideDir(dir, newPath)) return;
+  try {
+    fs.mkdirSync(path.dirname(newPath), { recursive: true });
+    fs.renameSync(oldPath, newPath);
+  } catch {}
+}
+
+export function readFileFromWorkspace(projectId: string, filename: string): string | null {
+  const dir = getProjectWorkspaceDir(projectId);
+  const filePath = path.join(dir, filename);
+  if (!isInsideDir(dir, filePath)) return null;
+  try {
+    return fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+export function listWorkspaceFiles(projectId: string): Array<{ filename: string; content: string }> {
+  const dir = getProjectWorkspaceDir(projectId);
+  if (!fs.existsSync(dir)) return [];
+  const results: Array<{ filename: string; content: string }> = [];
+  function walk(currentDir: string, prefix: string) {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const fullPath = path.join(currentDir, entry.name);
+      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(fullPath, relativePath);
+      } else if (entry.isFile()) {
+        try {
+          const content = fs.readFileSync(fullPath, "utf-8");
+          results.push({ filename: relativePath, content });
+        } catch {}
+      }
+    }
+  }
+  walk(dir, "");
+  return results;
+}
+
 const IDLE_UNSELECTED_TIMEOUT_MS = 5 * 60 * 1000;
 
 setInterval(() => {
   const now = Date.now();
-  // Collect keys to destroy first to avoid modifying map while iterating
   const toDestroy: string[] = [];
   for (const [key, session] of sessions) {
     if (now - session.lastActivity > SESSION_TIMEOUT_MS) {

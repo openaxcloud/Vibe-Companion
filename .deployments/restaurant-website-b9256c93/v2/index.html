@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Restaurant</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    header, footer { background: #333; color: #fff; text-align: center; padding: 1em 0; }
+    nav ul { list-style: none; padding: 0; }
+    nav ul li { display: inline; margin: 0 10px; }
+    nav ul a { color: #fff; text-decoration: none; }
+    section { padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f4f4f4; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Welcome to Our Restaurant</h1>
+    <nav>
+      <ul>
+        <li><a href="#menu">Menu</a></li>
+        <li><a href="#reserve">Reservations</a></li>
+        <li><a href="#blog">Chef's Blog</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <section id="menu">
+    <h2>Our Menu</h2>
+    <table>
+      <tr><th>Dish</th><th>Price</th></tr>
+      <tr><td>Spaghetti Carbonara</td><td>$12</td></tr>
+      <tr><td>Grilled Salmon</td><td>$20</td></tr>
+      <tr><td>Caesar Salad</td><td>$8</td></tr>
+    </table>
+  </section>
+
+  <section id="reserve">
+    <h2>Make a Reservation</h2>
+    <form id="reservation-form">
+      <label for="name">Name:</label>
+      <input type="text" id="name" name="name" required><br><br>
+      <label for="date">Date:</label>
+      <input type="date" id="date" name="date" required><br><br>
+      <label for="time">Time:</label>
+      <input type="time" id="time" name="time" required><br><br>
+      <label for="party-size">Party Size:</label>
+      <input type="number" id="party-size" name="party-size" min="1" required><br><br>
+      <button type="submit">Reserve</button>
+    </form>
+  </section>
+
+  <section id="blog">
+    <h2>Chef's Blog</h2>
+    <article>
+      <h3>Secrets to Perfect Pasta</h3>
+      <p>Learn the art of cooking perfect pasta! It all starts with salted boiling water...</p>
+    </article>
+    <article>
+      <h3>Top 5 Fresh Ingredients</h3>
+      <p>Good food comes from excellent ingredients like fresh basil and ripe tomatoes...</p>
+    </article>
+  </section>
+
+  <footer>
+    <p>&copy; 2023 Our Restaurant</p>
+  </footer>
+
+  <script>
+    document.getElementById('reservation-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      alert('Reservation submitted!');
+    });
+  </script>
+</body>
+</html>

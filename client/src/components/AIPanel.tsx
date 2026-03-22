@@ -2396,7 +2396,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (!res.ok) throw new Error(data.error || "Image generation failed");
       const imgDataUri = data.image;
       const safeFilename = filename || `generated-${Date.now()}.png`;
-      const content = `Here's the generated image:\n\n![Generated image](${imgDataUri})`;
+      const content = `Here's the generated image:`;
       const inlineImgs: { filename: string; dataUri: string }[] = [{ filename: safeFilename, dataUri: imgDataUri }];
       setMessages((prev) =>
         prev.map((m) => m.id === assistantId ? { ...m, content, inlineImages: inlineImgs } : m)
@@ -3123,161 +3123,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   return (
     <div className="flex flex-col h-full bg-[var(--ide-panel)]">
-      <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
-        <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-md flex items-center justify-center ring-1 ${
-            topMode === "plan"
-              ? "bg-gradient-to-br from-[#F59E0B]/30 to-[#F59E0B]/10 ring-[#F59E0B]/20"
-              : "bg-gradient-to-br from-[#7C65CB]/30 to-[#7C65CB]/10 ring-[#7C65CB]/20"
-          }`}>
-            {topMode === "plan"
-              ? <Map className="w-3.5 h-3.5 text-[#F59E0B]" />
-              : <Sparkles className="w-3.5 h-3.5 text-[#7C65CB]" />
-            }
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-semibold text-[var(--ide-text)] tracking-tight">
-              {topMode === "plan" ? "Plan" : "Agent"}
-            </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
-                  <ModelIcon className="w-2.5 h-2.5" />
-                  {model === "openrouter" ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter") : modelInfo.name}
-                  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
-                {([
-                  { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles, byokOnly: false },
-                  { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap, byokOnly: false },
-                  { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap, byokOnly: false },
-                  { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe, byokOnly: false },
-                  { key: "perplexity" as AIModel, name: "Perplexity", badge: "Search AI (BYOK)", color: "#20808D", icon: Search, byokOnly: true },
-                  { key: "mistral" as AIModel, name: "Mistral", badge: "Mistral AI (BYOK)", color: "#FF7000", icon: Zap, byokOnly: true },
-                ]).filter(m => {
-                  if (!m.byokOnly) return true;
-                  const cred = getCredLabel(m.key);
-                  return !cred.isManaged || (credentialModes[m.key]?.hasApiKey);
-                }).map(m => {
-                  const cred = getCredLabel(m.key);
-                  const MdlIcon = m.icon;
-                  return (
-                    <DropdownMenuItem key={m.key} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setModel(m.key); if (m.key === "openrouter") setShowOpenrouterPicker(true); }} data-testid={`model-${m.key}`}>
-                      <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${m.color}15` }}>
-                        <MdlIcon className="w-3 h-3" style={{ color: m.color }} />
-                      </div>
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <span className="font-medium">{m.name}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-[var(--ide-text-muted)]">{m.badge}</span>
-                          {projectId && (
-                            <span className={`text-[9px] px-1 rounded ${cred.isManaged ? "bg-[#0079F2]/10 text-[#0079F2]" : "bg-[#0CCE6B]/10 text-[#0CCE6B]"}`} data-testid={`cred-label-${m.key}`}>
-                              {cred.isManaged ? "E-Code managed" : "Your key"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {model === m.key && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {model === "openrouter" && (
-              <Popover open={showOpenrouterPicker} onOpenChange={setShowOpenrouterPicker}>
-                <PopoverTrigger asChild>
-                  <button
-                    className="flex items-center gap-1 text-[9px] px-1 py-0.5 rounded bg-[#E44D26]/10 text-[#E44D26] hover:opacity-80 transition-opacity"
-                    data-testid="button-openrouter-model-picker"
-                  >
-                    <Settings2 className="w-2.5 h-2.5" />
-                    Model
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-72 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
-                  <div className="p-2 border-b border-[var(--ide-border)]">
-                    <div className="relative">
-                      <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-[var(--ide-text-muted)]" />
-                      <input
-                        type="text"
-                        placeholder="Search models..."
-                        value={openrouterSearch}
-                        onChange={(e) => setOpenrouterSearch(e.target.value)}
-                        className="w-full pl-7 pr-2 py-1.5 text-xs bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] outline-none focus:border-[#E44D26]/50"
-                        data-testid="input-openrouter-search"
-                      />
-                    </div>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto p-1">
-                    {openrouterLoading ? (
-                      <div className="flex items-center justify-center py-6 text-xs text-[var(--ide-text-muted)]">
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Loading models...
-                      </div>
-                    ) : openrouterError ? (
-                      <div className="py-4 text-center text-xs text-[var(--ide-text-muted)]">
-                        <p className="text-red-400 mb-2">{openrouterError}</p>
-                        <button
-                          className="px-2 py-1 rounded bg-[var(--ide-surface)] hover:bg-[var(--ide-border)] text-[var(--ide-text)] text-[10px]"
-                          onClick={() => {
-                            setOpenrouterError(null);
-                            setOpenrouterLoading(true);
-                            fetch("/api/ai/openrouter/models", { credentials: "include" })
-                              .then(r => { if (!r.ok) throw new Error("Failed to load models"); return r.json(); })
-                              .then(data => { if (data?.models) setOpenrouterModels(data.models); else setOpenrouterError("No models returned"); })
-                              .catch(err => setOpenrouterError(err.message || "Failed to load models"))
-                              .finally(() => setOpenrouterLoading(false));
-                          }}
-                          data-testid="button-openrouter-retry"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    ) : openrouterModels.length === 0 ? (
-                      <div className="py-6 text-center text-xs text-[var(--ide-text-muted)]">
-                        No models available. Check your OpenRouter API key.
-                      </div>
-                    ) : (
-                      openrouterModels
-                        .filter(m => {
-                          if (!openrouterSearch.trim()) return true;
-                          const q = openrouterSearch.toLowerCase();
-                          return m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q);
-                        })
-                        .slice(0, 50)
-                        .map(m => (
-                          <button
-                            key={m.id}
-                            className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-[var(--ide-surface)] transition-colors flex items-center gap-2 ${openrouterModel === m.id ? "bg-[var(--ide-surface)]" : ""}`}
-                            onClick={() => { setOpenrouterModel(m.id); setShowOpenrouterPicker(false); }}
-                            title={m.description}
-                            data-testid={`openrouter-model-${m.id.replace(/\//g, "-")}`}
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-[var(--ide-text)] truncate">
-                                {m.name}
-                              </div>
-                              <div className="text-[10px] text-[var(--ide-text-muted)] truncate">{m.id}</div>
-                            </div>
-                            {m.context_length > 0 && (
-                              <span className="text-[9px] text-[var(--ide-text-muted)] whitespace-nowrap">{Math.round(m.context_length / 1000)}k</span>
-                            )}
-                            {openrouterModel === m.id && <Check className="w-3 h-3 text-[#0CCE6B] flex-shrink-0" />}
-                          </button>
-                        ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between px-3 min-h-10 py-1.5 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0 gap-x-1 gap-y-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap min-w-0">
           {projectId && (
             ecodeStatus.exists ? (
               <button
-                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] hover:opacity-80 transition-opacity"
+                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] hover:opacity-80 transition-opacity whitespace-nowrap"
                 onClick={() => {
                   if (ecodeStatus.fileId && files) {
                     const f = files.find(f => f.filename === "ecode.md");
@@ -3307,7 +3158,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             <Popover>
               <PopoverTrigger asChild>
                 <button
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
                   style={{ color: TOP_AGENT_MODE_LABELS[topAgentMode].color, backgroundColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}15` }}
                   data-testid="button-agent-mode-select"
                 >
@@ -3582,7 +3433,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       {topMode === "build" && mode === "agent" && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b text-[10px] shrink-0"
+        <div className="flex items-center gap-2 px-3 py-2 border-b text-[10px] shrink-0 flex-wrap"
           style={{
             borderColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}15`,
             background: `linear-gradient(to right, ${TOP_AGENT_MODE_LABELS[topAgentMode].color}10, ${TOP_AGENT_MODE_LABELS[topAgentMode].color}05)`,
@@ -4203,6 +4054,51 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   <Hammer className="w-3 h-3" />
                   Build
                 </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
+                      <ModelIcon className="w-2.5 h-2.5" />
+                      {model === "openrouter" ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter") : modelInfo.name}
+                      <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                    {([
+                      { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles, byokOnly: false },
+                      { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap, byokOnly: false },
+                      { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap, byokOnly: false },
+                      { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe, byokOnly: false },
+                      { key: "perplexity" as AIModel, name: "Perplexity", badge: "Search AI (BYOK)", color: "#20808D", icon: Search, byokOnly: true },
+                      { key: "mistral" as AIModel, name: "Mistral", badge: "Mistral AI (BYOK)", color: "#FF7000", icon: Zap, byokOnly: true },
+                    ]).filter(m => {
+                      if (!m.byokOnly) return true;
+                      const cred = getCredLabel(m.key);
+                      return !cred.isManaged || (credentialModes[m.key]?.hasApiKey);
+                    }).map(m => {
+                      const cred = getCredLabel(m.key);
+                      const MdlIcon = m.icon;
+                      return (
+                        <DropdownMenuItem key={m.key} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setModel(m.key); if (m.key === "openrouter") setShowOpenrouterPicker(true); }} data-testid={`model-${m.key}`}>
+                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${m.color}15` }}>
+                            <MdlIcon className="w-3 h-3" style={{ color: m.color }} />
+                          </div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="font-medium">{m.name}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-[var(--ide-text-muted)]">{m.badge}</span>
+                              {projectId && (
+                                <span className={`text-[9px] px-1 rounded ${cred.isManaged ? "bg-[#0079F2]/10 text-[#0079F2]" : "bg-[#0CCE6B]/10 text-[#0CCE6B]"}`} data-testid={`cred-label-${m.key}`}>
+                                  {cred.isManaged ? "E-Code managed" : "Your key"}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {model === m.key && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <div className={`relative rounded-md ${topMode === "plan" ? "p-[1px]" : ""}`}
                   style={topMode === "plan" ? {
                     background: "linear-gradient(135deg, #F59E0B, #EF4444, #8B5CF6, #0079F2, #F59E0B)",

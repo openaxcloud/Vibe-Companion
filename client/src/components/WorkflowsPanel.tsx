@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Loader2, Plus, X, Play, ChevronDown, ChevronRight, CheckCircle, XCircle,
-  Clock, Trash2, GripVertical, RotateCcw, GitMerge, SkipForward, Layers, Zap
+  Clock, Trash2, GripVertical, RotateCcw, GitMerge, SkipForward, Layers, Zap, Terminal
 } from "lucide-react";
 
 interface WorkflowsPanelProps {
@@ -76,6 +76,7 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
   const [newStepTaskType, setNewStepTaskType] = useState("shell");
   const [showRuns, setShowRuns] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const [dragWorkflowId, setDragWorkflowId] = useState<string | null>(null);
@@ -479,13 +480,37 @@ export default function WorkflowsPanel({ projectId, onClose }: WorkflowsPanelPro
                             {run.durationMs && <span className="text-[8px] text-[var(--ide-text-muted)]">{run.durationMs}ms</span>}
                             <span className="text-[8px] text-[var(--ide-text-muted)] ml-auto">{new Date(run.startedAt).toLocaleString()}</span>
                           </div>
-                          {run.stepResults && run.stepResults.map((sr, i) => (
-                            <div key={i} className="flex items-start gap-1.5 pl-2 py-0.5">
-                              {getStepStatusIcon(sr.status)}
-                              <span className="text-[8px] text-[var(--ide-text)] flex-1">{sr.name}</span>
-                              {sr.durationMs > 0 && <span className="text-[7px] text-[var(--ide-text-muted)]">{sr.durationMs}ms</span>}
-                            </div>
-                          ))}
+                          {run.stepResults && run.stepResults.map((sr, i) => {
+                            const stepKey = `${run.id}-${i}`;
+                            const isExpanded = expandedStepId === stepKey;
+                            const hasOutput = (sr.stdout && sr.stdout.trim()) || (sr.stderr && sr.stderr.trim());
+                            return (
+                              <div key={i}>
+                                <div
+                                  className={`flex items-start gap-1.5 pl-2 py-0.5 ${hasOutput ? 'cursor-pointer hover:bg-[var(--ide-surface)]/30 rounded' : ''}`}
+                                  onClick={() => hasOutput && setExpandedStepId(isExpanded ? null : stepKey)}
+                                  data-testid={`step-result-${i}`}
+                                >
+                                  {getStepStatusIcon(sr.status)}
+                                  <span className="text-[8px] text-[var(--ide-text)] flex-1">{sr.name}</span>
+                                  {hasOutput && (
+                                    <Terminal className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+                                  )}
+                                  {sr.durationMs > 0 && <span className="text-[7px] text-[var(--ide-text-muted)]">{sr.durationMs}ms</span>}
+                                </div>
+                                {isExpanded && hasOutput && (
+                                  <div className="ml-5 mt-0.5 mb-1 p-1.5 rounded bg-black/30 border border-[var(--ide-border)]/50 max-h-32 overflow-y-auto">
+                                    {sr.stdout && sr.stdout.trim() && (
+                                      <pre className="text-[7px] text-[var(--ide-text-muted)] font-mono whitespace-pre-wrap break-all">{sr.stdout.trim()}</pre>
+                                    )}
+                                    {sr.stderr && sr.stderr.trim() && (
+                                      <pre className="text-[7px] text-red-400/80 font-mono whitespace-pre-wrap break-all mt-0.5">{sr.stderr.trim()}</pre>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ))}
                     </div>

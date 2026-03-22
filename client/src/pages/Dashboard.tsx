@@ -198,11 +198,7 @@ const APP_CATEGORIES = [
 
 function ECodeLogo({ size = 22 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-      <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-      <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-    </svg>
+    <img src="/logo.png" alt="E-Code" width={size} height={size} className="rounded" style={{ objectFit: 'contain' }} />
   );
 }
 
@@ -544,13 +540,13 @@ export default function Dashboard() {
         return;
       }
       const decompressed = LZString.decompressFromEncodedURIComponent(compressedPrompt);
-      if (!decompressed) {
-        toast({ title: "Invalid link", description: "Failed to decompress the prompt. The link may be malformed.", variant: "destructive" });
+      const promptText = decompressed || decodeURIComponent(compressedPrompt);
+      if (!promptText) {
         window.history.replaceState({}, "", "/dashboard");
         return;
       }
-      const outputType = stack === "design" ? "design" : "web";
-      setAiPrompt(decompressed);
+      const outputType = params.get("outputType") || (stack === "design" ? "design" : "web");
+      setAiPrompt(promptText);
       if (outputType !== "web") {
         setSelectedCategory(outputType);
       }
@@ -711,7 +707,7 @@ export default function Dashboard() {
     { icon: Compass, label: "Templates", action: () => setDialogOpen(true), testId: "nav-templates" },
     { icon: Box, label: "Frameworks", action: () => setLocation("/frameworks"), testId: "nav-frameworks" },
     { icon: Link2, label: "Open in E-Code", action: () => setLocation("/open"), testId: "nav-open-in-ecode" },
-    { icon: MessageSquare, label: "Community", action: () => toast({ title: "Community", description: "Community forum coming soon." }), testId: "nav-community-link" },
+    { icon: MessageSquare, label: "Community", action: () => setLocation("/community"), testId: "nav-community-link" },
   ];
 
   const mobileHomeContent = (
@@ -1169,7 +1165,7 @@ export default function Dashboard() {
           {mobileTab === "notifications" && mobileNotificationsContent}
           {mobileTab === "profile" && mobileProfileContent}
 
-          <div className="flex items-stretch h-[56px] bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40 mobile-safe-bottom" data-testid="mobile-dashboard-nav">
+          <div className="flex items-stretch bg-[var(--ide-bg)] border-t border-[var(--ide-border)] shrink-0 z-40" style={{ minHeight: '56px', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} data-testid="mobile-dashboard-nav">
             {([
               { id: "home" as const, icon: Home, label: "Home" },
               { id: "projects" as const, icon: FileCode, label: "My Projects" },
@@ -1514,10 +1510,10 @@ export default function Dashboard() {
             ))}
             <div className="!mt-4 pt-3 border-t border-[var(--ide-border)]/40">
               <p className="px-3 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2">Resources</p>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => toast({ title: "Documentation", description: "Documentation coming soon." })} data-testid="nav-docs">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => setLocation("/docs")} data-testid="nav-docs">
                 <BookOpen className="w-3.5 h-3.5" /> Docs
               </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => toast({ title: "Help", description: "Help center coming soon." })} data-testid="nav-help">
+              <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] text-[var(--ide-text-muted)] hover:bg-[var(--ide-panel)]/50 hover:text-[var(--ide-text-secondary)] transition-colors" onClick={() => setLocation("/help")} data-testid="nav-help">
                 <HelpCircle className="w-3.5 h-3.5" /> Help
               </button>
             </div>
@@ -2224,11 +2220,7 @@ export default function Dashboard() {
             {onboardingStep === 0 && (
               <div className="p-8 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#F26522]/20 to-[#F26522]/5 border border-[#F26522]/20 flex items-center justify-center mx-auto mb-6">
-                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                    <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="#F26522"/>
-                    <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="#F26522"/>
-                    <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="#F26522"/>
-                  </svg>
+                  <img src="/logo.png" alt="E-Code" width={32} height={32} className="rounded" style={{ objectFit: 'contain' }} />
                 </div>
                 <h2 className="text-xl font-bold text-[var(--ide-text)] mb-2" data-testid="text-onboarding-welcome">Welcome to E-Code!</h2>
                 <p className="text-sm text-[var(--ide-text-secondary)] mb-6 leading-relaxed">Your cloud IDE for building, running, and deploying code from anywhere. Let's get you started in 30 seconds.</p>

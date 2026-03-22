@@ -1,6 +1,14 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+
+/** Safely extract a query parameter as string, handling ParsedQs union type */
+function qstr(val: unknown): string {
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return String(val[0] ?? '');
+  return '';
+}
+
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import session from "express-session";
@@ -17,7 +25,8 @@ import { executeCode, sendStdinToProcess, killInteractiveProcess, resolveRunComm
 import { getProjectConfig, parseReplitConfig, serializeReplitConfig, getEnvironmentMetadata, type ReplitConfig } from "./configParser";
 import { parseReplitNix, serializeReplitNix } from "./nixParser";
 import { executionPool } from "./executionPool";
-import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity } from "./terminal";
+import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity, materializeProjectFiles as materializeTerminalFiles, getProjectWorkspaceDir, invalidateProjectWorkspace, syncFileToWorkspace, deleteFileFromWorkspace, renameFileInWorkspace, listWorkspaceFiles, destroyProjectTerminals } from "./terminal";
+import { createDebugSession, connectToInspector, handleDebugCommand, getDebugSession, cleanupSession, getInspectPort } from "./debugger";
 import { log } from "./index";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "./email";
 import { buildAndDeploy, buildAndDeployMultiArtifact, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess, shutdownAllProcesses, cleanupProjectProcesses, setProcessLogCallback } from "./deploymentEngine";
@@ -878,7 +887,7 @@ function resolveTopAgentMode(body: any, userPlan: string): { modelId: string; ma
   } else {
     effectiveAgentMode = turbo ? "turbo" : tier;
     modelId = (turbo ? AGENT_MODE_MODELS.turbo : AGENT_MODE_MODELS[tier])?.[selectedModel] || AGENT_MODE_MODELS.economy[selectedModel] || "claude-sonnet-4-6";
-    maxTokens = turbo ? 32768 : (tier === "power" ? 16384 : 16384);
+    maxTokens = turbo ? 16384 : (tier === "power" ? 16384 : 16384);
   }
 
   if (effectiveAgentMode === "turbo" && (userPlan === "free" || !userPlan)) {
@@ -1749,7 +1758,7 @@ export async function registerRoutes(
 
   app.get("/api/billing/history", requireAuth, async (req: Request, res: Response) => {
     try {
-      const months = Math.min(parseInt(req.query.months as string) || 6, 12);
+      const months = Math.min(parseInt(qstr(req.query.months)) || 6, 12);
       const history = await storage.getBillingHistory(req.session.userId!, months);
       return res.json({ history });
     } catch (err) {
@@ -1923,7 +1932,9 @@ export async function registerRoutes(
     const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/github/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
-    const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
+    const returnTo = req.headers.referer || "/dashboard";
+    req.session.githubReturnTo = returnTo;
+    const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email,repo&state=${state}`;
     return res.redirect(url);
   });
 
@@ -1965,7 +1976,9 @@ export async function registerRoutes(
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "github", req.headers["user-agent"] || null);
-      return res.redirect("/dashboard");
+      const returnTo = req.session.githubReturnTo || "/dashboard";
+      delete req.session.githubReturnTo;
+      return res.redirect(returnTo);
     } catch {
       return res.redirect("/auth?error=github_failed");
     }
@@ -2396,7 +2409,7 @@ export async function registerRoutes(
         fontSize: z.number().int().min(10).max(24).optional(),
         tabSize: z.number().int().min(1).max(8).optional(),
         wordWrap: z.boolean().optional(),
-        theme: z.enum(["dark", "light"]).optional(),
+        theme: z.string().optional(),
         activeThemeId: z.string().nullable().optional(),
         agentToolsConfig: z.object({
           liteMode: z.boolean().optional(),
@@ -2711,8 +2724,8 @@ export async function registerRoutes(
 
   app.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(qstr(req.query.limit)) || 50;
+      const offset = parseInt(qstr(req.query.offset)) || 0;
       const { users: userList, total } = await storage.getAllUsers(limit, offset);
       const safeUsers = userList.map(u => ({
         id: u.id, email: u.email, displayName: u.displayName, avatarUrl: u.avatarUrl,
@@ -2786,7 +2799,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/users/:id/activity", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(qstr(req.query.limit)) || 50;
       const history = await storage.getLoginHistory(req.params.id, limit);
       return res.json(history);
     } catch {
@@ -2796,8 +2809,8 @@ export async function registerRoutes(
 
   app.get("/api/admin/analytics", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const event = req.query.event as string | undefined;
-      const limit = parseInt(req.query.limit as string) || 100;
+      const event = qstr(req.query.event) || undefined;
+      const limit = parseInt(qstr(req.query.limit)) || 100;
       const events = await storage.getAnalytics({ event, limit });
       return res.json(events);
     } catch {
@@ -4246,7 +4259,7 @@ export async function registerRoutes(
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const days = parseInt(req.query.days as string) || 30;
+      const days = parseInt(qstr(req.query.days)) || 30;
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       const summary = await storage.getDeploymentAnalyticsSummary(project.id, since);
       return res.json(summary);
@@ -4531,7 +4544,7 @@ export async function registerRoutes(
   app.get("/api/projects/:id/commits", requireAuth, async (req: Request, res: Response) => {
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const branch = (req.query.branch as string) || "main";
+      const branch = qstr(req.query.branch) || "main";
       const commitList = await storage.getCommits(req.params.id, branch);
       return res.json(commitList);
     } catch {
@@ -4574,8 +4587,8 @@ export async function registerRoutes(
       if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const file = await storage.getFile(req.params.fileId);
       if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
+      const page = Math.max(1, parseInt(qstr(req.query.page)) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(qstr(req.query.pageSize)) || 50));
       const totalVersions = await storage.getFileVersionCount(file.id);
       const offset = (page - 1) * pageSize;
       const versions = await storage.getFileVersions(file.id, pageSize, offset);
@@ -4636,8 +4649,8 @@ export async function registerRoutes(
       const projectFiles = await storage.getFiles(project.id);
       const file = projectFiles.find(f => f.filename === filename);
       if (!file) return res.json({ entries: [], pagination: { page: 1, pageSize: 50, totalVersions: 0, totalPages: 0, hasMore: false } });
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize as string) || 50));
+      const page = Math.max(1, parseInt(qstr(req.query.page)) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(qstr(req.query.pageSize)) || 50));
       const totalVersions = await storage.getFileVersionCount(file.id);
       const offset = (page - 1) * pageSize;
       const versions = await storage.getFileVersions(file.id, pageSize, offset);
@@ -4872,6 +4885,41 @@ export async function registerRoutes(
     return res.json(projectList);
   });
 
+  async function createDefaultWorkflow(projectId: string, language: string): Promise<void> {
+    try {
+      const runCommands: Record<string, string> = {
+        javascript: "npm install && npm start",
+        typescript: "npm install && npm start",
+        python: "pip install -r requirements.txt 2>/dev/null; python3 main.py",
+        go: "go run .",
+        rust: "cargo run",
+        java: "javac Main.java && java Main",
+        cpp: "g++ -o main main.cpp && ./main",
+        ruby: "ruby main.rb",
+        bash: "bash main.sh",
+      };
+      const cmd = runCommands[language] || "npm install && npm start";
+      const workflow = await storage.createWorkflow({
+        projectId,
+        name: "Run",
+        triggerEvent: "manual",
+        executionMode: "sequential",
+        enabled: true,
+      });
+      await storage.createWorkflowStep({
+        workflowId: workflow.id,
+        name: "Start",
+        command: cmd,
+        taskType: "shell",
+        orderIndex: 0,
+        continueOnError: false,
+      });
+      await storage.updateProject(projectId, { selectedWorkflowId: workflow.id });
+    } catch (err) {
+      console.error("[createDefaultWorkflow] Error:", err);
+    }
+  }
+
   app.post("/api/projects", requireAuth, async (req: Request, res: Response) => {
     try {
       const projectCheck = await storage.checkProjectLimit(req.session.userId!);
@@ -4906,7 +4954,9 @@ export async function registerRoutes(
         entryFile: null,
         settings: {},
       });
-      return res.status(201).json(project);
+      await createDefaultWorkflow(project.id, data.language || "javascript");
+      const updatedProject = await storage.getProject(project.id);
+      return res.status(201).json(updatedProject || project);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
@@ -4940,7 +4990,7 @@ export async function registerRoutes(
 
   app.get("/api/artifact-templates", async (req: Request, res: Response) => {
     try {
-      const outputType = req.query.outputType as string | undefined;
+      const outputType = qstr(req.query.outputType) || undefined;
       const templates = await storage.getArtifactTemplates(outputType);
       return res.json(templates);
     } catch {
@@ -5109,6 +5159,7 @@ export async function registerRoutes(
         });
       }
 
+      await createDefaultWorkflow(project.id, template.language);
       const updatedProject = await storage.getProject(project.id);
       return res.status(201).json(updatedProject || project);
     } catch (error: any) {
@@ -5157,6 +5208,8 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found or not owned" });
     }
     await cleanupProjectProcesses(req.params.id);
+    destroyProjectTerminals(req.params.id);
+    invalidateProjectWorkspace(req.params.id);
     return res.json({ message: "Project moved to trash" });
   });
 
@@ -5236,6 +5289,7 @@ export async function registerRoutes(
       }
       const file = await storage.createFile(req.params.projectId, { ...data, filename: safeName });
       storage.updateStorageUsage(req.session.userId!).catch(() => {});
+      if (data.content) syncFileToWorkspace(req.params.projectId, safeName, data.content);
       return res.status(201).json(file);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -5294,6 +5348,7 @@ export async function registerRoutes(
       const oldContent = existingFile.content;
       const file = await storage.updateFileContent(req.params.id, sanitizedContent);
       storage.updateStorageUsage(req.session.userId!).catch(() => {});
+      syncFileToWorkspace(project.id, existingFile.filename, sanitizedContent);
       import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(project.id, "on-save")).catch(() => {});
       if (sanitizedContent !== oldContent && !sanitizedContent.startsWith("data:")) {
         (async () => {
@@ -5315,6 +5370,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid filename" });
       }
       const file = await storage.renameFile(req.params.id, safeName);
+      renameFileInWorkspace(project.id, existingFile.filename, safeName);
       return res.json(file);
     }
     return res.status(400).json({ message: "content or filename required" });
@@ -5331,6 +5387,7 @@ export async function registerRoutes(
     }
     await storage.deleteFile(req.params.id);
     storage.updateStorageUsage(req.session.userId!).catch(() => {});
+    deleteFileFromWorkspace(project.id, existingFile.filename);
     return res.json({ message: "File deleted" });
   });
 
@@ -5669,8 +5726,8 @@ export async function registerRoutes(
   app.get("/api/notifications", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.session.userId!;
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(parseInt(qstr(req.query.limit)) || 50, 100);
+      const offset = parseInt(qstr(req.query.offset)) || 0;
       const notifs = await storage.getNotifications(userId, limit, offset);
       const unreadCount = await storage.getUnreadNotificationCount(userId);
       return res.json({ notifications: notifs, unreadCount });
@@ -6293,6 +6350,52 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/projects/:projectId/debug-run", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.userId !== req.session.userId!) return res.status(403).json({ message: "Access denied" });
+
+    const files = await storage.getFilesByProject(project.id);
+    if (!files || files.length === 0) return res.status(400).json({ message: "No files in project" });
+
+    const inspectPort = getInspectPort(project.id);
+    const entryFile = files.find((f: any) => f.filename === "index.js" || f.filename === "main.js" || f.filename === "app.js" || f.filename === "server.js")
+      || files.find((f: any) => f.filename?.endsWith(".js"));
+
+    if (!entryFile) return res.status(400).json({ message: "No JavaScript file found to debug" });
+
+    const sandboxDir = `/tmp/sandbox/${project.id}`;
+    try {
+      const { mkdir: mkdirP, writeFile: writeF } = await import("fs/promises");
+      await mkdirP(sandboxDir, { recursive: true });
+      for (const f of files) {
+        if (f.content !== null && f.content !== undefined) {
+          const filePath = `${sandboxDir}/${f.filename}`;
+          const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+          if (dir !== sandboxDir) await mkdirP(dir, { recursive: true });
+          await writeF(filePath, f.content);
+        }
+      }
+    } catch (e: any) {
+      return res.status(500).json({ message: `Failed to prepare sandbox: ${e.message}` });
+    }
+
+    killInteractiveProcess(project.id);
+
+    const { spawn } = await import("child_process");
+    const proc = spawn("node", [`--inspect=0.0.0.0:${inspectPort}`, entryFile.filename], {
+      cwd: sandboxDir,
+      env: { ...process.env, NODE_ENV: "development" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    proc.on("close", () => {
+      log(`Debug process exited for project ${project.id}`, "debugger");
+    });
+
+    res.json({ status: "started", inspectPort, entryFile: entryFile.filename });
+  });
+
   app.get("/api/projects/:projectId/runs", requireAuth, async (req: Request, res: Response) => {
     const runList = await storage.getRunsByProject(req.params.projectId);
     return res.json(runList);
@@ -6302,7 +6405,7 @@ export async function registerRoutes(
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
     if (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-    const limit = parseInt(req.query.limit as string) || 50;
+    const limit = parseInt(qstr(req.query.limit)) || 50;
     const runs = await storage.getConsoleRunsByProject(project.id, limit);
     return res.json(runs);
   });
@@ -6346,7 +6449,7 @@ export async function registerRoutes(
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
     if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-    const excludeRunId = req.query.excludeRunId as string | undefined;
+    const excludeRunId = qstr(req.query.excludeRunId) || undefined;
     await storage.clearConsoleRuns(project.id, excludeRunId);
     return res.json({ success: true });
   });
@@ -6363,7 +6466,7 @@ export async function registerRoutes(
     if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(projectId, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
-    const since = parseInt(req.query.since as string) || 0;
+    const since = parseInt(qstr(req.query.since)) || 0;
     const broadcasts = recentBroadcasts.get(projectId) || [];
     const newMessages = broadcasts
       .filter(b => b.timestamp > since)
@@ -6631,7 +6734,7 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Project not found" });
     }
     try {
-      const branchName = req.query.branch as string | undefined;
+      const branchName = qstr(req.query.branch) || undefined;
       const dbFiles = await storage.getFiles(req.params.projectId);
       await ensureRepoWithPersistence(req.params.projectId, dbFiles.map(f => ({ filename: f.filename, content: f.content })));
       const logs = await gitService.getLog(req.params.projectId, branchName);
@@ -6892,7 +6995,7 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const branchName = (req.query.branch as string) || "main";
+    const branchName = qstr(req.query.branch) || "main";
 
     try {
       const dbFiles = await storage.getFiles(req.params.projectId);
@@ -6909,7 +7012,7 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const branchName = (req.query.branch as string) || "main";
+    const branchName = qstr(req.query.branch) || "main";
     const filename = decodeURIComponent(req.params.filename);
 
     try {
@@ -7528,7 +7631,7 @@ export async function registerRoutes(
     }
     const protocol = req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
     const host = req.headers.host || "localhost:5000";
-    const sessionId = (req.query.sessionId as string) || "default";
+    const sessionId = qstr(req.query.sessionId) || "default";
     const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(project.id)}&sessionId=${encodeURIComponent(sessionId)}`;
     return res.json({ wsUrl, workspaceId: project.id });
   });
@@ -7565,7 +7668,8 @@ export async function registerRoutes(
       const termUser = await storage.getUser(req.session.userId!);
       envVarsMap["REPLIT_USER"] = termUser?.displayName || termUser?.email || req.session.userId!;
 
-      createTerminalSession(project.id, req.session.userId!, sessionId, envVarsMap);
+      const wsDir = await materializeTerminalFiles(project.id, () => storage.getFiles(project.id));
+      createTerminalSession(project.id, req.session.userId!, sessionId, wsDir, envVarsMap);
     } catch (err: any) {
       log(`Failed to pre-create terminal session: ${err.message}`, "terminal");
     }
@@ -7597,6 +7701,35 @@ export async function registerRoutes(
     return res.json({ success: true });
   });
 
+  app.post("/api/workspaces/:projectId/sync-from-terminal", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    try {
+      const wsFiles = listWorkspaceFiles(project.id);
+      if (wsFiles.length === 0) return res.json({ synced: 0 });
+      const dbFiles = await storage.getFiles(project.id);
+      const dbMap = new Map(dbFiles.map(f => [f.filename, f]));
+      let synced = 0;
+      for (const wf of wsFiles) {
+        const existing = dbMap.get(wf.filename);
+        if (existing) {
+          if (existing.content !== wf.content) {
+            await storage.updateFileContent(existing.id, wf.content);
+            synced++;
+          }
+        } else {
+          await storage.createFile(project.id, { filename: wf.filename, content: wf.content });
+          synced++;
+        }
+      }
+      return res.json({ synced, total: wsFiles.length });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Sync failed" });
+    }
+  });
+
   const getWorkspaceForProject = async (req: Request, res: Response): Promise<{ project: any; workspace: any } | null> => {
     const project = await storage.getProject(req.params.projectId);
     if (!project || project.userId !== req.session.userId) {
@@ -7615,7 +7748,7 @@ export async function registerRoutes(
     const ctx = await getWorkspaceForProject(req, res);
     if (!ctx) return;
     try {
-      const path = (req.query.path as string) || "/";
+      const path = qstr(req.query.path) || "/";
       const entries = await runnerClient.fsList(ctx.workspace.id, path);
       return res.json(entries);
     } catch (err: any) {
@@ -7627,7 +7760,7 @@ export async function registerRoutes(
     const ctx = await getWorkspaceForProject(req, res);
     if (!ctx) return;
     try {
-      const path = req.query.path as string;
+      const path = qstr(req.query.path);
       if (!path || !validateRunnerPath(path)) return res.status(400).json({ message: "Invalid path" });
       const content = await runnerClient.fsRead(ctx.workspace.id, path);
       return res.json({ content });
@@ -7702,7 +7835,7 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Workspace not initialized" });
     }
     const isMobile = project.projectType === "mobile-app";
-    const rawPort = parseInt(req.query.port as string);
+    const rawPort = parseInt(qstr(req.query.port));
     const defaultPort = isMobile ? 8081 : 3000;
     const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : defaultPort;
     const url = runnerClient.previewUrl(workspace.id, port);
@@ -7731,6 +7864,64 @@ export async function registerRoutes(
     return res.json({ devUrl, fullDevUrl, devUrlPublic: project.devUrlPublic });
   });
 
+  async function getProjectExtensions(projectId: string): Promise<string[]> {
+    try {
+      const files = await storage.getFiles(projectId);
+      const extFile = files.find(f => f.filename === ".ecode/extensions.json");
+      if (extFile) {
+        const parsed = JSON.parse(extFile.content || "[]");
+        if (Array.isArray(parsed) && parsed.every(e => typeof e === "string")) return parsed;
+      }
+    } catch {}
+    return [];
+  }
+
+  async function saveProjectExtensions(projectId: string, extensions: string[]): Promise<void> {
+    const files = await storage.getFiles(projectId);
+    const extFile = files.find(f => f.filename === ".ecode/extensions.json");
+    const content = JSON.stringify(extensions, null, 2);
+    if (extFile) {
+      await storage.updateFileContent(extFile.id, content);
+    } else {
+      await storage.createFile(projectId, { filename: ".ecode/extensions.json", content });
+    }
+  }
+
+  app.get("/api/projects/:id/extensions", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const extensions = await getProjectExtensions(project.id);
+    return res.json(extensions);
+  });
+
+  app.post("/api/projects/:id/extensions", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const { extensionId } = req.body;
+    if (!extensionId || typeof extensionId !== "string") return res.status(400).json({ message: "extensionId required" });
+    const current = await getProjectExtensions(project.id);
+    if (!current.includes(extensionId)) {
+      current.push(extensionId);
+      await saveProjectExtensions(project.id, current);
+    }
+    return res.json({ message: "Extension installed", extensions: current });
+  });
+
+  app.delete("/api/projects/:id/extensions/:extId", requireAuth, async (req: Request, res: Response) => {
+    const project = await storage.getProject(req.params.id);
+    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    const current = await getProjectExtensions(project.id);
+    const updated = current.filter(e => e !== req.params.extId);
+    await saveProjectExtensions(project.id, updated);
+    return res.json({ message: "Extension removed" });
+  });
+
   app.get("/api/workspaces/:projectId/preview-proxy", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
@@ -7741,9 +7932,9 @@ export async function registerRoutes(
       if (!workspace) {
         return res.status(404).json({ message: "Workspace not initialized" });
       }
-      const rawPort = parseInt(req.query.port as string);
+      const rawPort = parseInt(qstr(req.query.port));
       const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
-      const subpath = (req.query.path as string) || "/";
+      const subpath = qstr(req.query.path) || "/";
       const result = await runnerClient.fetchPreviewContent(workspace.id, port, subpath);
       const isHtml = result.contentType.includes("text/html");
       if (isHtml) {
@@ -7784,7 +7975,7 @@ export async function registerRoutes(
       if (!workspace) {
         return res.status(404).json({ message: "Workspace not initialized" });
       }
-      const rawPort = parseInt(req.query.port as string);
+      const rawPort = parseInt(qstr(req.query.port));
       const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
       const rawPath = req.params.path;
       const subpath = "/" + (Array.isArray(rawPath) ? rawPath.join("/") : rawPath || "");
@@ -12243,6 +12434,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
   const terminalWss = new WebSocketServer({ noServer: true });
   const collabWss = new WebSocketServer({ noServer: true });
   const lspWss = new WebSocketServer({ noServer: true });
+  const debuggerWss = new WebSocketServer({ noServer: true });
 
   setFilePersister(async (fileId: string, content: string) => {
     try {
@@ -12366,6 +12558,29 @@ Based on the search results above, provide a comprehensive answer to the user's 
           socket.destroy();
         });
       });
+    } else if (pathname === "/ws/debugger") {
+      sessionMiddleware(req, {} as any, () => {
+        const url = new URL(req.url || "/", `http://${req.headers.host}`);
+        const projectId = url.searchParams.get("projectId");
+        if (!req.session?.userId || !projectId) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        storage.getProject(projectId).then(async (project) => {
+          if (!project || !(await canAccessProject(req.session.userId, project))) {
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          debuggerWss.handleUpgrade(req, socket, head, (ws) => {
+            debuggerWss.emit("connection", ws, req);
+          });
+        }).catch(() => {
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+        });
+      });
     }
   });
 
@@ -12374,6 +12589,49 @@ Based on the search results above, provide a comprehensive answer to the user's 
     const projectId = url.searchParams.get("projectId") || "";
     const userId = (req as any).session?.userId || "";
     handleLSPConnection(ws, projectId, userId);
+  });
+
+  debuggerWss.on("connection", (ws: WebSocket, req) => {
+    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    const projectId = url.searchParams.get("projectId") || "";
+    const userId = (req as any).session?.userId || "";
+
+    log(`Debugger WS connected for project ${projectId} by user ${userId}`, "debugger");
+
+    const session = createDebugSession(projectId);
+    session.clientWs = ws;
+
+    const inspectPort = getInspectPort(projectId);
+    connectToInspector(session, inspectPort).then((connected) => {
+      ws.send(JSON.stringify({
+        type: connected ? "connected" : "notRunning",
+        inspectPort,
+        message: connected ? "Debugger attached" : "No debuggable process found. Run your project in debug mode first.",
+      }));
+    });
+
+    ws.on("message", (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.command) {
+          handleDebugCommand(session, msg.command, msg.params || {});
+        } else if (msg.type === "reconnect") {
+          connectToInspector(session, inspectPort).then((connected) => {
+            ws.send(JSON.stringify({
+              type: connected ? "connected" : "notRunning",
+              inspectPort,
+            }));
+          });
+        }
+      } catch (e: any) {
+        log(`Debugger WS message error: ${e.message}`, "debugger");
+      }
+    });
+
+    ws.on("close", () => {
+      cleanupSession(session);
+      log(`Debugger WS disconnected for project ${projectId}`, "debugger");
+    });
   });
 
   wss.on("connection", (ws: WebSocket & { isAlive?: boolean; __userId?: string }, req) => {
@@ -12779,7 +13037,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
       envVarsMap["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
       const termUser = await storage.getUser(userId);
       envVarsMap["REPLIT_USER"] = termUser?.displayName || termUser?.email || userId;
-      const term = createTerminalSession(projectId, userId, sessionId, envVarsMap);
+
+      const workspaceDir = await materializeTerminalFiles(
+        projectId,
+        () => storage.getFiles(projectId),
+      );
+      const term = createTerminalSession(projectId, userId, sessionId, workspaceDir, envVarsMap);
       setSessionSelected(projectId, userId, sessionId);
 
       let inputLine = "";
@@ -12965,7 +13228,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
-      const env = req.query.env as string;
+      const env = qstr(req.query.env);
       const { pool } = await import("./db");
       const schema = await ensureProjectSchema(pool, project.id, env);
       const result = await pool.query(
@@ -12987,7 +13250,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       const tableName = req.params.tableName;
       if (!isValidIdentifier(tableName)) return res.status(400).json({ error: "Invalid table name" });
 
-      const env = req.query.env as string;
+      const env = qstr(req.query.env);
       const { pool } = await import("./db");
       const schema = await ensureProjectSchema(pool, project.id, env);
 
@@ -12997,12 +13260,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
       );
       if (tableCheck.rows.length === 0) return res.status(404).json({ error: "Table not found in project schema" });
 
-      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
-      const offset = parseInt(req.query.offset as string) || 0;
-      const sortCol = req.query.sort as string;
-      const sortDir = (req.query.dir as string)?.toUpperCase() === "DESC" ? "DESC" : "ASC";
-      const filterCol = req.query.filterCol as string;
-      const filterVal = req.query.filterVal as string;
+      const limit = Math.min(parseInt(qstr(req.query.limit)) || 100, 500);
+      const offset = parseInt(qstr(req.query.offset)) || 0;
+      const sortCol = qstr(req.query.sort);
+      const sortDir = qstr(req.query.dir)?.toUpperCase() === "DESC" ? "DESC" : "ASC";
+      const filterCol = qstr(req.query.filterCol);
+      const filterVal = qstr(req.query.filterVal);
 
       const colResult = await pool.query(
         `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = $1 AND table_schema = $2 ORDER BY ordinal_position`,
@@ -13062,7 +13325,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       const dbUrl = process.env.DATABASE_URL;
       if (!dbUrl) return res.json({ credentials: {} });
 
-      const env = req.query.env as string;
+      const env = qstr(req.query.env);
       const schema = getProjectSchema(project.id, env);
 
       try {
@@ -13093,7 +13356,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       const project = await storage.getProject(req.params.id);
       if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
-      const env = req.query.env as string;
+      const env = qstr(req.query.env);
       const { pool } = await import("./db");
       const schema = await ensureProjectSchema(pool, project.id, env);
 
@@ -14311,7 +14574,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const scan = (await storage.getProjectScans(req.params.id)).find(s => s.id === req.params.scanId);
       if (!scan) return res.status(404).json({ message: "Scan not found in this project" });
-      const hidden = req.query.hidden === "true" ? true : req.query.hidden === "false" ? false : undefined;
+      const hidden = qstr(req.query.hidden) === "true" ? true : qstr(req.query.hidden) === "false" ? false : undefined;
       const findings = await storage.getScanFindings(req.params.scanId, hidden);
       res.json(findings);
     } catch {
@@ -14809,7 +15072,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const { stat, readFile } = await import("fs/promises");
       try { await stat(obj.storagePath); } catch { return res.status(404).json({ error: "File not found on disk", code: "OBJECT_NOT_FOUND" }); }
 
-      const mode = req.query.mode as string;
+      const mode = qstr(req.query.mode);
       storage.trackBandwidth(req.params.id, obj.sizeBytes).catch(() => {});
 
       if (mode === "text") {
@@ -14860,7 +15123,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
-      const folderPath = sanitizeFolderPath((req.query.folder_path as string) || "");
+      const folderPath = sanitizeFolderPath(qstr(req.query.folder_path) || "");
       const exists = await storage.objectExists(req.params.bucketId, folderPath, decodeURIComponent(req.params.objectName));
       res.json({ exists });
     } catch {
@@ -14942,7 +15205,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ error: "Access denied", code: "FORBIDDEN" });
       if (!await verifyBucketAccess(req.params.bucketId, req.params.id)) return res.status(403).json({ error: "Bucket not accessible", code: "FORBIDDEN" });
-      const folderPath = sanitizeFolderPath((req.query.path as string) || "");
+      const folderPath = sanitizeFolderPath(qstr(req.query.path) || "");
       const allObjects = await storage.getObjectsByFolder(req.params.bucketId, folderPath);
       const foldersOnly = allObjects.filter(obj => obj.mimeType === "application/x-directory");
       res.json(foldersOnly);
@@ -16088,7 +16351,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(qstr(req.query.limit)) || 50;
       const metrics = await storage.getMonitoringMetrics(project.id, limit);
       res.json(metrics);
     } catch (err: any) {
@@ -16222,7 +16485,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const since = req.query.since ? new Date(req.query.since as string) : undefined;
+      const since = req.query.since ? new Date(qstr(req.query.since)) : undefined;
       const data = await storage.getDeploymentAnalyticsAggregated(project.id, since);
       res.json(data);
     } catch (err: any) {
@@ -16237,11 +16500,11 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const options: { errorsOnly?: boolean; search?: string; since?: Date; until?: Date; limit?: number } = {};
-      if (req.query.errorsOnly === "true") options.errorsOnly = true;
-      if (req.query.search) options.search = req.query.search as string;
-      if (req.query.since) options.since = new Date(req.query.since as string);
-      if (req.query.until) options.until = new Date(req.query.until as string);
-      if (req.query.limit) options.limit = parseInt(req.query.limit as string);
+      if (qstr(req.query.errorsOnly) === "true") options.errorsOnly = true;
+      if (req.query.search) options.search = qstr(req.query.search);
+      if (req.query.since) options.since = new Date(qstr(req.query.since));
+      if (req.query.until) options.until = new Date(qstr(req.query.until));
+      if (req.query.limit) options.limit = parseInt(qstr(req.query.limit));
       const logs = await storage.getDeploymentLogs(project.id, options);
       res.json(logs);
     } catch (err: any) {
@@ -16255,7 +16518,7 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const since = req.query.since ? new Date(req.query.since as string) : undefined;
+      const since = req.query.since ? new Date(qstr(req.query.since)) : undefined;
       const snapshots = await storage.getResourceSnapshots(project.id, since);
       const realMetrics = getRealMetrics();
       res.json({ snapshots, current: realMetrics });
@@ -16274,16 +16537,42 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       const liveDeployment = deployments.find(d => d.status === "live");
       const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + project.id.slice(0, 8);
       const processStatus = liveDeployment ? getProcessStatus(project.id) : null;
+      const latestDeployment = deployments.length > 0 ? deployments.reduce((a, b) => (a.version > b.version ? a : b)) : null;
+      const configSource = liveDeployment || latestDeployment;
       res.json({
         isPublished: project.isPublished,
         slug,
         url: liveDeployment?.url || `/deployed/${slug}/`,
-        deploymentType: liveDeployment?.deploymentType || "static",
+        deploymentType: liveDeployment?.deploymentType || configSource?.deploymentType || "static",
         status: liveDeployment?.status || "none",
         version: liveDeployment?.version || 0,
         createdAt: liveDeployment?.createdAt,
         healthStatus: processStatus?.healthStatus || liveDeployment?.healthStatus || "unknown",
         processStatus: processStatus?.status || null,
+        config: configSource ? {
+          buildCommand: configSource.buildCommand || "",
+          runCommand: configSource.runCommand || "",
+          machineConfig: configSource.machineConfig || { cpu: 0.5, ram: 512 },
+          maxMachines: configSource.maxMachines || 1,
+          cronExpression: configSource.cronExpression || "",
+          scheduleDescription: configSource.scheduleDescription || "",
+          jobTimeout: configSource.jobTimeout || 300,
+          publicDirectory: configSource.publicDirectory || "dist",
+          appType: configSource.appType || "web_server",
+          deploymentSecretKeys: Object.keys(configSource.deploymentSecrets || {}),
+          portMapping: configSource.portMapping || 3000,
+          isPrivate: configSource.isPrivate || false,
+          showBadge: configSource.showBadge ?? true,
+          enableFeedback: configSource.enableFeedback || false,
+        } : null,
+        history: deployments.slice(0, 10).map(d => ({
+          id: d.id,
+          version: d.version,
+          status: d.status,
+          deploymentType: d.deploymentType,
+          createdAt: d.createdAt,
+          finishedAt: d.finishedAt,
+        })),
       });
     } catch (err: any) {
       log(`[publishing] Failed to load overview: ${err.message}`, "error");
@@ -16666,9 +16955,9 @@ print(json.dumps({"results":tests,"duration":dur}))`;
 
   app.get("/api/domains/search", requireAuth, async (req: Request, res: Response) => {
     try {
-      const query = (req.query.q as string || "").trim();
+      const query = (qstr(req.query.q) || "").trim();
       if (!query) return res.status(400).json({ message: "Search query required" });
-      const tlds = req.query.tlds ? (req.query.tlds as string).split(",") : [];
+      const tlds = req.query.tlds ? qstr(req.query.tlds).split(",") : [];
       const { getRegistrar } = await import("./domainRegistrar");
       const registrar = getRegistrar();
       const results = await registrar.searchAvailability(query, tlds);
@@ -20235,7 +20524,7 @@ export default function App() {
       if (!project || project.userId !== req.session.userId) {
         return res.status(403).json({ message: "Not authorized" });
       }
-      const status = req.query.status as string | undefined;
+      const status = qstr(req.query.status) || undefined;
       const feedback = await storage.getDeploymentFeedback(projectId, status);
       return res.json(feedback);
     } catch {
@@ -20406,6 +20695,102 @@ export default function App() {
 
   const { startAutomationScheduler } = await import("./automationScheduler");
   startAutomationScheduler().catch(err => log(`Automation scheduler error: ${err.message}`, "automation"));
+
+  const { communityPosts, communityReplies, communityLikes, supportTickets } = await import("@shared/schema");
+  const { desc: drizzleDesc, eq: drizzleEq, and: drizzleAnd, sql: drizzleSql } = await import("drizzle-orm");
+  const { db: communityDb } = await import("./db");
+
+  app.get("/api/community/posts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sortBy = req.query.sort === "popular" ? communityPosts.likes : communityPosts.createdAt;
+      const posts = await communityDb.select().from(communityPosts).orderBy(drizzleDesc(sortBy)).limit(50);
+      const userId = req.session.userId!;
+      const userLikes = await communityDb.select().from(communityLikes).where(drizzleEq(communityLikes.userId, userId));
+      const likedSet = new Set(userLikes.map(l => l.postId));
+
+      const postsWithReplies = await Promise.all(posts.map(async (post) => {
+        const replies = await communityDb.select().from(communityReplies).where(drizzleEq(communityReplies.postId, post.id)).orderBy(communityReplies.createdAt).limit(50);
+        return { ...post, replies, liked: likedSet.has(post.id) };
+      }));
+
+      res.json({ posts: postsWithReplies });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/community/posts", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      const { title, content, category } = req.body;
+      if (!title?.trim() || !content?.trim()) return res.status(400).json({ message: "Title and content required" });
+      const [post] = await communityDb.insert(communityPosts).values({
+        userId, authorName: user?.displayName || user?.email || "Anonymous",
+        title: title.trim().slice(0, 200), content: content.trim().slice(0, 10000),
+        category: category || "general",
+      }).returning();
+      res.json({ post });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/community/posts/:postId/replies", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Content required" });
+      const [reply] = await communityDb.insert(communityReplies).values({
+        postId: req.params.postId, userId,
+        authorName: user?.displayName || user?.email || "Anonymous",
+        content: content.trim().slice(0, 5000),
+      }).returning();
+      await communityDb.update(communityPosts).set({
+        replyCount: drizzleSql`reply_count + 1`,
+      }).where(drizzleEq(communityPosts.id, req.params.postId));
+      res.json({ reply });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/community/posts/:postId/like", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const existing = await communityDb.select().from(communityLikes)
+        .where(drizzleAnd(drizzleEq(communityLikes.postId, req.params.postId), drizzleEq(communityLikes.userId, userId)));
+      if (existing.length > 0) {
+        await communityDb.delete(communityLikes).where(drizzleEq(communityLikes.id, existing[0].id));
+        await communityDb.update(communityPosts).set({ likes: drizzleSql`GREATEST(likes - 1, 0)` }).where(drizzleEq(communityPosts.id, req.params.postId));
+        return res.json({ liked: false });
+      }
+      await communityDb.insert(communityLikes).values({ postId: req.params.postId, userId });
+      await communityDb.update(communityPosts).set({ likes: drizzleSql`likes + 1` }).where(drizzleEq(communityPosts.id, req.params.postId));
+      res.json({ liked: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/support/ticket", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await storage.getUser(userId);
+      const { subject, message, category } = req.body;
+      if (!subject?.trim() || !message?.trim()) return res.status(400).json({ message: "Subject and message required" });
+      const [ticket] = await communityDb.insert(supportTickets).values({
+        userId, email: user?.email || null,
+        subject: subject.trim().slice(0, 200), message: message.trim().slice(0, 10000),
+        category: category || "general",
+      }).returning();
+      log(`Support ticket created: ${ticket.id} by ${user?.email || userId} - ${subject}`, "support");
+      res.json({ ticket });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
 
   return httpServer;
 }

@@ -1,5 +1,5 @@
 import WorkspaceTerminal, { type WorkspaceTerminalHandle } from '@/components/WorkspaceTerminal';
-import { forwardRef } from 'react';
+import { forwardRef, useState, useEffect } from 'react';
 
 interface ReplitTerminalPanelProps {
   projectId: string;
@@ -11,16 +11,45 @@ interface ReplitTerminalPanelProps {
   accessibleTerminal?: boolean;
 }
 
+function buildTerminalWsUrl(projectId: string): string {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const host = window.location.host;
+  return `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(projectId)}&sessionId=default`;
+}
+
 export const ReplitTerminalPanel = forwardRef<WorkspaceTerminalHandle, ReplitTerminalPanelProps>(
   function ReplitTerminalPanel(
-    { wsUrl, runnerOffline = false, visible = true, onLastCommand, shellBell, accessibleTerminal },
+    { projectId, wsUrl: externalWsUrl, runnerOffline = false, visible = true, onLastCommand, shellBell, accessibleTerminal },
     ref
   ) {
+    const [autoWsUrl, setAutoWsUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+      if (externalWsUrl) {
+        setAutoWsUrl(null);
+        return;
+      }
+      fetch(`/api/workspaces/${projectId}/terminal-url`, { credentials: "include" })
+        .then((r) => {
+          if (!r.ok) throw new Error("Failed");
+          return r.json();
+        })
+        .then((d) => {
+          if (d?.wsUrl) setAutoWsUrl(d.wsUrl);
+          else setAutoWsUrl(buildTerminalWsUrl(projectId));
+        })
+        .catch(() => {
+          setAutoWsUrl(buildTerminalWsUrl(projectId));
+        });
+    }, [projectId, externalWsUrl]);
+
+    const effectiveWsUrl = externalWsUrl || autoWsUrl;
+
     return (
       <div className="h-full bg-black">
         <WorkspaceTerminal
           ref={ref}
-          wsUrl={wsUrl || null}
+          wsUrl={effectiveWsUrl}
           runnerOffline={runnerOffline}
           visible={visible}
           onLastCommand={onLastCommand}

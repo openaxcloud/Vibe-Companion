@@ -3,7 +3,7 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { storage } from "./storage";
-import { createTerminalSession } from "./terminal";
+import { createTerminalSession, materializeProjectFiles, getProjectWorkspaceDir } from "./terminal";
 import { log } from "./index";
 
 const HOST_KEY_PATH = path.join(process.cwd(), ".ssh_host_key");
@@ -129,10 +129,13 @@ export function startSSHServer(port: number = 2222): ssh2.Server {
             const sshSessionId = `ssh-${crypto.randomBytes(4).toString("hex")}`;
 
             try {
+              const wsDir = getProjectWorkspaceDir(requestedProjectId);
+              fs.mkdirSync(wsDir, { recursive: true });
               const ptyProcess = createTerminalSession(
                 requestedProjectId,
                 authenticatedUserId,
                 sshSessionId,
+                wsDir,
               );
 
               try {

@@ -795,22 +795,34 @@ export async function buildAndDeploy(
           addLog(`[build] Cleared previous scheduled job`);
         }
 
-        const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "main.py", "app.py"].includes(f.filename));
-        const entryScript = entryFile?.content || "";
-        const entryLang = language;
+        let jobCommand: string;
+        if (config?.runCommand) {
+          jobCommand = config.runCommand;
+          addLog(`[build] Using configured run command: ${jobCommand}`);
+        } else {
+          const entryFile = files.find(f => ["index.js", "index.ts", "main.js", "main.py", "app.py"].includes(f.filename));
+          if (entryFile) {
+            jobCommand = language === "python" ? `python3 ${entryFile.filename}` : `node ${entryFile.filename}`;
+            addLog(`[build] Using auto-detected entry file: ${entryFile.filename}`);
+          } else {
+            jobCommand = "echo 'No entry file or run command configured'";
+            addLog(`[build] Warning: No run command or entry file found`);
+          }
+        }
 
         const cron = await import("node-cron");
         const task = cron.schedule(config.cronExpression, async () => {
-          log(`[scheduled:${slug}] Executing scheduled job`, "deploy");
+          log(`[scheduled:${slug}] Executing scheduled job: ${jobCommand}`, "deploy");
           try {
             const envVars = { ...getSandboxEnv(0), ...(config?.deploymentSecrets || {}) };
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout * 1000);
+            const timeoutId = setTimeout(() => {}, timeout * 1000);
             try {
-              await execAsync(
-                entryLang === "python" ? `python3 -c ${JSON.stringify(entryScript)}` : `node -e ${JSON.stringify(entryScript)}`,
+              const { stdout, stderr } = await execAsync(
+                jobCommand,
                 { cwd: outputDir, timeout: timeout * 1000, env: envVars, maxBuffer: 10 * 1024 * 1024 },
               );
+              if (stdout) log(`[scheduled:${slug}:stdout] ${stdout.slice(0, 2000)}`, "deploy");
+              if (stderr) log(`[scheduled:${slug}:stderr] ${stderr.slice(0, 2000)}`, "deploy");
               log(`[scheduled:${slug}] Job completed successfully`, "deploy");
             } finally {
               clearTimeout(timeoutId);

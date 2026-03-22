@@ -915,7 +915,15 @@ export default function Settings() {
                 {(user as any)?.githubId ? (
                   <span className="flex items-center gap-1 text-xs text-[#0CCE6B]" data-testid="text-github-connected"><CheckCircle className="w-3.5 h-3.5" /> Connected</span>
                 ) : (
-                  <span className="text-xs text-[var(--ide-text-muted)]" data-testid="text-github-not-connected">Not connected</span>
+                  <Button
+                    size="sm"
+                    className="h-8 px-4 bg-[#24292e] hover:bg-[#2f363d] text-white text-[12px] rounded-lg gap-2"
+                    onClick={() => { window.location.href = "/api/auth/github/redirect"; }}
+                    data-testid="button-connect-github"
+                  >
+                    <Github className="w-3.5 h-3.5" />
+                    Connect
+                  </Button>
                 )}
               </div>
               <div className="flex items-center justify-between p-4">

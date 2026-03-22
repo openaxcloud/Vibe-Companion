@@ -400,11 +400,7 @@ export function StatusBar({
           </Tooltip>
 
           <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1 px-2">
-            <svg width="9" height="9" viewBox="0 0 32 32" fill="none">
-              <path d="M7 5.5C7 4.67 7.67 4 8.5 4H15.5C16.33 4 17 4.67 17 5.5V12H8.5C7.67 12 7 11.33 7 10.5V5.5Z" fill="currentColor"/>
-              <path d="M17 12H25.5C26.33 12 27 12.67 27 13.5V18.5C27 19.33 26.33 20 25.5 20H17V12Z" fill="currentColor"/>
-              <path d="M7 21.5C7 20.67 7.67 20 8.5 20H17V28H8.5C7.67 28 7 27.33 7 26.5V21.5Z" fill="currentColor"/>
-            </svg>
+            <img src="/logo.png" alt="E-Code" width={9} height={9} className="rounded" style={{ objectFit: 'contain' }} />
             E-Code
           </span>
         </div>

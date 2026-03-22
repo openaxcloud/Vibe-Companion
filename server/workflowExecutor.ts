@@ -1,6 +1,9 @@
 import { storage } from "./storage";
-import { executeCode } from "./executor";
 import { log } from "./index";
+import { spawn } from "child_process";
+import { mkdir, writeFile, rm } from "fs/promises";
+import { join, dirname } from "path";
+import { randomUUID } from "crypto";
 
 interface StepResult {
   stepId: string;
@@ -13,6 +16,8 @@ interface StepResult {
 }
 
 const MAX_WORKFLOW_DEPTH = 5;
+const MAX_STEP_TIMEOUT_MS = 120_000;
+const MAX_OUTPUT_SIZE = 64 * 1024;
 
 function resolveInstallCommand(command: string): string {
   const pkg = command.trim();
@@ -30,18 +35,110 @@ function resolveInstallCommand(command: string): string {
   return `npm install ${pkg}`;
 }
 
+function truncateOutput(str: string, max: number = MAX_OUTPUT_SIZE): string {
+  if (str.length <= max) return str;
+  return str.slice(0, max) + "\n... [output truncated]";
+}
+
+async function materializeProjectFiles(projectId: string, targetDir: string): Promise<number> {
+  const projectFiles = await storage.getFiles(projectId);
+  let count = 0;
+
+  for (const file of projectFiles) {
+    if (file.isBinary) continue;
+    const filePath = join(targetDir, file.filename);
+    const fileDir = dirname(filePath);
+    await mkdir(fileDir, { recursive: true });
+    await writeFile(filePath, file.content || "", "utf-8");
+    count++;
+  }
+
+  return count;
+}
+
+function runShellCommand(
+  command: string,
+  cwd: string,
+  onLog?: (message: string, type: "info" | "error" | "success") => void,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let killed = false;
+
+    const proc = spawn("bash", ["-c", command], {
+      cwd,
+      timeout: MAX_STEP_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        HOME: cwd,
+        TMPDIR: join(cwd, ".tmp"),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    proc.stdout.on("data", (data: Buffer) => {
+      const chunk = data.toString();
+      stdout += chunk;
+      if (stdout.length > MAX_OUTPUT_SIZE * 2) {
+        stdout = truncateOutput(stdout);
+      }
+      const lines = chunk.split("\n").filter((l: string) => l.trim());
+      for (const line of lines) {
+        onLog?.(line, "info");
+      }
+    });
+
+    proc.stderr.on("data", (data: Buffer) => {
+      const chunk = data.toString();
+      stderr += chunk;
+      if (stderr.length > MAX_OUTPUT_SIZE * 2) {
+        stderr = truncateOutput(stderr);
+      }
+      const lines = chunk.split("\n").filter((l: string) => l.trim());
+      for (const line of lines) {
+        onLog?.(line, "error");
+      }
+    });
+
+    proc.on("close", (exitCode) => {
+      resolve({
+        stdout: truncateOutput(stdout),
+        stderr: truncateOutput(stderr),
+        exitCode: killed ? 137 : (exitCode ?? 1),
+      });
+    });
+
+    proc.on("error", (err) => {
+      resolve({
+        stdout: truncateOutput(stdout),
+        stderr: `Process error: ${err.message}`,
+        exitCode: 1,
+      });
+    });
+
+    setTimeout(() => {
+      if (!proc.killed) {
+        killed = true;
+        proc.kill("SIGKILL");
+        onLog?.(`Step timed out after ${MAX_STEP_TIMEOUT_MS / 1000}s`, "error");
+      }
+    }, MAX_STEP_TIMEOUT_MS + 1000);
+  });
+}
+
 async function executeStep(
   step: { id: string; name: string; command: string; taskType: string; continueOnError: boolean },
+  projectDir: string,
   depth: number,
   onLog?: (message: string, type: "info" | "error" | "success") => void,
 ): Promise<StepResult> {
   const stepStartTime = Date.now();
   try {
-    let result;
+    let actualCommand: string;
+
     if (step.taskType === "install_packages") {
-      const installCmd = resolveInstallCommand(step.command);
-      onLog?.(`[${step.name}] $ ${installCmd}`, "info");
-      result = await executeCode(installCmd, "bash");
+      actualCommand = resolveInstallCommand(step.command);
     } else if (step.taskType === "run_workflow") {
       const targetId = step.command.trim();
       const innerResult = await executeWorkflow(targetId, undefined, onLog, depth + 1);
@@ -55,19 +152,18 @@ async function executeStep(
         durationMs: Date.now() - stepStartTime,
       };
     } else {
-      onLog?.(`[${step.name}] $ ${step.command}`, "info");
-      result = await executeCode(step.command, "bash");
+      actualCommand = step.command;
     }
 
-    if (result.stdout) onLog?.(result.stdout, "info");
-    if (result.stderr) onLog?.(result.stderr, result.exitCode === 0 ? "info" : "error");
+    onLog?.(`\x1b[36m$ ${actualCommand}\x1b[0m`, "info");
+    const result = await runShellCommand(actualCommand, projectDir, onLog);
 
     return {
       stepId: step.id,
       name: step.name,
       status: result.exitCode === 0 ? "success" : "failed",
-      stdout: result.stdout || "",
-      stderr: result.stderr || "",
+      stdout: result.stdout,
+      stderr: result.stderr,
       exitCode: result.exitCode,
       durationMs: Date.now() - stepStartTime,
     };
@@ -104,61 +200,79 @@ export async function executeWorkflow(
   const run = await storage.createWorkflowRun(workflowId);
   const startTime = Date.now();
 
-  onLog?.(`\x1b[36m━━━ Workflow "${workflow.name}" started ━━━\x1b[0m`, "info");
+  const projectDir = join("/tmp", "workflow-run", randomUUID());
+  await mkdir(projectDir, { recursive: true });
+  await mkdir(join(projectDir, ".tmp"), { recursive: true });
 
-  let stepResults: StepResult[];
-  let overallSuccess: boolean;
+  try {
+    onLog?.(`\x1b[36m━━━ Workflow "${workflow.name}" started ━━━\x1b[0m`, "info");
 
-  if (workflow.executionMode === "parallel") {
-    const promises = steps.map((step) => executeStep(step, depth, onLog));
-    stepResults = await Promise.all(promises);
-    overallSuccess = stepResults.every((r) => r.status === "success");
-    onStepUpdate?.(stepResults, steps.length - 1);
-  } else {
-    stepResults = [];
-    overallSuccess = true;
+    onLog?.("Preparing project files...", "info");
+    const fileCount = await materializeProjectFiles(workflow.projectId, projectDir);
+    onLog?.(`Materialized ${fileCount} files to workspace`, "info");
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const stepResult = await executeStep(step, depth, onLog);
-      stepResults.push(stepResult);
-      onStepUpdate?.(stepResults, i);
+    let stepResults: StepResult[];
+    let overallSuccess: boolean;
 
-      if (stepResult.status === "failed") {
-        overallSuccess = false;
-        if (!step.continueOnError) {
-          for (let j = i + 1; j < steps.length; j++) {
-            stepResults.push({
-              stepId: steps[j].id,
-              name: steps[j].name,
-              status: "skipped",
-              stdout: "",
-              stderr: "",
-              exitCode: -1,
-              durationMs: 0,
-            });
+    if (workflow.executionMode === "parallel") {
+      const promises = steps.map((step) => executeStep(step, projectDir, depth, onLog));
+      stepResults = await Promise.all(promises);
+      overallSuccess = stepResults.every((r) => r.status === "success");
+      onStepUpdate?.(stepResults, steps.length - 1);
+    } else {
+      stepResults = [];
+      overallSuccess = true;
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        onLog?.(`\x1b[33m── Step ${i + 1}/${steps.length}: ${step.name} ──\x1b[0m`, "info");
+        const stepResult = await executeStep(step, projectDir, depth, onLog);
+        stepResults.push(stepResult);
+        onStepUpdate?.(stepResults, i);
+
+        if (stepResult.status === "failed") {
+          overallSuccess = false;
+          if (!step.continueOnError) {
+            onLog?.(`Step "${step.name}" failed (exit code ${stepResult.exitCode}). Stopping workflow.`, "error");
+            for (let j = i + 1; j < steps.length; j++) {
+              stepResults.push({
+                stepId: steps[j].id,
+                name: steps[j].name,
+                status: "skipped",
+                stdout: "",
+                stderr: "",
+                exitCode: -1,
+                durationMs: 0,
+              });
+            }
+            break;
+          } else {
+            onLog?.(`Step "${step.name}" failed but continue-on-error is enabled. Proceeding...`, "info");
           }
-          break;
+        } else {
+          onLog?.(`\x1b[32m✓ Step "${step.name}" completed (${stepResult.durationMs}ms)\x1b[0m`, "success");
         }
       }
     }
+
+    const totalDuration = Date.now() - startTime;
+    await storage.updateWorkflowRun(run.id, {
+      status: overallSuccess ? "success" : "failed",
+      stepResults,
+      durationMs: totalDuration,
+      finishedAt: new Date(),
+    });
+
+    const statusMsg = overallSuccess
+      ? `\x1b[32m✓ Workflow "${workflow.name}" completed successfully in ${totalDuration}ms\x1b[0m`
+      : `\x1b[31m✗ Workflow "${workflow.name}" failed in ${totalDuration}ms\x1b[0m`;
+    onLog?.(statusMsg, overallSuccess ? "success" : "error");
+
+    log(`Workflow "${workflow.name}" completed: ${overallSuccess ? "success" : "failed"} in ${totalDuration}ms`, "workflow");
+    return { success: overallSuccess, runId: run.id };
+  } finally {
+    rm(projectDir, { recursive: true, force: true }).catch(() => {});
   }
-
-  const totalDuration = Date.now() - startTime;
-  await storage.updateWorkflowRun(run.id, {
-    status: overallSuccess ? "success" : "failed",
-    stepResults,
-    durationMs: totalDuration,
-    finishedAt: new Date(),
-  });
-
-  const statusMsg = overallSuccess
-    ? `\x1b[32m✓ Workflow "${workflow.name}" completed successfully in ${totalDuration}ms\x1b[0m`
-    : `\x1b[31m✗ Workflow "${workflow.name}" failed in ${totalDuration}ms\x1b[0m`;
-  onLog?.(statusMsg, overallSuccess ? "success" : "error");
-
-  log(`Workflow "${workflow.name}" completed: ${overallSuccess ? "success" : "failed"} in ${totalDuration}ms`, "workflow");
-  return { success: overallSuccess, runId: run.id };
 }
 
 export const WORKFLOW_TEMPLATES = [

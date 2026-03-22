@@ -58,6 +58,8 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
   if (!isOpen && !inline) return null;
 
   const menuItems = [
+    { label: 'Search', icon: Search, color: '#4B9EF5', action: handlers.onOpenGlobalSearch },
+    { label: 'Checkpoints', icon: Layers, color: '#10B981', action: handlers.onOpenCheckpoints },
     { label: 'Git', icon: GitBranch, color: '#F26522', action: handlers.onOpenGit },
     { label: 'Packages', icon: Package, color: '#0CCE6B', action: handlers.onOpenPackages },
     { label: 'Secrets', icon: Key, color: '#F5A623', action: handlers.onOpenSecrets },
@@ -98,8 +100,8 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
           {menuItems.map(({ label, icon: Icon, color, action }) => (
             <button
               key={label}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
-              onClick={action}
+              className="flex flex-col items-center justify-center gap-1.5 py-3 min-h-[56px] rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
+              onClick={() => action?.()}
             >
               <Icon className="w-5 h-5" style={{ color }} />
               <span className="text-[10px] font-medium text-[var(--ide-text-muted)]">{label}</span>
@@ -111,8 +113,8 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end" data-testid="mobile-more-overlay">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+    <div className="fixed inset-0 z-[999] flex flex-col justify-end" data-testid="mobile-more-overlay" style={{ touchAction: 'manipulation' }}>
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} onTouchEnd={(e) => { e.preventDefault(); onClose(); }} />
       <div className="relative bg-[var(--ide-bg)] border-t border-[var(--ide-border)] rounded-t-2xl animate-slide-up" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 rounded-full bg-[var(--ide-border)]" />
@@ -127,7 +129,7 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
           {menuItems.map(({ label, icon: Icon, color, action }) => (
             <button
               key={label}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
+              className="flex flex-col items-center justify-center gap-1.5 py-3 min-h-[56px] rounded-xl hover:bg-[var(--ide-surface)] transition-all active:scale-95"
               onClick={() => { action?.(); onClose(); }}
             >
               <Icon className="w-5 h-5" style={{ color }} />

@@ -86,7 +86,7 @@ export function ReplitMobileInputBar({
 
   useEffect(() => {
     if (!showModeDropdown && !showAgentModeDropdown && !showToolsDropdown) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: TouchEvent | MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('[data-dropdown]')) {
         setShowModeDropdown(false);
@@ -94,8 +94,15 @@ export function ReplitMobileInputBar({
         setShowToolsDropdown(false);
       }
     };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    const raf = requestAnimationFrame(() => {
+      document.addEventListener('touchstart', handler, { passive: true });
+      document.addEventListener('mousedown', handler);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('touchstart', handler);
+      document.removeEventListener('mousedown', handler);
+    };
   }, [showModeDropdown, showAgentModeDropdown, showToolsDropdown]);
 
   const handleFocus = useCallback(() => {
@@ -131,7 +138,7 @@ export function ReplitMobileInputBar({
   return (
     <div
       className={cn(
-        "fixed left-0 right-0 z-30 px-3 transition-[bottom] duration-200",
+        "fixed left-0 right-0 z-40 px-3 transition-[bottom] duration-200",
         keyboardVisible ? "bottom-0" : "bottom-[52px]"
       )}
       style={{
@@ -166,8 +173,8 @@ export function ReplitMobileInputBar({
           <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             <div className="relative" data-dropdown>
               <button
-                onClick={(e) => { e.stopPropagation(); setShowModeDropdown(!showModeDropdown); setShowAgentModeDropdown(false); setShowToolsDropdown(false); }}
-                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)]"
+                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowModeDropdown(!showModeDropdown); setShowAgentModeDropdown(false); setShowToolsDropdown(false); }}
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)] select-none touch-manipulation"
                 style={{ color: currentAIMode.color }}
                 data-testid="mobile-mode-selector"
               >
@@ -204,8 +211,8 @@ export function ReplitMobileInputBar({
                 <div className="w-px h-3.5 bg-[var(--ide-border)]" />
                 <div className="relative" data-dropdown>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setShowAgentModeDropdown(!showAgentModeDropdown); setShowModeDropdown(false); setShowToolsDropdown(false); }}
-                    className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)]"
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowAgentModeDropdown(!showAgentModeDropdown); setShowModeDropdown(false); setShowToolsDropdown(false); }}
+                    className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)] select-none touch-manipulation"
                     style={{ color: currentAgentMode.color }}
                     data-testid="mobile-agent-mode-selector"
                   >
@@ -242,8 +249,8 @@ export function ReplitMobileInputBar({
                     <div className="w-px h-3.5 bg-[var(--ide-border)]" />
                     <div className="relative" data-dropdown>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setShowToolsDropdown(!showToolsDropdown); setShowModeDropdown(false); setShowAgentModeDropdown(false); }}
-                        className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)] transition-colors"
+                        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowToolsDropdown(!showToolsDropdown); setShowModeDropdown(false); setShowAgentModeDropdown(false); }}
+                        className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)] transition-colors select-none touch-manipulation"
                         data-testid="mobile-agent-tools"
                       >
                         <Wrench className="w-3 h-3" />

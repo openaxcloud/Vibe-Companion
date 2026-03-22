@@ -32,6 +32,9 @@ import Desktop from "@/pages/Desktop";
 import McpDirectory from "@/pages/McpDirectory";
 import McpInstallLink from "@/pages/McpInstallLink";
 import OpenInReplit from "@/pages/OpenInReplit";
+import Documentation from "@/pages/Documentation";
+import Community from "@/pages/Community";
+import HelpCenter from "@/pages/HelpCenter";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import GlobalShortcuts from "@/components/GlobalShortcuts";
 import CookieConsent from "@/components/CookieConsent";
@@ -136,6 +139,9 @@ function App() {
                 <Route path="/mcp-install-link">{() => <ProtectedRoute component={McpInstallLink} />}</Route>
                 <Route path="/open" component={OpenInReplit} />
                 <Route path="/desktop" component={Desktop} />
+                <Route path="/docs">{() => <ProtectedRoute component={Documentation} />}</Route>
+                <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
+                <Route path="/help">{() => <ProtectedRoute component={HelpCenter} />}</Route>
                 <Route path="/pricing" component={Pricing} />
                 <Route path="/demo" component={DemoProject} />
                 <Route path="/shared/:id" component={SharedProject} />

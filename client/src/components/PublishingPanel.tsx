@@ -4,17 +4,49 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import {
   Activity, Loader2, X, Globe, Rocket, Copy, Check, ExternalLink,
   RefreshCw, BarChart3, Search, Clock, Cpu, HardDrive, FileText, Eye,
   Smartphone, Monitor, MapPin, ArrowUpRight, AlertCircle, QrCode,
+  Server, Zap, Calendar, FolderOpen, Key, Plus, Trash2, Shield, Badge,
+  MessageSquare, ChevronDown, ChevronRight, Settings, History, Play,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell,
 } from "recharts";
 import { QRCodeSVG as RealQRCode } from "qrcode.react";
 
-type TabId = "overview" | "logs" | "resources" | "analytics";
+type TabId = "overview" | "configure" | "logs" | "resources" | "analytics";
+type DeploymentType = "autoscale" | "static" | "reserved-vm" | "scheduled";
+
+interface DeploymentConfig {
+  buildCommand: string;
+  runCommand: string;
+  machineConfig: { cpu: number; ram: number };
+  maxMachines: number;
+  cronExpression: string;
+  scheduleDescription: string;
+  jobTimeout: number;
+  publicDirectory: string;
+  appType: string;
+  deploymentSecrets: Record<string, string>;
+  deploymentSecretKeys?: string[];
+  portMapping: number;
+  isPrivate: boolean;
+  showBadge: boolean;
+  enableFeedback: boolean;
+}
+
+interface DeploymentHistoryItem {
+  id: string;
+  version: number;
+  status: string;
+  deploymentType: string;
+  createdAt: string | null;
+  finishedAt: string | null;
+}
 
 interface OverviewData {
   isPublished: boolean;
@@ -26,6 +58,8 @@ interface OverviewData {
   createdAt: string | null;
   healthStatus: string;
   processStatus: string | null;
+  config: DeploymentConfig | null;
+  history: DeploymentHistoryItem[];
 }
 
 interface DeploymentLog {
@@ -66,36 +100,519 @@ const STATUS_COLORS: Record<string, string> = {
 
 const CHART_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316"];
 
+const DEPLOYMENT_TYPES: { id: DeploymentType; label: string; icon: typeof Globe; desc: string; color: string }[] = [
+  { id: "autoscale", label: "Autoscale", icon: Zap, desc: "Scales up/down based on traffic", color: "text-yellow-400" },
+  { id: "static", label: "Static", icon: FolderOpen, desc: "Host static sites (HTML/CSS/JS)", color: "text-blue-400" },
+  { id: "reserved-vm", label: "Reserved VM", icon: Server, desc: "Always-on dedicated machine", color: "text-purple-400" },
+  { id: "scheduled", label: "Scheduled", icon: Calendar, desc: "Run on a cron schedule", color: "text-green-400" },
+];
+
+const MACHINE_PRESETS = [
+  { label: "0.25 vCPU / 256 MB", cpu: 0.25, ram: 256 },
+  { label: "0.5 vCPU / 512 MB", cpu: 0.5, ram: 512 },
+  { label: "1 vCPU / 1 GB", cpu: 1, ram: 1024 },
+  { label: "2 vCPU / 2 GB", cpu: 2, ram: 2048 },
+  { label: "4 vCPU / 4 GB", cpu: 4, ram: 4096 },
+  { label: "8 vCPU / 8 GB", cpu: 8, ram: 8192 },
+];
+
+const DEFAULT_CONFIG: DeploymentConfig = {
+  buildCommand: "",
+  runCommand: "",
+  machineConfig: { cpu: 0.5, ram: 512 },
+  maxMachines: 1,
+  cronExpression: "",
+  scheduleDescription: "",
+  jobTimeout: 300,
+  publicDirectory: "dist",
+  appType: "web_server",
+  deploymentSecrets: {},
+  portMapping: 3000,
+  isPrivate: false,
+  showBadge: true,
+  enableFeedback: false,
+};
+
 function QRCodeDisplay({ url }: { url: string }) {
   return <RealQRCode value={url} size={120} level="M" bgColor="#ffffff" fgColor="#000000" />;
 }
 
-function OverviewTab({ projectId }: { projectId: string }) {
+function SectionHeader({ title, icon: Icon, collapsed, onToggle }: { title: string; icon: typeof Globe; collapsed?: boolean; onToggle?: () => void }) {
+  return (
+    <button
+      className="flex items-center gap-1.5 w-full text-left py-1"
+      onClick={onToggle}
+      data-testid={`section-${title.toLowerCase().replace(/\s+/g, "-")}`}
+    >
+      {onToggle && (collapsed ? <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" /> : <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)]" />)}
+      <Icon className="w-3 h-3 text-[var(--ide-accent)]" />
+      <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wide">{title}</span>
+    </button>
+  );
+}
+
+function ConfigureTab({ projectId, initialConfig, initialType, onDeploy }: {
+  projectId: string;
+  initialConfig: DeploymentConfig | null;
+  initialType: DeploymentType;
+  onDeploy: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [deploymentType, setDeploymentType] = useState<DeploymentType>(initialType);
+  const [config, setConfig] = useState<DeploymentConfig>(initialConfig || DEFAULT_CONFIG);
+  const [newSecretKey, setNewSecretKey] = useState("");
+  const [newSecretValue, setNewSecretValue] = useState("");
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [convertingSchedule, setConvertingSchedule] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const [existingSecretKeys, setExistingSecretKeys] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initialConfig) {
+      const { deploymentSecretKeys, ...rest } = initialConfig;
+      setConfig({ ...rest, deploymentSecrets: rest.deploymentSecrets || {} });
+      if (deploymentSecretKeys) setExistingSecretKeys(deploymentSecretKeys);
+    }
+    if (initialType) setDeploymentType(initialType);
+  }, [initialConfig, initialType]);
+
+  const deployMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/projects/${projectId}/deploy`, {
+        deploymentType,
+        ...config,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "publishing"] });
+      onDeploy();
+    },
+  });
+
+  const convertScheduleMutation = useMutation({
+    mutationFn: async (description: string) => {
+      const res = await apiRequest("POST", "/api/deploy/schedule-to-cron", { description });
+      return res.json();
+    },
+    onSuccess: (data: { cronExpression: string }) => {
+      setConfig(prev => ({ ...prev, cronExpression: data.cronExpression }));
+    },
+  });
+
+  const addSecret = () => {
+    if (newSecretKey.trim() && newSecretValue.trim()) {
+      setConfig(prev => ({
+        ...prev,
+        deploymentSecrets: { ...prev.deploymentSecrets, [newSecretKey.trim()]: newSecretValue.trim() },
+      }));
+      setNewSecretKey("");
+      setNewSecretValue("");
+    }
+  };
+
+  const removeSecret = (key: string) => {
+    setConfig(prev => {
+      const updated = { ...prev.deploymentSecrets };
+      delete updated[key];
+      return { ...prev, deploymentSecrets: updated };
+    });
+  };
+
+  const machinePresetIdx = MACHINE_PRESETS.findIndex(
+    p => p.cpu === config.machineConfig.cpu && p.ram === config.machineConfig.ram
+  );
+
+  return (
+    <div className="p-3 space-y-3 overflow-y-auto">
+      <div className="space-y-1.5">
+        <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wide">Deployment Type</span>
+        <div className="grid grid-cols-2 gap-1.5">
+          {DEPLOYMENT_TYPES.map((dt) => {
+            const Icon = dt.icon;
+            const selected = deploymentType === dt.id;
+            return (
+              <button
+                key={dt.id}
+                className={`flex flex-col items-start p-2 rounded-lg border transition-all text-left ${
+                  selected
+                    ? "border-[var(--ide-accent)] bg-[var(--ide-accent)]/10"
+                    : "border-[var(--ide-border)] bg-[var(--ide-surface)] hover:border-[var(--ide-text-muted)]"
+                }`}
+                onClick={() => setDeploymentType(dt.id)}
+                data-testid={`deploy-type-${dt.id}`}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <Icon className={`w-3.5 h-3.5 ${selected ? "text-[var(--ide-accent)]" : dt.color}`} />
+                  <span className={`text-[10px] font-semibold ${selected ? "text-[var(--ide-accent)]" : "text-[var(--ide-text)]"}`}>{dt.label}</span>
+                </div>
+                <span className="text-[8px] text-[var(--ide-text-muted)] leading-tight">{dt.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {(deploymentType === "autoscale" || deploymentType === "reserved-vm") && (
+        <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+          <SectionHeader title="Machine Power" icon={Cpu} />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] text-[var(--ide-text-muted)]">
+                {config.machineConfig.cpu} vCPU / {config.machineConfig.ram >= 1024 ? `${(config.machineConfig.ram / 1024).toFixed(1)} GB` : `${config.machineConfig.ram} MB`}
+              </span>
+              <span className="text-[8px] text-[var(--ide-text-muted)]">
+                ~{(config.machineConfig.cpu * 20).toFixed(0)} Compute Units/day
+              </span>
+            </div>
+            <Slider
+              value={[machinePresetIdx >= 0 ? machinePresetIdx : 1]}
+              min={0}
+              max={MACHINE_PRESETS.length - 1}
+              step={1}
+              onValueChange={([idx]) => {
+                const preset = MACHINE_PRESETS[idx];
+                setConfig(prev => ({ ...prev, machineConfig: { cpu: preset.cpu, ram: preset.ram } }));
+              }}
+              className="w-full"
+              data-testid="slider-machine-power"
+            />
+            <div className="flex justify-between text-[7px] text-[var(--ide-text-muted)]">
+              <span>0.25 vCPU</span>
+              <span>8 vCPU</span>
+            </div>
+          </div>
+          {deploymentType === "autoscale" && (
+            <div className="space-y-1">
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Max Machines</label>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[config.maxMachines]}
+                  min={1}
+                  max={10}
+                  step={1}
+                  onValueChange={([v]) => setConfig(prev => ({ ...prev, maxMachines: v }))}
+                  className="flex-1"
+                  data-testid="slider-max-machines"
+                />
+                <span className="text-[10px] text-[var(--ide-text)] font-mono w-6 text-right">{config.maxMachines}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(deploymentType === "static" || deploymentType === "autoscale" || deploymentType === "reserved-vm") && (
+        <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+          <SectionHeader title="Build & Run" icon={Play} />
+          <div className="space-y-1.5">
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Build Command</label>
+              <Input
+                value={config.buildCommand}
+                onChange={(e) => setConfig(prev => ({ ...prev, buildCommand: e.target.value }))}
+                placeholder={deploymentType === "static" ? "npm run build" : "npm install && npm run build"}
+                className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                data-testid="input-build-command"
+              />
+            </div>
+            {(deploymentType === "autoscale" || deploymentType === "reserved-vm") && (
+              <div>
+                <label className="text-[9px] text-[var(--ide-text-muted)]">Run Command</label>
+                <Input
+                  value={config.runCommand}
+                  onChange={(e) => setConfig(prev => ({ ...prev, runCommand: e.target.value }))}
+                  placeholder="npm start"
+                  className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                  data-testid="input-run-command"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {deploymentType === "static" && (
+        <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+          <SectionHeader title="Static Settings" icon={FolderOpen} />
+          <div>
+            <label className="text-[9px] text-[var(--ide-text-muted)]">Public Directory</label>
+            <Input
+              value={config.publicDirectory}
+              onChange={(e) => setConfig(prev => ({ ...prev, publicDirectory: e.target.value }))}
+              placeholder="dist"
+              className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+              data-testid="input-public-directory"
+            />
+            <span className="text-[8px] text-[var(--ide-text-muted)]">Folder containing your built files</span>
+          </div>
+        </div>
+      )}
+
+      {deploymentType === "reserved-vm" && (
+        <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+          <SectionHeader title="App Type" icon={Server} />
+          <div className="flex gap-2">
+            {[
+              { id: "web_server", label: "Web Server", desc: "HTTP server on a port" },
+              { id: "background_worker", label: "Background Worker", desc: "Long-running process" },
+            ].map((at) => (
+              <button
+                key={at.id}
+                className={`flex-1 p-2 rounded-lg border text-left transition-all ${
+                  config.appType === at.id
+                    ? "border-[var(--ide-accent)] bg-[var(--ide-accent)]/10"
+                    : "border-[var(--ide-border)] bg-[var(--ide-bg)] hover:border-[var(--ide-text-muted)]"
+                }`}
+                onClick={() => setConfig(prev => ({ ...prev, appType: at.id }))}
+                data-testid={`app-type-${at.id}`}
+              >
+                <span className={`text-[10px] font-semibold ${config.appType === at.id ? "text-[var(--ide-accent)]" : "text-[var(--ide-text)]"}`}>{at.label}</span>
+                <span className="text-[8px] text-[var(--ide-text-muted)] block">{at.desc}</span>
+              </button>
+            ))}
+          </div>
+          {config.appType === "web_server" && (
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Port Mapping</label>
+              <Input
+                type="number"
+                value={config.portMapping}
+                onChange={(e) => setConfig(prev => ({ ...prev, portMapping: parseInt(e.target.value) || 3000 }))}
+                className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                data-testid="input-port-mapping"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {deploymentType === "scheduled" && (
+        <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+          <SectionHeader title="Schedule" icon={Calendar} />
+          <div className="space-y-1.5">
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Describe your schedule</label>
+              <div className="flex gap-1.5">
+                <Input
+                  value={config.scheduleDescription}
+                  onChange={(e) => setConfig(prev => ({ ...prev, scheduleDescription: e.target.value }))}
+                  placeholder="Every day at 3am"
+                  className="h-7 text-[10px] bg-[var(--ide-bg)] flex-1"
+                  data-testid="input-schedule-description"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[9px] px-2"
+                  onClick={() => {
+                    if (config.scheduleDescription) {
+                      setConvertingSchedule(true);
+                      convertScheduleMutation.mutate(config.scheduleDescription, {
+                        onSettled: () => setConvertingSchedule(false),
+                      });
+                    }
+                  }}
+                  disabled={convertingSchedule || !config.scheduleDescription}
+                  data-testid="button-convert-schedule"
+                >
+                  {convertingSchedule ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Cron Expression</label>
+              <Input
+                value={config.cronExpression}
+                onChange={(e) => setConfig(prev => ({ ...prev, cronExpression: e.target.value }))}
+                placeholder="0 3 * * *"
+                className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                data-testid="input-cron-expression"
+              />
+              <span className="text-[8px] text-[var(--ide-text-muted)]">minute hour day-of-month month day-of-week</span>
+            </div>
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Build Command</label>
+              <Input
+                value={config.buildCommand}
+                onChange={(e) => setConfig(prev => ({ ...prev, buildCommand: e.target.value }))}
+                placeholder="npm install"
+                className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                data-testid="input-scheduled-build-command"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Run Command</label>
+              <Input
+                value={config.runCommand}
+                onChange={(e) => setConfig(prev => ({ ...prev, runCommand: e.target.value }))}
+                placeholder="node job.js"
+                className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                data-testid="input-scheduled-run-command"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] text-[var(--ide-text-muted)]">Job Timeout (seconds)</label>
+              <Input
+                type="number"
+                value={config.jobTimeout}
+                onChange={(e) => setConfig(prev => ({ ...prev, jobTimeout: parseInt(e.target.value) || 300 }))}
+                className="h-7 text-[10px] bg-[var(--ide-bg)] font-mono"
+                data-testid="input-job-timeout"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+        <SectionHeader title="Deployment Secrets" icon={Key} collapsed={!showSecrets} onToggle={() => setShowSecrets(!showSecrets)} />
+        {showSecrets && (
+          <div className="space-y-1.5">
+            {existingSecretKeys.filter(k => !(k in config.deploymentSecrets)).map((key) => (
+              <div key={`existing-${key}`} className="flex items-center gap-1.5">
+                <span className="text-[9px] text-[var(--ide-text)] font-mono flex-1 truncate">{key}</span>
+                <span className="text-[9px] text-[var(--ide-text-muted)] font-mono">{"•".repeat(8)}</span>
+                <span className="text-[7px] text-[var(--ide-text-muted)]">saved</span>
+              </div>
+            ))}
+            {Object.entries(config.deploymentSecrets).map(([key, value]) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <span className="text-[9px] text-[var(--ide-text)] font-mono flex-1 truncate">{key}</span>
+                <span className="text-[9px] text-[var(--ide-text-muted)] font-mono truncate max-w-[80px]">{"•".repeat(Math.min(value.length, 12))}</span>
+                <button
+                  className="text-[var(--ide-text-muted)] hover:text-red-400"
+                  onClick={() => removeSecret(key)}
+                  data-testid={`button-remove-secret-${key}`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            <div className="flex gap-1">
+              <Input
+                value={newSecretKey}
+                onChange={(e) => setNewSecretKey(e.target.value)}
+                placeholder="KEY"
+                className="h-6 text-[9px] bg-[var(--ide-bg)] font-mono flex-1"
+                data-testid="input-secret-key"
+              />
+              <Input
+                value={newSecretValue}
+                onChange={(e) => setNewSecretValue(e.target.value)}
+                placeholder="value"
+                type="password"
+                className="h-6 text-[9px] bg-[var(--ide-bg)] font-mono flex-1"
+                data-testid="input-secret-value"
+              />
+              <Button variant="outline" size="icon" className="w-6 h-6" onClick={addSecret} data-testid="button-add-secret">
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)] space-y-2">
+        <SectionHeader title="Access & Settings" icon={Settings} />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Shield className="w-3 h-3 text-[var(--ide-text-muted)]" />
+              <span className="text-[9px] text-[var(--ide-text)]">Private Deployment</span>
+            </div>
+            <Switch
+              checked={config.isPrivate}
+              onCheckedChange={(v) => setConfig(prev => ({ ...prev, isPrivate: v }))}
+              className="scale-75"
+              data-testid="toggle-private"
+            />
+          </div>
+          {config.isPrivate && (
+            <span className="text-[8px] text-yellow-400 block pl-5">Requires Teams plan</span>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Badge className="w-3 h-3 text-[var(--ide-text-muted)]" />
+              <span className="text-[9px] text-[var(--ide-text)]">Show "Made with E-Code" Badge</span>
+            </div>
+            <Switch
+              checked={config.showBadge}
+              onCheckedChange={(v) => setConfig(prev => ({ ...prev, showBadge: v }))}
+              className="scale-75"
+              data-testid="toggle-badge"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <MessageSquare className="w-3 h-3 text-[var(--ide-text-muted)]" />
+              <span className="text-[9px] text-[var(--ide-text)]">Feedback Widget</span>
+            </div>
+            <Switch
+              checked={config.enableFeedback}
+              onCheckedChange={(v) => setConfig(prev => ({ ...prev, enableFeedback: v }))}
+              className="scale-75"
+              data-testid="toggle-feedback"
+            />
+          </div>
+        </div>
+      </div>
+
+      <Button
+        className="w-full h-9 text-xs font-semibold"
+        onClick={() => deployMutation.mutate()}
+        disabled={deployMutation.isPending}
+        data-testid="button-deploy"
+      >
+        {deployMutation.isPending ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+        ) : (
+          <Rocket className="w-3.5 h-3.5 mr-1.5" />
+        )}
+        Deploy as {DEPLOYMENT_TYPES.find(t => t.id === deploymentType)?.label || "Static"}
+      </Button>
+
+      {deployMutation.isError && (
+        <div className="flex items-start gap-1.5 p-2 bg-red-500/10 rounded-lg border border-red-500/30">
+          <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+          <span className="text-[9px] text-red-400">{(deployMutation.error as Error).message}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OverviewTab({ projectId, overview }: { projectId: string; overview: OverviewData | undefined }) {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const queryClient = useQueryClient();
 
-  const overviewQuery = useQuery<OverviewData>({
-    queryKey: ["/api/projects", projectId, "publishing", "overview"],
-    queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/publishing/overview`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load overview");
-      return res.json();
-    },
-    refetchInterval: 15000,
-  });
-
   const republishMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", `/api/projects/${projectId}/deploy`);
+      const cfg = overview?.config;
+      const body: Record<string, any> = {
+        deploymentType: overview?.deploymentType || "static",
+      };
+      if (cfg) {
+        body.buildCommand = cfg.buildCommand;
+        body.runCommand = cfg.runCommand;
+        body.machineConfig = cfg.machineConfig;
+        body.maxMachines = cfg.maxMachines;
+        body.cronExpression = cfg.cronExpression;
+        body.scheduleDescription = cfg.scheduleDescription;
+        body.jobTimeout = cfg.jobTimeout;
+        body.publicDirectory = cfg.publicDirectory;
+        body.appType = cfg.appType;
+        body.portMapping = cfg.portMapping;
+        body.isPrivate = cfg.isPrivate;
+        body.showBadge = cfg.showBadge;
+        body.enableFeedback = cfg.enableFeedback;
+      }
+      await apiRequest("POST", `/api/projects/${projectId}/deploy`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "publishing"] });
     },
   });
-
-  const overview = overviewQuery.data;
-
-  if (overviewQuery.isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" /></div>;
 
   const fullUrl = overview?.url ? (overview.url.startsWith("http") ? overview.url : `${window.location.origin}${overview.url}`) : "";
 
@@ -166,6 +683,30 @@ function OverviewTab({ projectId }: { projectId: string }) {
         </div>
       )}
 
+      {overview?.history && overview.history.length > 0 && (
+        <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]">
+          <SectionHeader title="Deployment History" icon={History} />
+          <div className="space-y-1 mt-1.5">
+            {overview.history.map((h) => (
+              <div key={h.id} className="flex items-center gap-2 text-[9px] py-0.5" data-testid={`history-entry-${h.version}`}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[h.status] || "#6B7280" }} />
+                <span className="text-[var(--ide-text)] font-semibold">v{h.version}</span>
+                <span className="text-[var(--ide-text-muted)] uppercase text-[8px]">{h.deploymentType}</span>
+                <span className={`px-1 rounded text-[7px] uppercase font-semibold ${
+                  h.status === "live" ? "bg-green-500/20 text-green-400" :
+                  h.status === "failed" ? "bg-red-500/20 text-red-400" :
+                  h.status === "building" ? "bg-yellow-500/20 text-yellow-400" :
+                  "bg-gray-500/20 text-gray-400"
+                }`}>{h.status}</span>
+                <span className="text-[var(--ide-text-muted)] ml-auto">
+                  {h.createdAt ? new Date(h.createdAt).toLocaleDateString() : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <Button
         className="w-full h-8 text-xs"
         onClick={() => republishMutation.mutate()}
@@ -173,7 +714,7 @@ function OverviewTab({ projectId }: { projectId: string }) {
         data-testid="button-republish"
       >
         {republishMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Rocket className="w-3.5 h-3.5 mr-1.5" />}
-        {overview?.isPublished ? "Republish" : "Publish"}
+        {overview?.isPublished ? "Republish" : "Quick Publish"}
       </Button>
     </div>
   );
@@ -516,17 +1057,46 @@ function TopList({ title, icon, items, testId }: { title: string; icon: React.Re
 export default function PublishingPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
+  const overviewQuery = useQuery<OverviewData>({
+    queryKey: ["/api/projects", projectId, "publishing", "overview"],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/publishing/overview`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load overview");
+      return res.json();
+    },
+    refetchInterval: 15000,
+  });
+
+  const overview = overviewQuery.data;
+
   const tabs: { id: TabId; label: string; icon: typeof Globe }[] = [
     { id: "overview", label: "Overview", icon: Globe },
+    { id: "configure", label: "Configure", icon: Settings },
     { id: "logs", label: "Logs", icon: FileText },
     { id: "resources", label: "Resources", icon: Cpu },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
   ];
 
+  if (overviewQuery.isLoading) {
+    return (
+      <div className="flex flex-col h-full" data-testid="publishing-panel">
+        <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
+          <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Deployments</span>
+          <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-publishing">
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full" data-testid="publishing-panel">
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--ide-border)] shrink-0">
-        <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Publishing</span>
+        <span className="text-[10px] font-bold text-[var(--ide-text-secondary)] uppercase tracking-widest">Deployments</span>
         <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={onClose} data-testid="button-close-publishing">
           <X className="w-3.5 h-3.5" />
         </Button>
@@ -538,7 +1108,7 @@ export default function PublishingPanel({ projectId, onClose }: { projectId: str
           return (
             <button
               key={tab.id}
-              className={`flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1.5 text-[9px] font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? "border-[var(--ide-accent)] text-[var(--ide-accent)]"
                   : "border-transparent text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
@@ -554,7 +1124,18 @@ export default function PublishingPanel({ projectId, onClose }: { projectId: str
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {activeTab === "overview" && <OverviewTab projectId={projectId} />}
+        {activeTab === "overview" && <OverviewTab projectId={projectId} overview={overview} />}
+        {activeTab === "configure" && (
+          <ConfigureTab
+            projectId={projectId}
+            initialConfig={overview?.config || null}
+            initialType={(overview?.deploymentType as DeploymentType) || "static"}
+            onDeploy={() => {
+              overviewQuery.refetch();
+              setActiveTab("overview");
+            }}
+          />
+        )}
         {activeTab === "logs" && <LogsTab projectId={projectId} />}
         {activeTab === "resources" && <ResourcesTab projectId={projectId} />}
         {activeTab === "analytics" && <AnalyticsTab projectId={projectId} />}

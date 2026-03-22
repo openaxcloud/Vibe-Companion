@@ -1,19 +1,78 @@
+import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Globe, RefreshCw, ExternalLink } from "lucide-react";
+
 interface MobilePreviewPanelProps {
   projectId: string;
 }
 
 export function MobilePreviewPanel({ projectId }: MobilePreviewPanelProps) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  const { data: project } = useQuery<any>({
+    queryKey: ["/api/projects", projectId],
+    queryFn: () => apiRequest("GET", `/api/projects/${projectId}`).then(r => r.json()),
+  });
+
+  const { data: devUrlData } = useQuery<any>({
+    queryKey: ["/api/projects", projectId, "dev-url"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/projects/${projectId}/dev-url`);
+        return res.json();
+      } catch {
+        return null;
+      }
+    },
+    refetchInterval: 5000,
+  });
+
+  const previewUrl = devUrlData?.fullDevUrl || devUrlData?.url || (project?.isPublished && project?.publishedSlug
+    ? `/deployed/${project.publishedSlug}/`
+    : null);
+
+  const refresh = useCallback(() => {
+    setLoaded(false);
+    setRefreshKey(k => k + 1);
+  }, []);
+
   return (
-    <div className="h-full flex flex-col bg-white">
-      <div className="flex-1 flex items-center justify-center bg-[var(--ide-panel)]">
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-xl bg-[var(--ide-surface)] flex items-center justify-center mx-auto mb-3">
-            <svg className="w-6 h-6 text-[var(--ide-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
-            </svg>
+    <div className="h-full flex flex-col bg-[var(--ide-panel)]">
+      <div className="flex items-center gap-1 px-2 h-8 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+        <button onClick={refresh} className="w-6 h-6 flex items-center justify-center rounded text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" data-testid="button-mobile-refresh">
+          <RefreshCw className={`w-3 h-3 ${!loaded && previewUrl ? "animate-spin" : ""}`} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 h-[22px] px-2 rounded-full bg-[var(--ide-panel)] border border-[var(--ide-border)]/70">
+            <Globe className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
+            <span className="text-[9px] text-[var(--ide-text-muted)] font-mono truncate" data-testid="text-mobile-url">{previewUrl || "No preview"}</span>
           </div>
-          <p className="text-xs text-[var(--ide-text-muted)]">Run your app to see the preview</p>
         </div>
+        {previewUrl && (
+          <button onClick={() => window.open(previewUrl, "_blank")} className="w-6 h-6 flex items-center justify-center rounded text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" data-testid="button-mobile-external">
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 flex items-center justify-center overflow-hidden">
+        {previewUrl ? (
+          <iframe
+            key={refreshKey}
+            src={previewUrl}
+            className="w-full h-full border-0 bg-white"
+            onLoad={() => setLoaded(true)}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            data-testid="iframe-mobile-preview"
+          />
+        ) : (
+          <div className="text-center">
+            <Globe className="w-8 h-8 text-[var(--ide-text-muted)]/30 mx-auto mb-2" />
+            <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-no-mobile-preview">Run your app to see the preview</p>
+          </div>
+        )}
       </div>
     </div>
   );
