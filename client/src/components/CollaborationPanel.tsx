@@ -18,14 +18,15 @@ interface CollaborationPanelProps {
   className?: string;
 }
 
-type Role = "viewer" | "editor" | "admin";
+type Role = "viewer" | "editor" | "admin" | "owner";
 
-const roleIcons: Record<Role, typeof Eye> = { viewer: Eye, editor: Pencil, admin: Shield };
-const roleLabels: Record<Role, string> = { viewer: "Viewer", editor: "Editor", admin: "Admin" };
+const roleIcons: Record<Role, typeof Eye> = { viewer: Eye, editor: Pencil, admin: Shield, owner: Shield };
+const roleLabels: Record<Role, string> = { viewer: "Viewer", editor: "Editor", admin: "Admin", owner: "Owner" };
 const roleColors: Record<Role, string> = {
   viewer: "text-blue-400",
   editor: "text-green-400",
   admin: "text-amber-400",
+  owner: "text-amber-400",
 };
 
 export function CollaborationPanel({ projectId, currentUser, className }: CollaborationPanelProps) {
@@ -48,7 +49,7 @@ export function CollaborationPanel({ projectId, currentUser, className }: Collab
   const inviteMutation = useMutation({
     mutationFn: async ({ email, role }: { email: string; role: string }) => {
       const csrf = getCsrfToken();
-      const res = await apiRequest("POST", `/api/projects/${projectId}/guests`, { email, role }, csrf);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/guests`, { email, role });
       return res.json();
     },
     onSuccess: (data) => {
@@ -64,7 +65,7 @@ export function CollaborationPanel({ projectId, currentUser, className }: Collab
   const removeMutation = useMutation({
     mutationFn: async (guestId: string) => {
       const csrf = getCsrfToken();
-      await apiRequest("DELETE", `/api/projects/${projectId}/guests/${guestId}`, undefined, csrf);
+      await apiRequest("DELETE", `/api/projects/${projectId}/guests/${guestId}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "guests"] });
@@ -76,7 +77,7 @@ export function CollaborationPanel({ projectId, currentUser, className }: Collab
   const removeCollabMutation = useMutation({
     mutationFn: async (userId: string) => {
       const csrf = getCsrfToken();
-      await apiRequest("DELETE", `/api/projects/${projectId}/collaborators/${userId}`, undefined, csrf);
+      await apiRequest("DELETE", `/api/projects/${projectId}/collaborators/${userId}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "collaborators"] });

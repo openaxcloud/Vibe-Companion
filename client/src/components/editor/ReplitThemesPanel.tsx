@@ -4,14 +4,36 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Palette, Check, Search, Sun, Moon, Monitor } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { GlobalColors, SyntaxColors } from "@shared/schema";
+interface QuickThemeGlobalColors {
+  background: string;
+  foreground: string;
+  outline: string;
+  accent: string;
+  accentPositive: string;
+  accentNegative: string;
+}
+
+interface QuickThemeSyntaxColors {
+  keyword: string;
+  string: string;
+  comment: string;
+  function: string;
+  variable: string;
+  type: string;
+  number: string;
+  operator: string;
+  punctuation: string;
+  tag: string;
+  attribute: string;
+  property: string;
+}
 
 interface QuickTheme {
   id: string;
   name: string;
   group: BaseScheme;
-  globalColors: GlobalColors;
-  syntaxColors: SyntaxColors;
+  globalColors: QuickThemeGlobalColors;
+  syntaxColors: QuickThemeSyntaxColors;
 }
 
 const QUICK_THEMES: QuickTheme[] = [
@@ -97,12 +119,41 @@ export function ReplitThemesPanel({ projectId }: { projectId: string }) {
   }, [activeTheme]);
 
   const handleApply = (qt: QuickTheme) => {
+    const g = qt.globalColors;
+    const s = qt.syntaxColors;
     const themeData: ThemeData = {
       id: null,
       title: qt.name,
       baseScheme: qt.group,
-      globalColors: qt.globalColors,
-      syntaxColors: qt.syntaxColors,
+      globalColors: {
+        background: g.background,
+        foreground: g.foreground,
+        outline: g.outline,
+        primary: g.accent,
+        positive: g.accentPositive,
+        negative: g.accentNegative,
+      },
+      syntaxColors: {
+        variableNames: s.variable,
+        variableDefinitions: s.variable,
+        functionReferences: s.function,
+        functionDefinitions: s.function,
+        keywords: s.keyword,
+        propertyNames: s.property,
+        propertyDefinitions: s.property,
+        functionProperties: s.function,
+        strings: s.string,
+        comments: s.comment,
+        numbers: s.number,
+        operators: s.operator,
+        tagNames: s.tag,
+        attributeNames: s.attribute,
+        typeNames: s.type,
+        classNames: s.type,
+        booleans: s.number,
+        regularExpressions: s.string,
+        brackets: s.punctuation,
+      },
     };
     setActiveTheme(themeData);
     toast({ title: `Theme: ${qt.name}`, description: "Applied successfully" });

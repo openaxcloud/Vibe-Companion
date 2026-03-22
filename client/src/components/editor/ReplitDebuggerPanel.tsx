@@ -100,7 +100,7 @@ export function ReplitDebuggerPanel({ projectId }: { projectId: string }) {
             }
             break;
           case "breakpointRemoved":
-            setBreakpoints(prev => prev.filter(b => b.id !== msg.breakpointId && b.breakpointId !== msg.breakpointId));
+            setBreakpoints(prev => prev.filter(b => b.id !== msg.breakpointId));
             break;
           case "console":
             const text = (msg.args || []).map((a: any) => a.value || a.type).join(" ");

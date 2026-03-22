@@ -914,6 +914,9 @@ declare module "express-session" {
     csrfToken?: string;
     twitterCodeVerifier?: string;
     oauthState?: string;
+    pendingPrompt?: string;
+    pendingOutputType?: string;
+    githubReturnTo?: string;
   }
 }
 
@@ -1934,6 +1937,8 @@ export async function registerRoutes(
     req.session.oauthState = state;
     const returnTo = req.headers.referer || "/dashboard";
     req.session.githubReturnTo = returnTo;
+    if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
+    if (req.query.outputType) req.session.pendingOutputType = String(req.query.outputType);
     const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email,repo&state=${state}`;
     return res.redirect(url);
   });
@@ -1976,9 +1981,16 @@ export async function registerRoutes(
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "github", req.headers["user-agent"] || null);
-      const returnTo = req.session.githubReturnTo || "/dashboard";
+      const pendingPrompt = req.session.pendingPrompt;
+      const pendingOutputType = req.session.pendingOutputType;
+      delete req.session.pendingPrompt;
+      delete req.session.pendingOutputType;
       delete req.session.githubReturnTo;
-      return res.redirect(returnTo);
+      let redirectUrl = "/dashboard";
+      if (pendingPrompt) {
+        redirectUrl += `?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${encodeURIComponent(pendingOutputType || "web")}`;
+      }
+      return res.redirect(redirectUrl);
     } catch {
       return res.redirect("/auth?error=github_failed");
     }
@@ -1990,6 +2002,8 @@ export async function registerRoutes(
     const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/google/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
+    if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
+    if (req.query.outputType) req.session.pendingOutputType = String(req.query.outputType);
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("openid email profile")}&access_type=offline&state=${state}`;
     return res.redirect(url);
   });
@@ -2031,7 +2045,15 @@ export async function registerRoutes(
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "google", req.headers["user-agent"] || null);
-      return res.redirect("/dashboard");
+      const pendingPrompt = req.session.pendingPrompt;
+      const pendingOutputType = req.session.pendingOutputType;
+      delete req.session.pendingPrompt;
+      delete req.session.pendingOutputType;
+      let redirectUrl = "/dashboard";
+      if (pendingPrompt) {
+        redirectUrl += `?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${encodeURIComponent(pendingOutputType || "web")}`;
+      }
+      return res.redirect(redirectUrl);
     } catch {
       return res.redirect("/auth?error=google_failed");
     }
@@ -2043,6 +2065,8 @@ export async function registerRoutes(
     const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/apple/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
+    if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
+    if (req.query.outputType) req.session.pendingOutputType = String(req.query.outputType);
     const url = `https://appleid.apple.com/auth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("name email")}&response_mode=form_post&state=${state}`;
     return res.redirect(url);
   });
@@ -2117,7 +2141,15 @@ export async function registerRoutes(
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "apple", req.headers["user-agent"] || null);
-      return res.redirect("/dashboard");
+      const pendingPrompt = req.session.pendingPrompt;
+      const pendingOutputType = req.session.pendingOutputType;
+      delete req.session.pendingPrompt;
+      delete req.session.pendingOutputType;
+      let redirectUrl = "/dashboard";
+      if (pendingPrompt) {
+        redirectUrl += `?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${encodeURIComponent(pendingOutputType || "web")}`;
+      }
+      return res.redirect(redirectUrl);
     } catch {
       return res.redirect("/auth?error=apple_failed");
     }
@@ -2132,6 +2164,8 @@ export async function registerRoutes(
     const state = crypto.randomBytes(16).toString("hex");
     req.session.twitterCodeVerifier = codeVerifier;
     req.session.oauthState = state;
+    if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
+    if (req.query.outputType) req.session.pendingOutputType = String(req.query.outputType);
     const url = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent("tweet.read users.read offline.access")}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
     return res.redirect(url);
   });
@@ -2182,7 +2216,15 @@ export async function registerRoutes(
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "twitter", req.headers["user-agent"] || null);
-      return res.redirect("/dashboard");
+      const pendingPrompt = req.session.pendingPrompt;
+      const pendingOutputType = req.session.pendingOutputType;
+      delete req.session.pendingPrompt;
+      delete req.session.pendingOutputType;
+      let redirectUrl = "/dashboard";
+      if (pendingPrompt) {
+        redirectUrl += `?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${encodeURIComponent(pendingOutputType || "web")}`;
+      }
+      return res.redirect(redirectUrl);
     } catch {
       return res.redirect("/auth?error=twitter_failed");
     }
@@ -2195,6 +2237,8 @@ export async function registerRoutes(
     const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/replit/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
+    if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
+    if (req.query.outputType) req.session.pendingOutputType = String(req.query.outputType);
     const url = `https://replit.com/auth_with_repl_site?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("openid profile email")}&state=${state}`;
     return res.redirect(url);
   });
@@ -2239,7 +2283,15 @@ export async function registerRoutes(
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "replit", req.headers["user-agent"] || null);
-      return res.redirect("/dashboard");
+      const pendingPrompt = req.session.pendingPrompt;
+      const pendingOutputType = req.session.pendingOutputType;
+      delete req.session.pendingPrompt;
+      delete req.session.pendingOutputType;
+      let redirectUrl = "/dashboard";
+      if (pendingPrompt) {
+        redirectUrl += `?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${encodeURIComponent(pendingOutputType || "web")}`;
+      }
+      return res.redirect(redirectUrl);
     } catch {
       return res.redirect("/auth?error=replit_failed");
     }
@@ -6355,7 +6407,7 @@ export async function registerRoutes(
     if (!project) return res.status(404).json({ message: "Project not found" });
     if (project.userId !== req.session.userId!) return res.status(403).json({ message: "Access denied" });
 
-    const files = await storage.getFilesByProject(project.id);
+    const files = await storage.getFiles(project.id);
     if (!files || files.length === 0) return res.status(400).json({ message: "No files in project" });
 
     const inspectPort = getInspectPort(project.id);

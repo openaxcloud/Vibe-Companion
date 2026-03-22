@@ -517,6 +517,8 @@ export default function Dashboard() {
     onError: (err: any) => { toast({ title: "Failed to duplicate project", description: err.message || "Could not duplicate the project.", variant: "destructive" }); },
   });
 
+  const autoGenerateTriggered = useRef(false);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const compressedPrompt = params.get("prompt");
@@ -533,6 +535,10 @@ export default function Dashboard() {
       return;
     }
 
+    let promptText: string | null = null;
+    let outputType: string = "web";
+    let fromLoginRedirect = false;
+
     if (compressedPrompt) {
       if (compressedPrompt.length > 10000) {
         toast({ title: "Invalid link", description: "The prompt parameter is too large.", variant: "destructive" });
@@ -540,18 +546,38 @@ export default function Dashboard() {
         return;
       }
       const decompressed = LZString.decompressFromEncodedURIComponent(compressedPrompt);
-      const promptText = decompressed || decodeURIComponent(compressedPrompt);
-      if (!promptText) {
-        window.history.replaceState({}, "", "/dashboard");
-        return;
+      promptText = decompressed || decodeURIComponent(compressedPrompt);
+      outputType = params.get("outputType") || (stack === "design" ? "design" : "web");
+      fromLoginRedirect = params.has("outputType");
+    }
+
+    if (!promptText) {
+      const storedPrompt = sessionStorage.getItem("pendingPrompt");
+      if (storedPrompt) {
+        promptText = storedPrompt;
+        outputType = sessionStorage.getItem("pendingOutputType") || "web";
+        fromLoginRedirect = true;
+        sessionStorage.removeItem("pendingPrompt");
+        sessionStorage.removeItem("pendingOutputType");
       }
-      const outputType = params.get("outputType") || (stack === "design" ? "design" : "web");
-      setAiPrompt(promptText);
-      if (outputType !== "web") {
-        setSelectedCategory(outputType);
-      }
-      toast({ title: "Prompt loaded", description: "Your prompt has been pre-filled. Click Build to create your project." });
+    }
+
+    if (!promptText) {
       window.history.replaceState({}, "", "/dashboard");
+      return;
+    }
+
+    setAiPrompt(promptText);
+    if (outputType !== "web") {
+      setSelectedCategory(outputType);
+    }
+    window.history.replaceState({}, "", "/dashboard");
+
+    if (fromLoginRedirect && !autoGenerateTriggered.current) {
+      autoGenerateTriggered.current = true;
+      generateProject.mutate({ prompt: promptText, model: "default", outputType });
+    } else if (!fromLoginRedirect) {
+      toast({ title: "Prompt loaded", description: "Your prompt has been pre-filled. Click Build to create your project." });
     }
   }, []);
 

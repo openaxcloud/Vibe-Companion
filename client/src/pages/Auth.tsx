@@ -79,6 +79,33 @@ export default function Auth() {
 
   const promptHandled = useRef(false);
 
+  const getPromptParams = () => {
+    const p = initialParamsRef.current.get("prompt") || new URLSearchParams(window.location.search).get("prompt");
+    const o = initialParamsRef.current.get("outputType") || new URLSearchParams(window.location.search).get("outputType") || "web";
+    return { pendingPrompt: p, pendingOutputType: o };
+  };
+
+  const { pendingPrompt, pendingOutputType } = getPromptParams();
+
+  useEffect(() => {
+    const { pendingPrompt: pp, pendingOutputType: po } = getPromptParams();
+    if (pp) {
+      sessionStorage.setItem("pendingPrompt", pp);
+      sessionStorage.setItem("pendingOutputType", po);
+    } else {
+      sessionStorage.removeItem("pendingPrompt");
+      sessionStorage.removeItem("pendingOutputType");
+    }
+  }, []);
+
+  const buildOAuthUrl = (baseUrl: string) => {
+    if (pendingPrompt) {
+      const sep = baseUrl.includes("?") ? "&" : "?";
+      return `${baseUrl}${sep}prompt=${encodeURIComponent(pendingPrompt)}&outputType=${encodeURIComponent(pendingOutputType)}`;
+    }
+    return baseUrl;
+  };
+
   useEffect(() => {
     const error = params.get("error");
     if (error) {
@@ -100,12 +127,13 @@ export default function Auth() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const ip = initialParamsRef.current;
-    const pendingPrompt = ip.get("prompt");
-    const pendingOutputType = ip.get("outputType") || "web";
-    if (pendingPrompt && !promptHandled.current) {
+    const prompt = pendingPrompt || sessionStorage.getItem("pendingPrompt");
+    const outputType = pendingOutputType || sessionStorage.getItem("pendingOutputType") || "web";
+    if (prompt && !promptHandled.current) {
       promptHandled.current = true;
-      setLocation(`/dashboard?prompt=${encodeURIComponent(pendingPrompt)}&outputType=${pendingOutputType}`);
+      sessionStorage.removeItem("pendingPrompt");
+      sessionStorage.removeItem("pendingOutputType");
+      setLocation(`/dashboard?prompt=${encodeURIComponent(prompt)}&outputType=${encodeURIComponent(outputType)}`);
     } else {
       setLocation("/dashboard");
     }
@@ -168,7 +196,7 @@ export default function Auth() {
               data-testid="button-ecode-login"
               onClick={() => {
                 if (providers.ecode) {
-                  window.location.href = "/api/auth/ecode";
+                  window.location.href = buildOAuthUrl("/api/auth/ecode");
                 } else {
                   toast({ title: "E-Code Sign-In", description: "E-Code Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
@@ -184,7 +212,7 @@ export default function Auth() {
               data-testid="button-github-login"
               onClick={() => {
                 if (providers.github) {
-                  window.location.href = "/api/auth/github/redirect";
+                  window.location.href = buildOAuthUrl("/api/auth/github/redirect");
                 } else {
                   fetch("/api/auth/github", { method: "POST", headers: { "Content-Type": "application/json" } })
                     .then(async r => {
@@ -209,7 +237,7 @@ export default function Auth() {
               data-testid="button-google-login"
               onClick={() => {
                 if (providers.google) {
-                  window.location.href = "/api/auth/google";
+                  window.location.href = buildOAuthUrl("/api/auth/google");
                 } else {
                   toast({ title: "Google Sign-In", description: "Google Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
@@ -225,7 +253,7 @@ export default function Auth() {
               data-testid="button-apple-login"
               onClick={() => {
                 if (providers.apple) {
-                  window.location.href = "/api/auth/apple";
+                  window.location.href = buildOAuthUrl("/api/auth/apple");
                 } else {
                   toast({ title: "Apple Sign-In", description: "Apple Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }
@@ -241,7 +269,7 @@ export default function Auth() {
               data-testid="button-twitter-login"
               onClick={() => {
                 if (providers.twitter) {
-                  window.location.href = "/api/auth/twitter";
+                  window.location.href = buildOAuthUrl("/api/auth/twitter");
                 } else {
                   toast({ title: "X Sign-In", description: "X Sign-In is not available at this time. Please use another login method.", variant: "destructive" });
                 }

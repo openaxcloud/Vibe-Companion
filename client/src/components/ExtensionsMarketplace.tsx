@@ -67,7 +67,7 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
   const installMutation = useMutation({
     mutationFn: async (extId: string) => {
       const csrf = getCsrfToken();
-      const res = await apiRequest("POST", `/api/projects/${projectId}/extensions`, { extensionId: extId }, csrf);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/extensions`, { extensionId: extId });
       return res.json();
     },
     onSuccess: (_, extId) => {
@@ -83,7 +83,7 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
   const uninstallMutation = useMutation({
     mutationFn: async (extId: string) => {
       const csrf = getCsrfToken();
-      await apiRequest("DELETE", `/api/projects/${projectId}/extensions/${extId}`, undefined, csrf);
+      await apiRequest("DELETE", `/api/projects/${projectId}/extensions/${extId}`);
     },
     onSuccess: (_, extId) => {
       qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "extensions"] });
