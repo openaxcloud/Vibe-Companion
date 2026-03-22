@@ -138,7 +138,7 @@ export function ReplitMobileInputBar({
   return (
     <div
       className={cn(
-        "fixed left-0 right-0 z-40 px-3 transition-[bottom] duration-200",
+        "fixed left-0 right-0 z-[55] px-3 transition-[bottom] duration-200",
         keyboardVisible ? "bottom-0" : "bottom-[52px]"
       )}
       style={{
