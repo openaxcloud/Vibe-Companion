@@ -13,19 +13,38 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "react-app",
     name: "React App",
-    description: "React frontend with components and hooks",
+    description: "Modern React app with Tailwind CSS",
     language: "typescript",
     files: [
       {
         filename: "index.html",
         content: `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>React App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out',
+            'slide-up': 'slideUp 0.3s ease-out',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            slideUp: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 min-h-screen text-white antialiased">
   <div id="root"></div>
   <script type="module" src="./App.tsx"></script>
 </body>
@@ -33,7 +52,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         filename: "App.tsx",
-        content: `import React, { useState } from "react";
+        content: `import React, { useState, useEffect } from "react";
 
 interface Todo {
   id: number;
@@ -44,6 +63,11 @@ interface Todo {
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+
+  useEffect(() => {
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  });
 
   const addTodo = () => {
     if (!input.trim()) return;
@@ -59,42 +83,123 @@ export default function App() {
     setTodos(todos.filter(t => t.id !== id));
   };
 
+  const filtered = todos.filter(t =>
+    filter === "all" ? true : filter === "active" ? !t.completed : t.completed
+  );
+
+  const completedCount = todos.filter(t => t.completed).length;
+
   return (
-    <div style={{ maxWidth: 480, margin: "40px auto", fontFamily: "system-ui, sans-serif", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24 }}>Todo App</h1>
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && addTodo()}
-          placeholder="Add a new todo..."
-          style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid #ccc", fontSize: 14 }}
-        />
-        <button onClick={addTodo} style={{ padding: "8px 16px", borderRadius: 6, background: "#0079F2", color: "#fff", border: "none", cursor: "pointer", fontSize: 14 }}>
-          Add
-        </button>
-      </div>
-      {todos.length === 0 ? (
-        <p style={{ color: "#888", textAlign: "center", padding: 32 }}>No todos yet. Add one above!</p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {todos.map(todo => (
-            <li key={todo.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: "1px solid #eee" }}>
-              <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo.id)} />
-              <span style={{ flex: 1, textDecoration: todo.completed ? "line-through" : "none", color: todo.completed ? "#aaa" : "#333" }}>
-                {todo.text}
-              </span>
-              <button onClick={() => deleteTodo(todo.id)} style={{ background: "none", border: "none", color: "#e55", cursor: "pointer", fontSize: 16 }}>✕</button>
-            </li>
+    <div className="min-h-screen flex flex-col">
+      <header className="border-b border-white/10 bg-white/5 backdrop-blur-xl sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+              <i data-lucide="check-square" className="w-4 h-4 text-white"></i>
+            </div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">TaskFlow</h1>
+          </div>
+          <span className="text-sm text-slate-400">{completedCount}/{todos.length} done</span>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-8">
+        <div className="flex gap-3 mb-8 animate-fade-in">
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && addTodo()}
+            placeholder="What needs to be done?"
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
+          />
+          <button
+            onClick={addTodo}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-violet-600 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-200 active:scale-95"
+          >
+            <i data-lucide="plus" className="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div className="flex gap-2 mb-6">
+          {(["all", "active", "completed"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={\`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 \${
+                filter === f
+                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }\`}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
           ))}
-        </ul>
-      )}
-      <p style={{ marginTop: 16, fontSize: 12, color: "#aaa" }}>{todos.filter(t => t.completed).length}/{todos.length} completed</p>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="text-center py-16 animate-fade-in">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
+              <i data-lucide="inbox" className="w-8 h-8 text-slate-600"></i>
+            </div>
+            <p className="text-slate-500 text-lg">
+              {filter === "all" ? "No tasks yet. Add one above!" : \`No \${filter} tasks.\`}
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {filtered.map((todo, i) => (
+              <li
+                key={todo.id}
+                className="group flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all duration-200 animate-slide-up"
+                style={{ animationDelay: \`\${i * 50}ms\` }}
+              >
+                <button
+                  onClick={() => toggleTodo(todo.id)}
+                  className={\`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 \${
+                    todo.completed
+                      ? "bg-green-500 border-green-500"
+                      : "border-slate-600 hover:border-blue-500"
+                  }\`}
+                >
+                  {todo.completed && <i data-lucide="check" className="w-3.5 h-3.5 text-white"></i>}
+                </button>
+                <span className={\`flex-1 transition-all duration-200 \${
+                  todo.completed ? "line-through text-slate-600" : "text-slate-200"
+                }\`}>
+                  {todo.text}
+                </span>
+                <button
+                  onClick={() => deleteTodo(todo.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all duration-200"
+                >
+                  <i data-lucide="trash-2" className="w-4 h-4"></i>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {todos.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-sm text-slate-500">
+            <span>{todos.length - completedCount} items remaining</span>
+            {completedCount > 0 && (
+              <button
+                onClick={() => setTodos(todos.filter(t => !t.completed))}
+                className="hover:text-red-400 transition-colors duration-200"
+              >
+                Clear completed
+              </button>
+            )}
+          </div>
+        )}
+      </main>
+
+      <footer className="border-t border-white/5 py-4">
+        <p className="text-center text-sm text-slate-600">Built with E-Code IDE</p>
+      </footer>
     </div>
   );
 }
-
-console.log("React App loaded!");
 `,
       },
     ],

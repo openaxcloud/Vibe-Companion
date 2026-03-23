@@ -8202,7 +8202,7 @@ export async function registerRoutes(
       const outputType = validOutputTypes.includes(reqOutputType) ? reqOutputType : "web";
 
       const outputTypeInstructions: Record<string, string> = {
-        "web": "Generate a web app. Put everything in a single HTML file with inline CSS/JS when possible. Use modern HTML5, CSS3, and vanilla JS or include CDN links for frameworks.",
+        "web": "Generate a beautiful, modern web app. Use Tailwind CSS via CDN (<script src=\"https://cdn.tailwindcss.com\"></script>) for styling. Design should look professional with dark mode, gradients, shadows, rounded corners, hover effects, animations, responsive layout. Include Lucide icons via CDN. Use modern HTML5 and ES6+ JavaScript. The app should look like a polished SaaS product.",
         "mobile": "Generate a React Native/Expo mobile app with TypeScript. Use React Native components (View, Text, TouchableOpacity, FlatList, etc.) — NOT HTML. Use StyleSheet.create() for styles. Use Expo Router for navigation (file-based routing in app/ directory). Include app.json with Expo config, package.json with expo/react-native dependencies, babel.config.js, tsconfig.json, and app/_layout.tsx. Set projectType to 'mobile-app'. Place pages in app/ directory.",
         "slides": "Generate an HTML-based slide presentation using Reveal.js (include CDN). Create multiple slides with navigation, transitions, and speaker notes. Include a title slide and content slides.",
         "animation": "Generate a Canvas/CSS/SVG animation with controls (play/pause/speed). Use requestAnimationFrame for smooth rendering. Include interactive controls to adjust animation parameters.",
@@ -8216,7 +8216,7 @@ export async function registerRoutes(
 
       const formatInstruction = outputTypeInstructions[outputType] || outputTypeInstructions["web"];
 
-      const systemPrompt = `You are a senior software engineer. Given a project description and output format, generate a project specification as JSON.
+      const systemPrompt = `You are a senior software engineer and UI designer. Given a project description and output format, generate a BEAUTIFUL, production-quality project specification as JSON.
 
 Return ONLY valid JSON (no markdown, no code blocks, no explanation) with this structure:
 {
@@ -8232,9 +8232,25 @@ Rules:
 - name: short kebab-case slug (max 30 chars)
 - language: one of javascript, typescript, python
 - projectType: "web-app" for most output types, "mobile-app" for mobile output type
-- files: generate 1-3 concise, working files. Keep code SHORT but functional.
-- IMPORTANT: Keep total response under 3000 tokens. Prefer fewer, smaller files.
+- files: generate 2-5 complete, polished files with BEAUTIFUL design
 - Do NOT add any text before or after the JSON object
+
+DESIGN QUALITY REQUIREMENTS (CRITICAL):
+- Use Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>) for ALL styling
+- Design must look PROFESSIONAL and MODERN — like a top-tier SaaS product
+- Use a cohesive color palette with subtle gradients (e.g. bg-gradient-to-br from-slate-900 to-slate-800)
+- Add proper spacing, rounded corners (rounded-xl, rounded-2xl), and shadows (shadow-lg, shadow-xl)
+- Use modern typography: font-sans, proper text sizing hierarchy (text-4xl for titles, text-lg for body)
+- Include hover states and transitions (transition-all duration-200, hover:scale-105, hover:shadow-lg)
+- Add subtle animations where appropriate (animate-pulse for loading, animate-fade-in for content)
+- Use cards with bg-white/10 backdrop-blur-sm for glassmorphism effects on dark backgrounds
+- Include proper empty states, loading states, and micro-interactions
+- Make everything responsive with Tailwind responsive prefixes (sm:, md:, lg:)
+- Add icons using Lucide CDN (<script src="https://unpkg.com/lucide@latest"></script>) or inline SVGs
+- Use dark mode by default with rich dark backgrounds (slate-900, gray-900, zinc-900)
+- NEVER use plain unstyled HTML or basic inline styles — everything must look polished
+- Include a beautiful header/navbar with the app name and navigation
+- Add a footer with subtle branding
 
 OUTPUT FORMAT: ${outputType}
 ${formatInstruction}`;
@@ -10311,7 +10327,21 @@ When the user asks to generate an AI image (illustrations, art, hero images, con
 
 When the user asks you to research a topic, find information, or answer questions requiring up-to-date knowledge, use the tavily_search tool. It provides AI-powered web search with answer synthesis and source attribution.
 
-Always write complete, working code. Never use placeholders or TODOs.${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
+Always write complete, working code. Never use placeholders or TODOs.
+
+DESIGN QUALITY (CRITICAL — follow these for ALL web projects):
+- Use Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>) for ALL styling in HTML files
+- Every UI must look PROFESSIONAL and MODERN — like a top-tier SaaS product, not a student project
+- Use dark mode by default (bg-slate-900, bg-gray-900) with rich gradients (bg-gradient-to-br)
+- Add proper shadows (shadow-lg, shadow-xl), rounded corners (rounded-xl), and spacing
+- Include hover states (hover:scale-105, hover:bg-opacity-80) and smooth transitions (transition-all duration-200)
+- Use modern typography hierarchy (text-4xl bold titles, text-lg body, text-sm captions)
+- Make everything responsive (sm:, md:, lg: prefixes)
+- Use Lucide icons via CDN (<script src="https://unpkg.com/lucide@latest"></script>) for all icons
+- Include beautiful empty states, loading indicators, and micro-interactions
+- Use glassmorphism (bg-white/10 backdrop-blur) and subtle gradients for cards
+- NEVER output plain unstyled HTML — every element must be styled
+- Include a polished header/nav and footer${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
 
 ## Web Search
 You have access to web search tools. Use them when:
