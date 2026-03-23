@@ -2503,6 +2503,51 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/user/profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json({ id: user.id, email: user.email, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username, bio: user.bio });
+    } catch {
+      res.status(500).json({ message: "Failed to get profile" });
+    }
+  });
+
+  app.put("/api/user/profile", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ displayName: z.string().min(1).max(100).optional(), bio: z.string().max(500).optional(), avatarUrl: z.string().url().nullable().optional() });
+      const data = schema.parse(req.body);
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const updated = await storage.updateUser(user.id, data);
+      res.json({ id: updated?.id, email: updated?.email, displayName: updated?.displayName, avatarUrl: updated?.avatarUrl });
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid profile data" });
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.get("/api/user/agent-preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const prefs = await storage.getUserPreferences(req.session.userId!);
+      res.json({ creditAlertThreshold: prefs?.creditAlertThreshold ?? 80, agentToolsConfig: prefs?.agentToolsConfig ?? {} });
+    } catch {
+      res.status(500).json({ message: "Failed to get agent preferences" });
+    }
+  });
+
+  app.put("/api/user/agent-preferences", requireAuth, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ creditAlertThreshold: z.number().min(0).max(100).optional(), agentToolsConfig: z.record(z.any()).optional() });
+      const data = schema.parse(req.body);
+      const updated = await storage.updateUserPreferences(req.session.userId!, data);
+      res.json(updated);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid preferences" });
+      res.status(500).json({ message: "Failed to update agent preferences" });
+    }
+  });
+
   app.get("/api/user/pane-layout/:projectId", requireAuth, async (req: Request, res: Response) => {
     try {
       const projectId = String(req.params.projectId);
@@ -2551,6 +2596,19 @@ export async function registerRoutes(
       }
       res.status(500).json({ message: "Failed to save pane layout" });
     }
+  });
+
+  app.get("/api/user/export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const projects = await storage.getProjectsByUserId(user.id);
+      res.json({
+        user: { id: user.id, email: user.email, username: user.username, displayName: user.displayName, createdAt: user.createdAt },
+        projects: projects.map(p => ({ id: p.id, name: p.name, language: p.language, createdAt: p.createdAt })),
+        exportedAt: new Date().toISOString(),
+      });
+    } catch { res.json({ user: null, projects: [], exportedAt: new Date().toISOString() }); }
   });
 
   // --- KEYBOARD SHORTCUTS ---
@@ -3133,6 +3191,15 @@ export async function registerRoutes(
     } catch {
       return res.status(500).json({ message: "Failed to execute onBoot" });
     }
+  });
+
+  app.get("/api/projects/:id/files", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      const files = await storage.getFiles(req.params.id);
+      res.json(files);
+    } catch { res.json([]); }
   });
 
   app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
@@ -15981,6 +16048,21 @@ print(json.dumps({"results":tests,"duration":dur}))`;
     }
   });
 
+  app.get("/api/automations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const projects = await storage.getProjectsByUserId(userId);
+      const allAutomations: any[] = [];
+      for (const p of projects.slice(0, 20)) {
+        const autos = await storage.getProjectAutomations(p.id);
+        allAutomations.push(...autos);
+      }
+      res.json(allAutomations);
+    } catch {
+      res.json([]);
+    }
+  });
+
   app.delete("/api/automations/:automationId", requireAuth, async (req: Request, res: Response) => {
     try {
       const automation = await storage.getAutomation(req.params.automationId);
@@ -16400,6 +16482,21 @@ print(json.dumps({"results":tests,"duration":dur}))`;
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to run workflow" });
+    }
+  });
+
+  app.get("/api/workflows", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const projects = await storage.getProjectsByUserId(userId);
+      const allWorkflows: any[] = [];
+      for (const p of projects.slice(0, 20)) {
+        const wfs = await storage.getProjectWorkflows(p.id);
+        allWorkflows.push(...wfs);
+      }
+      res.json(allWorkflows);
+    } catch {
+      res.json([]);
     }
   });
 
@@ -20847,6 +20944,16 @@ export default function App() {
       res.json({ liked: true });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/support/tickets", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId!;
+      const tickets = await communityDb.select().from(supportTickets).where(drizzleEq(supportTickets.userId, userId)).orderBy(drizzleDesc(supportTickets.createdAt)).limit(50);
+      res.json(tickets);
+    } catch {
+      res.json([]);
     }
   });
 
