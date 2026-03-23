@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -122,8 +122,8 @@ export function ReplitGitPanel({ projectId, projectName }: ReplitGitPanelProps) 
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: async (branchName: string) => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/git/checkout`, { branchName });
+    mutationFn: async (target: { branchName?: string; commitId?: string }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/git/checkout`, target);
       return res.json();
     },
     onSuccess: () => {
@@ -158,7 +158,7 @@ export function ReplitGitPanel({ projectId, projectName }: ReplitGitPanelProps) 
       .catch(() => setGhConnected(false));
   }, []);
 
-  useState(() => { loadGhStatus(); });
+  useEffect(() => { loadGhStatus(); }, [loadGhStatus]);
 
   const handleCommit = () => {
     if (!commitMessage.trim()) return;
@@ -453,7 +453,7 @@ export function ReplitGitPanel({ projectId, projectName }: ReplitGitPanelProps) 
                       <Button
                         variant="ghost" size="icon"
                         className="w-5 h-5 text-[#0079F2] hover:bg-[#0079F2]/10"
-                        onClick={() => checkoutMutation.mutate(branch.name)}
+                        onClick={() => checkoutMutation.mutate({ branchName: branch.name })}
                         disabled={checkoutMutation.isPending}
                         title="Switch to this branch"
                         data-testid={`button-checkout-${branch.name}`}
@@ -528,7 +528,7 @@ export function ReplitGitPanel({ projectId, projectName }: ReplitGitPanelProps) 
                           className="h-5 px-2 text-[9px] text-[#F5A623] hover:text-[#F5A623] hover:bg-[#F5A623]/10 mt-1.5"
                           onClick={() => {
                             if (confirm(`Checkout commit ${commit.id?.slice(0, 7)}? This will change your working files.`)) {
-                              checkoutMutation.mutate(commit.id);
+                              checkoutMutation.mutate({ commitId: commit.id });
                             }
                           }}
                           data-testid={`button-checkout-commit-${commit.id?.slice(0, 7)}`}
