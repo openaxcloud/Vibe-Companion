@@ -351,7 +351,7 @@ export default function Desktop() {
             <Link href="/pricing" className="hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
             <Link href="/teams" className="hover:text-[var(--ide-text)] transition-colors">Teams</Link>
             <Link href="/desktop" className="hover:text-[var(--ide-text)] transition-colors">Desktop App</Link>
-            <a href="https://docs.e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Docs</a>
+            <Link href="/docs" className="hover:text-[var(--ide-text)] transition-colors">Docs</Link>
             <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
             <a href="mailto:support@e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Contact</a>

@@ -139,7 +139,7 @@ function App() {
                 <Route path="/mcp-install-link">{() => <ProtectedRoute component={McpInstallLink} />}</Route>
                 <Route path="/open" component={OpenInReplit} />
                 <Route path="/desktop" component={Desktop} />
-                <Route path="/docs">{() => <ProtectedRoute component={Documentation} />}</Route>
+                <Route path="/docs" component={Documentation} />
                 <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
                 <Route path="/help">{() => <ProtectedRoute component={HelpCenter} />}</Route>
                 <Route path="/pricing" component={Pricing} />
