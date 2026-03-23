@@ -132,9 +132,14 @@ interface AIPanelProps {
   hideInput?: boolean;
   onExternalInput?: (handlers: {
     handleSubmit?: (value: string) => void;
+    handleSubmitWithAttachments?: (value: string, attachments: Attachment[]) => void;
     isWorking?: boolean;
     agentMode?: string;
     onModeChange?: (mode: string) => void;
+    addFiles?: (files: File[]) => void;
+    pendingAttachmentsCount?: number;
+    removeAttachment?: (id: string) => void;
+    attachments?: { id: string; name: string; type: string; size: number }[];
   } | null) => void;
 }
 
@@ -2044,6 +2049,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           sendMessageDirect(value);
         }, 0);
       },
+      handleSubmitWithAttachments: (value: string, atts: Attachment[]) => {
+        setInput(value);
+        setTimeout(() => {
+          sendMessageDirect(value, atts);
+          setAttachments([]);
+        }, 0);
+      },
       isWorking: isStreaming,
       agentMode,
       onModeChange: (m: string) => {
@@ -2051,9 +2063,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           handleAgentModeChange(m as AgentMode);
         }
       },
+      addFiles: addFilesExternal,
+      pendingAttachmentsCount: attachments.length,
+      removeAttachment: (id: string) => setAttachments(prev => prev.filter(a => a.id !== id)),
+      attachments: attachments.map(a => ({ id: a.id, name: a.name, type: a.type, size: a.size })),
     });
     return () => onExternalInput(null);
-  }, [onExternalInput, isStreaming, agentMode, sendMessageDirect]);
+  }, [onExternalInput, isStreaming, agentMode, sendMessageDirect, addFilesExternal, attachments]);
 
   const stopStreaming = () => {
     abortRef.current?.abort();
@@ -2210,6 +2226,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const addFilesExternal = useCallback((files: File[]) => {
+    files.forEach((file) => {
+      const reader = new FileReader();
+      const isImage = file.type.startsWith("image/");
+      reader.onload = () => {
+        const content = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString() + Math.random().toString(36).slice(2),
+            name: file.name,
+            type: isImage ? "image" : file.type.startsWith("text/") || file.name.match(/\.(js|ts|tsx|jsx|py|json|css|html|md|yaml|yml|xml|csv|sql|sh|go|rs|java|c|cpp|h|rb|php)$/) ? "text" : "file",
+            content,
+            mimeType: file.type,
+            size: file.size,
+          },
+        ]);
+      };
+      if (isImage) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+  }, []);
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));

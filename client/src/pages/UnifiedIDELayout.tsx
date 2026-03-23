@@ -424,7 +424,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const [mobileAgentToolsConfig, setMobileAgentToolsConfig] = useState({
     liteMode: false, webSearch: true, appTesting: false, codeOptimizations: false, architect: false, turbo: false,
   });
-  const [mobilePendingAttachments, setMobilePendingAttachments] = useState<File[]>([]);
   const mobileFileInputRef = useRef<HTMLInputElement>(null);
   const handleMobileAttach = useCallback(() => {
     mobileFileInputRef.current?.click();
@@ -432,10 +431,10 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const handleMobileFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setMobilePendingAttachments(prev => [...prev, ...Array.from(files)]);
+      mobileAgentHandlers?.addFiles?.(Array.from(files));
     }
     if (mobileFileInputRef.current) mobileFileInputRef.current.value = '';
-  }, []);
+  }, [mobileAgentHandlers]);
 
   // Tab content animation
   const [displayedTab, setDisplayedTab] = useState(activeTab);
@@ -926,7 +925,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             agentToolsConfig={mobileAgentToolsConfig}
             onAgentToolsConfigChange={setMobileAgentToolsConfig}
             onAttach={handleMobileAttach}
-            pendingAttachmentsCount={mobilePendingAttachments.length}
+            pendingAttachmentsCount={mobileAgentHandlers?.pendingAttachmentsCount ?? 0}
+            attachments={mobileAgentHandlers?.attachments}
+            onRemoveAttachment={mobileAgentHandlers?.removeAttachment}
           />
         )}
         <input ref={mobileFileInputRef} type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.csv" className="hidden" onChange={handleMobileFileSelected} />
@@ -1056,7 +1057,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             agentToolsConfig={mobileAgentToolsConfig}
             onAgentToolsConfigChange={setMobileAgentToolsConfig}
             onAttach={handleMobileAttach}
-            pendingAttachmentsCount={mobilePendingAttachments.length}
+            pendingAttachmentsCount={mobileAgentHandlers?.pendingAttachmentsCount ?? 0}
+            attachments={mobileAgentHandlers?.attachments}
+            onRemoveAttachment={mobileAgentHandlers?.removeAttachment}
           />
         )}
         <input ref={mobileFileInputRef} type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.csv" className="hidden" onChange={handleMobileFileSelected} />

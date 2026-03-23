@@ -2,17 +2,21 @@ import AIPanel from '@/components/AIPanel';
 
 export interface ExternalInputHandlers {
   handleSubmit?: (value: string) => void;
+  handleSubmitWithAttachments?: (value: string, attachments: { id: string; name: string; type: "image" | "text" | "file"; content: string; mimeType: string; size: number }[]) => void;
   isWorking?: boolean;
   agentMode?: string;
   onModeChange?: (mode: string) => void;
   handleSlashCommand?: () => void;
   agentToolsSettings?: any;
   onAgentToolsSettingsChange?: (settings: any) => void;
+  addFiles?: (files: File[]) => void;
   onAttach?: () => void;
   onVoice?: () => void;
   isRecording?: boolean;
   isUploadingFiles?: boolean;
   pendingAttachmentsCount?: number;
+  removeAttachment?: (id: string) => void;
+  attachments?: { id: string; name: string; type: string; size: number }[];
 }
 
 interface ReplitAgentPanelV3Props {

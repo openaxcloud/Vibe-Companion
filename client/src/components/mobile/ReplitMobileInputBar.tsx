@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Send, Mic, Paperclip, ChevronDown, MessageSquare, Bot, Zap, Gauge, Rocket, Flame, Wrench, Globe, TestTube, Sparkles, Code2, MicOff } from 'lucide-react';
+import { Send, Mic, Paperclip, ChevronDown, MessageSquare, Bot, Zap, Gauge, Rocket, Flame, Wrench, Globe, TestTube, Sparkles, Code2, MicOff, X, FileText, Image as ImageIcon, File as FileIcon } from 'lucide-react';
 
 type AIMode = 'chat' | 'agent' | 'plan';
 type AgentMode = 'economy' | 'power' | 'turbo';
@@ -26,6 +26,13 @@ interface AgentToolsConfig {
   turbo: boolean;
 }
 
+interface AttachmentInfo {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+}
+
 interface ReplitMobileInputBarProps {
   placeholder?: string;
   onSubmit: (value: string) => void;
@@ -45,6 +52,8 @@ interface ReplitMobileInputBarProps {
   isRecording?: boolean;
   isUploadingFiles?: boolean;
   pendingAttachmentsCount?: number;
+  attachments?: AttachmentInfo[];
+  onRemoveAttachment?: (id: string) => void;
 }
 
 export function ReplitMobileInputBar({
@@ -61,6 +70,8 @@ export function ReplitMobileInputBar({
   onVoice,
   isRecording,
   pendingAttachmentsCount,
+  attachments = [],
+  onRemoveAttachment,
 }: ReplitMobileInputBarProps) {
   const [value, setValue] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -168,6 +179,35 @@ export function ReplitMobileInputBar({
           style={{ scrollbarWidth: 'none' }}
           data-testid="mobile-chat-input"
         />
+
+        {attachments.length > 0 && (
+          <div className="flex items-center gap-1.5 px-3 pb-1 pt-0.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {attachments.map((att) => {
+              const AttIcon = att.type === 'image' ? ImageIcon : att.type === 'text' ? FileText : FileIcon;
+              const sizeLabel = att.size < 1024 ? `${att.size}B` : att.size < 1024 * 1024 ? `${Math.round(att.size / 1024)}KB` : `${(att.size / (1024 * 1024)).toFixed(1)}MB`;
+              return (
+                <div
+                  key={att.id}
+                  className="flex items-center gap-1 bg-[var(--ide-surface)] rounded-md px-2 py-1 shrink-0 max-w-[140px]"
+                  data-testid={`attachment-chip-${att.id}`}
+                >
+                  <AttIcon className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />
+                  <span className="text-[10px] text-[var(--ide-text-secondary)] truncate">{att.name}</span>
+                  <span className="text-[8px] text-[var(--ide-text-muted)] shrink-0">{sizeLabel}</span>
+                  {onRemoveAttachment && (
+                    <button
+                      onClick={() => onRemoveAttachment(att.id)}
+                      className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-red-500/20 text-[var(--ide-text-muted)] hover:text-red-400 shrink-0 transition-colors"
+                      data-testid={`remove-attachment-${att.id}`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
           <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
