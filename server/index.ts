@@ -271,23 +271,7 @@ async function initTaskTables() {
   try {
     const { pool } = await import("./db");
 
-    // Try migration file first, fall back to inline SQL
-    let migrationSql = "";
-    const possiblePaths = [
-      path.resolve(import.meta.dirname || __dirname || process.cwd(), "../migrations/0017_tasks_queue_notifications.sql"),
-      path.resolve(process.cwd(), "migrations/0017_tasks_queue_notifications.sql"),
-      path.resolve(process.cwd(), "../migrations/0017_tasks_queue_notifications.sql"),
-    ];
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        migrationSql = fs.readFileSync(p, "utf-8");
-        break;
-      }
-    }
-
-    if (!migrationSql) {
-      // Inline fallback - ensures tables always exist
-      migrationSql = `
+    const migrationSql = `
         CREATE TABLE IF NOT EXISTS "tasks" (
           "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid(),
           "project_id" varchar(36) NOT NULL,
@@ -382,8 +366,6 @@ async function initTaskTables() {
           "updated_at" timestamp NOT NULL DEFAULT now()
         );
       `;
-      log("Migration file not found, using inline SQL fallback", "tasks");
-    }
 
     await pool.query(migrationSql);
     log("Task system tables ready", "tasks");
