@@ -1106,10 +1106,10 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
-                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.daily?.executions?.used ?? 0}/{usageQuery.data.daily?.executions?.limit ?? 50}</span>
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.executions.used / usageQuery.data.daily.executions.limit) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.daily?.executions?.used ?? 0) / (usageQuery.data.daily?.executions?.limit || 50)) * 100)}%` }} />
                 </div>
               </div>
               <div>
@@ -1124,10 +1124,10 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[11px] text-[var(--ide-text-secondary)] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
-                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.storage.usedMb}/{usageQuery.data.storage.limitMb} MB</span>
+                  <span className="text-[11px] text-[var(--ide-text-secondary)]">{usageQuery.data.storage?.usedMb ?? 0}/{usageQuery.data.storage?.limitMb ?? 50} MB</span>
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-[var(--ide-surface)] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.storage.usedMb / usageQuery.data.storage.limitMb) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.storage?.usedMb ?? 0) / (usageQuery.data.storage?.limitMb || 50)) * 100)}%` }} />
                 </div>
               </div>
             </div>
@@ -1557,10 +1557,10 @@ export default function Dashboard() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Zap className="w-3 h-3" /> Runs</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-runs-usage">{usageQuery.data.daily.executions.used}/{usageQuery.data.daily.executions.limit}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-runs-usage">{usageQuery.data.daily?.executions?.used ?? 0}/{usageQuery.data.daily?.executions?.limit ?? 50}</span>
                   </div>
                   <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
-                    <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.daily.executions.used / usageQuery.data.daily.executions.limit) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-[#0CCE6B] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.daily?.executions?.used ?? 0) / (usageQuery.data.daily?.executions?.limit || 50)) * 100)}%` }} />
                   </div>
                 </div>
                 <div>
@@ -1575,19 +1575,19 @@ export default function Dashboard() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><HardDrive className="w-3 h-3" /> Storage</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-storage-usage">{usageQuery.data.storage.usedMb} / {usageQuery.data.storage.limitMb} MB</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-storage-usage">{usageQuery.data.storage?.usedMb ?? 0} / {usageQuery.data.storage?.limitMb ?? 50} MB</span>
                   </div>
                   <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
-                    <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.storage.usedMb / usageQuery.data.storage.limitMb) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-[#0079F2] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.storage?.usedMb ?? 0) / (usageQuery.data.storage?.limitMb || 50)) * 100)}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1"><Folder className="w-3 h-3" /> Projects</span>
-                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-projects-usage">{usageQuery.data.projects.count}/{usageQuery.data.projects.limit}</span>
+                    <span className="text-[10px] text-[var(--ide-text-muted)]" data-testid="text-projects-usage">{usageQuery.data.projects?.count ?? 0}/{usageQuery.data.projects?.limit ?? 5}</span>
                   </div>
                   <div className="w-full h-1 rounded-full bg-[var(--ide-surface)]/50 overflow-hidden">
-                    <div className="h-full rounded-full bg-[#F26522] transition-all" style={{ width: `${Math.min(100, (usageQuery.data.projects.count / usageQuery.data.projects.limit) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-[#F26522] transition-all" style={{ width: `${Math.min(100, ((usageQuery.data.projects?.count ?? 0) / (usageQuery.data.projects?.limit || 5)) * 100)}%` }} />
                   </div>
                 </div>
               </div>

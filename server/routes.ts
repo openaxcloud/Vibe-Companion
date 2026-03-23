@@ -1266,6 +1266,7 @@ export async function registerRoutes(
         apple: !!(process.env.APPLE_CLIENT_ID),
         twitter: !!(process.env.TWITTER_CLIENT_ID),
         replit: !!(process.env.REPLIT_CLIENT_ID),
+        ecode: !!(process.env.ECODE_CLIENT_ID),
       },
     });
   });

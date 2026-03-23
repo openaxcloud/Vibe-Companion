@@ -199,7 +199,7 @@ export default function Pricing() {
         // Validate redirect URL is a trusted Stripe domain
         try {
           const redirectUrl = new URL(data.url);
-          if (!redirectUrl.hostname.endsWith("stripe.com")) {
+          if (redirectUrl.hostname !== "checkout.stripe.com" && redirectUrl.hostname !== "billing.stripe.com") {
             throw new Error("Invalid checkout URL");
           }
           window.location.href = data.url;

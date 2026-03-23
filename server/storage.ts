@@ -935,7 +935,9 @@ export class DatabaseStorage implements IStorage {
     try {
       const providers = ["openai", "anthropic", "google", "openrouter"];
       await db.insert(aiCredentialConfigs).values(providers.map(p => ({ projectId: project.id, provider: p, mode: "managed" })));
-    } catch {}
+    } catch (err: any) {
+      console.error("[storage] Failed to create AI credential configs for project:", project.id, err?.message);
+    }
     return project;
   }
 
@@ -1004,7 +1006,9 @@ export class DatabaseStorage implements IStorage {
     try {
       const providers = ["openai", "anthropic", "google", "openrouter"];
       await db.insert(aiCredentialConfigs).values(providers.map(p => ({ projectId: project.id, provider: p, mode: "managed" })));
-    } catch {}
+    } catch (err: any) {
+      console.error("[storage] Failed to create AI credential configs for template project:", project.id, err?.message);
+    }
     return project;
   }
 
@@ -1035,7 +1039,7 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean; outputType: string }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.description !== undefined) updates.description = data.description;
@@ -1051,6 +1055,7 @@ export class DatabaseStorage implements IStorage {
     if (data.visibility !== undefined) updates.visibility = data.visibility;
     if ('selectedWorkflowId' in data) updates.selectedWorkflowId = data.selectedWorkflowId;
     if (data.devUrlPublic !== undefined) updates.devUrlPublic = data.devUrlPublic;
+    if (data.outputType !== undefined) updates.outputType = data.outputType;
     const [project] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
     return project;
   }
@@ -1230,7 +1235,8 @@ export class DatabaseStorage implements IStorage {
     try {
       const [row] = await db.select().from(gitRepoState).where(eq(gitRepoState.projectId, projectId)).limit(1);
       return row ? row.packData : null;
-    } catch {
+    } catch (err: any) {
+      console.error("[storage] Failed to get git repo state for project:", projectId, err?.message);
       return null;
     }
   }
@@ -1243,7 +1249,8 @@ export class DatabaseStorage implements IStorage {
       } else {
         await db.insert(gitRepoState).values({ projectId, packData });
       }
-    } catch {
+    } catch (err: any) {
+      console.error("[storage] Failed to save git repo state for project:", projectId, err?.message);
     }
   }
 

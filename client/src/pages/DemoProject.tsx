@@ -239,9 +239,19 @@ export default function DemoProject() {
                   {isRunning && <span className="animate-pulse text-[#0079F2]">_</span>}
                 </div>
               ) : (
-                <div className="flex-1 flex items-center justify-center bg-[var(--ide-panel)] text-[var(--ide-text-muted)]">
-                  <Globe className="w-6 h-6 mr-2" />
-                  <span className="text-xs">No preview available</span>
+                <div className="flex-1 flex flex-col items-center justify-center bg-[var(--ide-panel)] text-[var(--ide-text-muted)] gap-3">
+                  <Globe className="w-8 h-8 opacity-40" />
+                  <div className="text-center">
+                    <p className="text-xs font-medium">Preview is available in the full IDE</p>
+                    <p className="text-[10px] mt-1 opacity-70">Sign up to run and preview projects live</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-7 px-4 text-[11px] bg-[#0079F2] hover:bg-[#006AD8] text-white"
+                    onClick={() => setLocation("/login")}
+                  >
+                    Get started free
+                  </Button>
                 </div>
               )}
             </div>
