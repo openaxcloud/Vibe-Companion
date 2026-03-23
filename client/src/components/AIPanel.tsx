@@ -1974,7 +1974,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return;
 
-    if (mode === "plan" && !isStreaming) {
+    if (topMode === "plan" && !isStreaming) {
       return submitPlanMode();
     }
 
@@ -3504,7 +3504,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         />
       )}
 
-      {mode === "plan" && showTaskBoard && projectId && (
+      {topMode === "plan" && showTaskBoard && projectId && (
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" /></div>}>
             {React.createElement(
@@ -3515,7 +3515,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         </div>
       )}
 
-      {mode === "plan" && !showTaskBoard && (
+      {topMode === "plan" && !showTaskBoard && (
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4" style={{ fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
           {proposedTasks.length === 0 && !planLoading && (
             <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
@@ -3619,7 +3619,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         </div>
       )}
 
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 space-y-4 ${mode === "plan" ? "hidden" : ""}`}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 space-y-4 ${topMode === "plan" ? "hidden" : ""}`}>
         {activeMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-5 ring-1 shadow-lg ${
@@ -4013,8 +4013,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             onKeyDown={handleKeyDown}
             placeholder={
               topMode === "plan"
-                ? "Describe what you want to plan..."
-                : mode === "plan" ? "Describe what to build in parallel..."
+                ? "Describe what to build in parallel..."
                 : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : isStreaming ? "Type to queue a follow-up message..." : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."
             }
             rows={3}
