@@ -11782,7 +11782,13 @@ Rules:
 - Make targeted, minimal changes — no refactoring, no architecture review
 - Skip planning explanations — go straight to implementation
 - Write complete, working code for each file you touch
-- Be concise in your responses`;
+- Be concise in your responses
+
+DESIGN QUALITY (for web projects):
+- Use Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>) for styling
+- Design must look professional: dark mode (bg-slate-900), gradients, shadows, rounded corners
+- Include hover states, transitions, responsive layout, and Lucide icons via CDN
+- NEVER output plain unstyled HTML — every element must look polished`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");

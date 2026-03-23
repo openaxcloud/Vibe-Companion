@@ -478,294 +478,169 @@ rl.on("close", () => process.exit(0));
   {
     id: "html-css-js",
     name: "HTML/CSS/JS",
-    description: "Static website with vanilla HTML, CSS and JavaScript",
+    description: "Modern website with Tailwind CSS",
     language: "javascript",
     files: [
       {
         filename: "index.html",
         content: `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Website</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>MyApp</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          animation: {
+            'fade-in': 'fadeIn 0.6s ease-out',
+            'slide-up': 'slideUp 0.6s ease-out',
+            'float': 'float 3s ease-in-out infinite',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            slideUp: { '0%': { opacity: '0', transform: 'translateY(30px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            float: { '0%, 100%': { transform: 'translateY(0px)' }, '50%': { transform: 'translateY(-10px)' } },
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
-  <header>
-    <nav>
-      <div class="logo">MyApp</div>
-      <ul class="nav-links">
-        <li><a href="#home" class="active">Home</a></li>
-        <li><a href="#features">Features</a></li>
-        <li><a href="#about">About</a></li>
-        <li><a href="#contact">Contact</a></li>
-      </ul>
-    </nav>
-  </header>
-
-  <main>
-    <section id="home" class="hero">
-      <h1>Welcome to <span class="highlight">MyApp</span></h1>
-      <p>A beautiful static website built with HTML, CSS and JavaScript.</p>
-      <div class="hero-actions">
-        <button class="btn btn-primary" onclick="showAlert()">Get Started</button>
-        <button class="btn btn-secondary" onclick="scrollToSection('features')">Learn More</button>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white antialiased min-h-screen">
+  <nav class="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+        </div>
+        <span class="text-lg font-bold">MyApp</span>
       </div>
-    </section>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="#home" class="text-sm text-slate-400 hover:text-white transition-colors">Home</a>
+        <a href="#features" class="text-sm text-slate-400 hover:text-white transition-colors">Features</a>
+        <a href="#about" class="text-sm text-slate-400 hover:text-white transition-colors">About</a>
+        <a href="#contact" class="text-sm text-slate-400 hover:text-white transition-colors">Contact</a>
+      </div>
+      <button class="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-violet-600 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-blue-500/25 hover:scale-105 transition-all duration-200">
+        Get Started
+      </button>
+    </div>
+  </nav>
 
-    <section id="features" class="features">
-      <h2>Features</h2>
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">⚡</div>
-          <h3>Fast</h3>
-          <p>Lightning-fast performance with optimized code.</p>
+  <section id="home" class="pt-32 pb-20 px-6">
+    <div class="max-w-4xl mx-auto text-center animate-fade-in">
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm mb-8">
+        <i data-lucide="sparkles" class="w-4 h-4"></i>
+        Welcome to the future
+      </div>
+      <h1 class="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
+        Build something
+        <span class="bg-gradient-to-r from-blue-400 via-violet-400 to-purple-400 bg-clip-text text-transparent"> amazing</span>
+      </h1>
+      <p class="text-lg md:text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+        A beautiful, modern starter template with Tailwind CSS. Customize it to bring your ideas to life.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <button onclick="showAlert()" class="px-8 py-4 bg-gradient-to-r from-blue-500 to-violet-600 rounded-2xl font-semibold hover:shadow-xl hover:shadow-blue-500/25 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2">
+          <i data-lucide="rocket" class="w-5 h-5"></i>
+          Get Started
+        </button>
+        <button onclick="scrollToSection('features')" class="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl font-semibold hover:bg-white/10 transition-all duration-300 flex items-center justify-center gap-2">
+          <i data-lucide="arrow-down" class="w-5 h-5"></i>
+          Learn More
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="py-20 px-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 animate-slide-up">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">Powerful Features</h2>
+        <p class="text-slate-400 text-lg max-w-xl mx-auto">Everything you need to build exceptional web experiences.</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="group p-8 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 hover:-translate-y-1">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center mb-6 shadow-lg shadow-yellow-500/20 group-hover:scale-110 transition-transform duration-300">
+            <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+          </div>
+          <h3 class="text-xl font-bold mb-3">Lightning Fast</h3>
+          <p class="text-slate-400 leading-relaxed">Optimized performance with instant load times and smooth interactions.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">🎨</div>
-          <h3>Beautiful</h3>
-          <p>Clean, modern design with smooth animations.</p>
+        <div class="group p-8 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 hover:shadow-xl hover:shadow-violet-500/5 transition-all duration-300 hover:-translate-y-1">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-6 shadow-lg shadow-violet-500/20 group-hover:scale-110 transition-transform duration-300">
+            <i data-lucide="palette" class="w-6 h-6 text-white"></i>
+          </div>
+          <h3 class="text-xl font-bold mb-3">Beautiful Design</h3>
+          <p class="text-slate-400 leading-relaxed">Clean, modern aesthetics with subtle animations and micro-interactions.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">📱</div>
-          <h3>Responsive</h3>
-          <p>Looks great on any device, any screen size.</p>
+        <div class="group p-8 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 hover:shadow-xl hover:shadow-green-500/5 transition-all duration-300 hover:-translate-y-1">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-6 shadow-lg shadow-green-500/20 group-hover:scale-110 transition-transform duration-300">
+            <i data-lucide="smartphone" class="w-6 h-6 text-white"></i>
+          </div>
+          <h3 class="text-xl font-bold mb-3">Fully Responsive</h3>
+          <p class="text-slate-400 leading-relaxed">Looks stunning on every device, from mobile phones to large screens.</p>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section id="about" class="about">
-      <h2>About</h2>
-      <p>This is a starter template for building static websites. Customize it to make it your own!</p>
-    </section>
+  <section id="about" class="py-20 px-6">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-3xl md:text-4xl font-bold mb-6">About This Template</h2>
+      <p class="text-slate-400 text-lg leading-relaxed">This is a modern starter template built with Tailwind CSS and Lucide icons. It features dark mode, glassmorphism effects, smooth animations, and a fully responsive layout. Customize it to build something amazing!</p>
+    </div>
+  </section>
 
-    <section id="contact" class="contact">
-      <h2>Get in Touch</h2>
-      <form onsubmit="handleSubmit(event)">
-        <input type="text" placeholder="Your name" required />
-        <input type="email" placeholder="Your email" required />
-        <textarea placeholder="Your message" rows="4" required></textarea>
-        <button type="submit" class="btn btn-primary">Send Message</button>
+  <section id="contact" class="py-20 px-6">
+    <div class="max-w-lg mx-auto">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">Get in Touch</h2>
+        <p class="text-slate-400">We'd love to hear from you.</p>
+      </div>
+      <form onsubmit="handleSubmit(event)" class="space-y-4">
+        <input type="text" placeholder="Your name" required class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all duration-200" />
+        <input type="email" placeholder="Your email" required class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all duration-200" />
+        <textarea placeholder="Your message" rows="4" required class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all duration-200 resize-none"></textarea>
+        <button type="submit" class="w-full py-4 bg-gradient-to-r from-blue-500 to-violet-600 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/25 hover:scale-[1.02] transition-all duration-200">
+          Send Message
+        </button>
       </form>
-    </section>
-  </main>
+    </div>
+  </section>
 
-  <footer>
-    <p>&copy; 2024 MyApp. Built with ❤️</p>
+  <footer class="border-t border-white/5 py-8 px-6">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+          <i data-lucide="zap" class="w-3 h-3 text-white"></i>
+        </div>
+        <span class="text-sm text-slate-500">MyApp</span>
+      </div>
+      <p class="text-sm text-slate-600">Built with E-Code IDE</p>
+    </div>
   </footer>
 
   <script src="script.js"></script>
+  <script>lucide.createIcons();</script>
 </body>
 </html>`,
       },
       {
         filename: "styles.css",
-        content: `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  line-height: 1.6;
-  color: #333;
-  background: #fafafa;
-}
-
-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 32px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0079F2;
-}
-
-.nav-links {
-  list-style: none;
-  display: flex;
-  gap: 24px;
-}
-
-.nav-links a {
-  text-decoration: none;
-  color: #666;
-  font-size: 14px;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.nav-links a:hover,
-.nav-links a.active {
-  color: #0079F2;
-}
-
-section {
-  padding: 80px 32px;
-  max-width: 960px;
-  margin: 0 auto;
-}
-
-.hero {
-  text-align: center;
-  padding-top: 120px;
-  padding-bottom: 120px;
-}
-
-.hero h1 {
-  font-size: 48px;
-  font-weight: 800;
-  margin-bottom: 16px;
-  color: #1a1a1a;
-}
-
-.highlight {
-  color: #0079F2;
-}
-
-.hero p {
-  font-size: 18px;
-  color: #666;
-  margin-bottom: 32px;
-}
-
-.hero-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-}
-
-.btn {
-  padding: 12px 28px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #0079F2;
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #0066CC;
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background: transparent;
-  color: #0079F2;
-  border: 1px solid #0079F2;
-}
-
-.btn-secondary:hover {
-  background: #0079F2;
-  color: #fff;
-}
-
-.features h2,
-.about h2,
-.contact h2 {
-  text-align: center;
-  font-size: 32px;
-  margin-bottom: 40px;
-  color: #1a1a1a;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 24px;
-}
-
-.feature-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 32px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-}
-
-.feature-icon {
-  font-size: 36px;
-  margin-bottom: 16px;
-}
-
-.feature-card h3 {
-  font-size: 18px;
-  margin-bottom: 8px;
-  color: #1a1a1a;
-}
-
-.feature-card p {
-  font-size: 14px;
-  color: #666;
-}
-
-.about {
-  text-align: center;
-  background: #fff;
-  border-radius: 16px;
-  max-width: 640px;
-  margin: 0 auto;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-.about p {
-  font-size: 16px;
-  color: #666;
-}
-
-.contact form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.contact input,
-.contact textarea {
-  padding: 12px 16px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  font-family: inherit;
-  transition: border-color 0.2s;
-}
-
-.contact input:focus,
-.contact textarea:focus {
-  outline: none;
-  border-color: #0079F2;
-}
-
-footer {
-  text-align: center;
-  padding: 32px;
-  color: #999;
-  font-size: 14px;
-  border-top: 1px solid #eee;
+        content: `/* Tailwind handles all styling via CDN — this file is for custom utilities only */
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(to right, #60a5fa, #a78bfa, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
 `,
       },
