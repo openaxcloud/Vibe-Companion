@@ -757,7 +757,23 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ShellPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id.startsWith('file:')) {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitMonacoEditor projectId={projectId} fileId={activeFileId} fileContents={fileContents} onCodeChange={handleCodeChange} onCursorChange={handleCursorChange} fontSize={userPrefs?.fontSize} tabSize={userPrefs?.tabSize} wordWrap={userPrefs?.wordWrap} minimap={userPrefs?.minimap} filename={activeFileName || undefined} ytext={activeYtext} remoteAwareness={collabConnected ? remoteAwareness : undefined} /></Suspense>;
+      return (
+        <ResizablePanelGroup direction="vertical" className="h-full">
+          <ResizablePanel defaultSize={70} minSize={30}>
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+              <ReplitMonacoEditor projectId={projectId} fileId={activeFileId} fileContents={fileContents} onCodeChange={handleCodeChange} onCursorChange={handleCursorChange} fontSize={userPrefs?.fontSize} tabSize={userPrefs?.tabSize} wordWrap={userPrefs?.wordWrap} minimap={userPrefs?.minimap} filename={activeFileName || undefined} ytext={activeYtext} remoteAwareness={collabConnected ? remoteAwareness : undefined} />
+            </Suspense>
+          </ResizablePanel>
+          <ResizableHandle />
+          <ResizablePanel defaultSize={30} minSize={10} collapsible collapsedSize={4}>
+            <div className="h-full flex flex-col border-t border-[var(--ide-border)]">
+              <Suspense fallback={<div className="flex items-center justify-center h-full text-xs text-[var(--ide-text-muted)]">Loading...</div>}>
+                <ReplitConsolePanel projectId={projectId} isRunning={isRunning} logs={logs} onStop={handleRunStop} onAskAI={(text) => { setPendingAIMessage(text); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} activeFileName={activeFileName || undefined} currentConsoleRunId={currentConsoleRunId} />
+              </Suspense>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      );
     }
     if (currentTab.id === 'git') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitGitPanel projectId={projectId} /></Suspense>;
@@ -1199,7 +1215,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         <ResizablePanelGroup direction="horizontal" className="flex-1" data-testid="desktop-panel-group">
           {/* Left Panel: AI Agent / Actions / Tools / Deploy */}
           {!isSidebarCollapsed && (
-            <ResizablePanel defaultSize={30} minSize={20} maxSize={40} data-testid="desktop-left-panel">
+            <ResizablePanel defaultSize={25} minSize={18} maxSize={40} data-testid="desktop-left-panel">
               <div className="h-full flex flex-col border-r border-[var(--ide-border)]">
                 <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
                   <TabsList className="w-full h-9 justify-start rounded-none border-b border-[var(--ide-border)] bg-[var(--ide-panel)] p-0 px-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
@@ -1277,37 +1293,22 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             </ResizablePanel>
           )}
 
-          {!isSidebarCollapsed && <ResizableHandle withHandle />}
+          {!isSidebarCollapsed && <ResizableHandle />}
 
-          {/* Main Content Panel */}
-          <ResizablePanel defaultSize={isSidebarCollapsed ? (showFileExplorer ? 82 : 100) : (showFileExplorer ? 52 : 70)} minSize={30} data-testid="desktop-main-panel">
-            <div className="h-full flex flex-col">
-              <div
-                className={cn(
-                  "h-full w-full transition-opacity duration-100 ease-in-out",
-                  tabContentVisible ? "opacity-100" : "opacity-0"
-                )}
-              >
-                {renderDesktopContent()}
-              </div>
-            </div>
-          </ResizablePanel>
-
-          {/* File Explorer Panel (Right) */}
+          {/* File Explorer Panel (Left side, like Replit) */}
           {showFileExplorer && (
             <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={18} minSize={15} maxSize={30} data-testid="desktop-right-panel">
-                <div className="h-full flex flex-col border-l border-[var(--ide-border)]">
-                  <div className="h-9 border-b border-[var(--ide-border)] flex items-center justify-between px-2.5">
-                    <h3 className="font-medium text-xs text-[var(--ide-text-muted)]">Files</h3>
+              <ResizablePanel defaultSize={15} minSize={12} maxSize={25} data-testid="desktop-files-panel">
+                <div className="h-full flex flex-col border-r border-[var(--ide-border)]">
+                  <div className="h-9 border-b border-[var(--ide-border)] flex items-center justify-between px-2.5 bg-[var(--ide-panel)]">
+                    <h3 className="font-medium text-xs text-[var(--ide-text-muted)] uppercase tracking-wider">Files</h3>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowFileExplorer(false)}
                       className="h-6 w-6 p-0 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <PanelLeftClose className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   <ReplitFileExplorer
@@ -1319,8 +1320,23 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   />
                 </div>
               </ResizablePanel>
+              <ResizableHandle />
             </>
           )}
+
+          {/* Main Content Panel */}
+          <ResizablePanel defaultSize={isSidebarCollapsed ? (showFileExplorer ? 75 : 100) : (showFileExplorer ? 60 : 75)} minSize={25} data-testid="desktop-main-panel">
+            <div className="h-full flex flex-col">
+              <div
+                className={cn(
+                  "h-full w-full transition-opacity duration-100 ease-in-out",
+                  tabContentVisible ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {renderDesktopContent()}
+              </div>
+            </div>
+          </ResizablePanel>
         </ResizablePanelGroup>
 
         {/* Status Bar */}
