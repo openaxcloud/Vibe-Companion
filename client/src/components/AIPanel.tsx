@@ -4093,18 +4093,48 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           <div className="flex items-center gap-1">
             {projectId && (
               <div className="flex items-center gap-1">
-                <button
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                    topMode === "build"
-                      ? "bg-[#7C65CB]/15 text-[#7C65CB]"
-                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
-                  }`}
-                  onClick={() => setTopMode("build")}
-                  data-testid="mode-build"
-                >
-                  <Hammer className="w-3 h-3" />
-                  Build
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                        topMode === "build"
+                          ? "bg-[#7C65CB]/15 text-[#7C65CB]"
+                          : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                      }`}
+                      data-testid="mode-build"
+                    >
+                      <Hammer className="w-3 h-3" />
+                      Build
+                      <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                    <DropdownMenuItem
+                      className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                      onClick={() => { setTopMode("build"); setMode("agent"); }}
+                      data-testid="mode-build-agent"
+                    >
+                      <Bot className="w-3.5 h-3.5 text-[#7C65CB]" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Agent</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Autonomous coding agent</span>
+                      </div>
+                      {topMode === "build" && mode === "agent" && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B] ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
+                      onClick={() => { setTopMode("build"); setMode("chat"); }}
+                      data-testid="mode-build-chat"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-[#0CCE6B]" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Chat</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Ask questions, get help</span>
+                      </div>
+                      {topMode === "build" && mode === "chat" && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B] ml-auto" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
