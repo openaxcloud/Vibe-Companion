@@ -13205,24 +13205,6 @@ Based on the search results above, provide a comprehensive answer to the user's 
       const { sql: sqlQuery, confirm, env } = req.body;
       if (!sqlQuery || typeof sqlQuery !== "string") return res.status(400).json({ error: "SQL query required" });
 
-      const allowedTables = ["files", "project_runs", "commits", "git_branches", "project_integrations", "project_env_vars", "project_ports", "custom_domains", "deployments", "deployment_versions", "security_scans", "project_guests"];
-      const sqlLower = sqlQuery.toLowerCase().replace(/\s+/g, " ");
-
-      const fromMatches = sqlLower.match(/\bfrom\s+([a-z_][a-z0-9_]*)/g) || [];
-      const joinMatches = sqlLower.match(/\bjoin\s+([a-z_][a-z0-9_]*)/g) || [];
-      const allTableRefs = [...fromMatches, ...joinMatches].map(m => m.replace(/^(from|join)\s+/i, "").trim());
-
-      for (const tableRef of allTableRefs) {
-        if (!allowedTables.includes(tableRef)) {
-          return res.status(403).json({ error: `Access denied: table '${tableRef}' is not accessible. You can only query project-specific tables: ${allowedTables.slice(0, 5).join(", ")}, etc.` });
-        }
-      }
-
-      const trimmed = sqlQuery.trim().toUpperCase();
-      if (allTableRefs.length === 0 && !trimmed.startsWith("SHOW") && !trimmed.startsWith("EXPLAIN")) {
-        return res.status(400).json({ error: "Could not determine target tables. Please use a standard SELECT ... FROM table query." });
-      }
-
       const { pool } = await import("./db");
       const schema = await ensureProjectSchema(pool, project.id, env);
 
@@ -13236,7 +13218,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
         return res.status(400).json({ error: "Multi-statement queries are not allowed. Please execute one statement at a time." });
       }
 
-      const writeKeywords = /\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|GRANT|REVOKE)\b/i;
+      const dangerousPatterns = /\b(GRANT|REVOKE|COPY|pg_read_file|pg_write_file|lo_import|lo_export)\b/i;
+      if (dangerousPatterns.test(stripped)) {
+        return res.status(403).json({ error: "This operation is not permitted for security reasons." });
+      }
+
+      const writeKeywords = /\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE)\b/i;
       const destructiveKeywords = /\b(DROP|DELETE|TRUNCATE|ALTER|UPDATE)\b/i;
       const isWrite = writeKeywords.test(stripped);
       const isDestructive = destructiveKeywords.test(stripped);
@@ -13258,7 +13245,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
       const client = await pool.connect();
       try {
-        await client.query(`SET search_path TO "${schema}"`);
+        await client.query(`SET search_path TO "${schema}", information_schema, pg_catalog`);
         const result = await client.query(sqlQuery);
         if (result.rows && result.fields) {
           const columns = result.fields.map((f: any) => f.name);
