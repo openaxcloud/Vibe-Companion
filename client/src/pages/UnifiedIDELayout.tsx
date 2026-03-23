@@ -416,7 +416,12 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
   const [showTabSwitcher, setShowTabSwitcher] = useState(false);
-  const [mobileAgentHandlers, setMobileAgentHandlers] = useState<ExternalInputHandlers | null>(null);
+  const [mobileAgentHandlers, setMobileAgentHandlersState] = useState<ExternalInputHandlers | null>(null);
+  const mobileAgentHandlersRef = useRef<ExternalInputHandlers | null>(null);
+  const setMobileAgentHandlers = useCallback((handlers: ExternalInputHandlers | null) => {
+    mobileAgentHandlersRef.current = handlers;
+    setMobileAgentHandlersState(handlers);
+  }, []);
   const [mobileAIMode, setMobileAIMode] = useState<'chat' | 'agent' | 'plan'>('agent');
   const [mobileAgentMode, setMobileAgentMode] = useState<'economy' | 'power' | 'turbo'>(() => {
     try { return (localStorage.getItem('mobile-agent-mode') as any) || 'economy'; } catch { return 'economy'; }
@@ -916,7 +921,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         {mobileActiveTab === 'agent' && (
           <ReplitMobileInputBar
             placeholder="What would you like to build?"
-            onSubmit={(value) => mobileAgentHandlers?.handleSubmit?.(value)}
+            onSubmit={(value) => { const h = mobileAgentHandlersRef.current || mobileAgentHandlers; h?.handleSubmit?.(value); }}
             isWorking={mobileAgentHandlers?.isWorking}
             aiMode={mobileAIMode}
             onAIModeChange={setMobileAIMode}
@@ -1048,7 +1053,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         {mobileActiveTab === 'agent' && (
           <ReplitMobileInputBar
             placeholder="What would you like to build?"
-            onSubmit={(value) => mobileAgentHandlers?.handleSubmit?.(value)}
+            onSubmit={(value) => { const h = mobileAgentHandlersRef.current || mobileAgentHandlers; h?.handleSubmit?.(value); }}
             isWorking={mobileAgentHandlers?.isWorking}
             aiMode={mobileAIMode}
             onAIModeChange={setMobileAIMode}

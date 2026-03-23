@@ -122,9 +122,11 @@ export function ReplitMobileInputBar({
     }, 300);
   }, []);
 
+  const canSend = (!isWorking) && (value.trim() || (pendingAttachmentsCount ?? 0) > 0);
+
   const handleSubmit = () => {
-    if (value.trim() && !isWorking) {
-      onSubmit(value.trim());
+    if (canSend) {
+      onSubmit(value.trim() || '(attached files)');
       setValue('');
       if (inputRef.current) inputRef.current.style.height = 'auto';
     }
@@ -363,10 +365,10 @@ export function ReplitMobileInputBar({
             )}
             <button
               onClick={handleSubmit}
-              disabled={!value.trim() || isWorking}
+              disabled={!canSend}
               className={cn(
                 'w-7 h-7 flex items-center justify-center rounded-full transition-all shadow-sm',
-                value.trim() && !isWorking
+                canSend
                   ? 'bg-[#7C65CB] hover:bg-[#6B56B8] text-white shadow-[#7C65CB]/20'
                   : 'text-[var(--ide-text-muted)] opacity-30'
               )}
