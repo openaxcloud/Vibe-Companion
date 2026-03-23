@@ -2066,19 +2066,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     });
   }, []);
 
+  const sendMessageDirectRef = useRef(sendMessageDirect);
+  sendMessageDirectRef.current = sendMessageDirect;
+
+  const addFilesExternalRef = useRef(addFilesExternal);
+  addFilesExternalRef.current = addFilesExternal;
+
   useEffect(() => {
     if (!onExternalInput) return;
-    onExternalInput({
+    const handlers: ExternalInputHandlers = {
       handleSubmit: (value: string) => {
+        console.log('[MobileSubmit] handleSubmit called with:', value?.slice(0, 50));
         setInput(value);
         setTimeout(() => {
-          sendMessageDirect(value);
+          sendMessageDirectRef.current(value);
         }, 0);
       },
       handleSubmitWithAttachments: (value: string, atts: Attachment[]) => {
+        console.log('[MobileSubmit] handleSubmitWithAttachments called');
         setInput(value);
         setTimeout(() => {
-          sendMessageDirect(value, atts);
+          sendMessageDirectRef.current(value, atts);
           setAttachments([]);
         }, 0);
       },
@@ -2089,13 +2097,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           handleAgentModeChange(m as AgentMode);
         }
       },
-      addFiles: addFilesExternal,
+      addFiles: (...args: Parameters<typeof addFilesExternal>) => addFilesExternalRef.current(...args),
       pendingAttachmentsCount: attachments.length,
       removeAttachment: (id: string) => setAttachments(prev => prev.filter(a => a.id !== id)),
       attachments: attachments.map(a => ({ id: a.id, name: a.name, type: a.type, size: a.size })),
-    });
-    return () => onExternalInput(null);
-  }, [onExternalInput, isStreaming, agentMode, sendMessageDirect, addFilesExternal, attachments]);
+    };
+    onExternalInput(handlers);
+  }, [onExternalInput, isStreaming, agentMode, attachments]);
 
   const stopStreaming = () => {
     abortRef.current?.abort();
