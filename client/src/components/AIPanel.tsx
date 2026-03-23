@@ -3420,31 +3420,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               </PopoverContent>
             </Popover>
           )}
-          {projectId && topMode === "build" && (
-            <div className="flex items-center mr-1 bg-[var(--ide-surface)]/30 rounded-lg p-0.5 ring-1 ring-[var(--ide-border)]/50">
-              <button
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "chat" ? "bg-[var(--ide-surface)] text-[var(--ide-text)] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
-                onClick={() => setMode("chat")}
-                data-testid="mode-chat"
-              >
-                <MessageSquare className="w-3 h-3" /> Chat
-              </button>
-              <button
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "agent" ? "bg-[#7C65CB]/25 text-[#7C65CB] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
-                onClick={() => setMode("agent")}
-                data-testid="mode-agent"
-              >
-                <Bot className="w-3 h-3" /> Agent
-              </button>
-              <button
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${mode === "plan" ? "bg-[#009118]/25 text-[#009118] shadow-sm" : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]"}`}
-                onClick={() => setMode("plan")}
-                data-testid="mode-plan"
-              >
-                <Zap className="w-3 h-3" /> Plan
-              </button>
-            </div>
-          )}
           {activeMessages.length > 0 && (
             <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => {
               if (topMode === "plan") {
