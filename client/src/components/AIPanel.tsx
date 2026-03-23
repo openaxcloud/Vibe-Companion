@@ -2040,6 +2040,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   }, [isStreaming, queuedMessages.length, processQueue]);
 
+  const addFilesExternal = useCallback((files: File[]) => {
+    files.forEach((file) => {
+      const reader = new FileReader();
+      const isImage = file.type.startsWith("image/");
+      reader.onload = () => {
+        const content = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString() + Math.random().toString(36).slice(2),
+            name: file.name,
+            type: isImage ? "image" : file.type.startsWith("text/") || file.name.match(/\.(js|ts|tsx|jsx|py|json|css|html|md|yaml|yml|xml|csv|sql|sh|go|rs|java|c|cpp|h|rb|php)$/) ? "text" : "file",
+            content,
+            mimeType: file.type,
+            size: file.size,
+          },
+        ]);
+      };
+      if (isImage) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (!onExternalInput) return;
     onExternalInput({
@@ -2226,32 +2252,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-
-  const addFilesExternal = useCallback((files: File[]) => {
-    files.forEach((file) => {
-      const reader = new FileReader();
-      const isImage = file.type.startsWith("image/");
-      reader.onload = () => {
-        const content = reader.result as string;
-        setAttachments((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString() + Math.random().toString(36).slice(2),
-            name: file.name,
-            type: isImage ? "image" : file.type.startsWith("text/") || file.name.match(/\.(js|ts|tsx|jsx|py|json|css|html|md|yaml|yml|xml|csv|sql|sh|go|rs|java|c|cpp|h|rb|php)$/) ? "text" : "file",
-            content,
-            mimeType: file.type,
-            size: file.size,
-          },
-        ]);
-      };
-      if (isImage) {
-        reader.readAsDataURL(file);
-      } else {
-        reader.readAsText(file);
-      }
-    });
-  }, []);
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
