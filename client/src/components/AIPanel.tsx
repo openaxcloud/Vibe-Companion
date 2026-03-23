@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import type { ExternalInputHandlers } from "./ai/ReplitAgentPanelV3";
 import { Button } from "@/components/ui/button";
 import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
