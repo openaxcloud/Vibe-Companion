@@ -958,6 +958,12 @@ const CSRF_EXEMPT_PATHS = [
   "/api/slack/events",
 ];
 
+function getAppUrl(): string {
+  if (process.env.APP_URL && !process.env.APP_URL.includes("replit.app")) return process.env.APP_URL;
+  if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
+  return "https://e-code.ai";
+}
+
 function csrfProtection(req: Request, res: Response, next: NextFunction) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return next();
@@ -1097,6 +1103,7 @@ export async function registerRoutes(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
+      domain: process.env.COOKIE_DOMAIN || undefined,
     },
   });
   app.use(sessionMiddleware);
@@ -1933,7 +1940,7 @@ export async function registerRoutes(
   app.get("/api/auth/github/redirect", (req: Request, res: Response) => {
     const clientId = process.env.GITHUB_CLIENT_ID;
     if (!clientId) return res.status(500).json({ message: "GitHub OAuth not configured" });
-    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/github/callback`;
+    const redirectUri = `${getAppUrl()}/api/auth/github/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
     const returnTo = req.headers.referer || "/dashboard";
@@ -2000,7 +2007,7 @@ export async function registerRoutes(
   app.get("/api/auth/google", (req: Request, res: Response) => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) return res.status(500).json({ message: "Google OAuth not configured" });
-    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/google/callback`;
+    const redirectUri = `${getAppUrl()}/api/auth/google/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
     if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
@@ -2019,7 +2026,7 @@ export async function registerRoutes(
       const clientId = process.env.GOOGLE_CLIENT_ID;
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
       if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
-      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/google/callback`;
+      const redirectUri = `${getAppUrl()}/api/auth/google/callback`;
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -2063,7 +2070,7 @@ export async function registerRoutes(
   app.get("/api/auth/apple", (req: Request, res: Response) => {
     const clientId = process.env.APPLE_CLIENT_ID;
     if (!clientId) return res.status(500).json({ message: "Apple Sign-In not configured" });
-    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/apple/callback`;
+    const redirectUri = `${getAppUrl()}/api/auth/apple/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
     if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
@@ -2082,7 +2089,7 @@ export async function registerRoutes(
       const clientId = process.env.APPLE_CLIENT_ID;
       const clientSecret = process.env.APPLE_CLIENT_SECRET;
       if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
-      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/apple/callback`;
+      const redirectUri = `${getAppUrl()}/api/auth/apple/callback`;
       const tokenRes = await fetch("https://appleid.apple.com/auth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -2159,7 +2166,7 @@ export async function registerRoutes(
   app.get("/api/auth/twitter", (req: Request, res: Response) => {
     const clientId = process.env.TWITTER_CLIENT_ID;
     if (!clientId) return res.status(500).json({ message: "X/Twitter OAuth not configured" });
-    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/twitter/callback`;
+    const redirectUri = `${getAppUrl()}/api/auth/twitter/callback`;
     const codeVerifier = crypto.randomBytes(32).toString("base64url");
     const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
     const state = crypto.randomBytes(16).toString("hex");
@@ -2184,7 +2191,7 @@ export async function registerRoutes(
       const codeVerifier = req.session.twitterCodeVerifier;
       if (!codeVerifier) return res.redirect("/auth?error=no_verifier");
       delete req.session.twitterCodeVerifier;
-      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/twitter/callback`;
+      const redirectUri = `${getAppUrl()}/api/auth/twitter/callback`;
       const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
         method: "POST",
         headers: {
@@ -2235,7 +2242,7 @@ export async function registerRoutes(
   app.get("/api/auth/replit", (req: Request, res: Response) => {
     const clientId = process.env.REPLIT_CLIENT_ID;
     if (!clientId) return res.status(500).json({ message: "E-Code Auth not configured" });
-    const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/replit/callback`;
+    const redirectUri = `${getAppUrl()}/api/auth/replit/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     req.session.oauthState = state;
     if (req.query.prompt) req.session.pendingPrompt = String(req.query.prompt);
@@ -2254,7 +2261,7 @@ export async function registerRoutes(
       const clientId = process.env.REPLIT_CLIENT_ID;
       const clientSecret = process.env.REPLIT_CLIENT_SECRET;
       if (!clientId || !clientSecret) return res.redirect("/auth?error=not_configured");
-      const redirectUri = `${process.env.APP_URL || `https://${process.env.REPL_SLUG}.replit.app`}/api/auth/replit/callback`;
+      const redirectUri = `${getAppUrl()}/api/auth/replit/callback`;
       const tokenRes = await fetch("https://replit.com/api/v1/oauth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -8012,7 +8019,8 @@ export async function registerRoutes(
     const defaultPort = isMobile ? 8081 : 3000;
     const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : defaultPort;
     const url = runnerClient.previewUrl(workspace.id, port);
-    const devUrl = `${req.protocol}://${project.id}.dev.e-code.ai`;
+    const appDomain = process.env.APP_DOMAIN || "e-code.ai";
+    const devUrl = `${req.protocol}://${project.id}.dev.${appDomain}`;
     let expoGoUrl: string | null = null;
     if (isMobile) {
       const expoPort = 8081;
@@ -8032,7 +8040,7 @@ export async function registerRoutes(
     if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
-    const devUrl = `${project.id}.dev.e-code.ai`;
+    const devUrl = `${project.id}.dev.${process.env.APP_DOMAIN || "e-code.ai"}`;
     const fullDevUrl = `${req.protocol}://${devUrl}`;
     return res.json({ devUrl, fullDevUrl, devUrlPublic: project.devUrlPublic });
   });

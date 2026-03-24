@@ -60,6 +60,10 @@ integrations = ["javascript_openai_ai_integrations:2.0.0", "javascript_anthropic
 [userenv.shared]
 RUNNER_BASE_URL = "https://runner.e-code.ai"
 WORKSPACE_TOKEN_TTL_MIN = "15"
+
+[userenv.production]
+APP_DOMAIN = "e-code.ai"
+COOKIE_DOMAIN = ".e-code.ai"
 # ENCRYPTION_KEY should be set via Replit Secrets, not hardcoded here
 
 [postMerge]
