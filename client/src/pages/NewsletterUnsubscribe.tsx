@@ -1,17 +1,118 @@
-import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react';
+import { useLocation } from 'wouter';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { UserX, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { PublicNavbar } from '@/components/layout/PublicNavbar';
+import { PublicFooter } from '@/components/layout/PublicFooter';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function NewsletterUnsubscribe() {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-fill email from URL if available
+  useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  });
+
+  const handleUnsubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const data = await apiRequest('POST', '/api/newsletter/unsubscribe', { email });
+      
+      toast({
+        title: "Unsubscribed",
+        description: "You've been successfully unsubscribed from our newsletter.",
+      });
+      setTimeout(() => navigate('/'), 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <MarketingLayout>
-      <section className="py-20 lg:py-28 px-6" data-testid="newsletter-unsubscribe">
-        <div className="max-w-lg mx-auto text-center">
-          <h1 className="text-3xl font-bold mb-4">Unsubscribed</h1>
-          <p className="text-[var(--ide-text-secondary)] mb-8 leading-relaxed">You've been unsubscribed from the E-Code newsletter. You won't receive any more emails from us unless you subscribe again.</p>
-          <Link href="/"><Button variant="outline" className="rounded-xl" data-testid="cta-back-home">Back to home</Button></Link>
+    <div className="min-h-screen bg-background">
+      <PublicNavbar />
+      
+      <div className="container mx-auto px-4 py-20">
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto p-3 bg-red-100 dark:bg-red-900/20 rounded-full w-fit mb-4">
+                <UserX className="h-8 w-8 text-red-600 dark:text-red-400" />
+              </div>
+              <CardTitle className="text-2xl">Unsubscribe from Newsletter</CardTitle>
+              <CardDescription>
+                We're sorry to see you go. Enter your email below to unsubscribe.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUnsubscribe} className="space-y-4">
+                <div>
+                  <Label htmlFor="email">Email address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="mt-1"
+                    data-testid="input-unsubscribe-email"
+                  />
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  variant="destructive"
+                  disabled={isSubmitting}
+                  data-testid="button-unsubscribe"
+                >
+                  {isSubmitting ? 'Processing...' : 'Unsubscribe'}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => navigate('/')}
+                  data-testid="button-back-home"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Homepage
+                </Button>
+              </form>
+
+              <div className="mt-6 pt-6 border-t text-center">
+                <p className="text-[13px] text-muted-foreground">
+                  Changed your mind? You can always resubscribe from our homepage or blog.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </section>
-    </MarketingLayout>
+      </div>
+
+      <PublicFooter />
+    </div>
   );
 }

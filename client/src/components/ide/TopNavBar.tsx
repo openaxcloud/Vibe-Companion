@@ -180,9 +180,9 @@ export function TopNavBar({
           onClick={() => navigate('/dashboard')}
           title="Home"
         >
-          <img src="/logo.png" alt="E-Code" width={16} height={16} className="rounded" style={{ objectFit: 'contain' }} />
+          <img src="/logo.png" alt="Vibe Companion" width={16} height={16} className="rounded" style={{ objectFit: 'contain' }} />
         </button>
-        <span className="text-[12px] text-[#F26522] font-bold tracking-tight">E-Code</span>
+        <span className="text-[12px] text-[#F26522] font-bold tracking-tight">Vibe Companion</span>
         <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />
         <div className="relative flex items-center gap-1">
           <span className="text-[12px] font-medium truncate max-w-[140px] text-[var(--ide-text)]" data-testid="text-project-name">{projectName}</span>

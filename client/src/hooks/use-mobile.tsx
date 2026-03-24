@@ -17,3 +17,31 @@ export function useIsMobile() {
 
   return !!isMobile
 }
+
+export function useDeviceInfo() {
+  const isMobile = useIsMobile();
+  const [info, setInfo] = React.useState({
+    isTablet: false,
+    isLandscape: false,
+    isMobileLandscape: false,
+  });
+
+  React.useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const isLandscape = w > h;
+      const isTablet = w >= 768 && w <= 1024;
+      setInfo({
+        isTablet,
+        isLandscape,
+        isMobileLandscape: isMobile && isLandscape,
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [isMobile]);
+
+  return { ...info, isMobile };
+}

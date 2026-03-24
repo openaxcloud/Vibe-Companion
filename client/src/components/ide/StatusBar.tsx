@@ -400,8 +400,8 @@ export function StatusBar({
           </Tooltip>
 
           <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1 px-2">
-            <img src="/logo.png" alt="E-Code" width={9} height={9} className="rounded" style={{ objectFit: 'contain' }} />
-            E-Code
+            <img src="/logo.png" alt="Vibe Companion" width={9} height={9} className="rounded" style={{ objectFit: 'contain' }} />
+            Vibe Companion
           </span>
         </div>
       </div>

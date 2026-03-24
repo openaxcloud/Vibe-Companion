@@ -1,21 +1,121 @@
-import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Link } from "wouter";
-import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { CheckCircle2, Mail, ArrowRight } from 'lucide-react';
+import { Link, useLocation } from 'wouter';
+import { Confetti } from '../components/ui/confetti';
 
 export default function NewsletterConfirmed() {
+  const [, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const success = searchParams.get('success') === 'true';
+  const errorMessage = searchParams.get('error');
+
+  useEffect(() => {
+    // Show confetti animation on success
+    if (success) {
+      const timer = setTimeout(() => {
+        Confetti();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  if (!success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Invalid Confirmation Link</CardTitle>
+            <CardDescription>
+              {errorMessage || 'This confirmation link is invalid or has expired.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-[13px] text-muted-foreground text-center">
+              {errorMessage || "If you're having trouble, please try subscribing again or contact our support team."}
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => setLocation('/')} className="w-full" data-testid="button-go-home-error">
+                Go to Homepage
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setLocation('/support')}
+                className="w-full"
+                data-testid="button-contact-support"
+              >
+                Contact Support
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <MarketingLayout>
-      <section className="py-20 lg:py-28 px-6" data-testid="newsletter-confirmed">
-        <div className="max-w-lg mx-auto text-center">
-          <div className="w-16 h-16 rounded-full bg-[#0CCE6B]/10 flex items-center justify-center mx-auto mb-6">
-            <Check className="w-8 h-8 text-[#0CCE6B]" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5" />
+      
+      <Card className="max-w-md w-full relative z-10">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center">
+            <CheckCircle2 className="h-10 w-10 text-primary animate-in zoom-in-50 duration-500" />
           </div>
-          <h1 className="text-3xl font-bold mb-4">You're subscribed!</h1>
-          <p className="text-[var(--ide-text-secondary)] mb-8 leading-relaxed">You'll receive product updates, engineering blog posts, and community highlights in your inbox.</p>
-          <Link href="/"><Button className="bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl" data-testid="cta-back-home">Back to home</Button></Link>
-        </div>
-      </section>
-    </MarketingLayout>
+          <div>
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              You're All Set!
+            </CardTitle>
+            <CardDescription className="text-[15px] mt-2">
+              Your email has been confirmed successfully
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <Mail className="h-5 w-5 text-primary mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium">Welcome to E-Code Newsletter!</p>
+                <p className="text-[13px] text-muted-foreground mt-1">
+                  You'll receive our updates packed with:
+                </p>
+                <ul className="text-[13px] text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+                  <li>Latest features and platform updates</li>
+                  <li>Tips and tutorials from our community</li>
+                  <li>Exclusive offers and early access</li>
+                  <li>Inspiring creator stories</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[13px] text-muted-foreground text-center">
+              Ready to start creating amazing things?
+            </p>
+            <div className="flex flex-col gap-2">
+              <Link href="/projects">
+                <Button className="w-full group" data-testid="button-start-creating">
+                  Start Creating
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
+              <Link href="/">
+                <Button variant="outline" className="w-full" data-testid="button-go-home-success">
+                  Go to Homepage
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground text-center">
+            You can unsubscribe at any time from any newsletter email.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

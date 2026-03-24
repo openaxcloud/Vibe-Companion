@@ -1,0 +1,350 @@
+import React, { useState } from 'react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  MessageSquare,
+  GitPullRequest,
+  UserPlus,
+  Rocket,
+  AlertCircle,
+  Star,
+  Settings,
+  X,
+  Heart,
+  Code,
+  DollarSign,
+  TrendingUp,
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+// Notification interface
+interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  actionUrl?: string;
+  read: boolean;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+// Icon mapping for notification types
+const notificationIcons: Record<string, any> = {
+  comment: MessageSquare,
+  follow: UserPlus,
+  deploy: Rocket,
+  star: Star,
+  like: Heart,
+  pr: GitPullRequest,
+  collaboration: UserPlus,
+  project_update: Code,
+  bounty: DollarSign,
+  system: AlertCircle,
+  trending: TrendingUp,
+  default: Bell,
+};
+
+// Color mapping for notification types
+const notificationColors: Record<string, string> = {
+  comment: 'text-blue-500',
+  follow: 'text-green-500',
+  deploy: 'text-purple-500',
+  star: 'text-yellow-500',
+  like: 'text-pink-500',
+  pr: 'text-orange-500',
+  collaboration: 'text-teal-500',
+  project_update: 'text-indigo-500',
+  bounty: 'text-emerald-500',
+  system: 'text-red-500',
+  trending: 'text-cyan-500',
+  default: 'text-gray-500',
+};
+
+export function NotificationCenter() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+
+  // Fetch notifications from API
+  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
+    queryKey: ['/api/notifications'],
+    refetchInterval: 60000, // Refetch every minute
+  });
+
+  const formatRelativeTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return 'Just now';
+    }
+    return formatDistanceToNow(date, { addSuffix: true });
+  };
+
+  // Mark notification as read mutation
+  const markAsReadMutation = useMutation({
+    mutationFn: async (notificationId: number) => {
+      await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+    },
+  });
+
+  // Mark all notifications as read mutation
+  const markAllAsReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('PATCH', '/api/notifications/read-all');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      toast({
+        title: 'Success',
+        description: 'All notifications marked as read',
+      });
+    },
+  });
+
+  // Delete notification mutation
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (notificationId: number) => {
+      await apiRequest('DELETE', `/api/notifications/${notificationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+    },
+  });
+
+  // Clear all notifications mutation
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('DELETE', '/api/notifications');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      toast({
+        title: 'Success',
+        description: 'All notifications cleared',
+      });
+    },
+  });
+
+  // Ensure notifications is always an array (API may return null on 401)
+  const safeNotifications = notifications ?? [];
+  const unreadNotifications = safeNotifications.filter((n: Notification) => !n.read);
+  const unreadCount = unreadNotifications.length;
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if unread
+    if (!notification.read) {
+      await markAsReadMutation.mutateAsync(notification.id);
+    }
+
+    // Navigate to link if provided
+    if (notification.actionUrl) {
+      setIsOpen(false);
+      navigate(notification.actionUrl);
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    return notificationIcons[type] || notificationIcons.default;
+  };
+
+  const getNotificationColor = (type: string) => {
+    return notificationColors[type] || notificationColors.default;
+  };
+
+  const handleSettingsClick = () => {
+    setIsOpen(false);
+    navigate('/settings/notifications');
+  };
+
+  const markAllAsRead = () => {
+    markAllAsReadMutation.mutate(undefined);
+  };
+
+  const clearAll = () => {
+    clearAllMutation.mutate(undefined);
+  };
+
+  // Use safe notifications array (handles null from 401 responses)
+  const allNotifications = safeNotifications;
+
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <Badge 
+              variant="destructive" 
+              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[11px]"
+            >
+              {unreadCount}
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-96 p-0" align="end">
+        <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
+          <span className="text-xs font-medium text-[var(--ecode-text)]">Notifications</span>
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-[var(--ecode-text-muted)]"
+              onClick={handleSettingsClick}
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-[var(--ecode-text-muted)]"
+              onClick={() => setIsOpen(false)}
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <Tabs defaultValue="unread" className="w-full">
+          <TabsList className="w-full border-b">
+            <TabsTrigger value="unread" className="flex-1">
+              Unread ({unreadCount})
+            </TabsTrigger>
+            <TabsTrigger value="all" className="flex-1">
+              All
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="unread" className="mt-0">
+            {unreadNotifications.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <Bell className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p>You're all caught up!</p>
+              </div>
+            ) : (
+              <>
+                <ScrollArea className="h-[300px]">
+                  <div className="divide-y">
+                    {unreadNotifications.map((notification: Notification) => {
+                      const Icon = getNotificationIcon(notification.type);
+                      const color = getNotificationColor(notification.type);
+                      return (
+                        <div
+                          key={notification.id}
+                          className="p-4 hover:bg-surface-hover-solid cursor-pointer transition-colors"
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <div className="flex gap-3">
+                            <div className={`mt-0.5 ${color}`}>
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-[13px] font-medium">
+                                {notification.title}
+                              </p>
+                              <p className="text-[13px] text-muted-foreground">
+                                {notification.message}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {formatRelativeTime(notification.timestamp)}
+                              </p>
+                            </div>
+                            <div className="opacity-0 hover:opacity-100">
+                              <Check className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+                <Separator />
+                <div className="p-3">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-center gap-2"
+                    onClick={markAllAsRead}
+                    disabled={markAllAsReadMutation.isPending}
+                  >
+                    <CheckCheck className="h-4 w-4" />
+                    Mark all as read
+                  </Button>
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="all" className="mt-0">
+            <ScrollArea className="h-[300px]">
+              <div className="divide-y">
+                {allNotifications.map((notification: Notification) => {
+                  const Icon = getNotificationIcon(notification.type);
+                  const color = getNotificationColor(notification.type);
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`p-4 hover:bg-surface-hover-solid cursor-pointer transition-colors ${
+                        notification.read ? 'opacity-60' : ''
+                      }`}
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className="flex gap-3">
+                        <div className={`mt-0.5 ${color}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-[13px] font-medium">
+                            {notification.title}
+                          </p>
+                          <p className="text-[13px] text-muted-foreground">
+                            {notification.message}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {formatRelativeTime(notification.timestamp)}
+                          </p>
+                        </div>
+                        {notification.read && (
+                          <Check className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            <Separator />
+            <div className="p-3">
+              <Button
+                variant="ghost"
+                className="w-full justify-center"
+                onClick={clearAll}
+                disabled={clearAllMutation.isPending}
+              >
+                Clear all notifications
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </PopoverContent>
+    </Popover>
+  );
+}

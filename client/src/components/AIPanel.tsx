@@ -888,7 +888,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
     const provider = providerMap[aiModel];
     const cfg = credentialModes[provider];
-    if (!cfg || cfg.mode === "managed") return { text: "E-Code managed", isManaged: true };
+    if (!cfg || cfg.mode === "managed") return { text: "Vibe Companion managed", isManaged: true };
     return { text: cfg.hasApiKey ? "Your key" : "BYOK (no key set)", isManaged: false };
   };
 
@@ -4255,7 +4255,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                               <span className="text-[10px] text-[var(--ide-text-muted)]">{m.badge}</span>
                               {projectId && (
                                 <span className={`text-[9px] px-1 rounded ${cred.isManaged ? "bg-[#0079F2]/10 text-[#0079F2]" : "bg-[#0CCE6B]/10 text-[#0CCE6B]"}`} data-testid={`cred-label-${m.key}`}>
-                                  {cred.isManaged ? "E-Code managed" : "Your key"}
+                                  {cred.isManaged ? "Vibe Companion managed" : "Your key"}
                                 </span>
                               )}
                             </div>

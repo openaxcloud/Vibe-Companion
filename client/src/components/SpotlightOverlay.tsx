@@ -727,7 +727,7 @@ export default function SpotlightOverlay({ projectId, open, onClose, onProjectUp
                         <div className="flex items-center gap-2">
                           <button
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1DA1F2]/10 text-[#1DA1F2] hover:bg-[#1DA1F2]/20 transition-colors text-xs font-medium"
-                            onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent(`Check out "${data.project.name}" on E-Code!`)}`, "_blank")}
+                            onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent(`Check out "${data.project.name}" on Vibe Companion!`)}`, "_blank")}
                             data-testid="button-share-twitter"
                           >
                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
@@ -743,7 +743,7 @@ export default function SpotlightOverlay({ projectId, open, onClose, onProjectUp
                           </button>
                           <button
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#333] text-[#AAA] hover:bg-[#444] transition-colors text-xs font-medium"
-                            onClick={() => window.open(`mailto:?subject=${encodeURIComponent(data.project.name)}&body=${encodeURIComponent(`Check out this project on E-Code: ${publicUrl}`)}`, "_blank")}
+                            onClick={() => window.open(`mailto:?subject=${encodeURIComponent(data.project.name)}&body=${encodeURIComponent(`Check out this project on Vibe Companion: ${publicUrl}`)}`, "_blank")}
                             data-testid="button-share-email"
                           >
                             <Mail className="w-3.5 h-3.5" />

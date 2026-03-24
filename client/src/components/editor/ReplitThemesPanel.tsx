@@ -38,7 +38,7 @@ interface QuickTheme {
 
 const QUICK_THEMES: QuickTheme[] = [
   {
-    id: "ecode-dark", name: "E-Code Dark", group: "dark",
+    id: "ecode-dark", name: "Vibe Companion Dark", group: "dark",
     globalColors: { background: "#0D1117", foreground: "#E6EDF3", outline: "#30363D", accent: "#7C65CB", accentPositive: "#3FB950", accentNegative: "#F85149" },
     syntaxColors: { keyword: "#FF7B72", string: "#A5D6FF", comment: "#8B949E", function: "#D2A8FF", variable: "#FFA657", type: "#79C0FF", number: "#79C0FF", operator: "#FF7B72", punctuation: "#C9D1D9", tag: "#7EE787", attribute: "#79C0FF", property: "#D2A8FF" },
   },
@@ -83,7 +83,7 @@ const QUICK_THEMES: QuickTheme[] = [
     syntaxColors: { keyword: "#4D9375", string: "#C98A7D", comment: "#666666", function: "#80A665", variable: "#DBD7CA", type: "#5DA994", number: "#4C9A91", operator: "#CB7676", punctuation: "#858585", tag: "#4D9375", attribute: "#BD976A", property: "#B8A965" },
   },
   {
-    id: "ecode-light", name: "E-Code Light", group: "light",
+    id: "ecode-light", name: "Vibe Companion Light", group: "light",
     globalColors: { background: "#FFFFFF", foreground: "#1F2328", outline: "#D0D7DE", accent: "#7C65CB", accentPositive: "#1A7F37", accentNegative: "#CF222E" },
     syntaxColors: { keyword: "#CF222E", string: "#0A3069", comment: "#6E7781", function: "#8250DF", variable: "#953800", type: "#0550AE", number: "#0550AE", operator: "#CF222E", punctuation: "#24292F", tag: "#116329", attribute: "#0550AE", property: "#8250DF" },
   },

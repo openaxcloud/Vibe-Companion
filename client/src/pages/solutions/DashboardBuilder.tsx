@@ -1,39 +1,165 @@
-import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Link } from "wouter";
-import { ArrowRight, BarChart3, PieChart, TrendingUp, Database, RefreshCw, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const features = [
-  { icon: BarChart3, title: "Rich visualizations", desc: "Build interactive charts, graphs, and data tables with popular libraries like Recharts and D3.", color: "#0079F2" },
-  { icon: Database, title: "Database integration", desc: "Connect to PostgreSQL, MySQL, MongoDB, or any API to power your dashboards with live data.", color: "#0CCE6B" },
-  { icon: RefreshCw, title: "Real-time updates", desc: "Auto-refresh data with WebSockets, polling, or server-sent events for live dashboards.", color: "#7C65CB" },
-  { icon: Lock, title: "Authentication", desc: "Add role-based access control so different users see different data and permissions.", color: "#F26522" },
-  { icon: PieChart, title: "AI-generated charts", desc: "Describe the data you want to visualize and let AI generate the chart code for you.", color: "#0079F2" },
-  { icon: TrendingUp, title: "Export & embed", desc: "Export dashboards as PDFs or embed them in other applications with iframe support.", color: "#0CCE6B" },
-];
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, BarChart3, PieChart, TrendingUp, CheckCircle, Database, Zap, Monitor } from "lucide-react";
+import { Link } from "wouter";
+import PublicLayout from "@/components/layout/PublicLayout";
 
 export default function DashboardBuilder() {
   return (
-    <MarketingLayout>
-      <section className="py-20 lg:py-28 px-6" data-testid="dashboard-builder-hero">
-        <div className="max-w-4xl mx-auto text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0079F2]/10 border border-[#0079F2]/20 text-[#0079F2] text-xs font-medium mb-6">Solutions</div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">Build data dashboards</h1>
-          <p className="text-lg text-[var(--ide-text-secondary)] max-w-2xl mx-auto mb-10">Create stunning data dashboards with real-time charts, database integration, and instant deployment.</p>
-          <Link href="/login"><Button className="h-12 px-8 bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl gap-2" data-testid="cta-dashboard">Start building <ArrowRight className="w-4 h-4" /></Button></Link>
+    <PublicLayout>
+      <div className="container mx-auto px-4 py-12 sm:py-16 md:py-20">
+        {/* Hero Section */}
+        <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16 md:mb-20">
+          <Badge className="mb-3 sm:mb-4 px-3 sm:px-4 py-1 sm:py-1.5 text-[11px] sm:text-[13px] font-medium bg-gradient-to-r from-indigo-500 to-blue-500 text-white border-0">
+            Data Visualization Made Simple
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-400 dark:to-blue-400 bg-clip-text text-transparent">
+            Dashboard Builder
+          </h1>
+          <p className="text-base sm:text-[15px] md:text-xl text-muted-foreground mb-6 sm:mb-8 px-4 sm:px-0">
+            Build interactive data visualizations and analytics dashboards with AI assistance.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
+            <Link href="/register">
+              <Button size="lg" className="gap-2 min-h-[44px] w-full sm:w-auto" data-testid="button-dashboardbuilder-start">
+                Create Dashboard
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/templates?category=dashboards">
+              <Button size="lg" variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto" data-testid="button-dashboardbuilder-templates">
+                <Monitor className="h-4 w-4" />
+                View Templates
+              </Button>
+            </Link>
+          </div>
         </div>
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((f) => (
-            <div key={f.title} className="p-6 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: `${f.color}15`, border: `1px solid ${f.color}30` }}>
-                <f.icon className="w-5 h-5" style={{ color: f.color }} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
-              <p className="text-sm text-[var(--ide-text-secondary)] leading-relaxed">{f.desc}</p>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
+          <Card className="p-4 sm:p-6 hover:shadow-lg transition-shadow" data-testid="card-feature-visualizations">
+            <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg w-fit mb-3 sm:mb-4">
+              <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 dark:text-indigo-400" />
             </div>
-          ))}
+            <h3 className="text-[15px] sm:text-xl font-semibold mb-2">Rich Visualizations</h3>
+            <p className="text-[13px] sm:text-base text-muted-foreground">
+              Charts, graphs, maps, and tables that make your data come alive.
+            </p>
+          </Card>
+
+          <Card className="p-4 sm:p-6 hover:shadow-lg transition-shadow" data-testid="card-feature-data">
+            <div className="p-2 sm:p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg w-fit mb-3 sm:mb-4">
+              <Database className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-[15px] sm:text-xl font-semibold mb-2">Connect Any Data</h3>
+            <p className="text-[13px] sm:text-base text-muted-foreground">
+              Import from databases, APIs, CSV files, or enter data manually.
+            </p>
+          </Card>
+
+          <Card className="p-4 sm:p-6 hover:shadow-lg transition-shadow sm:col-span-2 md:col-span-1" data-testid="card-feature-realtime">
+            <div className="p-2 sm:p-3 bg-cyan-100 dark:bg-cyan-900/20 rounded-lg w-fit mb-3 sm:mb-4">
+              <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-600 dark:text-cyan-400" />
+            </div>
+            <h3 className="text-[15px] sm:text-xl font-semibold mb-2">Real-time Updates</h3>
+            <p className="text-[13px] sm:text-base text-muted-foreground">
+              Live data feeds with automatic refresh and instant updates.
+            </p>
+          </Card>
         </div>
-      </section>
-    </MarketingLayout>
+
+        {/* Dashboard Types */}
+        <div className="mb-12 sm:mb-16 md:mb-20">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Dashboards for Every Need</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+            {[
+              "Sales Analytics",
+              "Marketing KPIs",
+              "Financial Reports",
+              "Project Management",
+              "Customer Analytics",
+              "IoT Monitoring",
+              "Social Media Stats",
+              "Health Metrics"
+            ].map((dashType, index) => (
+              <Card key={dashType} className="p-3 sm:p-4 text-center hover:shadow-md transition-shadow" data-testid={`card-dashtype-${index}`}>
+                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mx-auto mb-1.5 sm:mb-2" />
+                <p className="font-medium text-[11px] sm:text-[13px] md:text-base">{dashType}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Chart Types */}
+        <div className="mb-12 sm:mb-16 md:mb-20">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Visualization Options</h2>
+          <div className="grid sm:grid-cols-2 gap-6 sm:gap-8">
+            <div className="space-y-4" data-testid="viz-group-1">
+              <div className="flex items-start gap-3">
+                <PieChart className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-[13px] sm:text-base">Pie & Donut Charts</h3>
+                  <p className="text-[11px] sm:text-[13px] text-muted-foreground">Perfect for showing proportions and percentages</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <BarChart3 className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-[13px] sm:text-base">Bar & Column Charts</h3>
+                  <p className="text-[11px] sm:text-[13px] text-muted-foreground">Compare values across categories</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <TrendingUp className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-[13px] sm:text-base">Line & Area Charts</h3>
+                  <p className="text-[11px] sm:text-[13px] text-muted-foreground">Show trends and changes over time</p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-4" data-testid="viz-group-2">
+              <div className="flex items-start gap-3">
+                <Monitor className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-[13px] sm:text-base">Heatmaps</h3>
+                  <p className="text-[11px] sm:text-[13px] text-muted-foreground">Visualize data density and patterns</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Database className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-[13px] sm:text-base">Data Tables</h3>
+                  <p className="text-[11px] sm:text-[13px] text-muted-foreground">Sortable, filterable data grids</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Zap className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-[13px] sm:text-base">KPI Cards</h3>
+                  <p className="text-[11px] sm:text-[13px] text-muted-foreground">Highlight key metrics and indicators</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA Section */}
+        <Card className="p-6 sm:p-8 md:p-12 bg-gradient-to-r from-indigo-600/10 to-blue-600/10 border-2 border-primary/20">
+          <div className="text-center">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">Transform Your Data Into Insights</h2>
+            <p className="text-[13px] sm:text-base md:text-[15px] text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto px-4 sm:px-0">
+              Create beautiful, interactive dashboards that help you make data-driven decisions.
+            </p>
+            <Link href="/register">
+              <Button size="lg" className="gap-2 min-h-[44px]" data-testid="button-dashboardbuilder-cta">
+                Start Building Free
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    </PublicLayout>
   );
 }

@@ -270,7 +270,7 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
           </div>
           <div className="mt-1 mb-1">
             <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-1 rounded text-blue-400 block truncate" data-testid="text-dev-url">
-              {projectId}.dev.e-code.ai
+              {projectId}.dev.vibe-companion.replit.app
             </code>
           </div>
         </div>

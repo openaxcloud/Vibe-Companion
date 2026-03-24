@@ -1,50 +1,328 @@
-import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Mail, MessageSquare, FileText, Bug } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Mail, MessageCircle, Phone, MapPin,
+  Send, Loader2, CheckCircle, Building2,
+  HelpCircle, Users, Briefcase
+} from "lucide-react";
 import { Link } from "wouter";
+import PublicLayout from "@/components/layout/PublicLayout";
+import { SEOHead, structuredData } from "@/components/seo/SEOHead";
+import { getSEOConfig } from "@/config/seo.config";
+import { useToast } from "@/hooks/use-toast";
 
-const channels = [
-  { icon: Mail, title: "General inquiries", desc: "Questions about E-Code, partnerships, or media inquiries.", action: "support@e-code.ai", href: "mailto:support@e-code.ai", color: "#0079F2" },
-  { icon: MessageSquare, title: "Sales", desc: "Enterprise pricing, custom plans, and volume licensing.", action: "sales@e-code.ai", href: "mailto:sales@e-code.ai", color: "#0CCE6B" },
-  { icon: Bug, title: "Bug reports", desc: "Found a bug? Report it and we'll fix it as fast as possible.", action: "Report a bug", href: "/support", color: "#F26522" },
-  { icon: FileText, title: "Documentation", desc: "Browse our docs for guides, tutorials, and API reference.", action: "View docs", href: "/docs", color: "#7C65CB" },
+const seo = getSEOConfig('contact');
+
+const contactReasons = [
+  { value: "general", label: "General Inquiry" },
+  { value: "sales", label: "Sales & Pricing" },
+  { value: "support", label: "Technical Support" },
+  { value: "partnership", label: "Partnership Opportunity" },
+  { value: "press", label: "Press & Media" },
+  { value: "careers", label: "Careers" }
+];
+
+const offices = [
+  {
+    city: "San Francisco",
+    address: "100 Innovation Drive, Suite 500",
+    region: "San Francisco, CA 94105",
+    country: "United States",
+    type: "Headquarters"
+  },
+  {
+    city: "London",
+    address: "30 Finsbury Square",
+    region: "London, EC2A 1AG",
+    country: "United Kingdom",
+    type: "EMEA Office"
+  },
+  {
+    city: "Singapore",
+    address: "1 Raffles Place, Tower 2",
+    region: "Singapore 048616",
+    country: "Singapore",
+    type: "APAC Office"
+  }
 ];
 
 export default function Contact() {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    company: "",
+    reason: "",
+    message: ""
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      await apiRequest('POST', '/api/contact', formData);
+
+      setIsSubmitted(true);
+      toast({
+        title: t('contact.success.title'),
+        description: t('contact.success.description'),
+        variant: "success"
+      });
+    } catch (error) {
+      toast({
+        title: t('common.error'),
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <MarketingLayout>
-      <section className="py-20 lg:py-28 px-6" data-testid="contact-hero">
-        <div className="max-w-4xl mx-auto text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">Contact us</h1>
-          <p className="text-lg text-[var(--ide-text-secondary)]">We'd love to hear from you. Choose the best way to reach us.</p>
+    <PublicLayout>
+      <SEOHead
+        {...seo}
+        structuredData={structuredData.localBusiness()}
+      />
+
+      <div className="container mx-auto px-4 py-12 sm:py-16 md:py-20">
+        {/* Hero Section */}
+        <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16">
+          <Badge className="mb-4 px-4 py-1.5 text-[13px] font-medium bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0">
+            {t('common.contactUs')}
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
+            {t('contact.title')}
+          </h1>
+          <p className="text-[15px] sm:text-xl text-muted-foreground max-w-3xl mx-auto">
+            {t('contact.subtitle')}
+          </p>
         </div>
-        <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-          {channels.map((c) => (
-            <a key={c.title} href={c.href.startsWith("mailto:") ? c.href : undefined}>
-              {c.href.startsWith("/") ? (
-                <Link href={c.href}>
-                  <div className="p-6 rounded-xl border border-[var(--ide-border)] hover:border-[#0079F2]/50 bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] transition-all cursor-pointer h-full" data-testid={`contact-${c.title.toLowerCase().replace(/\s/g, "-")}`}>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: `${c.color}15`, border: `1px solid ${c.color}30` }}>
-                      <c.icon className="w-5 h-5" style={{ color: c.color }} />
+
+        {/* Quick Contact Options */}
+        <div className="grid sm:grid-cols-3 gap-4 mb-16 max-w-4xl mx-auto">
+          <Link href="/contact-sales" data-testid="link-contact-sales">
+            <Card className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group text-center" data-testid="card-contact-sales">
+              <Building2 className="h-8 w-8 mx-auto mb-3 text-blue-600 group-hover:scale-110 transition-transform" />
+              <h3 className="font-semibold mb-1">Sales</h3>
+              <p className="text-[13px] text-muted-foreground">Enterprise pricing & demos</p>
+            </Card>
+          </Link>
+          <Link href="/help-center" data-testid="link-contact-support">
+            <Card className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group text-center" data-testid="card-contact-support">
+              <HelpCircle className="h-8 w-8 mx-auto mb-3 text-purple-600 group-hover:scale-110 transition-transform" />
+              <h3 className="font-semibold mb-1">Support</h3>
+              <p className="text-[13px] text-muted-foreground">Help center & documentation</p>
+            </Card>
+          </Link>
+          <Link href="/partners" data-testid="link-contact-partners">
+            <Card className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group text-center" data-testid="card-contact-partners">
+              <Users className="h-8 w-8 mx-auto mb-3 text-green-600 group-hover:scale-110 transition-transform" />
+              <h3 className="font-semibold mb-1">Partnerships</h3>
+              <p className="text-[13px] text-muted-foreground">Become a partner</p>
+            </Card>
+          </Link>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
+          {/* Contact Form */}
+          <div>
+            <h2 className="text-2xl font-bold mb-6">Send us a message</h2>
+
+            {isSubmitted ? (
+              <Card className="p-12 text-center" data-testid="card-contact-success">
+                <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-6" />
+                <h3 className="text-2xl font-bold mb-2">Message Sent!</h3>
+                <p className="text-muted-foreground mb-6">
+                  Thank you for reaching out. We'll get back to you within 24 hours.
+                </p>
+                <Button variant="outline" onClick={() => setIsSubmitted(false)} data-testid="button-send-another">
+                  Send Another Message
+                </Button>
+              </Card>
+            ) : (
+              <Card className="p-6 md:p-8">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">{t('contact.form.name')} *</Label>
+                      <Input
+                        id="name"
+                        required
+                        placeholder="John Doe"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        data-testid="input-contact-name"
+                      />
                     </div>
-                    <h3 className="font-semibold mb-1">{c.title}</h3>
-                    <p className="text-sm text-[var(--ide-text-secondary)] mb-3">{c.desc}</p>
-                    <span className="text-sm text-[#0079F2]">{c.action}</span>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">{t('contact.form.email')} *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        required
+                        placeholder="john@company.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        data-testid="input-contact-email"
+                      />
+                    </div>
                   </div>
-                </Link>
-              ) : (
-                <div className="p-6 rounded-xl border border-[var(--ide-border)] hover:border-[#0079F2]/50 bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] transition-all cursor-pointer h-full" data-testid={`contact-${c.title.toLowerCase().replace(/\s/g, "-")}`}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: `${c.color}15`, border: `1px solid ${c.color}30` }}>
-                    <c.icon className="w-5 h-5" style={{ color: c.color }} />
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company">{t('contact.form.company')}</Label>
+                      <Input
+                        id="company"
+                        placeholder="Company name"
+                        value={formData.company}
+                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                        data-testid="input-contact-company"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reason">Reason *</Label>
+                      <Select
+                        value={formData.reason}
+                        onValueChange={(value) => setFormData({ ...formData, reason: value })}
+                      >
+                        <SelectTrigger data-testid="select-contact-reason">
+                          <SelectValue placeholder="Select a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {contactReasons.map((reason) => (
+                            <SelectItem key={reason.value} value={reason.value} data-testid={`select-option-${reason.value}`}>
+                              {reason.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <h3 className="font-semibold mb-1">{c.title}</h3>
-                  <p className="text-sm text-[var(--ide-text-secondary)] mb-3">{c.desc}</p>
-                  <span className="text-sm text-[#0079F2]">{c.action}</span>
-                </div>
-              )}
-            </a>
-          ))}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="message">{t('contact.form.message')} *</Label>
+                    <Textarea
+                      id="message"
+                      required
+                      placeholder="How can we help you?"
+                      rows={5}
+                      value={formData.message}
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                      data-testid="textarea-contact-message"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full gap-2"
+                    disabled={isSubmitting}
+                    data-testid="button-contact-submit"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        {t('common.loading')}
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5" />
+                        {t('contact.form.submit')}
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Card>
+            )}
+          </div>
+
+          {/* Contact Info & Offices */}
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-bold mb-6">Other ways to reach us</h2>
+              <div className="space-y-4">
+                <Card className="p-4 flex items-center gap-4">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">Email</div>
+                    <a href="mailto:hello@e-code.ai" className="text-muted-foreground hover:text-primary">
+                      hello@e-code.ai
+                    </a>
+                  </div>
+                </Card>
+                <Card className="p-4 flex items-center gap-4">
+                  <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <MessageCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">Live Chat</div>
+                    <p className="text-muted-foreground">Available Mon-Fri, 9am-6pm PT</p>
+                  </div>
+                </Card>
+                <Card className="p-4 flex items-center gap-4">
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Phone className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">Phone (Enterprise)</div>
+                    <a href="tel:+1-800-ECODE" className="text-muted-foreground hover:text-primary">
+                      +1-800-ECODE
+                    </a>
+                  </div>
+                </Card>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold mb-6">Our Offices</h2>
+              <div className="space-y-4">
+                {offices.map((office) => (
+                  <Card key={office.city} className="p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                        <MapPin className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold">{office.city}</span>
+                          <Badge variant="outline" className="text-[11px]">{office.type}</Badge>
+                        </div>
+                        <p className="text-[13px] text-muted-foreground">
+                          {office.address}<br />
+                          {office.region}<br />
+                          {office.country}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
-    </MarketingLayout>
+      </div>
+    </PublicLayout>
   );
 }

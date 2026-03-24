@@ -176,7 +176,7 @@ const screenshotMap: Record<string, { src: string; alt: string }> = {
   ide: { src: "/docs-images/ide.png", alt: "E-Code IDE workspace" },
   git: { src: "/docs-images/ide.png", alt: "E-Code version control" },
   database: { src: "/docs-images/ide.png", alt: "E-Code database panel" },
-  ai: { src: "/docs-images/ide.png", alt: "E-Code AI assistant" },
+  ai: { src: "/docs-images/ide.png", alt: "E-Code assistant" },
   dashboard: { src: "/docs-images/dashboard.png", alt: "E-Code dashboard" },
   deploy: { src: "/docs-images/dashboard.png", alt: "E-Code deployment" },
   settings: { src: "/docs-images/settings.png", alt: "E-Code account settings" },

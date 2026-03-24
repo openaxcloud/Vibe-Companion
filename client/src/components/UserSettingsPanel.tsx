@@ -353,8 +353,8 @@ export default function UserSettingsPanel({
               <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">CodeMirror 6</span>
             </div>
             <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--ide-border)]">
-              <img src="/logo.png" alt="E-Code" width={10} height={10} className="rounded" style={{ objectFit: 'contain' }} />
-              <span className="text-[10px] text-[var(--ide-text-muted)]">Powered by E-Code</span>
+              <img src="/logo.png" alt="Vibe Companion" width={10} height={10} className="rounded" style={{ objectFit: 'contain' }} />
+              <span className="text-[10px] text-[var(--ide-text-muted)]">Powered by Vibe Companion</span>
             </div>
           </div>
         </div>

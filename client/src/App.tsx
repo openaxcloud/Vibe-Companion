@@ -172,7 +172,7 @@ function App() {
         <ThemeProvider>
           <TooltipProvider>
             <a href="#main-content" className="skip-to-main">Skip to main content</a>
-            <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="E-Code IDE">
+            <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="Vibe Companion IDE">
               <Switch>
                 <Route path="/" component={Landing} />
                 <Route path="/login" component={Auth} />
