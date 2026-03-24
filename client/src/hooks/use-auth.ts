@@ -18,7 +18,6 @@ export function useAuth() {
       login(email, password),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/dashboard");
     },
   });
 
@@ -27,7 +26,6 @@ export function useAuth() {
       register(email, password, displayName, acceptedTerms),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/dashboard");
     },
   });
 

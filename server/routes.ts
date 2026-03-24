@@ -2872,6 +2872,19 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/users/:id/reset-password", requireAdmin, csrfProtection, async (req: Request, res: Response) => {
+    try {
+      const { password } = z.object({ password: z.string().min(6).max(128) }).parse(req.body);
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await storage.updateUser(req.params.id, { password: hashedPassword });
+      if (!user) return res.status(404).json({ message: "User not found" });
+      return res.json({ success: true, message: "Password updated" });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      return res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
   app.put("/api/admin/users/:id/plan", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { plan } = z.object({ plan: z.enum(["free", "pro", "team"]) }).parse(req.body);
