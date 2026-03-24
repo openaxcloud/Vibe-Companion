@@ -382,12 +382,13 @@ export default function Landing() {
           <ECodeLogo size={28} />
           <span className="text-lg font-bold tracking-tight">E-Code</span>
         </div>
-        <div className="hidden md:flex items-center gap-8">
-          <Link href="/demo" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-ai">AI</Link>
-          <Link href="/teams" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-teams">Teams</Link>
-          <Link href="/desktop" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-desktop">Desktop App</Link>
-          <Link href="/pricing" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-pricing">Pricing</Link>
-          <Link href="/docs" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-learn">Docs</Link>
+        <div className="hidden md:flex items-center gap-1">
+          <Link href="/features" className="px-3 py-2 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="nav-features">Features</Link>
+          <Link href="/pricing" className="px-3 py-2 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="nav-pricing">Pricing</Link>
+          <Link href="/solutions/enterprise" className="px-3 py-2 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="nav-enterprise">Enterprise</Link>
+          <Link href="/explore" className="px-3 py-2 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="nav-explore">Explore</Link>
+          <Link href="/docs" className="px-3 py-2 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="nav-docs">Docs</Link>
+          <Link href="/blog" className="px-3 py-2 rounded-lg text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" data-testid="nav-blog">Blog</Link>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login">
@@ -419,11 +420,12 @@ export default function Landing() {
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
         <div className={`absolute top-0 right-0 w-[280px] h-full bg-[var(--ide-bg)] border-l border-[var(--ide-border)]/50 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"}`}>
           <nav className="flex flex-col p-6 gap-2">
-            <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-ai">AI</Link>
-            <Link href="/teams" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-teams">Teams</Link>
-            <Link href="/desktop" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-desktop">Desktop App</Link>
+            <Link href="/features" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-features">Features</Link>
             <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-pricing">Pricing</Link>
-            <Link href="/docs" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-learn">Docs</Link>
+            <Link href="/solutions/enterprise" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-enterprise">Enterprise</Link>
+            <Link href="/explore" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-explore">Explore</Link>
+            <Link href="/docs" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-docs">Docs</Link>
+            <Link href="/blog" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-blog">Blog</Link>
             <div className="my-3 border-t border-[var(--ide-border)]/50" />
             <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-login">Log in</Link>
             <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
@@ -536,25 +538,64 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-12 py-10" role="contentinfo">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <ECodeLogo size={20} />
-            <span className="font-bold text-sm">E-Code</span>
+      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-12 py-16" role="contentinfo" data-testid="landing-footer">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
+          <div className="col-span-2 md:col-span-1">
+            <div className="flex items-center gap-2 mb-4">
+              <ECodeLogo size={20} />
+              <span className="font-bold text-sm">E-Code</span>
+            </div>
+            <p className="text-xs text-[var(--ide-text-muted)] leading-relaxed">Build software faster with AI. Cloud IDE for everyone.</p>
           </div>
-          <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-[var(--ide-text-muted)]">
-            <Link href="/pricing" className="hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
-            <Link href="/teams" className="hover:text-[var(--ide-text)] transition-colors">Teams</Link>
-            <Link href="/desktop" className="hover:text-[var(--ide-text)] transition-colors">Desktop App</Link>
-            <Link href="/docs" className="hover:text-[var(--ide-text)] transition-colors">Docs</Link>
-            <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
-            <a href="mailto:support@e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Contact</a>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--ide-text-muted)] mb-3">Product</h4>
+            <div className="flex flex-col gap-2 text-sm text-[var(--ide-text-secondary)]">
+              <Link href="/features" className="hover:text-[var(--ide-text)] transition-colors">Features</Link>
+              <Link href="/pricing" className="hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
+              <Link href="/languages" className="hover:text-[var(--ide-text)] transition-colors">Languages</Link>
+              <Link href="/marketplace" className="hover:text-[var(--ide-text)] transition-colors">Marketplace</Link>
+              <Link href="/security" className="hover:text-[var(--ide-text)] transition-colors">Security</Link>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--ide-text-muted)] mb-3">Solutions</h4>
+            <div className="flex flex-col gap-2 text-sm text-[var(--ide-text-secondary)]">
+              <Link href="/solutions/enterprise" className="hover:text-[var(--ide-text)] transition-colors">Enterprise</Link>
+              <Link href="/solutions/startups" className="hover:text-[var(--ide-text)] transition-colors">Startups</Link>
+              <Link href="/solutions/freelancers" className="hover:text-[var(--ide-text)] transition-colors">Freelancers</Link>
+              <Link href="/education" className="hover:text-[var(--ide-text)] transition-colors">Education</Link>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--ide-text-muted)] mb-3">Resources</h4>
+            <div className="flex flex-col gap-2 text-sm text-[var(--ide-text-secondary)]">
+              <Link href="/docs" className="hover:text-[var(--ide-text)] transition-colors">Documentation</Link>
+              <Link href="/blog" className="hover:text-[var(--ide-text)] transition-colors">Blog</Link>
+              <Link href="/learn" className="hover:text-[var(--ide-text)] transition-colors">Learn</Link>
+              <Link href="/support" className="hover:text-[var(--ide-text)] transition-colors">Support</Link>
+              <Link href="/status" className="hover:text-[var(--ide-text)] transition-colors">Status</Link>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--ide-text-muted)] mb-3">Company</h4>
+            <div className="flex flex-col gap-2 text-sm text-[var(--ide-text-secondary)]">
+              <Link href="/about" className="hover:text-[var(--ide-text)] transition-colors">About</Link>
+              <Link href="/careers" className="hover:text-[var(--ide-text)] transition-colors">Careers</Link>
+              <Link href="/press" className="hover:text-[var(--ide-text)] transition-colors">Press</Link>
+              <Link href="/contact" className="hover:text-[var(--ide-text)] transition-colors">Contact</Link>
+              <Link href="/partners" className="hover:text-[var(--ide-text)] transition-colors">Partners</Link>
+            </div>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto mt-6 pt-5 border-t border-[var(--ide-border)]/50 flex items-center justify-between">
-          <p className="text-xs text-[var(--ide-text-muted)]">&copy; {new Date().getFullYear()} E-Code. All rights reserved.</p>
-          <a href="#" className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"><Github className="w-4 h-4" /></a>
+        <div className="max-w-6xl mx-auto pt-6 border-t border-[var(--ide-border)]/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--ide-text-muted)]">
+            <span>&copy; {new Date().getFullYear()} E-Code. All rights reserved.</span>
+            <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
+            <Link href="/dpa" className="hover:text-[var(--ide-text)] transition-colors">DPA</Link>
+            <Link href="/accessibility" className="hover:text-[var(--ide-text)] transition-colors">Accessibility</Link>
+          </div>
+          <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"><Github className="w-4 h-4" /></a>
         </div>
       </footer>
     </div>
