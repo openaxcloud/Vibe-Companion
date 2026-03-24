@@ -9,7 +9,7 @@ import {
   Settings2, Search, FlaskConical, Brain, Globe,
   Pause, GripVertical, Pencil, ListOrdered, ChevronUp, SlidersHorizontal,
   Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers,
-  Volume2, VolumeX, Download, Square
+  Volume2, VolumeX, Download, Square, RefreshCw
 } from "lucide-react";
 import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
 import FigmaDesignCard, { FigmaLinkIndicator, detectFigmaUrl } from "./FigmaDesignCard";
@@ -954,6 +954,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null);
   const [ecodeStatus, setEcodeStatus] = useState<{ exists: boolean; fileId: string | null }>({ exists: false, fileId: null });
   const [ecodeGenerating, setEcodeGenerating] = useState(false);
+  const [ecodeLastUpdated, setEcodeLastUpdated] = useState<string | null>(null);
+  const [ecodeRefreshing, setEcodeRefreshing] = useState(false);
   const [planMessages, setPlanMessages] = useState<ChatMessage[]>([]);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
@@ -1472,6 +1474,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 setEcodeStatus({ exists: true, fileId: data.file.id || null });
               }
               onFileCreated?.(data.file);
+            } else if (data.type === "ecode_updated") {
+              setEcodeStatus({ exists: true, fileId: data.file?.id || null });
+              setEcodeLastUpdated(new Date().toISOString());
+              onFileUpdated?.(data.file);
             } else if (data.type === "file_updated") {
               fileOps.push({ type: "updated", filename: data.file.filename });
               if (data.imageData) {
@@ -3142,11 +3148,38 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (res.ok) {
         const data = await res.json();
         setEcodeStatus({ exists: true, fileId: data.file?.id || null });
+        setEcodeLastUpdated(new Date().toISOString());
         if (data.file) onFileCreated?.(data.file);
       }
     } catch {}
     setEcodeGenerating(false);
   }, [projectId, ecodeGenerating, onFileCreated]);
+
+  const handleRefreshEcode = useCallback(async () => {
+    if (!projectId || ecodeRefreshing) return;
+    setEcodeRefreshing(true);
+    try {
+      const ct = getCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ct) headers["X-CSRF-Token"] = ct;
+      const res = await fetch(`/api/projects/${projectId}/ecode/refresh`, {
+        method: "POST", credentials: "include", headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEcodeStatus({ exists: true, fileId: data.file?.id || null });
+        setEcodeLastUpdated(new Date().toISOString());
+        if (data.file) {
+          if (data.created) {
+            onFileCreated?.(data.file);
+          } else {
+            onFileUpdated?.(data.file);
+          }
+        }
+      }
+    } catch {}
+    setEcodeRefreshing(false);
+  }, [projectId, ecodeRefreshing, onFileCreated, onFileUpdated]);
 
   useEffect(() => {
     fetch("/api/ai-suggestions", { credentials: "include" })
@@ -3178,20 +3211,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         <div className="flex items-center gap-1 flex-wrap min-w-0">
           {projectId && (
             ecodeStatus.exists ? (
-              <button
-                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[#0CCE6B]/10 text-[#0CCE6B] hover:opacity-80 transition-opacity whitespace-nowrap"
-                onClick={() => {
-                  if (ecodeStatus.fileId && files) {
-                    const f = files.find(f => f.filename === "ecode.md");
-                    if (f) onApplyCode?.("ecode.md", f.content);
-                  }
-                }}
-                title="ecode.md is active — click to open"
-                data-testid="badge-ecode-active"
-              >
-                <FileText className="w-2.5 h-2.5" />
-                ecode.md
-              </button>
+              <div className="flex items-center gap-0.5" data-testid="ecode-controls">
+                <button
+                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-l bg-[#0CCE6B]/10 text-[#0CCE6B] hover:bg-[#0CCE6B]/20 transition-all whitespace-nowrap"
+                  onClick={() => {
+                    if (ecodeStatus.fileId && files) {
+                      const f = files.find(f => f.filename === "ecode.md");
+                      if (f) onApplyCode?.("ecode.md", f.content);
+                    }
+                  }}
+                  title={ecodeLastUpdated ? `ecode.md — auto-synced ${new Date(ecodeLastUpdated).toLocaleTimeString()}` : "ecode.md is active — click to open"}
+                  data-testid="badge-ecode-active"
+                >
+                  <FileText className="w-2.5 h-2.5" />
+                  ecode.md
+                  {ecodeLastUpdated && <span className="text-[8px] opacity-60 ml-0.5">synced</span>}
+                </button>
+                <button
+                  className="flex items-center text-[10px] px-1 py-0.5 rounded-r bg-[#0CCE6B]/10 text-[#0CCE6B] hover:bg-[#0CCE6B]/20 transition-all border-l border-[#0CCE6B]/20"
+                  onClick={handleRefreshEcode}
+                  disabled={ecodeRefreshing}
+                  title="Refresh project structure & dependencies in ecode.md"
+                  data-testid="button-ecode-refresh"
+                >
+                  <RefreshCw className={`w-2.5 h-2.5 ${ecodeRefreshing ? "animate-spin" : ""}`} />
+                </button>
+              </div>
             ) : (
               <button
                 className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 hover:opacity-80 transition-opacity"

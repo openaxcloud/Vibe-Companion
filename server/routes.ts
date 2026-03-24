@@ -178,7 +178,7 @@ async function persistRepoState(projectId: string, backupTrigger?: "commit" | "d
   }
 }
 import { getTemplateById, getAllTemplates } from "./templates";
-import { generateEcodeContent, getEcodeFilename } from "./ecodeTemplates";
+import { generateEcodeContent, getEcodeFilename, buildProjectStructureTree, detectDependencies, detectDependenciesFromPackageJson, parseUserPreferences, parseProjectContext, updateEcodeStructureSection, buildEcodePromptContext, shouldAutoUpdate } from "./ecodeTemplates";
 import {
   addCollaborator,
   removeCollaborator,
@@ -5372,9 +5372,61 @@ export async function registerRoutes(
     if (existing) {
       return res.json({ file: existing, regenerated: false });
     }
-    const content = generateEcodeContent(project.name, project.language);
+    let content = generateEcodeContent(project.name, project.language);
+    const filenames = projectFiles.map(f => f.filename);
+    const pkgFile = projectFiles.find(f => f.filename === "package.json");
+    content = updateEcodeStructureSection(content, filenames, pkgFile?.content || undefined);
     const file = await storage.createFile(project.id, { filename: "ecode.md", content });
     return res.status(201).json({ file, regenerated: true });
+  });
+
+  app.post("/api/projects/:id/ecode/refresh", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const projectFiles = await storage.getFiles(project.id);
+      const ecodeFile = projectFiles.find(f => f.filename === "ecode.md");
+      if (!ecodeFile) {
+        let content = generateEcodeContent(project.name, project.language);
+        const filenames = projectFiles.map(f => f.filename);
+        const pkgFile = projectFiles.find(f => f.filename === "package.json");
+        content = updateEcodeStructureSection(content, filenames, pkgFile?.content || undefined);
+        const file = await storage.createFile(project.id, { filename: "ecode.md", content });
+        return res.status(201).json({ file, created: true, refreshed: true });
+      }
+      const filenames = projectFiles.map(f => f.filename);
+      const pkgFile = projectFiles.find(f => f.filename === "package.json");
+      const updatedContent = updateEcodeStructureSection(
+        ecodeFile.content || "",
+        filenames,
+        pkgFile?.content || undefined
+      );
+      const updated = await storage.updateFileContent(ecodeFile.id, updatedContent);
+      return res.json({ file: updated || { ...ecodeFile, content: updatedContent }, created: false, refreshed: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Failed to refresh ecode.md" });
+    }
+  });
+
+  app.get("/api/projects/:id/ecode/preferences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const projectFiles = await storage.getFiles(project.id);
+      const ecodeFile = projectFiles.find(f => f.filename === "ecode.md");
+      if (!ecodeFile || !ecodeFile.content) {
+        return res.json({ preferences: [], context: "", hasEcode: false });
+      }
+      const preferences = parseUserPreferences(ecodeFile.content);
+      const context = parseProjectContext(ecodeFile.content);
+      return res.json({ preferences, context, hasEcode: true });
+    } catch {
+      return res.json({ preferences: [], context: "", hasEcode: false });
+    }
   });
 
   // --- FILES ---
@@ -9449,7 +9501,7 @@ Any closing remarks...`;
               ecodeFile = await storage.createFile(chatProject.id, { filename: "ecode.md", content: ecodeContent });
             }
             if (ecodeFile && ecodeFile.content) {
-              ecodeContext = `\n\n## Project Guidelines (ecode.md)\n${ecodeFile.content}`;
+              ecodeContext = buildEcodePromptContext(ecodeFile.content);
             }
           }
         } catch {}
@@ -10239,7 +10291,7 @@ Rules:
       }
 
       const fileList = existingFiles.filter(f => f.filename !== "ecode.md").map(f => `- ${f.filename}`).join("\n");
-      const ecodeGuidelines = ecodeFile && ecodeFile.content ? `\n\n## Project Guidelines (ecode.md)\n${ecodeFile.content}` : "";
+      const ecodeGuidelines = ecodeFile && ecodeFile.content ? buildEcodePromptContext(ecodeFile.content) : "";
 
       let agentSkillsContext = "";
       try {
@@ -11773,6 +11825,33 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         credentialMode: effectiveAgentCredMode,
         endpoint: "/api/ai/agent",
       }).catch(() => {});
+
+      try {
+        if (agentModifiedFiles.size > 0) {
+          const updatedFilesForEcode = await storage.getFiles(projectId);
+          const currentFilenames = updatedFilesForEcode.map(f => f.filename);
+          const previousFilenames = existingFiles.map(f => f.filename);
+
+          if (shouldAutoUpdate(previousFilenames, currentFilenames, agentModifiedFiles)) {
+            const currentEcode = updatedFilesForEcode.find(f => f.filename === "ecode.md");
+            if (currentEcode && currentEcode.content) {
+              const pkgFile = updatedFilesForEcode.find(f => f.filename === "package.json");
+              const updatedEcodeContent = updateEcodeStructureSection(
+                currentEcode.content,
+                currentFilenames,
+                pkgFile?.content || undefined
+              );
+              if (updatedEcodeContent !== currentEcode.content) {
+                await storage.updateFileContent(currentEcode.id, updatedEcodeContent);
+                res.write(`data: ${JSON.stringify({ type: "ecode_updated", file: { id: currentEcode.id, filename: "ecode.md", content: updatedEcodeContent } })}\n\n`);
+                log(`Auto-updated ecode.md for project ${projectId} (${agentModifiedFiles.size} files changed)`, "ai");
+              }
+            }
+          }
+        }
+      } catch (ecodeErr: any) {
+        log(`Failed to auto-update ecode.md: ${ecodeErr.message}`, "ai");
+      }
 
       const agentDonePayload: { type: string; byokNoKey?: boolean } = { type: "done" };
       if (agentByokNoKey) agentDonePayload.byokNoKey = true;
