@@ -20,7 +20,7 @@ import Privacy from "@/pages/Privacy";
 import VerifyEmail from "@/pages/VerifyEmail";
 import AcceptInvite from "@/pages/AcceptInvite";
 import { useAuth } from "@/hooks/use-auth";
-import { Component, type ReactNode } from "react";
+import { Component, lazy, Suspense, type ReactNode } from "react";
 import Project from "@/pages/Project";
 import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
 import Frameworks from "@/pages/Frameworks";
@@ -38,6 +38,60 @@ import HelpCenter from "@/pages/HelpCenter";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import GlobalShortcuts from "@/components/GlobalShortcuts";
 import CookieConsent from "@/components/CookieConsent";
+
+const Compare = lazy(() => import("@/pages/marketing/Compare"));
+const VsAwsCloud9 = lazy(() => import("@/pages/marketing/VsAwsCloud9"));
+const VsCodeSandbox = lazy(() => import("@/pages/marketing/VsCodeSandbox"));
+const VsGitHubCodespaces = lazy(() => import("@/pages/marketing/VsGitHubCodespaces"));
+const VsGlitch = lazy(() => import("@/pages/marketing/VsGlitch"));
+const VsHeroku = lazy(() => import("@/pages/marketing/VsHeroku"));
+const Bounties = lazy(() => import("@/pages/marketing/Bounties"));
+
+const AppBuilder = lazy(() => import("@/pages/solutions/AppBuilder"));
+const ChatbotBuilder = lazy(() => import("@/pages/solutions/ChatbotBuilder"));
+const DashboardBuilder = lazy(() => import("@/pages/solutions/DashboardBuilder"));
+const Enterprise = lazy(() => import("@/pages/solutions/Enterprise"));
+const Freelancers = lazy(() => import("@/pages/solutions/Freelancers"));
+const GameBuilder = lazy(() => import("@/pages/solutions/GameBuilder"));
+const InternalAIBuilder = lazy(() => import("@/pages/solutions/InternalAIBuilder"));
+const Startups = lazy(() => import("@/pages/solutions/Startups"));
+const WebsiteBuilder = lazy(() => import("@/pages/solutions/WebsiteBuilder"));
+
+const About = lazy(() => import("@/pages/About"));
+const Blog = lazy(() => import("@/pages/Blog"));
+const BlogDetail = lazy(() => import("@/pages/BlogDetail"));
+const Careers = lazy(() => import("@/pages/Careers"));
+const Contact = lazy(() => import("@/pages/Contact"));
+const ContactSales = lazy(() => import("@/pages/ContactSales"));
+const Education = lazy(() => import("@/pages/Education"));
+const Features = lazy(() => import("@/pages/Features"));
+const Partners = lazy(() => import("@/pages/Partners"));
+const Press = lazy(() => import("@/pages/Press"));
+const Status = lazy(() => import("@/pages/Status"));
+const Support = lazy(() => import("@/pages/Support"));
+const Explore = lazy(() => import("@/pages/Explore"));
+const Marketplace = lazy(() => import("@/pages/Marketplace"));
+const TemplateMarketplace = lazy(() => import("@/pages/TemplateMarketplace"));
+const Languages = lazy(() => import("@/pages/Languages"));
+const Learn = lazy(() => import("@/pages/Learn"));
+const Security = lazy(() => import("@/pages/Security"));
+const Scalability = lazy(() => import("@/pages/Scalability"));
+const DPA = lazy(() => import("@/pages/DPA"));
+const CommercialAgreement = lazy(() => import("@/pages/CommercialAgreement"));
+const StudentDPA = lazy(() => import("@/pages/StudentDPA"));
+const Subprocessors = lazy(() => import("@/pages/Subprocessors"));
+const Accessibility = lazy(() => import("@/pages/Accessibility"));
+const NewsletterConfirm = lazy(() => import("@/pages/NewsletterConfirm"));
+const NewsletterConfirmed = lazy(() => import("@/pages/NewsletterConfirmed"));
+const NewsletterUnsubscribe = lazy(() => import("@/pages/NewsletterUnsubscribe"));
+
+function LazyPage({ component: C }: { component: React.LazyExoticComponent<React.ComponentType> }) {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]"><div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" /></div>}>
+      <C />
+    </Suspense>
+  );
+}
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -151,6 +205,56 @@ function App() {
                 <Route path="/terms" component={Terms} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/verify-email" component={VerifyEmail} />
+
+                {/* Marketing: Compare */}
+                <Route path="/compare">{() => <LazyPage component={Compare} />}</Route>
+                <Route path="/compare/vs-aws-cloud9">{() => <LazyPage component={VsAwsCloud9} />}</Route>
+                <Route path="/compare/vs-codesandbox">{() => <LazyPage component={VsCodeSandbox} />}</Route>
+                <Route path="/compare/vs-github-codespaces">{() => <LazyPage component={VsGitHubCodespaces} />}</Route>
+                <Route path="/compare/vs-glitch">{() => <LazyPage component={VsGlitch} />}</Route>
+                <Route path="/compare/vs-heroku">{() => <LazyPage component={VsHeroku} />}</Route>
+                <Route path="/bounties">{() => <LazyPage component={Bounties} />}</Route>
+
+                {/* Solutions */}
+                <Route path="/solutions/app-builder">{() => <LazyPage component={AppBuilder} />}</Route>
+                <Route path="/solutions/chatbot-builder">{() => <LazyPage component={ChatbotBuilder} />}</Route>
+                <Route path="/solutions/dashboard-builder">{() => <LazyPage component={DashboardBuilder} />}</Route>
+                <Route path="/solutions/enterprise">{() => <LazyPage component={Enterprise} />}</Route>
+                <Route path="/solutions/freelancers">{() => <LazyPage component={Freelancers} />}</Route>
+                <Route path="/solutions/game-builder">{() => <LazyPage component={GameBuilder} />}</Route>
+                <Route path="/solutions/internal-ai">{() => <LazyPage component={InternalAIBuilder} />}</Route>
+                <Route path="/solutions/startups">{() => <LazyPage component={Startups} />}</Route>
+                <Route path="/solutions/website-builder">{() => <LazyPage component={WebsiteBuilder} />}</Route>
+
+                {/* Standalone Marketing Pages */}
+                <Route path="/about">{() => <LazyPage component={About} />}</Route>
+                <Route path="/blog">{() => <LazyPage component={Blog} />}</Route>
+                <Route path="/blog/:slug">{() => <LazyPage component={BlogDetail} />}</Route>
+                <Route path="/careers">{() => <LazyPage component={Careers} />}</Route>
+                <Route path="/contact">{() => <LazyPage component={Contact} />}</Route>
+                <Route path="/contact-sales">{() => <LazyPage component={ContactSales} />}</Route>
+                <Route path="/education">{() => <LazyPage component={Education} />}</Route>
+                <Route path="/features">{() => <LazyPage component={Features} />}</Route>
+                <Route path="/partners">{() => <LazyPage component={Partners} />}</Route>
+                <Route path="/press">{() => <LazyPage component={Press} />}</Route>
+                <Route path="/status">{() => <LazyPage component={Status} />}</Route>
+                <Route path="/support">{() => <LazyPage component={Support} />}</Route>
+                <Route path="/explore">{() => <LazyPage component={Explore} />}</Route>
+                <Route path="/marketplace">{() => <LazyPage component={Marketplace} />}</Route>
+                <Route path="/templates">{() => <LazyPage component={TemplateMarketplace} />}</Route>
+                <Route path="/languages">{() => <LazyPage component={Languages} />}</Route>
+                <Route path="/learn">{() => <LazyPage component={Learn} />}</Route>
+                <Route path="/security">{() => <LazyPage component={Security} />}</Route>
+                <Route path="/scalability">{() => <LazyPage component={Scalability} />}</Route>
+                <Route path="/dpa">{() => <LazyPage component={DPA} />}</Route>
+                <Route path="/commercial-agreement">{() => <LazyPage component={CommercialAgreement} />}</Route>
+                <Route path="/student-dpa">{() => <LazyPage component={StudentDPA} />}</Route>
+                <Route path="/subprocessors">{() => <LazyPage component={Subprocessors} />}</Route>
+                <Route path="/accessibility">{() => <LazyPage component={Accessibility} />}</Route>
+                <Route path="/newsletter/confirm">{() => <LazyPage component={NewsletterConfirm} />}</Route>
+                <Route path="/newsletter/confirmed">{() => <LazyPage component={NewsletterConfirmed} />}</Route>
+                <Route path="/newsletter/unsubscribe">{() => <LazyPage component={NewsletterUnsubscribe} />}</Route>
+
                 <Route component={NotFound} />
               </Switch>
             </div>
