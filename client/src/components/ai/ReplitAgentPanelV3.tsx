@@ -13,10 +13,15 @@ export interface ExternalInputHandlers {
   onAttach?: () => void;
   onVoice?: () => void;
   isRecording?: boolean;
+  isTranscribing?: boolean;
   isUploadingFiles?: boolean;
   pendingAttachmentsCount?: number;
   removeAttachment?: (id: string) => void;
   attachments?: { id: string; name: string; type: string; size: number }[];
+  onAIModeChange?: (mode: 'chat' | 'agent' | 'plan') => void;
+  aiMode?: 'chat' | 'agent' | 'plan';
+  onAgentToolsConfigChange?: (updates: Record<string, boolean>) => void;
+  agentToolsConfig?: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean; turbo: boolean };
 }
 
 interface ReplitAgentPanelV3Props {

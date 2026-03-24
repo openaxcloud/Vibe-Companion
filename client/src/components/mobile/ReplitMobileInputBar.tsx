@@ -50,6 +50,7 @@ interface ReplitMobileInputBarProps {
   onAttach?: () => void;
   onVoice?: () => void;
   isRecording?: boolean;
+  isTranscribing?: boolean;
   isUploadingFiles?: boolean;
   pendingAttachmentsCount?: number;
   attachments?: AttachmentInfo[];
@@ -69,6 +70,7 @@ export function ReplitMobileInputBar({
   onAttach,
   onVoice,
   isRecording,
+  isTranscribing,
   pendingAttachmentsCount,
   attachments = [],
   onRemoveAttachment,
@@ -345,6 +347,7 @@ export function ReplitMobileInputBar({
               <button
                 onClick={onAttach}
                 className="w-7 h-7 flex items-center justify-center rounded-full text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-colors relative"
+                data-testid="mobile-attach-button"
               >
                 <Paperclip className="w-3.5 h-3.5" />
                 {(pendingAttachmentsCount ?? 0) > 0 && (
@@ -355,10 +358,12 @@ export function ReplitMobileInputBar({
             {onVoice && (
               <button
                 onClick={onVoice}
+                disabled={isTranscribing}
                 className={cn(
                   'w-7 h-7 flex items-center justify-center rounded-full transition-colors',
-                  isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]'
+                  isRecording ? 'bg-red-500 text-white animate-pulse' : isTranscribing ? 'text-[#0079F2] animate-pulse opacity-70' : 'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]'
                 )}
+                data-testid="mobile-voice-button"
               >
                 {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
               </button>

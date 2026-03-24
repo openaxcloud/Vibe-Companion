@@ -141,6 +141,13 @@ interface AIPanelProps {
     pendingAttachmentsCount?: number;
     removeAttachment?: (id: string) => void;
     attachments?: { id: string; name: string; type: string; size: number }[];
+    onVoice?: () => void;
+    isRecording?: boolean;
+    isTranscribing?: boolean;
+    onAIModeChange?: (mode: 'chat' | 'agent' | 'plan') => void;
+    aiMode?: 'chat' | 'agent' | 'plan';
+    onAgentToolsConfigChange?: (updates: Record<string, boolean>) => void;
+    agentToolsConfig?: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean; turbo: boolean };
   } | null) => void;
 }
 
@@ -2108,9 +2115,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       pendingAttachmentsCount: attachments.length,
       removeAttachment: (id: string) => setAttachments(prev => prev.filter(a => a.id !== id)),
       attachments: attachments.map(a => ({ id: a.id, name: a.name, type: a.type, size: a.size })),
+      onVoice: () => {
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+      },
+      isRecording,
+      isTranscribing,
+      onAIModeChange: (newMode: 'chat' | 'agent' | 'plan') => {
+        if (newMode === 'plan') {
+          setTopMode('plan');
+          setMode('agent');
+        } else {
+          setTopMode('build');
+          setMode(newMode);
+        }
+      },
+      aiMode: topMode === 'plan' ? 'plan' : mode === 'chat' ? 'chat' : 'agent',
+      onAgentToolsConfigChange: (updates: Record<string, boolean>) => {
+        updateAgentToolsConfig(updates as Partial<AgentToolsConfig>);
+      },
+      agentToolsConfig,
     };
     onExternalInput(handlers);
-  }, [onExternalInput, isStreaming, agentMode, attachments]);
+  }, [onExternalInput, isStreaming, agentMode, attachments, isRecording, isTranscribing, mode, topMode, agentToolsConfig]);
 
   const stopStreaming = () => {
     abortRef.current?.abort();

@@ -429,6 +429,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const [mobileAgentToolsConfig, setMobileAgentToolsConfig] = useState({
     liteMode: false, webSearch: true, appTesting: false, codeOptimizations: false, architect: false, turbo: false,
   });
+  const pendingMobileMessageRef = useRef<string | null>(null);
   const mobileFileInputRef = useRef<HTMLInputElement>(null);
   const handleMobileAttach = useCallback(() => {
     mobileFileInputRef.current?.click();
@@ -440,6 +441,41 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     }
     if (mobileFileInputRef.current) mobileFileInputRef.current.value = '';
   }, [mobileAgentHandlers]);
+
+  useEffect(() => {
+    if (mobileAgentHandlers?.agentMode) {
+      const mode = mobileAgentHandlers.agentMode as 'economy' | 'power' | 'turbo';
+      if (['economy', 'power', 'turbo'].includes(mode) && mode !== mobileAgentMode) {
+        setMobileAgentMode(mode);
+        try { localStorage.setItem('mobile-agent-mode', mode); } catch {}
+      }
+    }
+  }, [mobileAgentHandlers?.agentMode]);
+
+  useEffect(() => {
+    if (mobileAgentHandlers?.aiMode && mobileAgentHandlers.aiMode !== mobileAIMode) {
+      setMobileAIMode(mobileAgentHandlers.aiMode);
+    }
+  }, [mobileAgentHandlers?.aiMode]);
+
+  useEffect(() => {
+    if (mobileAgentHandlers?.agentToolsConfig) {
+      setMobileAgentToolsConfig(mobileAgentHandlers.agentToolsConfig);
+    }
+  }, [mobileAgentHandlers?.agentToolsConfig]);
+
+  useEffect(() => {
+    if (mobileAgentHandlers?.handleSubmit && pendingMobileMessageRef.current) {
+      const msg = pendingMobileMessageRef.current;
+      pendingMobileMessageRef.current = null;
+      try {
+        mobileAgentHandlers.handleSubmit(msg);
+      } catch (err) {
+        console.error('[MobileSubmit] Failed to send queued message:', err);
+        toast({ title: 'Failed to send message', description: 'Please try again.', variant: 'destructive' });
+      }
+    }
+  }, [mobileAgentHandlers?.handleSubmit]);
 
   // Tab content animation
   const [displayedTab, setDisplayedTab] = useState(activeTab);
@@ -937,15 +973,48 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         {mobileActiveTab === 'agent' && (
           <ReplitMobileInputBar
             placeholder="What would you like to build?"
-            onSubmit={(value) => { const h = mobileAgentHandlersRef.current || mobileAgentHandlers; h?.handleSubmit?.(value); }}
+            onSubmit={(value) => {
+              const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+              if (!h?.handleSubmit) {
+                pendingMobileMessageRef.current = value;
+                toast({ title: 'Connecting...', description: 'Your message will be sent momentarily.' });
+                return;
+              }
+              try {
+                h.handleSubmit(value);
+              } catch (err) {
+                console.error('[MobileSubmit] Failed to send message:', err);
+                toast({ title: 'Failed to send message', description: 'Please try again.', variant: 'destructive' });
+              }
+            }}
             isWorking={mobileAgentHandlers?.isWorking}
-            aiMode={mobileAIMode}
-            onAIModeChange={setMobileAIMode}
+            aiMode={mobileAgentHandlers?.aiMode ?? mobileAIMode}
+            onAIModeChange={(mode) => {
+              setMobileAIMode(mode);
+              const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+              h?.onAIModeChange?.(mode);
+            }}
             agentMode={mobileAgentMode}
-            onAgentModeChange={(m) => { setMobileAgentMode(m); try { localStorage.setItem('mobile-agent-mode', m); } catch {} mobileAgentHandlers?.onModeChange?.(m); }}
-            agentToolsConfig={mobileAgentToolsConfig}
-            onAgentToolsConfigChange={setMobileAgentToolsConfig}
+            onAgentModeChange={(m) => { setMobileAgentMode(m); try { localStorage.setItem('mobile-agent-mode', m); } catch {} const h = mobileAgentHandlersRef.current || mobileAgentHandlers; h?.onModeChange?.(m); }}
+            agentToolsConfig={mobileAgentHandlers?.agentToolsConfig ?? mobileAgentToolsConfig}
+            onAgentToolsConfigChange={(config) => {
+              setMobileAgentToolsConfig(config);
+              const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+              const prev = h?.agentToolsConfig ?? mobileAgentToolsConfig;
+              const diff: Record<string, boolean> = {};
+              for (const key of Object.keys(config) as (keyof typeof config)[]) {
+                if (config[key] !== prev[key]) {
+                  diff[key] = config[key];
+                }
+              }
+              if (Object.keys(diff).length > 0) {
+                h?.onAgentToolsConfigChange?.(diff);
+              }
+            }}
             onAttach={handleMobileAttach}
+            onVoice={mobileAgentHandlers?.onVoice}
+            isRecording={mobileAgentHandlers?.isRecording}
+            isTranscribing={mobileAgentHandlers?.isTranscribing}
             pendingAttachmentsCount={mobileAgentHandlers?.pendingAttachmentsCount ?? 0}
             attachments={mobileAgentHandlers?.attachments}
             onRemoveAttachment={mobileAgentHandlers?.removeAttachment}
@@ -1069,15 +1138,48 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         {mobileActiveTab === 'agent' && (
           <ReplitMobileInputBar
             placeholder="What would you like to build?"
-            onSubmit={(value) => { const h = mobileAgentHandlersRef.current || mobileAgentHandlers; h?.handleSubmit?.(value); }}
+            onSubmit={(value) => {
+              const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+              if (!h?.handleSubmit) {
+                pendingMobileMessageRef.current = value;
+                toast({ title: 'Connecting...', description: 'Your message will be sent momentarily.' });
+                return;
+              }
+              try {
+                h.handleSubmit(value);
+              } catch (err) {
+                console.error('[MobileSubmit] Failed to send message:', err);
+                toast({ title: 'Failed to send message', description: 'Please try again.', variant: 'destructive' });
+              }
+            }}
             isWorking={mobileAgentHandlers?.isWorking}
-            aiMode={mobileAIMode}
-            onAIModeChange={setMobileAIMode}
+            aiMode={mobileAgentHandlers?.aiMode ?? mobileAIMode}
+            onAIModeChange={(mode) => {
+              setMobileAIMode(mode);
+              const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+              h?.onAIModeChange?.(mode);
+            }}
             agentMode={mobileAgentMode}
-            onAgentModeChange={(m) => { setMobileAgentMode(m); try { localStorage.setItem('mobile-agent-mode', m); } catch {} mobileAgentHandlers?.onModeChange?.(m); }}
-            agentToolsConfig={mobileAgentToolsConfig}
-            onAgentToolsConfigChange={setMobileAgentToolsConfig}
+            onAgentModeChange={(m) => { setMobileAgentMode(m); try { localStorage.setItem('mobile-agent-mode', m); } catch {} const h = mobileAgentHandlersRef.current || mobileAgentHandlers; h?.onModeChange?.(m); }}
+            agentToolsConfig={mobileAgentHandlers?.agentToolsConfig ?? mobileAgentToolsConfig}
+            onAgentToolsConfigChange={(config) => {
+              setMobileAgentToolsConfig(config);
+              const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+              const prev = h?.agentToolsConfig ?? mobileAgentToolsConfig;
+              const diff: Record<string, boolean> = {};
+              for (const key of Object.keys(config) as (keyof typeof config)[]) {
+                if (config[key] !== prev[key]) {
+                  diff[key] = config[key];
+                }
+              }
+              if (Object.keys(diff).length > 0) {
+                h?.onAgentToolsConfigChange?.(diff);
+              }
+            }}
             onAttach={handleMobileAttach}
+            onVoice={mobileAgentHandlers?.onVoice}
+            isRecording={mobileAgentHandlers?.isRecording}
+            isTranscribing={mobileAgentHandlers?.isTranscribing}
             pendingAttachmentsCount={mobileAgentHandlers?.pendingAttachmentsCount ?? 0}
             attachments={mobileAgentHandlers?.attachments}
             onRemoveAttachment={mobileAgentHandlers?.removeAttachment}
