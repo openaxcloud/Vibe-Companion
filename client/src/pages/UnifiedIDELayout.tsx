@@ -1418,11 +1418,26 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
 
           {!isSidebarCollapsed && <ResizableHandle />}
 
-          {/* File Explorer Panel (Left side, like Replit) */}
+          {/* Main Content Panel */}
+          <ResizablePanel defaultSize={isSidebarCollapsed ? (showFileExplorer ? 85 : 100) : (showFileExplorer ? 60 : 75)} minSize={25} data-testid="desktop-main-panel">
+            <div className="h-full flex flex-col">
+              <div
+                className={cn(
+                  "h-full w-full transition-opacity duration-100 ease-in-out",
+                  tabContentVisible ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {renderDesktopContent()}
+              </div>
+            </div>
+          </ResizablePanel>
+
+          {/* File Explorer Panel (Right side, like Replit) */}
           {showFileExplorer && (
             <>
+              <ResizableHandle />
               <ResizablePanel defaultSize={15} minSize={12} maxSize={25} data-testid="desktop-files-panel">
-                <div className="h-full flex flex-col border-r border-[var(--ide-border)]">
+                <div className="h-full flex flex-col border-l border-[var(--ide-border)]">
                   <div className="h-9 border-b border-[var(--ide-border)] flex items-center justify-between px-2.5 bg-[var(--ide-panel)]">
                     <h3 className="font-medium text-xs text-[var(--ide-text-muted)] uppercase tracking-wider">Files</h3>
                     <Button
@@ -1443,23 +1458,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   />
                 </div>
               </ResizablePanel>
-              <ResizableHandle />
             </>
           )}
-
-          {/* Main Content Panel */}
-          <ResizablePanel defaultSize={isSidebarCollapsed ? (showFileExplorer ? 75 : 100) : (showFileExplorer ? 60 : 75)} minSize={25} data-testid="desktop-main-panel">
-            <div className="h-full flex flex-col">
-              <div
-                className={cn(
-                  "h-full w-full transition-opacity duration-100 ease-in-out",
-                  tabContentVisible ? "opacity-100" : "opacity-0"
-                )}
-              >
-                {renderDesktopContent()}
-              </div>
-            </div>
-          </ResizablePanel>
         </ResizablePanelGroup>
 
         {/* Status Bar */}
