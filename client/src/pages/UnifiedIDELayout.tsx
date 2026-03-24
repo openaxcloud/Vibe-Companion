@@ -137,6 +137,7 @@ interface UnifiedIDELayoutProps {
 const SWIPE_THRESHOLD = 50;
 const SWIPE_VELOCITY_THRESHOLD = 0.3;
 const mobileTabOrder: MobileTab[] = ['preview', 'agent', 'terminal', 'deploy', 'more'];
+const PRIMARY_MOBILE_TABS: MobileTab[] = ['preview', 'agent', 'terminal', 'deploy'];
 
 function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const deviceType = useDeviceType();
@@ -412,7 +413,27 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   }, [setActiveActivityItem, setShowFileExplorer, setIsSidebarCollapsed, setLeftPanelTab, handleAddTool]);
 
   // Mobile state
-  const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('agent');
+  const [mobileActiveTab, setMobileActiveTabRaw] = useState<MobileTab>('agent');
+  const lastPrimaryTabRef = useRef<MobileTab>('agent');
+
+  const setMobileActiveTab = useCallback((tab: MobileTab) => {
+    if (PRIMARY_MOBILE_TABS.includes(tab)) {
+      lastPrimaryTabRef.current = tab;
+    }
+    setMobileActiveTabRaw(tab);
+  }, []);
+
+  const returnToLastPrimaryTab = useCallback(() => {
+    setMobileActiveTab(lastPrimaryTabRef.current);
+  }, [setMobileActiveTab]);
+
+  const handleMobileBack = useCallback(() => {
+    if (PRIMARY_MOBILE_TABS.includes(mobileActiveTab)) {
+      window.location.href = '/dashboard';
+    } else {
+      returnToLastPrimaryTab();
+    }
+  }, [mobileActiveTab, returnToLastPrimaryTab]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
   const [showTabSwitcher, setShowTabSwitcher] = useState(false);
@@ -666,9 +687,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'security':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MobileSecurityPanel projectId={projectId} /></Suspense>;
       case 'search':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GlobalSearch isOpen={true} inline={true} onClose={() => setMobileActiveTab('agent')} projectId={projectId} onFileSelect={(file: any) => handleFileSelect({ id: file.id, name: file.name })} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GlobalSearch isOpen={true} inline={true} onClose={returnToLastPrimaryTab} projectId={projectId} onFileSelect={(file: any) => handleFileSelect({ id: file.id, name: file.name })} /></Suspense>;
       case 'tasks':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tasks..." /></div>}><TaskBoard projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tasks..." /></div>}><TaskBoard projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'checkpoints':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><UnifiedCheckpointsPanel projectId={projectId} maxHeight="calc(100vh - 120px)" /></Suspense>;
       case 'slides':
@@ -699,44 +720,44 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'collaboration':
         return user ? <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><CollaborationPanel projectId={parseInt(projectId, 10)} currentUser={user} /></Suspense> : null;
       case 'automations':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><AutomationsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><AutomationsPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'backup':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><BackupRecoverySection projectId={projectId} /></Suspense>;
       case 'config':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ConfigPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ConfigPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'feedback':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><FeedbackInboxPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} onSendToAI={(text) => { setPendingAIMessage(text); setMobileActiveTab('agent'); }} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><FeedbackInboxPanel projectId={projectId} onClose={returnToLastPrimaryTab} onSendToAI={(text) => { setPendingAIMessage(text); setMobileActiveTab('agent'); }} /></Suspense>;
       case 'github':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GitHubPanel projectId={projectId} projectName={projectName} /></Suspense>;
       case 'integrations':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><IntegrationsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><IntegrationsPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'mcp':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MCPPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'merge-conflicts':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={mergeConflicts} resolutions={mergeResolutions} onClose={() => setMobileActiveTab('agent')} onMergeComplete={() => { setMergeConflicts([]); setMergeResolutions([]); setMobileActiveTab('agent'); }} onAbort={() => { setMergeConflicts([]); setMergeResolutions([]); setMobileActiveTab('agent'); }} onResolutionChange={(updated) => setMergeResolutions(updated)} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MergeConflictPanel projectId={projectId} conflicts={mergeConflicts} resolutions={mergeResolutions} onClose={returnToLastPrimaryTab} onMergeComplete={() => { setMergeConflicts([]); setMergeResolutions([]); returnToLastPrimaryTab(); }} onAbort={() => { setMergeConflicts([]); setMergeResolutions([]); returnToLastPrimaryTab(); }} onResolutionChange={(updated) => setMergeResolutions(updated)} /></Suspense>;
       case 'monitoring':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'networking':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><NetworkingPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><NetworkingPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'publishing':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><PublishingPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><PublishingPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'skills':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SkillsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SkillsPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'ssh':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SSHPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SSHPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'threads':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ThreadsPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ThreadsPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'test-runner':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><TestRunnerPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><TestRunnerPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'security-scanner':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={() => setMobileActiveTab('agent')} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'more':
         return (
           <MobileMoreMenu
             projectId={projectId}
             isOpen={false}
             inline={true}
-            onClose={() => setMobileActiveTab('agent')}
+            onClose={returnToLastPrimaryTab}
             onOpenGit={() => handleAddOpenTab('git')}
             onOpenPackages={() => handleAddOpenTab('packages')}
             onOpenSecrets={() => handleAddOpenTab('secrets')}
@@ -951,7 +972,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       <div className={cn('flex flex-col h-screen w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} data-testid="mobile-layout" data-ide-layout="unified">
         <ReplitMobileHeader
           activeTab={mobileActiveTab}
-          onBack={() => window.location.href = '/dashboard'}
+          onBack={handleMobileBack}
           onHistory={() => handleAddOpenTab('history')}
           onNewTab={() => setShowQuickFileSearch(true)}
           onMore={() => setShowMobileMoreMenu(true)}
