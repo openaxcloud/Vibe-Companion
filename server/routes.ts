@@ -2507,7 +2507,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
-      res.json({ id: user.id, email: user.email, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username, bio: user.bio });
+      res.json({ id: user.id, email: user.email, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username, bio: (user as any).bio || null });
     } catch {
       res.status(500).json({ message: "Failed to get profile" });
     }
@@ -2515,11 +2515,12 @@ export async function registerRoutes(
 
   app.put("/api/user/profile", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     try {
-      const schema = z.object({ displayName: z.string().min(1).max(100).optional(), bio: z.string().max(500).optional(), avatarUrl: z.string().url().nullable().optional() });
+      const schema = z.object({ displayName: z.string().min(1).max(100).optional(), bio: z.string().max(500).optional(), avatarUrl: z.string().url().optional() });
       const data = schema.parse(req.body);
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
-      const updated = await storage.updateUser(user.id, data);
+      const { bio, ...updateData } = data;
+      const updated = await storage.updateUser(user.id, updateData);
       res.json({ id: updated?.id, email: updated?.email, displayName: updated?.displayName, avatarUrl: updated?.avatarUrl });
     } catch (err: any) {
       if (err?.name === "ZodError") return res.status(400).json({ message: "Invalid profile data" });
@@ -2530,7 +2531,7 @@ export async function registerRoutes(
   app.get("/api/user/agent-preferences", requireAuth, async (req: Request, res: Response) => {
     try {
       const prefs = await storage.getUserPreferences(req.session.userId!);
-      res.json({ creditAlertThreshold: prefs?.creditAlertThreshold ?? 80, agentToolsConfig: prefs?.agentToolsConfig ?? {} });
+      res.json({ agentToolsConfig: prefs?.agentToolsConfig ?? {} });
     } catch {
       res.status(500).json({ message: "Failed to get agent preferences" });
     }
@@ -2602,7 +2603,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(404).json({ message: "User not found" });
-      const projects = await storage.getProjectsByUserId(user.id);
+      const projects = await storage.getProjects(user.id);
       res.json({
         user: { id: user.id, email: user.email, username: user.username, displayName: user.displayName, createdAt: user.createdAt },
         projects: projects.map(p => ({ id: p.id, name: p.name, language: p.language, createdAt: p.createdAt })),
@@ -16130,10 +16131,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/automations", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.session.userId!;
-      const projects = await storage.getProjectsByUserId(userId);
+      const projects = await storage.getProjects(userId);
       const allAutomations: any[] = [];
       for (const p of projects.slice(0, 20)) {
-        const autos = await storage.getProjectAutomations(p.id);
+        const autos = await storage.getAutomations(p.id);
         allAutomations.push(...autos);
       }
       res.json(allAutomations);
@@ -16567,10 +16568,10 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/workflows", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.session.userId!;
-      const projects = await storage.getProjectsByUserId(userId);
+      const projects = await storage.getProjects(userId);
       const allWorkflows: any[] = [];
       for (const p of projects.slice(0, 20)) {
-        const wfs = await storage.getProjectWorkflows(p.id);
+        const wfs = await storage.getWorkflows(p.id);
         allWorkflows.push(...wfs);
       }
       res.json(allWorkflows);
