@@ -99,7 +99,7 @@ export function ReplitMobileInputBar({
 
   useEffect(() => {
     if (!showModeDropdown && !showAgentModeDropdown && !showToolsDropdown) return;
-    const handler = (e: TouchEvent | MouseEvent) => {
+    const handler = (e: Event) => {
       const target = e.target as HTMLElement;
       if (!target.closest('[data-dropdown]')) {
         setShowModeDropdown(false);
@@ -107,14 +107,14 @@ export function ReplitMobileInputBar({
         setShowToolsDropdown(false);
       }
     };
-    const raf = requestAnimationFrame(() => {
-      document.addEventListener('touchstart', handler, { passive: true });
-      document.addEventListener('mousedown', handler);
-    });
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handler, true);
+      document.addEventListener('touchend', handler, { passive: true });
+    }, 50);
     return () => {
-      cancelAnimationFrame(raf);
-      document.removeEventListener('touchstart', handler);
-      document.removeEventListener('mousedown', handler);
+      clearTimeout(timer);
+      document.removeEventListener('click', handler, true);
+      document.removeEventListener('touchend', handler);
     };
   }, [showModeDropdown, showAgentModeDropdown, showToolsDropdown]);
 
@@ -214,10 +214,10 @@ export function ReplitMobileInputBar({
         )}
 
         <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
-          <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex items-center gap-1 overflow-visible">
             <div className="relative" data-dropdown>
               <button
-                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowModeDropdown(!showModeDropdown); setShowAgentModeDropdown(false); setShowToolsDropdown(false); }}
+                onClick={(e) => { e.stopPropagation(); setShowModeDropdown(!showModeDropdown); setShowAgentModeDropdown(false); setShowToolsDropdown(false); }}
                 className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)] select-none touch-manipulation"
                 style={{ color: currentAIMode.color }}
                 data-testid="mobile-mode-selector"
@@ -255,7 +255,7 @@ export function ReplitMobileInputBar({
                 <div className="w-px h-3.5 bg-[var(--ide-border)]" />
                 <div className="relative" data-dropdown>
                   <button
-                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowAgentModeDropdown(!showAgentModeDropdown); setShowModeDropdown(false); setShowToolsDropdown(false); }}
+                    onClick={(e) => { e.stopPropagation(); setShowAgentModeDropdown(!showAgentModeDropdown); setShowModeDropdown(false); setShowToolsDropdown(false); }}
                     className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)] select-none touch-manipulation"
                     style={{ color: currentAgentMode.color }}
                     data-testid="mobile-agent-mode-selector"
@@ -293,7 +293,7 @@ export function ReplitMobileInputBar({
                     <div className="w-px h-3.5 bg-[var(--ide-border)]" />
                     <div className="relative" data-dropdown>
                       <button
-                        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowToolsDropdown(!showToolsDropdown); setShowModeDropdown(false); setShowAgentModeDropdown(false); }}
+                        onClick={(e) => { e.stopPropagation(); setShowToolsDropdown(!showToolsDropdown); setShowModeDropdown(false); setShowAgentModeDropdown(false); }}
                         className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)] transition-colors select-none touch-manipulation"
                         data-testid="mobile-agent-tools"
                       >
