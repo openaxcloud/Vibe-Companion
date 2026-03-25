@@ -85,6 +85,16 @@ const Accessibility = lazy(() => import("@/pages/Accessibility"));
 const NewsletterConfirm = lazy(() => import("@/pages/NewsletterConfirm"));
 const NewsletterConfirmed = lazy(() => import("@/pages/NewsletterConfirmed"));
 const NewsletterUnsubscribe = lazy(() => import("@/pages/NewsletterUnsubscribe"));
+const AIAgent = lazy(() => import("@/pages/AIAgent"));
+const AIPlatform = lazy(() => import("@/pages/AIPlatform"));
+const MobilePage = lazy(() => import("@/pages/Mobile"));
+const Deployments = lazy(() => import("@/pages/Deployments"));
+const TeamsOverview = lazy(() => import("@/pages/TeamsOverview"));
+const ReportAbuse = lazy(() => import("@/pages/ReportAbuse"));
+const Tutorials = lazy(() => import("@/pages/resources/Tutorials"));
+const Changelog = lazy(() => import("@/pages/resources/Changelog"));
+const CaseStudies = lazy(() => import("@/pages/resources/CaseStudies"));
+const HelpCenterPage = lazy(() => import("@/pages/resources/HelpCenter"));
 
 function LazyPage({ component: C }: { component: React.LazyExoticComponent<React.ComponentType> }) {
   return (
@@ -256,6 +266,21 @@ function App() {
                 <Route path="/newsletter/confirm">{() => <LazyPage component={NewsletterConfirm} />}</Route>
                 <Route path="/newsletter/confirmed">{() => <LazyPage component={NewsletterConfirmed} />}</Route>
                 <Route path="/newsletter/unsubscribe">{() => <LazyPage component={NewsletterUnsubscribe} />}</Route>
+
+                {/* Product pages */}
+                <Route path="/ai-agent">{() => <LazyPage component={AIAgent} />}</Route>
+                <Route path="/ai">{() => <LazyPage component={AIPlatform} />}</Route>
+                <Route path="/mobile">{() => <LazyPage component={MobilePage} />}</Route>
+                <Route path="/deployments">{() => <LazyPage component={Deployments} />}</Route>
+                <Route path="/teams-overview">{() => <LazyPage component={TeamsOverview} />}</Route>
+                <Route path="/report-abuse">{() => <LazyPage component={ReportAbuse} />}</Route>
+
+                {/* Resources */}
+                <Route path="/tutorials">{() => <LazyPage component={Tutorials} />}</Route>
+                <Route path="/changelog">{() => <LazyPage component={Changelog} />}</Route>
+                <Route path="/case-studies">{() => <LazyPage component={CaseStudies} />}</Route>
+                <Route path="/help-center">{() => <LazyPage component={HelpCenterPage} />}</Route>
+                <Route path="/ai-documentation">{() => <Redirect to="/docs" />}</Route>
 
                 <Route component={NotFound} />
               </Switch>

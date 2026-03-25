@@ -36,9 +36,9 @@ export function PublicNavbar() {
     { title: 'Mobile App', href: '/mobile', description: 'Ship from anywhere with a fully-featured mobile IDE.' },
     { title: 'Desktop App', href: '/desktop', description: 'Optimized offline workflow with secure device sync.' },
     { title: 'AI Platform', href: '/ai', description: 'Governance, observability, and orchestration for AI workloads.' },
-    { title: 'Deployments', href: '/marketing/deployments', description: 'Global edge infrastructure with Fortune 500 reliability.' },
-    { title: 'Bounties', href: '/marketing/bounties', description: 'Activate an on-demand developer network to accelerate delivery.' },
-    { title: 'Teams', href: '/marketing/teams', description: 'Enterprise controls, compliance, and insights for large orgs.' },
+    { title: 'Deployments', href: '/deployments', description: 'Global edge infrastructure with Fortune 500 reliability.' },
+    { title: 'Bounties', href: '/bounties', description: 'Activate an on-demand developer network to accelerate delivery.' },
+    { title: 'Teams', href: '/teams-overview', description: 'Enterprise controls, compliance, and insights for large orgs.' },
   ];
 
   const solutionsItems = [
@@ -47,7 +47,7 @@ export function PublicNavbar() {
     { title: 'Game Builder', href: '/solutions/game-builder', description: 'Design and launch interactive experiences powered by AI.' },
     { title: 'Dashboard Builder', href: '/solutions/dashboard-builder', description: 'Data-rich dashboards with real-time collaboration.' },
     { title: 'Chatbot / AI Agent Builder', href: '/solutions/chatbot-builder', description: 'Deploy conversational assistants across your organization.' },
-    { title: 'Internal AI Builder', href: '/solutions/internal-ai-builder', description: 'Bring private AI agents to every team safely and securely.' },
+    { title: 'Internal AI Builder', href: '/solutions/internal-ai', description: 'Bring private AI agents to every team safely and securely.' },
     { title: 'Enterprise', href: '/solutions/enterprise', description: 'Fortune 500-grade platform with SSO, audit logs, and 99.99% SLA.' },
     { title: 'Startups', href: '/solutions/startups', description: 'Ship your MVP 10x faster. Startup-friendly pricing.' },
     { title: 'Freelancers', href: '/solutions/freelancers', description: 'Deliver client projects faster. Portfolio hosting included.' },
@@ -185,7 +185,7 @@ export function PublicNavbar() {
 
         <NavigationMenuItem>
           <NavigationMenuLink
-            href="/team"
+            href="/teams"
             className="group inline-flex h-10 w-max items-center justify-center rounded-full border border-[var(--ecode-border)] dark:border-border px-5 text-[13px] font-medium text-[var(--ecode-text)] dark:text-slate-200 transition-colors hover:border-[var(--ecode-accent)] dark:hover:border-surface-hover-solid hover:text-[var(--ecode-accent)] dark:hover:text-white"
           >
             Teams
