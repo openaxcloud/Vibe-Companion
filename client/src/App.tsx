@@ -45,6 +45,7 @@ const VsCodeSandbox = lazy(() => import("@/pages/marketing/VsCodeSandbox"));
 const VsGitHubCodespaces = lazy(() => import("@/pages/marketing/VsGitHubCodespaces"));
 const VsGlitch = lazy(() => import("@/pages/marketing/VsGlitch"));
 const VsHeroku = lazy(() => import("@/pages/marketing/VsHeroku"));
+const ComparePage = lazy(() => import("@/pages/compare/ComparePage"));
 const Bounties = lazy(() => import("@/pages/marketing/Bounties"));
 
 const AppBuilder = lazy(() => import("@/pages/solutions/AppBuilder"));
@@ -213,6 +214,7 @@ function App() {
                 <Route path="/compare/vs-github-codespaces">{() => <LazyPage component={VsGitHubCodespaces} />}</Route>
                 <Route path="/compare/vs-glitch">{() => <LazyPage component={VsGlitch} />}</Route>
                 <Route path="/compare/vs-heroku">{() => <LazyPage component={VsHeroku} />}</Route>
+                <Route path="/compare/:slug">{() => <LazyPage component={ComparePage} />}</Route>
                 <Route path="/bounties">{() => <LazyPage component={Bounties} />}</Route>
 
                 {/* Solutions */}

@@ -8,31 +8,31 @@ export default function Compare() {
   const competitors = [
     {
       name: "GitHub Codespaces",
-      path: "/compare/github-codespaces",
+      path: "/compare/vs-github-codespaces",
       icon: Code,
       description: "Cloud-based development environments"
     },
     {
       name: "Glitch",
-      path: "/compare/glitch",
+      path: "/compare/vs-glitch",
       icon: Zap,
       description: "Collaborative coding platform"
     },
     {
       name: "Heroku",
-      path: "/compare/heroku",
+      path: "/compare/vs-heroku",
       icon: Cloud,
       description: "Platform as a Service (PaaS)"
     },
     {
       name: "CodeSandbox",
-      path: "/compare/codesandbox",
+      path: "/compare/vs-codesandbox",
       icon: Code,
       description: "Online code editor"
     },
     {
       name: "AWS Cloud9",
-      path: "/compare/aws-cloud9",
+      path: "/compare/vs-aws-cloud9",
       icon: Shield,
       description: "Cloud IDE from Amazon"
     }
