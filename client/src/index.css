@@ -63,6 +63,13 @@
   --color-ide-border: var(--ide-border);
   --color-ide-input: var(--ide-input);
   --color-ide-separator: var(--ide-separator);
+  --color-ecode-orange: var(--ecode-orange);
+  --color-ecode-orange-light: var(--ecode-orange-light);
+  --color-ecode-orange-hover: var(--ecode-orange-hover);
+  --color-ecode-yellow: var(--ecode-yellow);
+  --color-ecode-accent: var(--ecode-accent);
+  --color-ecode-accent-hover: var(--ecode-accent-hover);
+  --color-ecode-secondary-accent: var(--ecode-secondary-accent);
 }
 
 :root {
@@ -101,6 +108,22 @@
   --ide-text: #0F172A;
   --ide-text-secondary: #475569;
   --ide-text-muted: #94A3B8;
+
+  --ecode-background: #FFFFFF;
+  --ecode-surface: #F5F6F8;
+  --ecode-surface-tertiary: #F0F1F4;
+  --ecode-border: #D1D5DB;
+  --ecode-text: #0F172A;
+  --ecode-text-secondary: #475569;
+  --ecode-text-muted: #94A3B8;
+  --ecode-font-sans: 'IBM Plex Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ecode-orange: #F26522;
+  --ecode-orange-light: #FF8A50;
+  --ecode-orange-hover: #E05A1B;
+  --ecode-yellow: #FBBF24;
+  --ecode-accent: #F26522;
+  --ecode-accent-hover: #E05A1B;
+  --ecode-secondary-accent: #7C65CB;
 }
 
 .dark {
@@ -134,6 +157,22 @@
   --ide-text: #F5F9FC;
   --ide-text-secondary: #9DA2B0;
   --ide-text-muted: #676D7E;
+
+  --ecode-background: #0E1525;
+  --ecode-surface: #1C2333;
+  --ecode-surface-tertiary: #151D2E;
+  --ecode-border: #2B3245;
+  --ecode-text: #F5F9FC;
+  --ecode-text-secondary: #9DA2B0;
+  --ecode-text-muted: #676D7E;
+  --ecode-font-sans: 'IBM Plex Sans', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ecode-orange: #F26522;
+  --ecode-orange-light: #FF8A50;
+  --ecode-orange-hover: #E05A1B;
+  --ecode-yellow: #FBBF24;
+  --ecode-accent: #F26522;
+  --ecode-accent-hover: #E05A1B;
+  --ecode-secondary-accent: #7C65CB;
 }
 
 @layer base {

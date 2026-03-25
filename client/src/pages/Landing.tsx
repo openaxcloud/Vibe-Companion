@@ -310,7 +310,7 @@ export default function Landing() {
                 Build & Deploy
               </span>
               <br />
-              <span className="bg-gradient-to-r from-ecode-orange via-ecode-orange-light to-ecode-yellow bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[var(--ecode-orange)] via-[var(--ecode-orange-light)] to-[var(--ecode-yellow)] bg-clip-text text-transparent">
                 Production Apps
               </span>
               <br />
