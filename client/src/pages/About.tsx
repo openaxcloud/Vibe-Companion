@@ -50,7 +50,7 @@ export default function About() {
         <PublicNavbar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <Spinner size="lg" className="mb-4" />
+            <Spinner className="size-8 mb-4" />
             <p className="text-muted-foreground">Loading about information...</p>
           </div>
         </div>

@@ -84,7 +84,7 @@ export default function Contact() {
       toast({
         title: t('contact.success.title'),
         description: t('contact.success.description'),
-        variant: "success"
+        variant: "default"
       });
     } catch (error) {
       toast({

@@ -44,5 +44,6 @@ export function useAuth() {
     login: loginMutation,
     register: registerMutation,
     logout: logoutMutation,
+    logoutMutation,
   };
 }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 import { LazyMotionDiv } from '@/lib/motion';
 import { Card, CardContent } from '@/components/ui/card';

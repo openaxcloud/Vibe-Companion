@@ -10,7 +10,7 @@ import {
   Building2, ChevronDown, ChevronUp, Star, Quote, Check, X,
   Monitor, Tablet, Smartphone, Laptop, TrendingUp, Award
 } from 'lucide-react';
-import { BRAND } from '@/constants/brand';
+import BRAND from '@/constants/brand';
 
 const comparisonContent: Record<string, {
   heroTitle: string;
@@ -295,7 +295,7 @@ export default function ComparePage() {
   const [, params] = useRoute('/compare/:slug');
   const slug = params?.slug ?? 'github-codespaces';
   const content = comparisonContent[slug] ?? comparisonContent['github-codespaces'];
-  const eCodeLogo = BRAND.assets.logo;
+  const eCodeLogo = BRAND.BRAND_LOGO;
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [showVideo, setShowVideo] = useState(false);
 

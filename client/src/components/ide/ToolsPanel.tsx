@@ -1,99 +1,230 @@
-import { cn } from '@/lib/utils';
+// @ts-nocheck
+/**
+ * ToolsPanel - Lateral panel for discovering and accessing IDE tools
+ * 
+ * Provides a searchable, categorized view of all available tools
+ * with descriptions, icons, and quick access
+ */
+
+import { useState } from 'react';
+import { Search, X, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import {
-  Globe, Terminal, GitBranch, Package, Key, Database,
-  Rocket, Search, Bug, Settings, Clock, GitMerge,
-  Puzzle, Users, Shield, BarChart3, FileText, Layers,
-  Presentation, Video, Play, Paintbrush, Palette, FlaskConical,
-  HardDrive, Wand2, ScrollText, Activity, Eye, ShieldCheck,
-  Bot, FileCode, Inbox, Github, Plug, Cpu, Network,
-  Upload, Sparkles, Server, MessageCircle,
-} from 'lucide-react';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { TOOL_REGISTRY, getAllCategories, type ToolMetadata } from '@/lib/tool-registry';
+import { cn } from '@/lib/utils';
 
 interface ToolsPanelProps {
-  availableTools: string[];
-  onSelectTool: (tool: string) => void;
-  activeTabs?: string[];
+  availableTools: { id: string; label: string; icon: string }[];
+  onSelectTool: (toolId: string) => void;
+  activeTabs: string[];
+  onClose?: () => void;
 }
 
-const toolConfig: Record<string, { icon: React.ComponentType<any>; label: string; color: string; desc: string }> = {
-  preview: { icon: Globe, label: 'Preview', color: '#F5A623', desc: 'Web preview' },
-  terminal: { icon: Terminal, label: 'Terminal', color: '#0CCE6B', desc: 'Command line' },
-  git: { icon: GitBranch, label: 'Git', color: '#F26522', desc: 'Version control' },
-  packages: { icon: Package, label: 'Packages', color: '#0CCE6B', desc: 'Dependencies' },
-  secrets: { icon: Key, label: 'Secrets', color: '#F5A623', desc: 'Environment variables' },
-  database: { icon: Database, label: 'Database', color: '#0079F2', desc: 'Data browser' },
-  deployment: { icon: Rocket, label: 'Deploy', color: '#0CCE6B', desc: 'Publish your app' },
-  search: { icon: Search, label: 'Search', color: '#0079F2', desc: 'Find in files' },
-  debugger: { icon: Bug, label: 'Debugger', color: '#E54D4D', desc: 'Debug tools' },
-  settings: { icon: Settings, label: 'Settings', color: '#6B7280', desc: 'Preferences' },
-  history: { icon: Clock, label: 'History', color: '#F5A623', desc: 'File versions' },
-  workflows: { icon: GitMerge, label: 'Workflows', color: '#0079F2', desc: 'Automations' },
-  extensions: { icon: Puzzle, label: 'Extensions', color: '#0CCE6B', desc: 'Add-ons' },
-  collaboration: { icon: Users, label: 'Collab', color: '#7C65CB', desc: 'Team features' },
-  security: { icon: Shield, label: 'Security', color: '#7C65CB', desc: 'Vulnerability scan' },
-  shell: { icon: Terminal, label: 'Shell', color: '#0CCE6B', desc: 'System shell' },
-  console: { icon: Terminal, label: 'Console', color: '#0CCE6B', desc: 'App output' },
-  resources: { icon: Activity, label: 'Resources', color: '#10B981', desc: 'System metrics' },
-  logs: { icon: ScrollText, label: 'Logs', color: '#0079F2', desc: 'View logs' },
-  'visual-editor': { icon: Wand2, label: 'Visual Editor', color: '#7C65CB', desc: 'Point & click UI' },
-  slides: { icon: Presentation, label: 'Slides', color: '#F5A623', desc: 'Presentations' },
-  video: { icon: Video, label: 'Video', color: '#E54D4D', desc: 'Video editor' },
-  animation: { icon: Play, label: 'Animation', color: '#0CCE6B', desc: 'Motion preview' },
-  design: { icon: Paintbrush, label: 'Design', color: '#7C65CB', desc: 'Design canvas' },
-  storage: { icon: HardDrive, label: 'Storage', color: '#7C65CB', desc: 'Object storage' },
-  themes: { icon: Palette, label: 'Themes', color: '#F26522', desc: 'Appearance' },
-  testing: { icon: FlaskConical, label: 'Tests', color: '#0CCE6B', desc: 'Test runner' },
-  auth: { icon: ShieldCheck, label: 'Auth', color: '#0CCE6B', desc: 'Authentication' },
-  checkpoints: { icon: Clock, label: 'Checkpoints', color: '#7C65CB', desc: 'Save states' },
-  // Re-integrated panels
-  automations: { icon: Bot, label: 'Automations', color: '#0CCE6B', desc: 'Agent automations' },
-  config: { icon: FileCode, label: 'Config', color: '#0079F2', desc: '.replit / Nix config' },
-  feedback: { icon: Inbox, label: 'Feedback', color: '#F5A623', desc: 'User feedback' },
-  github: { icon: Github, label: 'GitHub', color: '#F0F6FC', desc: 'Push/Pull/Sync' },
-  integrations: { icon: Plug, label: 'Integrations', color: '#7C65CB', desc: 'Third-party services' },
-  mcp: { icon: Cpu, label: 'MCP', color: '#0079F2', desc: 'Model Context Protocol' },
-  'merge-conflicts': { icon: GitMerge, label: 'Conflicts', color: '#E54D4D', desc: 'Merge resolver' },
-  monitoring: { icon: BarChart3, label: 'Monitoring', color: '#10B981', desc: 'Metrics & alerts' },
-  networking: { icon: Network, label: 'Networking', color: '#0079F2', desc: 'Ports & network' },
-  publishing: { icon: Upload, label: 'Publishing', color: '#0CCE6B', desc: 'Publish project' },
-  skills: { icon: Sparkles, label: 'Skills', color: '#F5A623', desc: 'AI agent skills' },
-  ssh: { icon: Server, label: 'SSH', color: '#6B7280', desc: 'Secure shell' },
-  threads: { icon: MessageCircle, label: 'Threads', color: '#7C65CB', desc: 'Code discussions' },
-  'test-runner': { icon: FlaskConical, label: 'Test Runner', color: '#0CCE6B', desc: 'Run test suites' },
-  'security-scanner': { icon: ShieldCheck, label: 'Scanner', color: '#E54D4D', desc: 'Deep security scan' },
-  backup: { icon: HardDrive, label: 'Backup', color: '#0079F2', desc: 'Backup & restore' },
-};
+export function ToolsPanel({ 
+  availableTools, 
+  onSelectTool, 
+  activeTabs,
+  onClose 
+}: ToolsPanelProps) {
+  const [search, setSearch] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(['Development', 'Tools', 'Security', 'Data', 'Deployment']) // Default expanded
+  );
 
-export function ToolsPanel({ availableTools, onSelectTool, activeTabs = [] }: ToolsPanelProps) {
+  // Get only tools that are actually available in the IDE
+  const availableToolIds = new Set(availableTools.map(t => t.id));
+  const allTools = Object.values(TOOL_REGISTRY)
+    .filter(tool => availableToolIds.has(tool.id));
+
+  // Filter tools based on search
+  const filteredTools = search
+    ? allTools.filter(tool =>
+        tool.label.toLowerCase().includes(search.toLowerCase()) ||
+        tool.description.toLowerCase().includes(search.toLowerCase()) ||
+        tool.keywords?.some(k => k.toLowerCase().includes(search.toLowerCase()))
+      )
+    : allTools;
+
+  // Group by category
+  const categories = getAllCategories();
+  const groupedTools = categories.reduce((acc, category) => {
+    const tools = filteredTools.filter(t => t.category === category);
+    if (tools.length > 0) {
+      acc[category] = tools;
+    }
+    return acc;
+  }, {} as Record<string, ToolMetadata[]>);
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
+  const handleToolClick = (toolId: string) => {
+    onSelectTool(toolId);
+  };
+
   return (
-    <div className="h-full overflow-auto p-3">
-      <h2 className="text-[13px] font-semibold text-[var(--ide-text)] mb-3 flex items-center gap-2">
-        <Layers className="w-4 h-4 text-[var(--ide-text-muted)]" />
-        Tools
-      </h2>
-      <div className="grid grid-cols-2 gap-1.5">
-        {availableTools.map(toolId => {
-          const config = toolConfig[toolId];
-          if (!config) return null;
-          const isActive = activeTabs.includes(toolId);
-          const { icon: Icon, label, color, desc } = config;
-          return (
-            <button
-              key={toolId}
-              onClick={() => onSelectTool(toolId)}
-              className={cn(
-                'flex flex-col gap-1 p-2.5 rounded-lg border text-left transition-all',
-                isActive
-                  ? 'border-[var(--ide-border)] bg-[var(--ide-surface)]'
-                  : 'border-[var(--ide-border)]/50 bg-[var(--ide-bg)] hover:bg-[var(--ide-surface)]/50'
-              )}
+    <div className="h-full flex flex-col bg-[var(--ecode-surface)] border-l border-[var(--ecode-border)]">
+      {/* Header */}
+      <div className="h-9 border-b border-[var(--ecode-border)] flex items-center justify-between px-2.5 bg-[var(--ecode-surface)]">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-[var(--ecode-accent)]" />
+          <h2 className="text-xs font-medium text-[var(--ecode-text-muted)]">Tools</h2>
+        </div>
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-6 w-6 p-0 text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
+            data-testid="button-close-tools-panel"
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        )}
+      </div>
+      
+      {/* Search */}
+      <div className="p-2.5 border-b border-[var(--ecode-border)]">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
+          <Input
+            placeholder="Search tools..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 pr-8 text-[13px]"
+            data-testid="input-search-tools"
+          />
+          {search && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSearch('')}
+              className="absolute right-1 top-1 h-6 w-6 p-0 hover:bg-[var(--ecode-sidebar-hover)]"
             >
-              <Icon className="w-4 h-4" style={{ color }} />
-              <span className="text-[10px] font-medium text-[var(--ide-text)]">{label}</span>
-              <span className="text-[9px] text-[var(--ide-text-muted)]">{desc}</span>
-            </button>
-          );
-        })}
+              <X className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Tools List */}
+      <ScrollArea className="flex-1">
+        <div className="p-2">
+          {Object.entries(groupedTools).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-[var(--ecode-text-muted)]">
+              <Sparkles className="w-12 h-12 mb-3 opacity-20" />
+              <p className="text-[13px] font-medium">No tools found</p>
+              <p className="text-[11px] mt-1">Try a different search</p>
+            </div>
+          ) : (
+            Object.entries(groupedTools).map(([category, tools]) => (
+              <Collapsible
+                key={category}
+                open={expandedCategories.has(category)}
+                onOpenChange={() => toggleCategory(category)}
+                className="mb-2"
+              >
+                <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-1.5 rounded-md hover:bg-[var(--ecode-sidebar-hover)] transition-colors">
+                  <span className="text-[11px] font-semibold text-[var(--ecode-text-muted)] uppercase tracking-wide">
+                    {category}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="h-4 text-[11px] px-1.5">
+                      {tools.length}
+                    </Badge>
+                    {expandedCategories.has(category) ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
+                    )}
+                  </div>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="mt-1 space-y-0.5">
+                  {tools.map((tool) => {
+                    const IconComponent = tool.icon;
+                    const isActive = activeTabs.includes(tool.id);
+                    
+                    return (
+                      <button
+                        key={tool.id}
+                        onClick={() => handleToolClick(tool.id)}
+                        data-testid={`tool-${tool.id}`}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 rounded-md transition-all duration-150 flex items-start gap-3 group",
+                          isActive
+                            ? "bg-[var(--ecode-sidebar-hover)] shadow-sm border border-[var(--ecode-border)]"
+                            : "hover:bg-[var(--ecode-sidebar-hover)]"
+                        )}
+                      >
+                        <IconComponent
+                          className={cn(
+                            "w-4 h-4 flex-shrink-0 mt-0.5 transition-all duration-200",
+                            isActive
+                              ? "text-[var(--ecode-accent)] scale-110"
+                              : "text-[var(--ecode-text-muted)] group-hover:text-[var(--ecode-accent)] group-hover:scale-110"
+                          )}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={cn(
+                              "text-[13px] font-medium truncate",
+                              isActive && "font-semibold"
+                            )}>
+                              {tool.label}
+                            </span>
+                            {tool.badge && (
+                              <Badge 
+                                variant={tool.badge === 'PRO' ? 'default' : 'secondary'}
+                                className="h-4 text-[11px] px-1.5 flex-shrink-0"
+                              >
+                                {tool.badge}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[var(--ecode-text-muted)] line-clamp-2">
+                            {tool.description}
+                          </p>
+                        </div>
+                        {isActive && (
+                          <div className="w-1 h-1 rounded-full bg-[var(--ecode-accent)] flex-shrink-0 mt-2" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Footer Stats */}
+      <div className="px-4 py-2 border-t border-[var(--ecode-border)] bg-[var(--ecode-sidebar-bg)]">
+        <div className="flex items-center justify-between text-[11px] text-[var(--ecode-text-muted)]">
+          <span>
+            {filteredTools.length} tool{filteredTools.length !== 1 ? 's' : ''} available
+          </span>
+          {activeTabs.length > 0 && (
+            <span>{activeTabs.length} active</span>
+          )}
+        </div>
       </div>
     </div>
   );

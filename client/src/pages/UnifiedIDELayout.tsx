@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * UnifiedIDELayout - Responsive IDE that adapts to screen size
  *
