@@ -5061,6 +5061,49 @@ export async function registerRoutes(
     }
   }
 
+  app.post("/api/workspace/bootstrap", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { prompt, buildMode, options } = req.body;
+      if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+        return res.status(400).json({ success: false, error: "A project description is required" });
+      }
+      const projectCheck = await storage.checkProjectLimit(req.session.userId!);
+      if (!projectCheck.allowed) {
+        return res.status(429).json({ success: false, error: `Project limit reached (${projectCheck.current}/${projectCheck.limit}). Upgrade to Pro for more.` });
+      }
+      const words = prompt.trim().split(/\s+/).slice(0, 6).join(" ");
+      let projectName = words.length > 40 ? words.slice(0, 40) : words;
+      projectName = sanitizeProjectName(projectName) || "My Project";
+      const language = options?.language || "typescript";
+      const project = await storage.createProject(req.session.userId!, {
+        name: projectName,
+        language,
+        projectType: options?.framework === "react" ? "web-app" : "web-app",
+        visibility: "public",
+      });
+      await storage.createArtifact({
+        projectId: project.id,
+        name: projectName,
+        type: "web-app",
+        entryFile: null,
+        settings: {},
+      });
+      await createDefaultWorkflow(project.id, language);
+      const bootstrapToken = crypto.randomUUID();
+      if (buildMode) {
+        await storage.trackEvent(req.session.userId!, "workspace_bootstrap", {
+          projectId: project.id,
+          buildMode,
+          prompt: prompt.slice(0, 200),
+        });
+      }
+      return res.json({ success: true, projectId: project.id, bootstrapToken });
+    } catch (error: any) {
+      console.error("[workspace/bootstrap] Error:", error);
+      return res.status(500).json({ success: false, error: "Failed to create workspace. Please try again." });
+    }
+  });
+
   app.post("/api/projects", requireAuth, async (req: Request, res: Response) => {
     try {
       const projectCheck = await storage.checkProjectLimit(req.session.userId!);
