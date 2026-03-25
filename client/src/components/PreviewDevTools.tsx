@@ -439,7 +439,7 @@ export function DeviceFrame({
                 <div className="w-[10px] h-[10px] rounded-full bg-[#1a1a2e] ring-1 ring-[#2a2a3e]" />
               </div>
             )}
-            <div className="relative overflow-hidden rounded-[28px] bg-white" style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}>
+            <div className="relative overflow-hidden rounded-[28px] bg-white dark:bg-gray-900" style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}>
               <div className="absolute top-0 left-0 right-0 h-[44px] bg-black/5 backdrop-blur-sm flex items-center justify-between px-6 z-10 pointer-events-none" data-testid="device-status-bar">
                 <span className="text-[10px] font-semibold text-black/70">9:41</span>
                 <div className="flex items-center gap-1">
@@ -452,7 +452,7 @@ export function DeviceFrame({
               </div>
             </div>
             <div className="flex items-center justify-center mt-1" data-testid="device-home-indicator">
-              <div className="w-[100px] h-[4px] rounded-full bg-white/30" />
+              <div className="w-[100px] h-[4px] rounded-full bg-white dark:bg-gray-900/30" />
             </div>
           </div>
           <div className="text-center mt-2">
@@ -475,7 +475,7 @@ export function DeviceFrame({
             <div className="absolute top-[10px] left-1/2 -translate-x-1/2 z-20" data-testid="device-tablet-camera">
               <div className="w-[8px] h-[8px] rounded-full bg-[#1a1a2e] ring-1 ring-[#2a2a3e]" />
             </div>
-            <div className="relative overflow-hidden rounded-[8px] bg-white" style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}>
+            <div className="relative overflow-hidden rounded-[8px] bg-white dark:bg-gray-900" style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}>
               <div className="absolute top-0 left-0 right-0 h-[24px] bg-black/5 backdrop-blur-sm flex items-center justify-between px-5 z-10 pointer-events-none" data-testid="device-status-bar">
                 <span className="text-[9px] font-medium text-black/60">9:41</span>
                 <div className="flex items-center gap-1">
@@ -488,7 +488,7 @@ export function DeviceFrame({
               </div>
             </div>
             <div className="flex items-center justify-center mt-1" data-testid="device-home-indicator">
-              <div className="w-[80px] h-[4px] rounded-full bg-white/25" />
+              <div className="w-[80px] h-[4px] rounded-full bg-white dark:bg-gray-900/25" />
             </div>
           </div>
           <div className="text-center mt-2">
@@ -502,7 +502,7 @@ export function DeviceFrame({
   return (
     <div className={`flex-1 overflow-auto flex items-start justify-center bg-[var(--ide-bg)] p-4 ${className || ""}`} data-testid="device-frame-container">
       <div
-        className="relative bg-white border-2 border-[var(--ide-border)] rounded-lg shadow-lg overflow-hidden shrink-0"
+        className="relative bg-white dark:bg-gray-900 border-2 border-[var(--ide-border)] rounded-lg shadow-lg overflow-hidden shrink-0"
         style={{
           width: `${frameWidth}px`,
           height: `${frameHeight}px`,

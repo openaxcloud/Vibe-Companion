@@ -91,7 +91,7 @@ export default function MarketingBounties() {
           <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,_#ffffff55,_transparent_60%)]" />
           <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12 lg:flex-row lg:items-center">
             <div className="flex-1 space-y-6">
-              <Badge className="bg-white/10 text-white hover:bg-white/20">Developer marketplace</Badge>
+              <Badge className="bg-white dark:bg-gray-900/10 text-white hover:bg-white dark:bg-gray-900/20">Developer marketplace</Badge>
               <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-6xl">
                 Ship features faster with outcome-based bounties
               </h1>
@@ -100,12 +100,12 @@ export default function MarketingBounties() {
               </p>
               <div className="flex flex-wrap gap-4">
                 <Link href="/register">
-                  <Button size="lg" className="bg-white text-purple-700 hover:bg-white/90">
+                  <Button size="lg" className="bg-white dark:bg-gray-900 text-purple-700 hover:bg-white dark:bg-gray-900/90">
                     Launch your first bounty
                   </Button>
                 </Link>
                 <Link href="/contact-sales">
-                  <Button size="lg" variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white/10">
+                  <Button size="lg" variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white dark:bg-gray-900/10">
                     Talk to our team
                   </Button>
                 </Link>
@@ -125,7 +125,7 @@ export default function MarketingBounties() {
                 </div>
               </div>
             </div>
-            <Card className="flex-1 border-white/20 bg-white/10 backdrop-blur">
+            <Card className="flex-1 border-white/20 bg-white dark:bg-gray-900/10 backdrop-blur">
               <CardContent className="space-y-6 p-8 text-white">
                 <div className="flex items-center justify-between">
                   <div>
@@ -134,7 +134,7 @@ export default function MarketingBounties() {
                   </div>
                   <Trophy className="h-12 w-12 text-yellow-300" />
                 </div>
-                <div className="grid grid-cols-2 gap-6 text-[13px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-[13px]">
                   <div>
                     <p className="text-white/70">Avg. payout</p>
                     <p className="text-2xl font-semibold">$3.4k</p>
@@ -168,9 +168,9 @@ export default function MarketingBounties() {
               Empower internal teams with curated external talent while maintaining governance, security, and predictable delivery.
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {highlights.map(({ icon: Icon, title, description }) => (
-              <div key={title} className="space-y-3 rounded-2xl border bg-card/80 p-6 shadow-sm">
+              <div key={title} className="space-y-3 rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 bg-card/80 p-6 shadow-sm">
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-950/50 dark:text-purple-300">
                   <Icon className="h-6 w-6" />
                 </div>
@@ -208,7 +208,7 @@ export default function MarketingBounties() {
             </div>
             <div className="flex-1 space-y-6">
               {workflow.map(({ step, title, copy }) => (
-                <div key={step} className="relative overflow-hidden rounded-2xl border bg-background p-6 shadow-sm">
+                <div key={step} className="relative overflow-hidden rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 bg-background p-6 shadow-sm">
                   <div className="absolute -right-10 top-1/2 h-32 w-32 -translate-y-1/2 rounded-full bg-purple-500/10" />
                   <div className="text-[13px] font-semibold text-purple-500">{step}</div>
                   <h3 className="mt-2 text-xl font-semibold">{title}</h3>
@@ -239,7 +239,7 @@ export default function MarketingBounties() {
             </div>
             <div className="space-y-6">
               {testimonials.map(({ quote, name, role }) => (
-                <div key={name} className="rounded-2xl border bg-card p-6 shadow-sm">
+                <div key={name} className="rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 bg-card p-6 shadow-sm">
                   <Star className="h-6 w-6 text-yellow-500" />
                   <p className="mt-4 text-base leading-relaxed text-muted-foreground">“{quote}”</p>
                   <div className="mt-4 text-[13px] font-semibold text-foreground">{name}</div>
@@ -263,7 +263,7 @@ export default function MarketingBounties() {
                 </Button>
               </Link>
               <Link href="/contact-sales">
-                <Button size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white/10">
+                <Button size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white dark:bg-gray-900/10">
                   Book a demo
                 </Button>
               </Link>

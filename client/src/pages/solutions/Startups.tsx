@@ -96,13 +96,13 @@ export default function Startups() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register">
-              <Button size="lg" className="gap-2 min-h-[48px] w-full sm:w-auto px-8 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600" data-testid="button-startups-start">
+              <Button size="lg" className="gap-2 min-h-[48px] w-full sm:w-auto px-4 md:px-6 lg:px-8 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600" data-testid="button-startups-start">
                 <Rocket className="h-5 w-5" />
                 Start Building Free
               </Button>
             </Link>
             <Link href="/pricing">
-              <Button size="lg" variant="outline" className="gap-2 min-h-[48px] w-full sm:w-auto px-8" data-testid="button-startups-pricing">
+              <Button size="lg" variant="outline" className="gap-2 min-h-[48px] w-full sm:w-auto px-4 md:px-6 lg:px-8" data-testid="button-startups-pricing">
                 View Startup Pricing
               </Button>
             </Link>
@@ -113,7 +113,7 @@ export default function Startups() {
         </div>
 
         {/* Key Benefits */}
-        <div className="grid md:grid-cols-3 gap-8 mb-16 md:mb-20">
+        <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16 md:mb-20">
           {benefits.map((benefit) => (
             <Card key={benefit.title} className="p-8 text-center hover:shadow-xl transition-all duration-300 border-2 hover:border-orange-500/20">
               <div className="p-4 bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/20 dark:to-red-900/20 rounded-2xl w-fit mx-auto mb-6">
@@ -137,7 +137,7 @@ export default function Startups() {
           <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
             Stop stitching together tools. E-Code is your complete development platform.
           </p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {features.map((feature) => (
               <Card key={feature} className="p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
                 <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
@@ -150,7 +150,7 @@ export default function Startups() {
         {/* How It Works */}
         <div className="mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">Build Your MVP in 3 Steps</h2>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-orange-600 dark:text-orange-400 font-bold text-xl">
                 1
@@ -187,7 +187,7 @@ export default function Startups() {
           <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
             Join thousands of founders who shipped faster and raised more with E-Code.
           </p>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {successStories.map((story) => (
               <Card key={story.company} className="p-6 hover:shadow-lg transition-shadow">
                 <Badge variant="outline" className="mb-4">{story.stage}</Badge>
@@ -203,7 +203,7 @@ export default function Startups() {
 
         {/* Startup Program */}
         <Card className="p-8 md:p-12 mb-16 md:mb-20 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 border-2 border-orange-200 dark:border-orange-800">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
               <Badge className="mb-4 bg-orange-500 text-white">Startup Program</Badge>
               <h2 className="text-2xl sm:text-3xl font-bold mb-4">90% Off for Eligible Startups</h2>
@@ -230,20 +230,20 @@ export default function Startups() {
                 </Button>
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-6 text-center bg-white dark:bg-gray-900 dark:bg-slate-900">
                 <div className="text-3xl font-bold text-orange-600">90%</div>
                 <div className="text-[13px] text-muted-foreground">Discount</div>
               </Card>
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-white dark:bg-gray-900 dark:bg-slate-900">
                 <div className="text-3xl font-bold text-orange-600">$10K</div>
                 <div className="text-[13px] text-muted-foreground">Credits</div>
               </Card>
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-white dark:bg-gray-900 dark:bg-slate-900">
                 <div className="text-3xl font-bold text-orange-600">1:1</div>
                 <div className="text-[13px] text-muted-foreground">Mentorship</div>
               </Card>
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-white dark:bg-gray-900 dark:bg-slate-900">
                 <div className="text-3xl font-bold text-orange-600">VIP</div>
                 <div className="text-[13px] text-muted-foreground">Support</div>
               </Card>
@@ -260,7 +260,7 @@ export default function Startups() {
               Join 10,000+ startups building the future. Start free today.
             </p>
             <Link href="/register">
-              <Button size="lg" className="gap-2 min-h-[48px] bg-white text-orange-600 hover:bg-orange-50" data-testid="button-startups-cta">
+              <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-orange-600 hover:bg-orange-50" data-testid="button-startups-cta">
                 Start Building Free
                 <ArrowRight className="h-5 w-5" />
               </Button>

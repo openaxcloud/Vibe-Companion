@@ -62,7 +62,7 @@ export function MobilePreviewPanel({ projectId }: MobilePreviewPanelProps) {
           <iframe
             key={refreshKey}
             src={previewUrl}
-            className="w-full h-full border-0 bg-white"
+            className="w-full h-full border-0 bg-white dark:bg-gray-900"
             onLoad={() => setLoaded(true)}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             data-testid="iframe-mobile-preview"

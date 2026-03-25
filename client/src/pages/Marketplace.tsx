@@ -249,7 +249,7 @@ export default function Marketplace() {
 
   return (
     <div className="min-h-screen bg-background" data-testid="page-marketplace">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
@@ -307,7 +307,7 @@ export default function Marketplace() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             <TabsTrigger value="extensions" data-testid="tab-extensions">
               Extensions ({extensions.length})
             </TabsTrigger>
@@ -345,7 +345,7 @@ export default function Marketplace() {
           </TabsContent>
 
           <TabsContent value="themes" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 { name: 'Dark+ Professional', preview: 'dark', downloads: 245678 },
                 { name: 'GitHub Light', preview: 'light', downloads: 189432 },
@@ -356,8 +356,8 @@ export default function Marketplace() {
               ].map((theme, index) => (
                 <Card key={index} data-testid={`card-theme-${index}`}>
                   <CardContent className="p-4">
-                    <div className={`h-32 rounded-lg mb-3 ${theme.preview === 'dark' ? 'bg-gray-900' : 'bg-gray-100'} flex items-center justify-center`}>
-                      <Code className={`h-8 w-8 ${theme.preview === 'dark' ? 'text-white' : 'text-gray-600'}`} />
+                    <div className={`h-32 rounded-lg mb-3 ${theme.preview === 'dark' ? 'bg-gray-900' : 'bg-gray-100 dark:bg-gray-800'} flex items-center justify-center`}>
+                      <Code className={`h-8 w-8 ${theme.preview === 'dark' ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`} />
                     </div>
                     <h3 className="font-semibold mb-1" data-testid={`text-theme-name-${index}`}>{theme.name}</h3>
                     <div className="flex items-center justify-between text-[13px] text-muted-foreground">

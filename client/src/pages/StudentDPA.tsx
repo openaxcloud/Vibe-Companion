@@ -176,7 +176,7 @@ export default function StudentDPA() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {protections.map((protection) => {
               const Icon = protection.icon;
               return (
@@ -257,7 +257,7 @@ export default function StudentDPA() {
               <CardContent className="space-y-6">
                 <div>
                   <h3 className="font-semibold mb-3">E-Code complies with:</h3>
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
                         <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
@@ -364,7 +364,7 @@ export default function StudentDPA() {
               </h2>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
                   <Users className="h-8 w-8 text-primary mb-2" />
@@ -429,7 +429,7 @@ export default function StudentDPA() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="font-semibold mb-3">Technical Safeguards</h4>
                     <ul className="space-y-2 text-[13px]">
@@ -524,7 +524,7 @@ export default function StudentDPA() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <Card className="text-center">
               <CardContent className="py-8">
                 <Mail className="h-12 w-12 mx-auto mb-4 text-primary" />

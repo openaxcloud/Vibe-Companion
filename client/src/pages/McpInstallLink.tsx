@@ -60,7 +60,7 @@ export default function McpInstallLink() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
+          <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ide-text-muted)]">Server Details</h2>
 
             <div>
@@ -99,7 +99,7 @@ export default function McpInstallLink() {
 
           {isValid && (
             <>
-              <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
+              <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ide-text-muted)]">Install Link</h2>
                 <div className="relative">
                   <div className="bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded-lg p-3 font-mono text-xs break-all text-[var(--ide-text-secondary)]" data-testid="text-install-url">
@@ -117,7 +117,7 @@ export default function McpInstallLink() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
+              <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ide-text-muted)] flex items-center gap-2">
                   <Code className="w-4 h-4" />
                   Badge Markdown
@@ -148,7 +148,7 @@ export default function McpInstallLink() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
+              <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-6 space-y-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ide-text-muted)]">Encoded Payload</h2>
                 <div className="relative">
                   <div className="bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded-lg p-3 font-mono text-[10px] break-all text-[var(--ide-text-secondary)]" data-testid="text-encoded-payload">

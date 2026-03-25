@@ -205,7 +205,7 @@ const languages = [
   },
   {
     name: 'Bash',
-    icon: <Terminal className="h-8 w-8 text-gray-600" />,
+    icon: <Terminal className="h-8 w-8 text-gray-600 dark:text-gray-400" />,
     category: 'scripting',
     popularity: 'Essential',
     description: 'Shell scripting and automation',
@@ -249,7 +249,7 @@ const languages = [
   },
   {
     name: 'C',
-    icon: <Cpu className="h-8 w-8 text-gray-700" />,
+    icon: <Cpu className="h-8 w-8 text-gray-700 dark:text-gray-300" />,
     category: 'systems',
     popularity: 'Essential',
     description: 'Low-level systems programming',
@@ -517,7 +517,7 @@ export default function Languages() {
       {/* Languages Grid */}
       <section className="py-responsive">
         <div className="container-responsive">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {filteredLanguages.map((language, langIndex) => (
               <Card key={language.name} className="group hover:shadow-lg transition-all hover:-translate-y-1" data-testid={`card-language-${language.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>
                 <CardHeader>
@@ -588,7 +588,7 @@ export default function Languages() {
             Every Language Comes With
           </h2>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardHeader>
                 <Package className="h-8 w-8 text-primary mb-2" />

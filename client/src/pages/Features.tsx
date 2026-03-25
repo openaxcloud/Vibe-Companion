@@ -275,7 +275,7 @@ export default function Features() {
       <section className="py-12 sm:py-16 md:py-10 px-4">
         <div className="container mx-auto max-w-7xl">
           <Tabs defaultValue="All" className="w-full">
-            <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 w-full max-w-3xl mx-auto gap-1 h-auto flex-wrap">
+            <TabsList className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:grid-cols-6 w-full max-w-3xl mx-auto gap-1 h-auto flex-wrap">
               {categories.map(category => (
                 <TabsTrigger 
                   key={category} 
@@ -290,7 +290,7 @@ export default function Features() {
 
             {categories.map(category => (
               <TabsContent key={category} value={category} className="mt-8 sm:mt-12">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
                   {features
                     .filter(f => category === 'All' || f.category === category)
                     .map((feature, index) => (
@@ -329,7 +329,7 @@ export default function Features() {
       {/* Platform Overview */}
       <section className="py-10 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-6 items-center">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div>
               <Badge variant="secondary" className="mb-4">
                 <Layers className="h-3 w-3 mr-1" />

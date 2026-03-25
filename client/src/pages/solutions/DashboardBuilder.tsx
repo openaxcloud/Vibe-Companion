@@ -37,7 +37,7 @@ export default function DashboardBuilder() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
           <Card className="p-4 sm:p-6 hover:shadow-lg transition-shadow" data-testid="card-feature-visualizations">
             <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg w-fit mb-3 sm:mb-4">
               <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 dark:text-indigo-400" />
@@ -72,7 +72,7 @@ export default function DashboardBuilder() {
         {/* Dashboard Types */}
         <div className="mb-12 sm:mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Dashboards for Every Need</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {[
               "Sales Analytics",
               "Marketing KPIs",
@@ -94,7 +94,7 @@ export default function DashboardBuilder() {
         {/* Chart Types */}
         <div className="mb-12 sm:mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Visualization Options</h2>
-          <div className="grid sm:grid-cols-2 gap-6 sm:gap-8">
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             <div className="space-y-4" data-testid="viz-group-1">
               <div className="flex items-start gap-3">
                 <PieChart className="h-5 w-5 text-primary mt-1 flex-shrink-0" />

@@ -173,7 +173,7 @@ export default function ContactSales() {
           <div className="container mx-auto px-4">
             <div className="max-w-6xl mx-auto">
               <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Enterprise Features</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {benefits.map((benefit, index) => (
                   <Card key={index} className="border-none shadow-sm" data-testid={`card-benefit-${index}`}>
                     <CardContent className="pt-4 sm:pt-6 p-4 sm:p-6">
@@ -186,7 +186,7 @@ export default function ContactSales() {
                   </Card>
                 ))}
               </div>
-              <div className="mt-8 sm:mt-12 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-4xl mx-auto">
+              <div className="mt-8 sm:mt-12 grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 max-w-4xl mx-auto">
                 {features.map((feature, index) => (
                   <div key={index} className="flex items-center gap-2 sm:gap-3">
                     <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
@@ -202,7 +202,7 @@ export default function ContactSales() {
         <section className="py-12 sm:py-16" id="contact-form">
           <div className="container mx-auto px-4">
             <div className="max-w-6xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
+              <div className="grid grid-cols-1 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-12">
                 {/* Contact Form */}
                 <div className="lg:col-span-2">
                   <Card>
@@ -214,7 +214,7 @@ export default function ContactSales() {
                     </CardHeader>
                     <CardContent>
                       <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="firstName">First Name *</Label>
                         <Input
@@ -252,7 +252,7 @@ export default function ContactSales() {
                       />
                     </div>
 
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="company">Company *</Label>
                         <Input

@@ -122,7 +122,7 @@ export default function Education() {
   const EducationDashboard = () => (
     <div className="space-y-6">
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ export default function Education() {
       </div>
 
       {/* Active Classrooms */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Active Classrooms</CardTitle>
@@ -264,7 +264,7 @@ export default function Education() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {classrooms.map((classroom: Classroom) => (
           <Card key={classroom.id}>
             <CardHeader>
@@ -292,7 +292,7 @@ export default function Education() {
                 </div>
                 <Progress value={classroom.progress} />
                 
-                <div className="grid grid-cols-2 gap-4 text-[13px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[13px]">
                   <div>
                     <p className="text-muted-foreground">Students</p>
                     <p className="font-medium">{classroom.students}</p>
@@ -336,7 +336,7 @@ export default function Education() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 md:grid-cols-2 xl:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courses.map((course) => (
           <Card key={course.id}>
             <CardHeader>
@@ -447,7 +447,7 @@ export default function Education() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
@@ -464,7 +464,7 @@ export default function Education() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="classrooms">Classrooms</TabsTrigger>
             <TabsTrigger value="courses">Courses</TabsTrigger>

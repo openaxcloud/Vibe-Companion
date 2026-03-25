@@ -146,7 +146,7 @@ export default function Plans() {
       </div>
 
       {/* Pricing Cards */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+      <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
         {Object.entries(PRICING_PLANS).map(([planId, plan]) => {
           const price = billingInterval === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
           const isCurrentPlan = currentPlan === planId;
@@ -240,7 +240,7 @@ export default function Plans() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 gap-4">
               {USAGE_BASED_PRICING.map((item, i) => (
                 <div key={i} className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
                   <span className="font-medium">{item.name}</span>

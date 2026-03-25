@@ -81,7 +81,7 @@ function QRCodeDisplay({ expoGoUrl, projectName }: { expoGoUrl: string | null; p
       <p className="text-[11px] font-semibold text-[var(--ide-text)] text-center">
         Scan with Expo Go
       </p>
-      <div className="rounded-xl overflow-hidden border-2 border-[#7C65CB]/30 bg-white p-2" data-testid="qr-code-image">
+      <div className="rounded-xl overflow-hidden border-2 border-[#7C65CB]/30 bg-white dark:bg-gray-900 p-2" data-testid="qr-code-image">
         {loading ? (
           <div className="w-40 h-40 flex items-center justify-center">
             <Loader2 className="w-6 h-6 text-[#7C65CB] animate-spin" />

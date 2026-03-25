@@ -114,7 +114,7 @@ export default function Blog() {
       'Tutorial': 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400',
       'Community': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
     };
-    return colors[category] || 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    return colors[category] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 dark:bg-gray-900/20 dark:text-gray-400';
   };
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
@@ -170,7 +170,7 @@ export default function Blog() {
                   className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
                   onClick={() => navigate(`/blog/${featuredPost.slug}`)}
                 >
-                  <div className="grid md:grid-cols-2 gap-0">
+                  <div className="grid md:grid-cols-1 md:grid-cols-2 gap-0">
                     <div className="relative h-64 md:h-auto bg-gradient-to-br from-primary/20 to-purple-600/20">
                       {featuredPost.coverImage ? (
                         <img 
@@ -238,7 +238,7 @@ export default function Blog() {
       {/* Blog Posts Grid */}
       <section className="py-6 sm:py-8 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {posts.map((post: any, index: number) => (
               <Card 
                 key={post.id} 
@@ -307,7 +307,7 @@ export default function Blog() {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 px-4 py-3 min-h-[44px] rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary text-[13px] sm:text-base"
+                  className="flex-1 px-4 py-3 min-h-[44px] rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 bg-background focus:outline-none focus:ring-2 focus:ring-primary text-[13px] sm:text-base"
                   required
                   data-testid="input-newsletter-email"
                 />

@@ -37,7 +37,7 @@ export default function ChatbotBuilder() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
           <Card className="p-4 sm:p-6 hover:shadow-lg transition-shadow" data-testid="card-feature-ai">
             <div className="p-2 sm:p-3 bg-violet-100 dark:bg-violet-900/20 rounded-lg w-fit mb-3 sm:mb-4">
               <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600 dark:text-violet-400" />
@@ -72,7 +72,7 @@ export default function ChatbotBuilder() {
         {/* Use Cases */}
         <div className="mb-12 sm:mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">AI Agents for Every Purpose</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {[
               "Customer Support",
               "Sales Assistant",
@@ -94,7 +94,7 @@ export default function ChatbotBuilder() {
         {/* Capabilities */}
         <div className="mb-20">
           <h2 className="text-3xl font-bold text-center mb-12">Powerful Capabilities</h2>
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <CheckCircle className="h-5 w-5 text-green-500 mt-1" />
@@ -147,7 +147,7 @@ export default function ChatbotBuilder() {
         {/* Integration Options */}
         <div className="mb-12 sm:mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Deploy Anywhere</h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             <Card className="p-4 sm:p-6 text-center" data-testid="card-deploy-widget">
               <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary mx-auto mb-2 sm:mb-3" />
               <h3 className="font-semibold text-[13px] sm:text-base mb-1 sm:mb-2">Website Widget</h3>

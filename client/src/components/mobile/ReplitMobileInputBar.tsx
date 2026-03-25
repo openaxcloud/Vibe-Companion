@@ -327,7 +327,7 @@ export function ReplitMobileInputBar({
                                 agentToolsConfig[key] ? "bg-[#0079F2]" : "bg-[var(--ide-border)]"
                               )}>
                                 <div className={cn(
-                                  "absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform",
+                                  "absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white dark:bg-gray-900 transition-transform",
                                   agentToolsConfig[key] ? "translate-x-3.5" : "translate-x-0.5"
                                 )} />
                               </div>

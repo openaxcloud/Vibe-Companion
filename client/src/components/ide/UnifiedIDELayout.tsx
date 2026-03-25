@@ -1632,7 +1632,7 @@ function UnifiedIDELayout({
 
         <div className="flex-1 flex flex-col">
           {/* Replit-style Header for Tablet - Integrated with File Drawer Toggle */}
-          <header className="sticky top-0 z-30 flex items-center justify-between h-12 px-3 bg-white dark:bg-[#1C1C1C] border-b border-gray-200 dark:border-gray-700">
+          <header className="sticky top-0 z-30 flex items-center justify-between h-12 px-3 bg-white dark:bg-gray-900 dark:bg-[#1C1C1C] border-b border-gray-200 dark:border-gray-700 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -1646,7 +1646,7 @@ function UnifiedIDELayout({
             </div>
             
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-900 dark:text-white text-[13px] capitalize">
+              <span className="font-medium text-gray-900 dark:text-white dark:text-white text-[13px] capitalize">
                 {mobileActiveTab}
               </span>
             </div>

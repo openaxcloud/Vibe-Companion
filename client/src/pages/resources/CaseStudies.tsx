@@ -137,7 +137,7 @@ export default function CaseStudies() {
         </div>
 
         {/* Featured Case Studies */}
-        <div className="grid lg:grid-cols-2 gap-8 mb-16">
+        <div className="grid lg:grid-cols-1 md:grid-cols-2 gap-8 mb-16">
           {featuredStudies.map((study) => (
             <Card key={study.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 border-2 hover:border-emerald-500/20">
               <div className={`p-8 bg-gradient-to-r from-${study.color}-50 to-${study.color}-100 dark:from-${study.color}-950/30 dark:to-${study.color}-900/30`}>
@@ -153,9 +153,9 @@ export default function CaseStudies() {
                 <h2 className="text-2xl font-bold mb-4">{study.headline}</h2>
                 <p className="text-muted-foreground mb-6">{study.description}</p>
 
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   {study.metrics.map((metric) => (
-                    <div key={metric.label} className="text-center p-4 bg-white dark:bg-slate-900 rounded-lg">
+                    <div key={metric.label} className="text-center p-4 bg-white dark:bg-gray-900 dark:bg-slate-900 rounded-lg">
                       <div className="flex justify-center mb-2">{metric.icon}</div>
                       <div className="text-2xl font-bold text-emerald-600">{metric.value}</div>
                       <div className="text-[11px] text-muted-foreground">{metric.label}</div>
@@ -163,7 +163,7 @@ export default function CaseStudies() {
                   ))}
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-lg">
+                <div className="bg-white dark:bg-gray-900 dark:bg-slate-900 p-4 rounded-lg">
                   <Quote className="h-6 w-6 text-emerald-500 mb-2" />
                   <p className="italic text-muted-foreground mb-2">"{study.quote}"</p>
                   <p className="text-[13px] font-semibold">— {study.quotee}</p>
@@ -180,7 +180,7 @@ export default function CaseStudies() {
         </div>
 
         {/* Other Case Studies */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {otherStudies.map((study) => (
             <Card key={study.id} className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group">
               <div className={`w-12 h-12 rounded-lg bg-${study.color}-100 dark:bg-${study.color}-900/30 flex items-center justify-center mb-4`}>
@@ -200,7 +200,7 @@ export default function CaseStudies() {
         {/* Stats Summary */}
         <Card className="p-8 mb-16 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
           <h2 className="text-2xl font-bold text-center mb-8">Aggregate Customer Results</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="text-4xl font-bold text-emerald-600">85%</div>
               <div className="text-[13px] text-muted-foreground">Average Dev Time Reduction</div>
@@ -230,13 +230,13 @@ export default function CaseStudies() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact-sales">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-emerald-600 hover:bg-emerald-50" data-testid="button-case-studies-talk-sales">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-emerald-600 hover:bg-emerald-50" data-testid="button-case-studies-talk-sales">
                   Talk to Sales
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
               <Link href="/register">
-                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white/10" data-testid="button-case-studies-free-trial">
+                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white dark:bg-gray-900/10" data-testid="button-case-studies-free-trial">
                   <Rocket className="h-5 w-5" />
                   Start Free Trial
                 </Button>

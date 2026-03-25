@@ -23,7 +23,7 @@ export function PageShell({
   return (
     <div
       className={cn(
-        "relative w-full overflow-auto px-4 py-6 sm:px-6 lg:px-12",
+        "relative w-full overflow-auto px-4 py-6 sm:px-6 lg:px-4 md:px-4 md:px-6 lg:px-8 lg:px-12",
         fullHeight && "min-h-full",
         tone === "plain" ? "bg-[var(--ecode-background)]" : "bg-[var(--ecode-background)]",
         className

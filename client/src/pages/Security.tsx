@@ -82,7 +82,7 @@ export default function Security() {
           <div className="container-responsive">
             <h2 className="text-3xl font-bold text-center mb-12">Security Features</h2>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {securityFeatures.map((feature) => {
                 const Icon = feature.icon;
                 return (
@@ -104,7 +104,7 @@ export default function Security() {
           <div className="container-responsive">
             <h2 className="text-3xl font-bold text-center mb-12">Compliance & Certifications</h2>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
               {certifications.map((cert) => {
                 const Icon = cert.icon;
                 return (
@@ -128,7 +128,7 @@ export default function Security() {
           <div className="container-responsive">
             <h2 className="text-3xl font-bold text-center mb-12">Our Security Practices</h2>
             
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               {securityPractices.map((practice) => (
                 <div key={practice.title} className="flex gap-4">
                   <CheckCircle className="h-6 w-6 text-primary flex-shrink-0 mt-1" />

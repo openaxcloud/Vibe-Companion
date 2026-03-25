@@ -37,7 +37,7 @@ function ThemeCard({ name, scheme, isActive, colors, onClick, onEdit, onDelete }
 }) {
   return (
     <div
-      className={`relative rounded-lg border p-2.5 cursor-pointer transition-all ${isActive ? "border-[#0079F2] bg-[#0079F2]/5" : "border-[var(--ide-border)] hover:border-[var(--ide-text-muted)]"}`}
+      className={`relative rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 p-2.5 cursor-pointer transition-all ${isActive ? "border-[#0079F2] bg-[#0079F2]/5" : "border-[var(--ide-border)] hover:border-[var(--ide-text-muted)]"}`}
       onClick={onClick}
       data-testid={`card-theme-${name.toLowerCase().replace(/\s/g, "-")}`}
     >
@@ -256,7 +256,7 @@ function AiUsageSection() {
             )}
             <div className="p-4">
               <span className="text-[11px] font-medium text-[var(--ide-text-secondary)] mb-2 block">Cost per Provider (Public API Prices)</span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {[
                   { name: "Anthropic (Claude)", rate: "~$3/M input, ~$15/M output" },
                   { name: "OpenAI (GPT-4o)", rate: "~$2.50/M input, ~$10/M output" },
@@ -650,7 +650,7 @@ export default function Settings() {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--ide-bg)] text-[var(--ide-text)]">
-      <div className="flex items-center gap-3 px-4 sm:px-8 py-4 bg-[var(--ide-panel)] border-b border-[var(--ide-border)] shrink-0">
+      <div className="flex items-center gap-3 px-4 sm:px-4 md:px-6 lg:px-8 py-4 bg-[var(--ide-panel)] border-b border-[var(--ide-border)] shrink-0">
         <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setLocation("/dashboard")} data-testid="button-back-settings">
           <ChevronLeft className="w-5 h-5" />
         </Button>
@@ -755,7 +755,7 @@ export default function Settings() {
                   <Switch checked={isDark} onCheckedChange={setIsDark} data-testid="switch-dark-mode" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <ThemeCard
                     name="E-Code Dark"
                     scheme="dark"
@@ -775,7 +775,7 @@ export default function Settings() {
                 {(userThemes.length > 0 || installedThemes.length > 0) && (
                   <div className="border-t border-[var(--ide-border)] pt-3 space-y-2">
                     <p className="text-[11px] text-[var(--ide-text-muted)] font-medium">Your Themes</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {[...userThemes, ...installedThemes.filter(it => !userThemes.find(ut => ut.id === it.id))].map(t => (
                         <ThemeCard
                           key={t.id}

@@ -37,7 +37,7 @@ export default function AppBuilder() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-12 sm:mb-16 md:mb-20">
           <Card className="p-4 sm:p-6 hover:shadow-lg transition-shadow" data-testid="card-feature-fullstack">
             <div className="p-2 sm:p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg w-fit mb-3 sm:mb-4">
               <Code className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
@@ -72,7 +72,7 @@ export default function AppBuilder() {
         {/* Use Cases */}
         <div className="mb-12 sm:mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">What You Can Build</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {[
               "SaaS Applications",
               "E-commerce Platforms",

@@ -42,7 +42,7 @@ export default function InternalAIBuilder() {
     <MarketingLayout>
       <section className="relative overflow-hidden py-12 sm:py-16">
         <div className="container-responsive max-w-5xl text-center px-4 sm:px-6">
-          <Badge className="mx-auto mb-4 sm:mb-6 bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white border-slate-900/20 dark:border-white/20">Internal AI Builder</Badge>
+          <Badge className="mx-auto mb-4 sm:mb-6 bg-slate-900/10 dark:bg-white dark:bg-gray-900/10 text-slate-900 dark:text-white border-slate-900/20 dark:border-white/20">Internal AI Builder</Badge>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-slate-900 dark:text-white tracking-tight">
             Private AI agents for every team
           </h1>
@@ -70,11 +70,11 @@ export default function InternalAIBuilder() {
       </section>
 
       <section className="py-12 sm:py-16">
-        <div className="container-responsive max-w-6xl grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 px-4 sm:px-6">
+        <div className="container-responsive max-w-6xl grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-4 sm:px-6">
           {capabilities.map((capability, index) => (
-            <Card key={capability.title} className="bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10" data-testid={`card-capability-${index}`}>
+            <Card key={capability.title} className="bg-slate-50 dark:bg-white dark:bg-gray-900/5 border-slate-200 dark:border-white/10" data-testid={`card-capability-${index}`}>
               <CardHeader className="space-y-3 sm:space-y-4 p-4 sm:p-6">
-                <div className="inline-flex rounded-full bg-sky-100 dark:bg-white/10 p-2 sm:p-3 text-sky-600 dark:text-sky-200">
+                <div className="inline-flex rounded-full bg-sky-100 dark:bg-white dark:bg-gray-900/10 p-2 sm:p-3 text-sky-600 dark:text-sky-200">
                   <capability.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
                 <CardTitle className="text-base sm:text-[15px] text-slate-900 dark:text-white">{capability.title}</CardTitle>

@@ -460,12 +460,12 @@ export default function Import() {
         </div>
 
         {step === "select" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="import-source-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="import-source-grid">
             {IMPORT_SOURCES.map(source => (
               <button
                 key={source.id}
                 onClick={() => selectSource(source.id)}
-                className="group relative flex flex-col items-start p-5 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] hover:border-[#0079F2]/50 hover:bg-[var(--ide-surface)] transition-all text-left"
+                className="group relative flex flex-col items-start p-5 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] hover:border-[#0079F2]/50 hover:bg-[var(--ide-surface)] transition-all text-left"
                 data-testid={`card-import-${source.id}`}
               >
                 <div

@@ -35,9 +35,9 @@ interface AuthUser {
 const PROVIDERS = [
   { id: 'email', label: 'Email / Password', icon: Mail, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
   { id: 'google', label: 'Google', icon: Chrome, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
-  { id: 'github', label: 'GitHub', icon: Github, color: 'text-gray-300', bg: 'bg-gray-500/10', border: 'border-gray-500/20' },
+  { id: 'github', label: 'GitHub', icon: Github, color: 'text-gray-300', bg: 'bg-gray-50 dark:bg-gray-8000/10', border: 'border-gray-500/20' },
   { id: 'discord', label: 'Discord', icon: MessageSquare, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-  { id: 'apple', label: 'Apple', icon: Apple, color: 'text-gray-200', bg: 'bg-gray-500/10', border: 'border-gray-500/20' },
+  { id: 'apple', label: 'Apple', icon: Apple, color: 'text-gray-200', bg: 'bg-gray-50 dark:bg-gray-8000/10', border: 'border-gray-500/20' },
 ];
 
 const CODE_SNIPPET_NODE = `const express = require('express');
@@ -76,7 +76,7 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <button onClick={copy} className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-gray-200 transition-colors">
+    <button onClick={copy} className="p-1.5 rounded hover:bg-white dark:bg-gray-900/10 text-gray-400 hover:text-gray-200 transition-colors">
       {copied ? <Check size={13} /> : <Copy size={13} />}
     </button>
   );
@@ -153,7 +153,7 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
       <div className="flex-1 px-4 py-4 space-y-4">
 
         {/* Header toggle card */}
-        <div className="rounded-lg border border-white/8 bg-white/4 p-4">
+        <div className="rounded-lg border border-white/8 bg-white dark:bg-gray-900/4 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 p-2 rounded-lg bg-blue-500/15 border border-blue-500/20">
@@ -187,7 +187,7 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
 
         {/* How it works — shown when disabled */}
         {!config?.enabled && (
-          <div className="rounded-lg border border-white/8 bg-white/2 p-4 space-y-3">
+          <div className="rounded-lg border border-white/8 bg-white dark:bg-gray-900/2 p-4 space-y-3">
             <div className="text-xs font-semibold text-gray-300 uppercase tracking-wider">How it works</div>
             {[
               { icon: Lock, text: 'Enable auth to get a prebuilt login page for your app' },
@@ -205,7 +205,7 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
 
         {/* Providers */}
         {config?.enabled && (
-          <div className="rounded-lg border border-white/8 bg-white/4 p-4">
+          <div className="rounded-lg border border-white/8 bg-white dark:bg-gray-900/4 p-4">
             <div className="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-3">Sign-in Providers</div>
             <div className="space-y-2">
               {PROVIDERS.map(provider => {
@@ -214,7 +214,7 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
                   <div
                     key={provider.id}
                     className={`flex items-center justify-between rounded-md px-3 py-2.5 border transition-colors cursor-pointer ${
-                      enabled ? `${provider.bg} ${provider.border}` : 'bg-white/2 border-white/8 hover:bg-white/4'
+                      enabled ? `${provider.bg} ${provider.border}` : 'bg-white dark:bg-gray-900/2 border-white/8 hover:bg-white dark:bg-gray-900/4'
                     }`}
                     onClick={() => toggleProvider(provider.id)}
                   >
@@ -237,10 +237,10 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
 
         {/* Users table */}
         {config?.enabled && (
-          <div className="rounded-lg border border-white/8 bg-white/4 p-4">
+          <div className="rounded-lg border border-white/8 bg-white dark:bg-gray-900/4 p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Users</div>
-              <Badge variant="secondary" className="text-xs bg-white/8 text-gray-400 border-white/10">
+              <Badge variant="secondary" className="text-xs bg-white dark:bg-gray-900/8 text-gray-400 border-white/10">
                 {users.length}
               </Badge>
             </div>
@@ -253,7 +253,7 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
             ) : (
               <div className="space-y-1.5">
                 {users.map(user => (
-                  <div key={user.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-white/4 group">
+                  <div key={user.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-white dark:bg-gray-900/4 group">
                     <Avatar className="h-6 w-6">
                       <AvatarFallback className="text-xs bg-blue-500/20 text-blue-300">
                         {(user.name || user.email).charAt(0).toUpperCase()}
@@ -281,12 +281,12 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
 
         {/* Code snippets */}
         {config?.enabled && (
-          <div className="rounded-lg border border-white/8 bg-white/4 p-4">
+          <div className="rounded-lg border border-white/8 bg-white dark:bg-gray-900/4 p-4">
             <div className="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-3">Integration Code</div>
             <Tabs defaultValue="node">
-              <TabsList className="bg-white/6 border border-white/10 h-7 mb-3">
-                <TabsTrigger value="node" className="text-xs h-5 px-2.5 data-[state=active]:bg-white/10">Node.js</TabsTrigger>
-                <TabsTrigger value="python" className="text-xs h-5 px-2.5 data-[state=active]:bg-white/10">Python</TabsTrigger>
+              <TabsList className="bg-white dark:bg-gray-900/6 border border-white/10 h-7 mb-3">
+                <TabsTrigger value="node" className="text-xs h-5 px-2.5 data-[state=active]:bg-white dark:bg-gray-900/10">Node.js</TabsTrigger>
+                <TabsTrigger value="python" className="text-xs h-5 px-2.5 data-[state=active]:bg-white dark:bg-gray-900/10">Python</TabsTrigger>
               </TabsList>
               {[{ value: 'node', code: CODE_SNIPPET_NODE }, { value: 'python', code: CODE_SNIPPET_PYTHON }].map(({ value, code }) => (
                 <TabsContent key={value} value={value}>
@@ -312,7 +312,7 @@ export function ReplitAuthPanel({ projectId }: { projectId: string }) {
           href="https://docs.replit.com/hosting/deployments/replit-auth"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-white/8 bg-white/2 hover:bg-white/4 transition-colors group"
+          className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-white/8 bg-white dark:bg-gray-900/2 hover:bg-white dark:bg-gray-900/4 transition-colors group"
         >
           <div className="flex items-center gap-2.5">
             <Code2 size={14} className="text-gray-400" />

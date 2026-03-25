@@ -180,7 +180,7 @@ export default function UserSettingsPanel({
                   onClick={() => onPrefsChange({ theme: "light", communityTheme: null })}
                   data-testid="button-theme-light"
                 >
-                  <span className="w-4 h-4 rounded-full bg-white border border-gray-300" /> Light
+                  <span className="w-4 h-4 rounded-full bg-white dark:bg-gray-900 border border-gray-300" /> Light
                 </button>
               </div>
             </div>

@@ -199,7 +199,7 @@ export default function Frameworks() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               {(() => {
                 const readmeFile = detail.files.find(f =>
@@ -207,7 +207,7 @@ export default function Frameworks() {
                 );
                 if (!readmeFile) return null;
                 return (
-                  <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden" data-testid="section-readme">
+                  <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden" data-testid="section-readme">
                     <div className="px-4 py-3 border-b border-[var(--ide-border)] flex items-center gap-2">
                       <BookOpen className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
                       <h3 className="text-sm font-medium text-[var(--ide-text)]">README</h3>
@@ -221,7 +221,7 @@ export default function Frameworks() {
                 );
               })()}
 
-              <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden">
+              <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden">
                 <div className="px-4 py-3 border-b border-[var(--ide-border)]">
                   <h3 className="text-sm font-medium text-[var(--ide-text)]">Files</h3>
                 </div>
@@ -238,7 +238,7 @@ export default function Frameworks() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-4">
+              <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-[var(--ide-text)] flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5" /> Updates
@@ -382,12 +382,12 @@ export default function Frameworks() {
             <p className="text-[11px] text-[var(--ide-text-muted)] mt-1">Try adjusting your search or filters</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {frameworks.map((fw) => (
               <button
                 key={fw.id}
                 onClick={() => navigate(`/frameworks/${fw.id}`)}
-                className="text-left rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-4 hover:border-[var(--ide-hover)] transition-all group"
+                className="text-left rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-4 hover:border-[var(--ide-hover)] transition-all group"
                 data-testid={`card-framework-${fw.id}`}
               >
                 {fw.frameworkCoverUrl && (

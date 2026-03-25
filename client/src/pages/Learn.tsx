@@ -128,7 +128,7 @@ export default function Learn() {
       case 'beginner': return 'bg-green-100 text-green-800';
       case 'intermediate': return 'bg-yellow-100 text-yellow-800';
       case 'advanced': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100';
     }
   };
 
@@ -146,7 +146,7 @@ export default function Learn() {
       </div>
 
       {/* Learning Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -194,7 +194,7 @@ export default function Learn() {
       </div>
 
       <Tabs defaultValue="courses" className="space-y-4" data-testid="tabs-learn">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <TabsTrigger value="courses" data-testid="tab-courses">Courses</TabsTrigger>
           <TabsTrigger value="tutorials" data-testid="tab-tutorials">Tutorials</TabsTrigger>
           <TabsTrigger value="progress" data-testid="tab-progress">My Progress</TabsTrigger>
@@ -238,7 +238,7 @@ export default function Learn() {
           </Card>
 
           {/* Course Grid */}
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6">
             {courses.map((course) => (
               <Card key={course.id} className="replit-card-hover">
                 <CardContent className="pt-6">
@@ -410,7 +410,7 @@ export default function Learn() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-1 md:grid-cols-2 gap-4">
                 {achievements.map((achievement, index) => (
                   <Card key={index} className={achievement.earned ? '' : 'opacity-50'}>
                     <CardContent className="pt-6">

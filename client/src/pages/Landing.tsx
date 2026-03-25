@@ -373,7 +373,7 @@ export default function Landing() {
                     </div>
               <Button 
                 size="lg"
-                className="bg-ecode-accent hover:bg-ecode-accent-hover text-white shadow-lg px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-[15px] font-semibold h-auto min-h-[44px] rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-[0_8px_32px_-8px_rgba(242,98,7,0.4)]"
+                className="bg-ecode-accent hover:bg-ecode-accent-hover text-white shadow-lg px-6 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 text-base sm:text-[15px] font-semibold h-auto min-h-[44px] rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-[0_8px_32px_-8px_rgba(242,98,7,0.4)]"
                 onClick={() => {
                   if (appDescription?.trim()) {
                     handleStartBuilding(appDescription);
@@ -497,7 +497,7 @@ export default function Landing() {
               <Button 
                 size="lg"
                 variant="outline"
-                className="gap-2 px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-[15px] border-2 border-[var(--ecode-border)] hover:border-ecode-accent/50 w-full sm:w-auto min-h-[48px] transition-all duration-300 hover:shadow-[0_4px_16px_-4px_rgba(242,98,7,0.2)]"
+                className="gap-2 px-6 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 text-base sm:text-[15px] border-2 border-[var(--ecode-border)] hover:border-ecode-accent/50 w-full sm:w-auto min-h-[48px] transition-all duration-300 hover:shadow-[0_4px_16px_-4px_rgba(242,98,7,0.2)]"
                 onClick={() => {
                   const demoSection = document.getElementById('video-demo');
                   demoSection?.scrollIntoView({ behavior: 'smooth' });
@@ -510,7 +510,7 @@ export default function Landing() {
               <Button 
                 size="lg"
                 variant="ghost"
-                className="gap-2 px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-[15px] w-full sm:w-auto min-h-[48px] text-[var(--ecode-text)] hover:text-ecode-accent transition-all duration-300"
+                className="gap-2 px-6 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 text-base sm:text-[15px] w-full sm:w-auto min-h-[48px] text-[var(--ecode-text)] hover:text-ecode-accent transition-all duration-300"
                 onClick={() => navigate('/pricing')}
                 data-testid="button-hero-view-pricing"
               >
@@ -535,7 +535,7 @@ export default function Landing() {
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-background)] to-[var(--ecode-surface-tertiary)]" data-testid="section-stats">
         <div className="container-responsive max-w-7xl">
           <LazyMotionDiv 
-            className="grid grid-cols-2 md:grid-cols-4 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -628,7 +628,7 @@ export default function Landing() {
                     }
                   }}
                 >
-                  <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-20 h-20 bg-white dark:bg-gray-900/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                     {isPlaying ? (
                       <Pause className="h-8 w-8 text-white ml-0" />
                     ) : (
@@ -672,7 +672,7 @@ export default function Landing() {
             {/* Video Description */}
             <div className="mt-8 text-center">
               <h3 className="text-[15px] font-semibold mb-2">Live Platform Demo</h3>
-              <p className="text-[13px] text-gray-600 dark:text-gray-400">
+              <p className="text-[13px] text-gray-600 dark:text-gray-400 dark:text-gray-400">
                 Watch how E-Code Platform's AI agent builds a complete full-stack application with database, authentication, 
                 and deployment - all from a single prompt
               </p>
@@ -712,7 +712,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -798,7 +798,7 @@ export default function Landing() {
                         </Badge>
                       ))}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 pt-4 border-t border-[var(--ecode-border)]">
+                    <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4 border-t border-[var(--ecode-border)]">
                       {Object.entries(project.metrics).map(([key, value]) => (
                         <div key={key} className="text-center">
                           <div className="text-[13px] font-semibold text-[var(--ecode-text)]">
@@ -862,7 +862,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -900,7 +900,7 @@ export default function Landing() {
       {/* Showcase Section with Images */}
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-surface-tertiary)] to-[var(--ecode-background)]" data-testid="section-showcase">
         <div className="container-responsive max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-6 items-center mb-20">
+          <div className="grid lg:grid-cols-1 md:grid-cols-2 gap-6 items-center mb-20">
             <LazyMotionDiv
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -949,7 +949,7 @@ export default function Landing() {
             </LazyMotionDiv>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6 items-center">
+          <div className="grid lg:grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <LazyMotionDiv
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1082,7 +1082,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-3 gap-4"
+            className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -1166,7 +1166,7 @@ export default function Landing() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
               <Button 
                 size="lg"
-                className="bg-white text-ecode-accent hover:bg-white/95 px-8 py-6 text-[15px] font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                className="bg-white dark:bg-gray-900 text-ecode-accent hover:bg-white dark:bg-gray-900/95 px-4 md:px-6 lg:px-8 py-6 text-[15px] font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                 onClick={() => {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                   setTimeout(() => {
@@ -1184,7 +1184,7 @@ export default function Landing() {
               <Button 
                 size="lg"
                 variant="ghost"
-                className="text-gray-900 border-2 border-gray-900 bg-white/20 hover:bg-white/40 px-8 py-6 text-[15px] font-semibold transition-all duration-300"
+                className="text-gray-900 dark:text-white border-2 border-gray-900 bg-white dark:bg-gray-900/20 hover:bg-white dark:bg-gray-900/40 px-4 md:px-6 lg:px-8 py-6 text-[15px] font-semibold transition-all duration-300"
                 onClick={() => navigate('/contact-sales')}
                 data-testid="button-contact-sales"
               >

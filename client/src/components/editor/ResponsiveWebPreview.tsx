@@ -150,7 +150,7 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
         {previewUrl ? (
           <div
             className={cn(
-              "relative bg-white transition-all duration-300",
+              "relative bg-white dark:bg-gray-900 transition-all duration-300",
               !isResponsive && "rounded-lg shadow-lg border border-[var(--ide-border)] overflow-hidden"
             )}
             style={{
@@ -161,7 +161,7 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
             }}
           >
             {!isResponsive && (
-              <div className="h-5 bg-gray-100 border-b border-gray-200 flex items-center px-2 gap-1 shrink-0">
+              <div className="h-5 bg-gray-100 border-b border-gray-200 dark:border-gray-700 flex items-center px-2 gap-1 shrink-0">
                 <div className="w-2 h-2 rounded-full bg-red-400" />
                 <div className="w-2 h-2 rounded-full bg-yellow-400" />
                 <div className="w-2 h-2 rounded-full bg-green-400" />

@@ -398,7 +398,7 @@ export default function TemplateMarketplace() {
           {templatesLoading ? (
             <div className={cn(
               "grid gap-4",
-              viewMode === 'grid' ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
+              viewMode === 'grid' ? "grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
             )} data-testid="templates-loading">
               {[...Array(6)].map((_, i) => (
                 <Skeleton key={i} className="h-[300px]" />
@@ -408,7 +408,7 @@ export default function TemplateMarketplace() {
             <>
               <div className={cn(
                 "grid gap-4",
-                viewMode === 'grid' ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
+                viewMode === 'grid' ? "grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
               )} data-testid="templates-grid">
                 {templatesData?.templates?.map((template: any) => (
                   <TemplateCard

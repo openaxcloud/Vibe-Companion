@@ -213,7 +213,7 @@ export default function ConfigPanel({ projectId, onClose }: ConfigPanelProps) {
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] text-[var(--ide-text-muted)] w-28 shrink-0">Audio</label>
                     <button onClick={() => updateField("audio", !localConfig.audio)} className={`w-7 h-4 rounded-full transition-colors ${localConfig.audio ? 'bg-[#0CCE6B]' : 'bg-[var(--ide-border)]'} relative`} data-testid="toggle-audio">
-                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${localConfig.audio ? 'left-3.5' : 'left-0.5'}`} />
+                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white dark:bg-gray-900 transition-transform ${localConfig.audio ? 'left-3.5' : 'left-0.5'}`} />
                     </button>
                   </div>
                 </div>
@@ -221,7 +221,7 @@ export default function ConfigPanel({ projectId, onClose }: ConfigPanelProps) {
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] text-[var(--ide-text-muted)] w-28 shrink-0">Networking</label>
                     <button onClick={() => updateField("networking", !localConfig.networking)} className={`w-7 h-4 rounded-full transition-colors ${localConfig.networking ? 'bg-[#0CCE6B]' : 'bg-[var(--ide-border)]'} relative`} data-testid="toggle-networking">
-                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${localConfig.networking ? 'left-3.5' : 'left-0.5'}`} />
+                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white dark:bg-gray-900 transition-transform ${localConfig.networking ? 'left-3.5' : 'left-0.5'}`} />
                     </button>
                   </div>
                 </div>
@@ -242,7 +242,7 @@ export default function ConfigPanel({ projectId, onClose }: ConfigPanelProps) {
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] text-[var(--ide-text-muted)] w-28 shrink-0">Guess imports</label>
                     <button onClick={() => updateField("packager.guessImports", !(localConfig.packager?.guessImports ?? true))} className={`w-7 h-4 rounded-full transition-colors ${(localConfig.packager?.guessImports ?? true) ? 'bg-[#0CCE6B]' : 'bg-[var(--ide-border)]'} relative`} data-testid="toggle-guess-imports">
-                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${(localConfig.packager?.guessImports ?? true) ? 'left-3.5' : 'left-0.5'}`} />
+                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white dark:bg-gray-900 transition-transform ${(localConfig.packager?.guessImports ?? true) ? 'left-3.5' : 'left-0.5'}`} />
                     </button>
                   </div>
                 </div>
@@ -250,13 +250,13 @@ export default function ConfigPanel({ projectId, onClose }: ConfigPanelProps) {
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] text-[var(--ide-text-muted)] w-28 shrink-0">Package search</label>
                     <button onClick={() => updateField("packager.packageSearch", !localConfig.packager?.packageSearch)} className={`w-7 h-4 rounded-full transition-colors ${localConfig.packager?.packageSearch ? 'bg-[#0CCE6B]' : 'bg-[var(--ide-border)]'} relative`} data-testid="toggle-package-search">
-                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${localConfig.packager?.packageSearch ? 'left-3.5' : 'left-0.5'}`} />
+                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white dark:bg-gray-900 transition-transform ${localConfig.packager?.packageSearch ? 'left-3.5' : 'left-0.5'}`} />
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] text-[var(--ide-text-muted)] w-28 shrink-0">Enabled for hosting</label>
                     <button onClick={() => updateField("packager.enabledForHosting", !localConfig.packager?.enabledForHosting)} className={`w-7 h-4 rounded-full transition-colors ${localConfig.packager?.enabledForHosting ? 'bg-[#0CCE6B]' : 'bg-[var(--ide-border)]'} relative`} data-testid="toggle-enabled-for-hosting">
-                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${localConfig.packager?.enabledForHosting ? 'left-3.5' : 'left-0.5'}`} />
+                      <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white dark:bg-gray-900 transition-transform ${localConfig.packager?.enabledForHosting ? 'left-3.5' : 'left-0.5'}`} />
                     </button>
                   </div>
                 </div>

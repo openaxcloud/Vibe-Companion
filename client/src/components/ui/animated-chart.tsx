@@ -134,7 +134,7 @@ export function AnimatedChartTooltip({
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700',
+        'bg-white dark:bg-gray-900 dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 dark:border-gray-700',
         className
       )}
     >

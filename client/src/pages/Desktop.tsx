@@ -79,7 +79,7 @@ export default function Desktop() {
 
   return (
     <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)] overflow-x-hidden" data-testid="desktop-page">
-      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
+      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-4 md:px-4 md:px-6 lg:px-8 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
         <Link href="/" className="flex items-center gap-3">
           <ECodeLogo size={28} />
           <span className="text-lg font-bold tracking-tight">E-Code</span>
@@ -151,7 +151,7 @@ export default function Desktop() {
           {hasPlatformBinary ? (
             <Button
               onClick={() => handleDownload(detectedOS)}
-              className="h-14 px-8 text-lg font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl shadow-[0_0_20px_rgba(0,121,242,0.3)] hover:shadow-[0_0_30px_rgba(0,121,242,0.4)] transition-all gap-3"
+              className="h-14 px-4 md:px-6 lg:px-8 text-lg font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl shadow-[0_0_20px_rgba(0,121,242,0.3)] hover:shadow-[0_0_30px_rgba(0,121,242,0.4)] transition-all gap-3"
               data-testid="button-download-primary"
             >
               <Download className="w-5 h-5" />
@@ -160,7 +160,7 @@ export default function Desktop() {
           ) : (
             <Button
               disabled
-              className="h-14 px-8 text-lg font-semibold bg-[var(--ide-panel)] text-[var(--ide-text-muted)] rounded-xl cursor-not-allowed gap-3"
+              className="h-14 px-4 md:px-6 lg:px-8 text-lg font-semibold bg-[var(--ide-panel)] text-[var(--ide-text-muted)] rounded-xl cursor-not-allowed gap-3"
               data-testid="button-download-primary-disabled"
             >
               <Download className="w-5 h-5" />
@@ -185,7 +185,7 @@ export default function Desktop() {
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">Available for all platforms</h2>
           <p className="text-[var(--ide-text-secondary)] text-center mb-12">Download E-Code for your operating system.</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {(["mac", "win", "linux"] as const).map((p) => {
               const info = platformInfo[p];
               const Icon = info.icon;
@@ -194,7 +194,7 @@ export default function Desktop() {
               return (
                 <div
                   key={p}
-                  className={`relative p-6 rounded-2xl border transition-all duration-300 ${
+                  className={`relative p-6 rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 transition-all duration-300 ${
                     isDetected
                       ? "border-[#0079F2]/40 bg-[#0079F2]/5 shadow-[0_0_30px_rgba(0,121,242,0.1)]"
                       : "border-[var(--ide-border)] bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F]"
@@ -257,9 +257,9 @@ export default function Desktop() {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Why use the desktop app?</h2>
           <p className="text-[var(--ide-text-secondary)] text-lg max-w-xl mx-auto">All the power of E-Code in a native, focused application.</p>
         </div>
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f) => (
-            <div key={f.title} className="group p-6 rounded-2xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] transition-all duration-300" data-testid={`feature-${f.title.toLowerCase().replace(/\s/g, "-")}`}>
+            <div key={f.title} className="group p-6 rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)]/50 hover:bg-[var(--ide-panel)] hover:border-[#3B4B5F] transition-all duration-300" data-testid={`feature-${f.title.toLowerCase().replace(/\s/g, "-")}`}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 bg-[#0079F2]/10 border border-[#0079F2]/20">
                 <f.icon className="w-5 h-5 text-[#0079F2]" />
               </div>
@@ -273,9 +273,9 @@ export default function Desktop() {
       <section className="relative z-10 py-16 px-6 border-t border-[var(--ide-border)]/50" data-testid="requirements-section">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-10">System Requirements</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {(["mac", "win", "linux"] as const).map((p) => (
-              <div key={p} className="p-5 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50" data-testid={`requirements-${p}`}>
+              <div key={p} className="p-5 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)]/50" data-testid={`requirements-${p}`}>
                 <h3 className="font-semibold mb-3">{platformInfo[p].label}</h3>
                 <ul className="space-y-2 text-sm text-[var(--ide-text-secondary)]">
                   <li>{platformInfo[p].minReq}</li>
@@ -296,7 +296,7 @@ export default function Desktop() {
             {faqs.map((faq, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 overflow-hidden"
+                className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)]/50 overflow-hidden"
                 data-testid={`faq-item-${i}`}
               >
                 <button
@@ -341,7 +341,7 @@ export default function Desktop() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-12 py-10">
+      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-4 md:px-4 md:px-6 lg:px-8 lg:px-12 py-10">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start justify-between gap-8">
           <div className="flex items-center gap-2">
             <ECodeLogo size={20} />

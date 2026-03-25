@@ -241,7 +241,7 @@ export default function Press() {
       {/* Highlights */}
       <section className="py-16 border-b bg-muted/20">
         <div className="container-responsive">
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {highlights.map((item) => {
               const Icon = item.icon;
               return (
@@ -265,7 +265,7 @@ export default function Press() {
       {/* Company Stats */}
       <section className="py-16 border-b">
         <div className="container-responsive">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {stats.map((stat) => {
               const Icon = stat.icon;
               return (
@@ -358,7 +358,7 @@ export default function Press() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {coverage.map((article) => (
               <Card key={article.title} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -416,7 +416,7 @@ export default function Press() {
                 every generated change. Our focus is on crafting an expressive, collaborative space
                 that keeps shipping fun.
               </p>
-              <div className="grid md:grid-cols-2 gap-6 mt-6">
+              <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div>
                   <h4 className="font-semibold mb-2">Key Features</h4>
                   <ul className="space-y-1 text-[13px] text-muted-foreground">
@@ -455,7 +455,7 @@ export default function Press() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {mediaKit.map((item) => {
               const Icon = item.icon;
               return (

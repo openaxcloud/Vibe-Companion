@@ -98,7 +98,7 @@ export default function Explore() {
       'C++': 'bg-purple-500',
       'Ruby': 'bg-pink-500',
     };
-    return colors[language] || 'bg-gray-500';
+    return colors[language] || 'bg-gray-50 dark:bg-gray-8000';
   };
 
 
@@ -171,7 +171,7 @@ export default function Explore() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         {/* Stats Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -224,7 +224,7 @@ export default function Explore() {
             <ECodeLoading />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {publicRepls.map((repl: any) => {
             const CategoryIcon = categories.find(c => c.id === repl.category)?.icon || Globe;
             return (

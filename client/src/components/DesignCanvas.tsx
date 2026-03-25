@@ -576,7 +576,7 @@ export default function DesignCanvas({ projectId, messages = [] }: DesignCanvasP
                   </button>
                 </div>
 
-                <div className="relative bg-white rounded-b-md overflow-hidden border border-[#333]" style={{ width: frame.width, height: frame.height }}>
+                <div className="relative bg-white dark:bg-gray-900 rounded-b-md overflow-hidden border border-[#333]" style={{ width: frame.width, height: frame.height }}>
                   {editingFrame === frame.id ? (
                     <div className="absolute inset-0 z-10 flex flex-col bg-[#1e1e2e]">
                       <div className="flex items-center justify-between px-2 py-1 bg-[#0079F2]/10 border-b border-[#333]">

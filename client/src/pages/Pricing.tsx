@@ -286,7 +286,7 @@ export default function Pricing() {
             <h2 className="text-2xl font-bold mb-2">You're all set!</h2>
             <p className="text-[var(--ide-text-secondary)] mb-8">Your plan has been upgraded successfully. Enjoy your new features.</p>
             <Button
-              className="bg-[#0079F2] hover:bg-[#006AD8] text-white px-8 h-11 rounded-lg"
+              className="bg-[#0079F2] hover:bg-[#006AD8] text-white px-4 md:px-6 lg:px-8 h-11 rounded-lg"
               onClick={() => setLocation("/dashboard")}
               data-testid="button-go-dashboard"
             >
@@ -295,13 +295,13 @@ export default function Pricing() {
           </div>
         ) : (
         <>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {plans.map((plan) => {
             const PlanIcon = PLAN_UI[plan.id]?.icon || Sparkles;
             return (
             <div
               key={plan.id}
-              className={`relative rounded-xl border ${plan.popular ? "border-[#0079F2] shadow-lg shadow-[#0079F2]/10" : "border-[var(--ide-border)]"} bg-[var(--ide-panel)] p-5 sm:p-6 flex flex-col`}
+              className={`relative rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 ${plan.popular ? "border-[#0079F2] shadow-lg shadow-[#0079F2]/10" : "border-[var(--ide-border)]"} bg-[var(--ide-panel)] p-5 sm:p-6 flex flex-col`}
               data-testid={`card-plan-${plan.id}`}
             >
               {plan.popular && (
@@ -392,7 +392,7 @@ export default function Pricing() {
           <p className="text-center text-sm text-[var(--ide-text-secondary)] mb-6">
             You only pay for what you use. Credits are deducted based on actual token consumption.
           </p>
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 gap-6">
             <div className="border border-[var(--ide-border)] rounded-xl bg-[var(--ide-panel)] p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Cpu className="w-5 h-5 text-[#0079F2]" />

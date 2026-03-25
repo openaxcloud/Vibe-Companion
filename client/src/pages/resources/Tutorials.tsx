@@ -174,12 +174,12 @@ export default function Tutorials() {
               <Sparkles className="h-6 w-6 text-yellow-500" />
               Featured Tutorials
             </h2>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6">
               {featuredTutorials.map((tutorial) => (
                 <Card key={tutorial.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer">
                   <div className="aspect-video bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 relative">
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-full bg-white/90 dark:bg-slate-900/90 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-900/90 dark:bg-slate-900/90 flex items-center justify-center group-hover:scale-110 transition-transform">
                         <Play className="h-8 w-8 text-blue-600 ml-1" />
                       </div>
                     </div>
@@ -223,12 +223,12 @@ export default function Tutorials() {
               </Button>
             </Card>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredTutorials.map((tutorial) => (
                 <Card key={tutorial.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer">
                   <div className="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 relative">
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-12 h-12 rounded-full bg-white/90 dark:bg-slate-900/90 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-white dark:bg-gray-900/90 dark:bg-slate-900/90 flex items-center justify-center">
                         <Play className="h-6 w-6 text-blue-600 ml-0.5" />
                       </div>
                     </div>
@@ -265,13 +265,13 @@ export default function Tutorials() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/register">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-blue-600 hover:bg-blue-50" data-testid="button-tutorials-start-free">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-blue-600 hover:bg-blue-50" data-testid="button-tutorials-start-free">
                   Start Free
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
               <Link href="/docs">
-                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white/10" data-testid="button-tutorials-read-docs">
+                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white dark:bg-gray-900/10" data-testid="button-tutorials-read-docs">
                   <BookOpen className="h-5 w-5" />
                   Read Docs
                 </Button>

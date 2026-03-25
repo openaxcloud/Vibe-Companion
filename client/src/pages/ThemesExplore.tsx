@@ -22,7 +22,7 @@ function ThemeCard({ theme, isInstalled, onInstall, onUninstall, onPreview }: {
 
   return (
     <div
-      className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden hover:border-[#0079F2]/50 transition-colors cursor-pointer group"
+      className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden hover:border-[#0079F2]/50 transition-colors cursor-pointer group"
       onClick={onPreview}
       data-testid={`card-theme-${theme.id}`}
     >
@@ -236,7 +236,7 @@ export default function ThemesExplore() {
               <p className="text-[12px] text-[var(--ide-text-muted)] mt-1">Try adjusting your search or filters</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {themes.map(theme => (
                 <ThemeCard
                   key={theme.id}

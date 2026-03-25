@@ -114,13 +114,13 @@ export default function Freelancers() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register">
-              <Button size="lg" className="gap-2 min-h-[48px] w-full sm:w-auto px-8 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600" data-testid="button-freelancers-start">
+              <Button size="lg" className="gap-2 min-h-[48px] w-full sm:w-auto px-4 md:px-6 lg:px-8 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600" data-testid="button-freelancers-start">
                 <Briefcase className="h-5 w-5" />
                 Start Free
               </Button>
             </Link>
             <Link href="/pricing">
-              <Button size="lg" variant="outline" className="gap-2 min-h-[48px] w-full sm:w-auto px-8" data-testid="button-freelancers-pricing">
+              <Button size="lg" variant="outline" className="gap-2 min-h-[48px] w-full sm:w-auto px-4 md:px-6 lg:px-8" data-testid="button-freelancers-pricing">
                 View Pricing
               </Button>
             </Link>
@@ -131,7 +131,7 @@ export default function Freelancers() {
         </div>
 
         {/* Benefits Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16 md:mb-20">
+        <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16 md:mb-20">
           {benefits.map((benefit) => (
             <Card key={benefit.title} className="p-6 hover:shadow-lg transition-all duration-300 border-2 hover:border-violet-500/20">
               <div className={`p-3 bg-${benefit.color}-100 dark:bg-${benefit.color}-900/20 rounded-xl w-fit mb-4`}>
@@ -151,7 +151,7 @@ export default function Freelancers() {
           <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
             From simple landing pages to complex web applications. E-Code handles it all.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {projectTypes.map((type) => (
               <Card key={type} className="p-4 text-center hover:shadow-md transition-shadow hover:border-violet-500/20">
                 <CheckCircle className="h-5 w-5 text-green-500 mx-auto mb-2" />
@@ -164,7 +164,7 @@ export default function Freelancers() {
         {/* Workflow */}
         <div className="mb-16 md:mb-20 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 rounded-3xl p-8 md:p-12">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">Your New Workflow</h2>
-          <div className="grid md:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { step: "1", title: "Get Client Brief", desc: "Receive project requirements from your client" },
               { step: "2", title: "Prompt AI", desc: "Describe the project to E-Code's AI agent" },
@@ -186,7 +186,7 @@ export default function Freelancers() {
         <div className="mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4">What Freelancers Say</h2>
           <p className="text-center text-muted-foreground mb-12">Real results from real freelancers</p>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {testimonials.map((testimonial) => (
               <Card key={testimonial.name} className="p-6 hover:shadow-lg transition-shadow">
                 <div className="flex gap-1 mb-4">
@@ -211,7 +211,7 @@ export default function Freelancers() {
 
         {/* Pricing Highlight */}
         <Card className="p-8 md:p-12 mb-16 md:mb-20 border-2 border-violet-200 dark:border-violet-800">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
               <Badge className="mb-4 bg-violet-500 text-white">Freelancer-Friendly Pricing</Badge>
               <h2 className="text-2xl sm:text-3xl font-bold mb-4">Start Free, Grow as You Earn</h2>
@@ -239,7 +239,7 @@ export default function Freelancers() {
                 </Button>
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="p-6 text-center">
                 <div className="text-3xl font-bold text-violet-600">$0</div>
                 <div className="text-[13px] text-muted-foreground">Free Forever</div>
@@ -270,13 +270,13 @@ export default function Freelancers() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/register">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-violet-600 hover:bg-violet-50" data-testid="button-freelancers-cta">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-violet-600 hover:bg-violet-50" data-testid="button-freelancers-cta">
                   Start Free
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
               <Link href="/templates">
-                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white/10" data-testid="button-freelancers-templates">
+                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white dark:bg-gray-900/10" data-testid="button-freelancers-templates">
                   <Palette className="h-5 w-5" />
                   View Templates
                 </Button>

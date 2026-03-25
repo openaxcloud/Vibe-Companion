@@ -100,7 +100,7 @@ const getTypeIcon = (type: string) => {
     case 'improvement': return <Zap className="h-4 w-4 text-blue-500" />;
     case 'fix': return <Bug className="h-4 w-4 text-orange-500" />;
     case 'security': return <Shield className="h-4 w-4 text-green-500" />;
-    default: return <CheckCircle className="h-4 w-4 text-gray-500" />;
+    default: return <CheckCircle className="h-4 w-4 text-gray-500 dark:text-gray-400" />;
   }
 };
 
@@ -224,7 +224,7 @@ export default function Changelog() {
               Experience the newest E-Code features. Start building today.
             </p>
             <Link href="/register">
-              <Button size="lg" className="gap-2 min-h-[48px] bg-white text-purple-600 hover:bg-purple-50" data-testid="button-changelog-get-started">
+              <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-purple-600 hover:bg-purple-50" data-testid="button-changelog-get-started">
                 Get Started Free
                 <ArrowRight className="h-5 w-5" />
               </Button>

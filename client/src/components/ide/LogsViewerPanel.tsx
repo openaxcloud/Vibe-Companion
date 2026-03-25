@@ -16,7 +16,7 @@ const LEVEL_STYLES: Record<string, { color: string; icon: typeof Info; bg: strin
   info: { color: "text-blue-400", icon: Info, bg: "bg-blue-500/10" },
   warn: { color: "text-yellow-400", icon: AlertTriangle, bg: "bg-yellow-500/10" },
   error: { color: "text-red-400", icon: Bug, bg: "bg-red-500/10" },
-  debug: { color: "text-gray-400", icon: Bug, bg: "bg-gray-500/10" },
+  debug: { color: "text-gray-400", icon: Bug, bg: "bg-gray-50 dark:bg-gray-8000/10" },
 };
 
 function parseLogLine(raw: string): LogEntry {

@@ -121,7 +121,7 @@ export default function VsGitHubCodespaces() {
             <CardTitle className="text-[15px] sm:text-xl">Why Developers Choose E-Code Platform</CardTitle>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
-            <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div data-testid="advantage-allinone">
                 <h3 className="font-semibold text-[13px] sm:text-base mb-1 sm:mb-2">All-in-One Platform</h3>
                 <p className="text-[11px] sm:text-[13px] text-muted-foreground">

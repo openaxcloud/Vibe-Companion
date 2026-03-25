@@ -342,7 +342,7 @@ export default function SpotlightOverlay({ projectId, open, onClose, onProjectUp
                       <div className="w-7 h-7 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
-                        <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/10 backdrop-blur-sm flex items-center justify-center">
                           <Upload className="w-5 h-5 text-white" />
                         </div>
                         <span className="text-[11px] text-white font-medium">

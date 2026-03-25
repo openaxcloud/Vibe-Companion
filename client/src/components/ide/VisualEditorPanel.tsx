@@ -429,7 +429,7 @@ export function VisualEditorPanel({ projectId, onCodeChange, className }: Visual
             </div>
           ) : canShowPreview ? (
             <div 
-              className="bg-white rounded-lg shadow-lg overflow-hidden transition-all"
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden transition-all"
               style={{
                 width: viewportPreset.width * (zoom / 100),
                 height: viewportPreset.height * (zoom / 100),

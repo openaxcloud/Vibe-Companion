@@ -75,7 +75,7 @@ export default function Teams() {
         {showCreate && (
           <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-6 mb-6" data-testid="form-create-team">
             <h3 className="text-lg font-semibold mb-4">Create a team</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="space-y-2">
                 <Label className="text-xs text-[var(--ide-text-secondary)]">Team name</Label>
                 <Input value={name} onChange={(e) => { setName(e.target.value); setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')); }}
@@ -97,7 +97,7 @@ export default function Teams() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="space-y-2">
             <h3 className="text-xs font-medium text-[var(--ide-text-muted)] uppercase tracking-wider mb-3">Your Teams</h3>
             {teamsQuery.isLoading ? (
@@ -109,7 +109,7 @@ export default function Teams() {
               </div>
             ) : (teamsQuery.data || []).map((team: any) => (
               <button key={team.id} onClick={() => setSelectedTeam(team.id)}
-                className={`w-full text-left p-3 rounded-xl border transition-all ${selectedTeam === team.id ? 'bg-[#0079F2]/10 border-[#0079F2]/40' : 'bg-[var(--ide-panel)] border-[var(--ide-border)] hover:border-[var(--ide-border)]/80'}`}
+                className={`w-full text-left p-3 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 transition-all ${selectedTeam === team.id ? 'bg-[#0079F2]/10 border-[#0079F2]/40' : 'bg-[var(--ide-panel)] border-[var(--ide-border)] hover:border-[var(--ide-border)]/80'}`}
                 data-testid={`team-card-${team.id}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#0079F2] to-[#7C65CB] flex items-center justify-center text-sm font-bold text-white">

@@ -207,7 +207,7 @@ export function PreviewSplashScreen({
       exit={{ opacity: 0 }}
       className={cn(
         "absolute inset-0 flex flex-col items-center justify-center",
-        "bg-white dark:bg-zinc-900"
+        "bg-white dark:bg-gray-900 dark:bg-zinc-900"
       )}
       data-testid="preview-splash-screen"
     >

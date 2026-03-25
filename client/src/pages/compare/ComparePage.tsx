@@ -308,7 +308,7 @@ export default function ComparePage() {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
         </div>
         
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 relative z-10 max-w-7xl">
           <div className="flex flex-col items-center gap-6 sm:gap-8 lg:gap-10 text-center">
             <Badge className="bg-gradient-to-r from-sky-500/20 to-indigo-500/20 text-white border-white/20 px-4 py-1.5 text-[13px] font-medium" data-testid="badge-comparison">
               Platform Comparison
@@ -323,7 +323,7 @@ export default function ComparePage() {
             </p>
 
             <div className="flex flex-col sm:flex-row w-full max-w-4xl items-center justify-center gap-4 sm:gap-6 mt-4">
-              <div className="flex w-full sm:w-auto items-center gap-4 rounded-2xl sm:rounded-3xl border border-white/15 bg-white/5 p-4 sm:p-5 backdrop-blur-xl transition-all hover:bg-white/10 hover:border-white/25" data-testid="card-ecode">
+              <div className="flex w-full sm:w-auto items-center gap-4 rounded-2xl sm:rounded-3xl border border-white/15 bg-white dark:bg-gray-900/5 p-4 sm:p-5 backdrop-blur-xl transition-all hover:bg-white dark:bg-gray-900/10 hover:border-white/25" data-testid="card-ecode">
                 <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500">
                   <img src={eCodeLogo} alt="E-Code logo" className="h-8 w-8 sm:h-10 sm:w-10" />
                 </div>
@@ -333,15 +333,15 @@ export default function ComparePage() {
                 </div>
               </div>
 
-              <div className="hidden sm:flex items-center justify-center rounded-full border-2 border-white/30 bg-white/5 px-5 py-2.5 text-[13px] font-bold uppercase tracking-[0.3em] text-white/80 backdrop-blur">
+              <div className="hidden sm:flex items-center justify-center rounded-full border-2 border-white/30 bg-white dark:bg-gray-900/5 px-5 py-2.5 text-[13px] font-bold uppercase tracking-[0.3em] text-white/80 backdrop-blur">
                 VS
               </div>
               <div className="flex sm:hidden items-center justify-center py-2 text-[13px] font-bold uppercase tracking-[0.3em] text-white/60">
                 VS
               </div>
 
-              <div className="flex w-full sm:w-auto items-center gap-4 rounded-2xl sm:rounded-3xl border border-white/15 bg-white/5 p-4 sm:p-5 backdrop-blur-xl transition-all hover:bg-white/10 hover:border-white/25" data-testid="card-competitor">
-                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl sm:rounded-2xl bg-white">
+              <div className="flex w-full sm:w-auto items-center gap-4 rounded-2xl sm:rounded-3xl border border-white/15 bg-white dark:bg-gray-900/5 p-4 sm:p-5 backdrop-blur-xl transition-all hover:bg-white dark:bg-gray-900/10 hover:border-white/25" data-testid="card-competitor">
+                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl sm:rounded-2xl bg-white dark:bg-gray-900">
                   <img src={content.platform.logo} alt={`${content.platform.name} logo`} className="h-8 w-8 sm:h-10 sm:w-10" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 </div>
                 <div className="text-left">
@@ -351,9 +351,9 @@ export default function ComparePage() {
               </div>
             </div>
 
-            <div className="grid w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3 mt-6 sm:mt-8">
+            <div className="grid w-full gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-6 sm:mt-8">
               {content.highlights.map((highlight, index) => (
-                <div key={highlight} className="group rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 backdrop-blur transition-all hover:bg-white/10 hover:border-white/20 hover:scale-[1.02]" data-testid={`card-highlight-${index}`}>
+                <div key={highlight} className="group rounded-xl sm:rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 border-white/10 bg-white dark:bg-gray-900/5 p-4 sm:p-5 backdrop-blur transition-all hover:bg-white dark:bg-gray-900/10 hover:border-white/20 hover:scale-[1.02]" data-testid={`card-highlight-${index}`}>
                   <CheckCircle2 className="mb-2 sm:mb-3 h-5 w-5 text-emerald-400 group-hover:scale-110 transition-transform" />
                   <p className="text-[13px] sm:text-base text-slate-200 leading-relaxed">{highlight}</p>
                 </div>
@@ -363,7 +363,7 @@ export default function ComparePage() {
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 w-full sm:w-auto">
               <Button 
                 size="lg" 
-                className="w-full sm:w-auto bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 text-white font-semibold px-8 py-6 text-base sm:text-[15px] rounded-xl hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-blue-500/25"
+                className="w-full sm:w-auto bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 text-white font-semibold px-4 md:px-6 lg:px-8 py-6 text-base sm:text-[15px] rounded-xl hover:opacity-90 transition-all hover:scale-105 shadow-lg shadow-blue-500/25"
                 onClick={() => window.location.href = '/register'}
                 data-testid="button-start-free"
               >
@@ -373,7 +373,7 @@ export default function ComparePage() {
               <Button 
                 size="lg" 
                 variant="outline" 
-                className="w-full sm:w-auto bg-transparent border-white/20 text-white font-semibold px-8 py-6 text-base sm:text-[15px] rounded-xl hover:bg-white/10 hover:border-white/40 transition-all"
+                className="w-full sm:w-auto bg-transparent border-white/20 text-white font-semibold px-4 md:px-6 lg:px-8 py-6 text-base sm:text-[15px] rounded-xl hover:bg-white dark:bg-gray-900/10 hover:border-white/40 transition-all"
                 onClick={() => setShowVideo(true)}
                 data-testid="button-watch-demo"
               >
@@ -386,15 +386,15 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 bg-slate-800" data-testid="section-stats">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             {[
               { label: 'Time Saved', value: content.stats.timeSaved, icon: Clock3, color: 'text-emerald-400' },
               { label: 'Cost Reduction', value: content.stats.costReduction, icon: TrendingUp, color: 'text-sky-400' },
               { label: 'Productivity Gain', value: content.stats.productivity, icon: Zap, color: 'text-purple-400' },
               { label: 'Team Satisfaction', value: content.stats.satisfaction, icon: Star, color: 'text-amber-400' },
             ].map((stat, index) => (
-              <div key={stat.label} className="group rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-6 text-center backdrop-blur transition-all hover:bg-white/10 hover:border-white/20" data-testid={`stat-${index}`}>
+              <div key={stat.label} className="group rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 border-white/10 bg-white dark:bg-gray-900/5 p-4 sm:p-6 text-center backdrop-blur transition-all hover:bg-white dark:bg-gray-900/10 hover:border-white/20" data-testid={`stat-${index}`}>
                 <stat.icon className={`mx-auto mb-2 sm:mb-3 h-6 w-6 sm:h-8 sm:w-8 ${stat.color} group-hover:scale-110 transition-transform`} />
                 <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{stat.value}</p>
                 <p className="text-[11px] sm:text-[13px] text-slate-400 mt-1">{stat.label}</p>
@@ -405,9 +405,9 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-20 bg-slate-900" data-testid="section-enterprise-logos">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
           <p className="text-center text-[13px] sm:text-base text-slate-400 mb-6 sm:mb-8">Trusted by engineering teams at</p>
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-4 sm:gap-6 lg:gap-8 items-center justify-items-center opacity-60">
+          <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 md:grid-cols-8 gap-4 sm:gap-6 lg:gap-8 items-center justify-items-center opacity-60">
             {enterpriseLogos.map((logo, index) => (
               <div key={logo.name} className="flex items-center justify-center min-w-[40px] min-h-[40px]" data-testid={`logo-enterprise-${index}`} aria-label={`${logo.name} logo`}>
                 <div className="flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 rounded-lg bg-slate-700/50 border border-slate-600/30 text-slate-400 hover:text-white hover:border-slate-500 transition-all font-semibold text-[11px] sm:text-[13px] md:text-base">
@@ -420,15 +420,15 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-20 bg-slate-800" data-testid="section-comparison-table">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
           <div className="text-center mb-8 sm:mb-12">
-            <Badge className="bg-white/10 text-white border-white/20 mb-4">Feature Comparison</Badge>
+            <Badge className="bg-white dark:bg-gray-900/10 text-white border-white/20 mb-4">Feature Comparison</Badge>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">Detailed Analysis</h2>
             <p className="text-slate-300 max-w-2xl mx-auto text-[13px] sm:text-base">See how E-Code compares across critical enterprise criteria</p>
           </div>
 
-          <div className="hidden lg:block overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
-            <div className="grid grid-cols-[2fr_1fr_1fr] gap-4 p-6 border-b border-white/10 bg-white/5">
+          <div className="hidden lg:block overflow-hidden rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 border-white/10 bg-white dark:bg-gray-900/5 backdrop-blur">
+            <div className="grid grid-cols-[2fr_1fr_1fr] gap-4 p-6 border-b border-white/10 bg-white dark:bg-gray-900/5">
               <div className="text-[13px] font-semibold uppercase tracking-wider text-slate-400">Feature</div>
               <div className="text-center">
                 <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-sky-500/20 to-indigo-500/20 border border-sky-500/30">
@@ -437,7 +437,7 @@ export default function ComparePage() {
                 </span>
               </div>
               <div className="text-center">
-                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20">
+                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-gray-900/10 border border-white/20">
                   <span className="text-[13px] font-semibold text-slate-300">{content.platform.name}</span>
                 </span>
               </div>
@@ -450,7 +450,7 @@ export default function ComparePage() {
                 </div>
                 <div className="text-center">
                   <div className="inline-flex items-center gap-2 mb-2">
-                    <div className="w-full max-w-[120px] h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="w-full max-w-[120px] h-2 rounded-full bg-white dark:bg-gray-900/10 overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full" style={{ width: `${point.eCodeScore}%` }} />
                     </div>
                     <span className="text-[13px] font-bold text-emerald-400">{point.eCodeScore}%</span>
@@ -459,7 +459,7 @@ export default function ComparePage() {
                 </div>
                 <div className="text-center">
                   <div className="inline-flex items-center gap-2 mb-2">
-                    <div className="w-full max-w-[120px] h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="w-full max-w-[120px] h-2 rounded-full bg-white dark:bg-gray-900/10 overflow-hidden">
                       <div className="h-full bg-slate-500 rounded-full" style={{ width: `${point.competitorScore}%` }} />
                     </div>
                     <span className="text-[13px] font-bold text-slate-400">{point.competitorScore}%</span>
@@ -472,7 +472,7 @@ export default function ComparePage() {
 
           <div className="lg:hidden space-y-4">
             {content.comparisonPoints.map((point, index) => (
-              <Card key={point.label} className="bg-white/5 border-white/10" data-testid={`comparison-card-mobile-${index}`}>
+              <Card key={point.label} className="bg-white dark:bg-gray-900/5 border-white/10" data-testid={`comparison-card-mobile-${index}`}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-[15px] text-white">{point.label}</CardTitle>
                 </CardHeader>
@@ -482,17 +482,17 @@ export default function ComparePage() {
                       <span className="text-[13px] font-semibold text-emerald-400">E-Code</span>
                       <span className="text-[13px] font-bold text-emerald-400">{point.eCodeScore}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-2">
+                    <div className="w-full h-2 rounded-full bg-white dark:bg-gray-900/10 overflow-hidden mb-2">
                       <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full" style={{ width: `${point.eCodeScore}%` }} />
                     </div>
                     <p className="text-[13px] text-slate-200">{point.eCode}</p>
                   </div>
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <div className="p-4 rounded-xl bg-white dark:bg-gray-900/5 border border-white/10">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[13px] font-semibold text-slate-300">{content.platform.name}</span>
                       <span className="text-[13px] font-bold text-slate-400">{point.competitorScore}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-2">
+                    <div className="w-full h-2 rounded-full bg-white dark:bg-gray-900/10 overflow-hidden mb-2">
                       <div className="h-full bg-slate-500 rounded-full" style={{ width: `${point.competitorScore}%` }} />
                     </div>
                     <p className="text-[13px] text-slate-400">{point.competitor}</p>
@@ -505,18 +505,18 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-20 bg-slate-900" data-testid="section-differentiators">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
           <div className="text-center mb-8 sm:mb-12">
-            <Badge className="bg-white/10 text-white border-white/20 mb-4">Why E-Code</Badge>
+            <Badge className="bg-white dark:bg-gray-900/10 text-white border-white/20 mb-4">Why E-Code</Badge>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">Built for Enterprise Scale</h2>
             <p className="text-slate-300 max-w-2xl mx-auto text-[13px] sm:text-base">Every feature designed for Fortune 500 requirements</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {content.differentiators.map((item, index) => {
               const IconComponent = getIcon(item.icon);
               return (
-                <Card key={item.title} className="group bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 transition-all hover:scale-[1.02]" data-testid={`differentiator-${index}`}>
+                <Card key={item.title} className="group bg-white dark:bg-gray-900/5 border-white/10 hover:bg-white dark:bg-gray-900/10 hover:border-white/20 transition-all hover:scale-[1.02]" data-testid={`differentiator-${index}`}>
                   <CardHeader>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="p-2 rounded-xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 group-hover:from-sky-500/30 group-hover:to-indigo-500/30 transition-colors">
@@ -534,16 +534,16 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-20 bg-gradient-to-b from-slate-800 to-slate-900" data-testid="section-testimonials">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
           <div className="text-center mb-8 sm:mb-12">
-            <Badge className="bg-white/10 text-white border-white/20 mb-4">Customer Stories</Badge>
+            <Badge className="bg-white dark:bg-gray-900/10 text-white border-white/20 mb-4">Customer Stories</Badge>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">Loved by Engineering Teams</h2>
             <p className="text-slate-300 max-w-2xl mx-auto text-[13px] sm:text-base">See what industry leaders say about switching to E-Code</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {content.testimonials.map((testimonial, index) => (
-              <Card key={testimonial.author} className="bg-white/5 border-white/10 hover:bg-white/10 transition-all" data-testid={`testimonial-${index}`}>
+              <Card key={testimonial.author} className="bg-white dark:bg-gray-900/5 border-white/10 hover:bg-white dark:bg-gray-900/10 transition-all" data-testid={`testimonial-${index}`}>
                 <CardContent className="pt-6">
                   <Quote className="h-8 w-8 text-sky-400/50 mb-4" />
                   <p className="text-slate-200 leading-relaxed mb-6 text-[13px] sm:text-base">"{testimonial.quote}"</p>
@@ -564,18 +564,18 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-20 bg-slate-900" data-testid="section-faq">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-4xl">
           <div className="text-center mb-8 sm:mb-12">
-            <Badge className="bg-white/10 text-white border-white/20 mb-4">FAQ</Badge>
+            <Badge className="bg-white dark:bg-gray-900/10 text-white border-white/20 mb-4">FAQ</Badge>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">Common Questions</h2>
             <p className="text-slate-300 text-[13px] sm:text-base">Everything you need to know about switching from {content.platform.name}</p>
           </div>
 
           <div className="space-y-3 sm:space-y-4">
             {content.faq.map((item, index) => (
-              <div key={index} className="rounded-xl border border-white/10 bg-white/5 overflow-hidden" data-testid={`faq-${index}`}>
+              <div key={index} className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-white/10 bg-white dark:bg-gray-900/5 overflow-hidden" data-testid={`faq-${index}`}>
                 <button
-                  className="w-full flex items-center justify-between p-4 sm:p-5 text-left hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center justify-between p-4 sm:p-5 text-left hover:bg-white dark:bg-gray-900/5 transition-colors"
                   onClick={() => setOpenFaq(openFaq === index ? null : index)}
                   data-testid={`button-faq-${index}`}
                 >
@@ -598,21 +598,21 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-20 bg-slate-800" data-testid="section-responsive">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
           <div className="text-center mb-8 sm:mb-12">
-            <Badge className="bg-white/10 text-white border-white/20 mb-4">Works Everywhere</Badge>
+            <Badge className="bg-white dark:bg-gray-900/10 text-white border-white/20 mb-4">Works Everywhere</Badge>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">Code on Any Device</h2>
             <p className="text-slate-300 max-w-2xl mx-auto text-[13px] sm:text-base">Seamless experience across desktop, tablet, and mobile</p>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {[
               { icon: Monitor, label: 'Desktop', desc: 'Full IDE experience' },
               { icon: Laptop, label: 'Laptop', desc: 'Optimized layouts' },
               { icon: Tablet, label: 'Tablet', desc: 'Touch-friendly UI' },
               { icon: Smartphone, label: 'Mobile', desc: 'Code on the go' },
             ].map((device, index) => (
-              <div key={device.label} className="group rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-6 text-center backdrop-blur transition-all hover:bg-white/10 hover:border-white/20" data-testid={`device-${index}`}>
+              <div key={device.label} className="group rounded-2xl border shadow-sm hover:shadow-xl transition-all duration-300 border-white/10 bg-white dark:bg-gray-900/5 p-4 sm:p-6 text-center backdrop-blur transition-all hover:bg-white dark:bg-gray-900/10 hover:border-white/20" data-testid={`device-${index}`}>
                 <device.icon className="mx-auto mb-3 h-8 w-8 sm:h-10 sm:w-10 text-sky-400 group-hover:scale-110 transition-transform" />
                 <p className="font-semibold text-white text-[13px] sm:text-base">{device.label}</p>
                 <p className="text-[11px] sm:text-[13px] text-slate-400 mt-1">{device.desc}</p>
@@ -623,11 +623,11 @@ export default function ComparePage() {
       </section>
 
       <section className="py-12 sm:py-16 lg:py-12 bg-gradient-to-b from-slate-900 to-slate-950" data-testid="section-cta">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-5xl">
           <Card className="bg-gradient-to-r from-sky-900/50 via-indigo-900/50 to-purple-900/50 border-white/10 overflow-hidden relative">
             <div className="absolute inset-0 bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-purple-500/10" />
             <CardContent className="relative z-10 p-6 sm:p-8 lg:p-12">
-              <div className="grid gap-6 lg:gap-8 lg:grid-cols-2 items-center">
+              <div className="grid gap-6 lg:gap-8 lg:grid-cols-1 md:grid-cols-2 items-center">
                 <div className="text-center lg:text-left">
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4">Ready to upgrade from {content.platform.name}?</h2>
                   <ul className="space-y-2 sm:space-y-3 text-slate-200 text-[13px] sm:text-base mb-6">
@@ -648,7 +648,7 @@ export default function ComparePage() {
                 <div className="flex flex-col gap-3 sm:gap-4">
                   <Button 
                     size="lg" 
-                    className="w-full bg-white text-slate-900 font-semibold px-8 py-6 text-base sm:text-[15px] rounded-xl hover:bg-slate-100 transition-all shadow-lg"
+                    className="w-full bg-white dark:bg-gray-900 text-slate-900 font-semibold px-4 md:px-6 lg:px-8 py-6 text-base sm:text-[15px] rounded-xl hover:bg-slate-100 transition-all shadow-lg"
                     onClick={() => window.location.href = '/register'}
                     data-testid="button-cta-start"
                   >
@@ -658,7 +658,7 @@ export default function ComparePage() {
                   <Button 
                     size="lg" 
                     variant="outline" 
-                    className="w-full bg-transparent border-white/30 text-white font-semibold px-8 py-6 text-base sm:text-[15px] rounded-xl hover:bg-white/10 hover:border-white/50 transition-all"
+                    className="w-full bg-transparent border-white/30 text-white font-semibold px-4 md:px-6 lg:px-8 py-6 text-base sm:text-[15px] rounded-xl hover:bg-white dark:bg-gray-900/10 hover:border-white/50 transition-all"
                     onClick={() => window.location.href = '/contact-sales'}
                     data-testid="button-cta-demo"
                   >
@@ -678,7 +678,7 @@ export default function ComparePage() {
       </section>
 
       <section className="py-8 sm:py-12 bg-slate-950" data-testid="section-compare-nav">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-4 md:px-6 lg:px-8 max-w-7xl">
           <p className="text-center text-[13px] text-slate-400 mb-4 sm:mb-6">Compare E-Code with other platforms</p>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
             {Object.keys(comparisonContent).map((key) => (
@@ -686,7 +686,7 @@ export default function ComparePage() {
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  className={`rounded-full text-[11px] sm:text-[13px] ${slug === key ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                  className={`rounded-full text-[11px] sm:text-[13px] ${slug === key ? 'bg-white dark:bg-gray-900/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white dark:bg-gray-900/5'}`}
                   data-testid={`button-nav-${key}`}
                 >
                   {comparisonContent[key].platform.name}
@@ -731,7 +731,7 @@ export default function ComparePage() {
           <Button 
             size="sm"
             variant="outline"
-            className="flex-1 bg-transparent border-white/20 text-white font-semibold rounded-lg text-[13px] min-h-[44px] hover:bg-white/10"
+            className="flex-1 bg-transparent border-white/20 text-white font-semibold rounded-lg text-[13px] min-h-[44px] hover:bg-white dark:bg-gray-900/10"
             onClick={() => window.location.href = '/contact-sales'}
             data-testid="button-sticky-demo"
           >

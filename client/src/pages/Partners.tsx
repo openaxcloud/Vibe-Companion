@@ -151,7 +151,7 @@ export default function Partners() {
       <main className="flex-1 bg-background">
         {/* Hero Section */}
         <section className="py-24 sm:py-28 bg-gradient-to-b from-background via-muted/40 to-background">
-          <div className="container mx-auto px-6 lg:px-8">
+          <div className="container mx-auto px-6 lg:px-4 md:px-6 lg:px-8">
             <div className="text-center max-w-3xl lg:max-w-4xl mx-auto space-y-8">
               <Badge variant="secondary" className="mx-auto w-fit">
                 <Users className="h-3 w-3 mr-1" />
@@ -178,7 +178,7 @@ export default function Partners() {
 
         {/* Partner Logos Section */}
         <section className="py-20 bg-muted/20 dark:bg-muted/30">
-          <div className="container mx-auto px-6 lg:px-8">
+          <div className="container mx-auto px-6 lg:px-4 md:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
               <h2 className="text-3xl md:text-4xl font-bold">Trusted by industry leaders</h2>
               <p className="text-muted-foreground text-base md:text-[15px]">
@@ -186,10 +186,10 @@ export default function Partners() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 lg:grid-cols-6 gap-8 max-w-6xl mx-auto">
               {partnerLogos.map((partner, index) => (
                 <div key={index} className="flex flex-col items-center group">
-                  <div className="w-20 h-20 bg-white dark:bg-card border border-border/40 rounded-xl shadow-sm flex items-center justify-center mb-3 group-hover:shadow-md group-hover:border-border transition-all">
+                  <div className="w-20 h-20 bg-white dark:bg-gray-900 dark:bg-card border border-border/40 rounded-xl shadow-sm flex items-center justify-center mb-3 group-hover:shadow-md group-hover:border-border transition-all">
                     <img
                       src={partner.logo.src}
                       alt={partner.logo.alt}
@@ -209,7 +209,7 @@ export default function Partners() {
 
         {/* Partnership Types Section */}
         <section className="py-20">
-          <div className="container mx-auto px-6 lg:px-8">
+          <div className="container mx-auto px-6 lg:px-4 md:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
               <h2 className="text-3xl md:text-4xl font-bold">Partnership opportunities</h2>
               <p className="text-muted-foreground text-base md:text-[15px]">
@@ -217,11 +217,11 @@ export default function Partners() {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {partnershipTypes.map((type, index) => (
                 <Card
                   key={index}
-                  className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-white/90 dark:bg-card/90 backdrop-blur"
+                  className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-white dark:bg-gray-900/90 dark:bg-card/90 backdrop-blur"
                 >
                   <CardHeader>
                     <div className="p-3 bg-primary/10 rounded-lg w-fit mb-4">
@@ -248,7 +248,7 @@ export default function Partners() {
 
         {/* Partner Benefits Section */}
         <section className="py-20 bg-muted/30">
-          <div className="container mx-auto px-6 lg:px-8">
+          <div className="container mx-auto px-6 lg:px-4 md:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
               <h2 className="text-3xl md:text-4xl font-bold">Why partner with E-Code?</h2>
               <p className="text-muted-foreground text-base md:text-[15px]">
@@ -256,9 +256,9 @@ export default function Partners() {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
               {partnerBenefits.map((benefit, index) => (
-                <Card key={index} className="border border-border/50 shadow-sm text-center bg-white/90 dark:bg-card/90 backdrop-blur">
+                <Card key={index} className="border border-border/50 shadow-sm text-center bg-white dark:bg-gray-900/90 dark:bg-card/90 backdrop-blur">
                   <CardContent className="pt-6 space-y-3">
                     <div className="p-3 bg-primary/10 rounded-lg w-fit mx-auto mb-4">
                       {benefit.icon}
@@ -274,7 +274,7 @@ export default function Partners() {
 
         {/* Success Stories Section */}
         <section className="py-20">
-          <div className="container mx-auto px-6 lg:px-8">
+          <div className="container mx-auto px-6 lg:px-4 md:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
               <h2 className="text-3xl md:text-4xl font-bold">Partner success stories</h2>
               <p className="text-muted-foreground text-base md:text-[15px]">
@@ -282,12 +282,12 @@ export default function Partners() {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {successStories.map((story, index) => (
-                <Card key={index} className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-white dark:bg-card/95">
+                <Card key={index} className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-white dark:bg-gray-900 dark:bg-card/95">
                   <CardHeader>
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-14 h-14 bg-white dark:bg-background/80 border border-border/40 rounded-xl shadow-sm flex items-center justify-center">
+                      <div className="w-14 h-14 bg-white dark:bg-gray-900 dark:bg-background/80 border border-border/40 rounded-xl shadow-sm flex items-center justify-center">
                         <img
                           src={story.logo.src}
                           alt={story.logo.alt}
@@ -318,7 +318,7 @@ export default function Partners() {
 
         {/* CTA Section */}
         <section className="py-20 bg-primary text-primary-foreground">
-          <div className="container mx-auto px-6 lg:px-8">
+          <div className="container mx-auto px-6 lg:px-4 md:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to partner with us?</h2>
               <p className="text-[15px] md:text-xl opacity-90 mb-8">

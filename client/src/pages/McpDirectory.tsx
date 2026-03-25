@@ -111,7 +111,7 @@ export default function McpDirectory() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="mcp-server-grid">
+        <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="mcp-server-grid">
           {filtered.map(server => {
             const Icon = iconMap[server.icon] || Zap;
             const color = categoryColors[server.category] || "#0079F2";
@@ -120,7 +120,7 @@ export default function McpDirectory() {
             return (
               <div
                 key={server.id}
-                className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-5 hover:border-[#0079F2]/50 transition-all group"
+                className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-surface)]/50 p-5 hover:border-[#0079F2]/50 transition-all group"
                 data-testid={`card-mcp-server-${server.id}`}
               >
                 <div className="flex items-start gap-3 mb-3">
@@ -187,7 +187,7 @@ export default function McpDirectory() {
           </div>
         )}
 
-        <div className="mt-12 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-surface)]/30 p-6 text-center">
+        <div className="mt-12 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-surface)]/30 p-6 text-center">
           <h2 className="text-lg font-semibold mb-2">Have your own MCP server?</h2>
           <p className="text-sm text-[var(--ide-text-secondary)] mb-4">
             Create an install link so users can add your server to their E-Code projects with one click.

@@ -276,7 +276,7 @@ export default function Subprocessors() {
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold mb-6 text-center">Data Center Locations</h2>
             
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-2">
@@ -355,7 +355,7 @@ export default function Subprocessors() {
                   Here's how we keep you informed:
                 </p>
                 
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="font-semibold mb-2">Notification Process</h4>
                     <ul className="space-y-2 text-[13px]">
@@ -406,7 +406,7 @@ export default function Subprocessors() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <FileText className="h-8 w-8 text-primary mb-2" />

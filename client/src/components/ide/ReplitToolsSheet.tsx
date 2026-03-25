@@ -126,7 +126,7 @@ export const ReplitToolsSheet = memo(function ReplitToolsSheet({
       <div
         className={cn(
           'fixed bottom-0 left-0 right-0 z-50',
-          'bg-white dark:bg-[#1C1C1C]',
+          'bg-white dark:bg-gray-900 dark:bg-[#1C1C1C]',
           'rounded-t-2xl shadow-2xl',
           'flex flex-col',
           'max-h-[85vh]',
@@ -139,7 +139,7 @@ export const ReplitToolsSheet = memo(function ReplitToolsSheet({
           <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
         </div>
 
-        <div className="flex-shrink-0 flex items-center gap-3 px-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex-shrink-0 flex items-center gap-3 px-4 pb-3 border-b border-gray-200 dark:border-gray-700 dark:border-gray-800">
           <div className="flex-1 relative">
             <Input
               type="text"
@@ -149,7 +149,7 @@ export const ReplitToolsSheet = memo(function ReplitToolsSheet({
               className={cn(
                 'w-full h-10 px-4',
                 'bg-gray-100 dark:bg-[#2A2A2A] border-0',
-                'text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400',
+                'text-gray-900 dark:text-white dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400',
                 'rounded-lg text-[15px]',
                 'focus-visible:ring-1 focus-visible:ring-gray-300 dark:focus-visible:ring-gray-600'
               )}
@@ -159,7 +159,7 @@ export const ReplitToolsSheet = memo(function ReplitToolsSheet({
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-900 dark:text-white font-medium text-[15px] active:opacity-50 transition-opacity px-2 touch-manipulation"
+            className="text-gray-900 dark:text-white dark:text-white font-medium text-[15px] active:opacity-50 transition-opacity px-2 touch-manipulation"
             data-testid="tools-sheet-close"
           >
             Close
@@ -247,7 +247,7 @@ const ToolItemRow = memo(function ToolItemRow({ item, onSelect, showArrow }: Too
         <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 dark:text-white text-[15px] leading-tight">
+        <div className="font-medium text-gray-900 dark:text-white dark:text-white text-[15px] leading-tight">
           {item.title}
         </div>
         <div className="text-[13px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5 line-clamp-2">

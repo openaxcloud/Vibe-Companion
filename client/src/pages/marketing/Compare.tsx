@@ -69,7 +69,7 @@ export default function Compare() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
-            <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               {advantages.map((advantage, index) => (
                 <div key={index} className="flex items-start gap-2 sm:gap-3" data-testid={`advantage-${index}`}>
                   <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary mt-0.5 flex-shrink-0" />
@@ -85,7 +85,7 @@ export default function Compare() {
           <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-center">
             Detailed Comparisons
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {competitors.map((competitor, index) => {
               const Icon = competitor.icon;
               return (

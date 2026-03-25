@@ -282,7 +282,7 @@ function SlideContent({ slide }: { slide: SplashSlide }) {
               {slide.stats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="flex flex-col items-center px-4 py-3 rounded-xl bg-gray-50 dark:bg-zinc-800"
+                  className="flex flex-col items-center px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 dark:bg-zinc-800"
                 >
                   <span className="text-lg font-bold" style={{ color: slide.color }}>{stat.value}</span>
                   <span className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</span>
@@ -345,7 +345,7 @@ export function SplashScreenSequence({
     <div
       className={cn(
         "absolute inset-0 flex flex-col items-center justify-center",
-        "bg-white dark:bg-zinc-900 transition-opacity duration-300",
+        "bg-white dark:bg-gray-900 dark:bg-zinc-900 transition-opacity duration-300",
         isExiting ? "opacity-0" : "opacity-100"
       )}
       data-testid="splash-screen-sequence"

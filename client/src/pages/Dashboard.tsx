@@ -744,7 +744,7 @@ export default function Dashboard() {
           <p className="relative text-[12px] text-[var(--ide-text-secondary)] max-w-xs mx-auto leading-relaxed">Describe your idea and AI will build it</p>
         </div>
         <form onSubmit={handleGenerateSubmit} className="mb-6">
-          <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-sm transition-all">
+          <div className="relative rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-sm transition-all">
             <textarea
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
@@ -778,7 +778,7 @@ export default function Dashboard() {
           </div>
         </form>
         {generateProject.isPending && (
-          <div className="mb-6 rounded-xl border border-[#7C65CB]/20 bg-[#7C65CB]/5 p-4">
+          <div className="mb-6 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[#7C65CB]/20 bg-[#7C65CB]/5 p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7C65CB] to-[#0079F2] flex items-center justify-center shrink-0 shadow-md">
                 <Sparkles className="w-4 h-4 text-white animate-pulse" />
@@ -816,7 +816,7 @@ export default function Dashboard() {
               <button
                 key={`${selectedCategory}-${promptSeed}-${idx}`}
                 onClick={() => setAiPrompt(prompt)}
-                className="text-[11px] px-3 py-1.5 rounded-lg border border-[var(--ide-border)] bg-[var(--ide-panel)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:border-[#0079F2]/30 hover:bg-[#0079F2]/5 transition-all text-left leading-relaxed"
+                className="text-[11px] px-3 py-1.5 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:border-[#0079F2]/30 hover:bg-[#0079F2]/5 transition-all text-left leading-relaxed"
                 data-testid={`prompt-pill-${idx}-mobile`}
               >
                 {prompt}
@@ -828,7 +828,7 @@ export default function Dashboard() {
           <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2.5">Templates</h3>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4" ref={templatesRef}>
             {TEMPLATES.map((tmpl) => (
-              <button key={tmpl.name} className={`flex items-center gap-2.5 p-3 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] transition-all active:scale-[0.97] min-w-[160px] shrink-0`} onClick={() => createFromTemplate.mutate({ templateId: tmpl.id })} disabled={createFromTemplate.isPending} data-testid={`template-${tmpl.id}-mobile`}>
+              <button key={tmpl.name} className={`flex items-center gap-2.5 p-3 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] transition-all active:scale-[0.97] min-w-[160px] shrink-0`} onClick={() => createFromTemplate.mutate({ templateId: tmpl.id })} disabled={createFromTemplate.isPending} data-testid={`template-${tmpl.id}-mobile`}>
                 <div className="w-9 h-9 rounded-lg bg-[var(--ide-surface)] flex items-center justify-center border border-[var(--ide-hover)] shrink-0">
                   <tmpl.icon className={`w-4 h-4 ${tmpl.iconColor}`} />
                 </div>
@@ -920,7 +920,7 @@ export default function Dashboard() {
             ))}
           </div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
+          <div className="text-center py-16 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)]">
             <Code2 className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
             <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium">{searchQuery ? "No matching projects" : "No projects yet"}</p>
             <p className="text-[12px] text-[var(--ide-text-secondary)]">{searchQuery ? "Try a different search" : "Tap + to create your first project"}</p>
@@ -989,7 +989,7 @@ export default function Dashboard() {
       {(pendingInvitesQuery.data?.length || 0) > 0 && (
         <div className="space-y-3 mb-4">
           {pendingInvitesQuery.data!.map((invite) => (
-            <div key={invite.id} className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-4" data-testid={`mobile-notification-invite-${invite.id}`}>
+            <div key={invite.id} className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-4" data-testid={`mobile-notification-invite-${invite.id}`}>
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-full bg-[#0079F2]/15 flex items-center justify-center shrink-0">
                   <Users className="w-4 h-4 text-[#0079F2]" />
@@ -1031,7 +1031,7 @@ export default function Dashboard() {
           {allNotifications.map((notif) => (
             <div
               key={notif.id}
-              className={`rounded-xl border bg-[var(--ide-panel)] p-4 transition-all ${notif.isRead ? "border-[var(--ide-border)] opacity-70" : "border-[#0079F2]/30 bg-[#0079F2]/5"}`}
+              className={`rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 bg-[var(--ide-panel)] p-4 transition-all ${notif.isRead ? "border-[var(--ide-border)] opacity-70" : "border-[#0079F2]/30 bg-[#0079F2]/5"}`}
               data-testid={`mobile-notification-${notif.id}`}
             >
               <div className="flex items-start gap-3">
@@ -1073,7 +1073,7 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (pendingInvitesQuery.data?.length || 0) === 0 ? (
-        <div className="text-center py-16 rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]">
+        <div className="text-center py-16 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)]">
           <Bell className="w-8 h-8 text-[var(--ide-text-muted)] mx-auto mb-3" />
           <p className="text-[14px] text-[var(--ide-text)] mb-1 font-medium" data-testid="text-no-notifications-mobile">No notifications</p>
           <p className="text-[12px] text-[var(--ide-text-secondary)]">You're all caught up</p>
@@ -1093,7 +1093,7 @@ export default function Dashboard() {
           <p className="text-[12px] text-[var(--ide-text-secondary)] truncate">{user?.email}</p>
         </div>
       </div>
-      <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden mb-4 shadow-sm">
+      <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden mb-4 shadow-sm">
         <div className="px-4 py-3 border-b border-[var(--ide-border)]">
           <div className="flex items-center justify-between">
             <span className="text-[12px] text-[var(--ide-text-secondary)]">Plan</span>
@@ -1151,7 +1151,7 @@ export default function Dashboard() {
           <ChevronRight className="w-4 h-4 text-[var(--ide-text-muted)] ml-auto" />
         </button>
         <div className="pt-3">
-          <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-red-500/20 bg-red-500/10 text-left active:scale-[0.98] transition-all" onClick={() => logout.mutate()} data-testid="mobile-profile-logout">
+          <button className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-red-500/20 bg-red-500/10 text-left active:scale-[0.98] transition-all" onClick={() => logout.mutate()} data-testid="mobile-profile-logout">
             <LogOut className="w-5 h-5 text-red-500" />
             <span className="text-[14px] text-red-500">Sign Out</span>
           </button>
@@ -1423,7 +1423,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <div className="flex-1 overflow-y-auto -mx-6 px-6">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pb-4">
                     {TEMPLATES
                       .filter(t => {
                         if (templateSearch && !t.name.toLowerCase().includes(templateSearch.toLowerCase()) && !t.lang.toLowerCase().includes(templateSearch.toLowerCase())) return false;
@@ -1434,7 +1434,7 @@ export default function Dashboard() {
                       .map((tmpl) => (
                       <button
                         key={tmpl.name}
-                        className={`relative flex flex-col items-start gap-2 p-3 rounded-lg border ${tmpl.borderColor} bg-[var(--ide-bg)] transition-all text-left group hover:border-[#0079F2]/40 hover:bg-[var(--ide-panel)]`}
+                        className={`relative flex flex-col items-start gap-2 p-3 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 ${tmpl.borderColor} bg-[var(--ide-bg)] transition-all text-left group hover:border-[#0079F2]/40 hover:bg-[var(--ide-panel)]`}
                         onClick={() => { createFromTemplate.mutate({ templateId: tmpl.id, visibility: newProjectPrivate ? "private" : "public" }); setDialogOpen(false); }}
                         disabled={createFromTemplate.isPending}
                         data-testid={`picker-template-${tmpl.id}`}
@@ -1614,7 +1614,7 @@ export default function Dashboard() {
               </div>
 
               <form onSubmit={handleGenerateSubmit} className="mb-10">
-                <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-lg focus-within:shadow-[#0079F2]/5 transition-all">
+                <div className="relative rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] overflow-hidden focus-within:border-[#0079F2]/40 focus-within:shadow-lg focus-within:shadow-[#0079F2]/5 transition-all">
                   <textarea
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
@@ -1673,7 +1673,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 {generateProject.isPending ? (
-                  <div className="mt-4 rounded-xl border border-[#7C65CB]/30 bg-[#7C65CB]/5 p-5 animate-fade-in" data-testid="generation-progress">
+                  <div className="mt-4 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[#7C65CB]/30 bg-[#7C65CB]/5 p-5 animate-fade-in" data-testid="generation-progress">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[#7C65CB] to-[#0079F2] flex items-center justify-center shrink-0 shadow-lg shadow-[#7C65CB]/20">
                         <Sparkles className="w-5 h-5 text-white animate-pulse" />
@@ -1704,7 +1704,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : generationError ? (
-                  <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4 animate-fade-in" data-testid="generation-error">
+                  <div className="mt-4 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-red-500/30 bg-red-500/5 p-4 animate-fade-in" data-testid="generation-error">
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0 mt-0.5">
                         <X className="w-4 h-4 text-red-400" />
@@ -1767,7 +1767,7 @@ export default function Dashboard() {
                     <button
                       key={`${selectedCategory}-${promptSeed}-${idx}`}
                       onClick={() => setAiPrompt(prompt)}
-                      className="text-[11px] px-3.5 py-2 rounded-lg border border-[var(--ide-border)] bg-[var(--ide-panel)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:border-[#0079F2]/30 hover:bg-[#0079F2]/5 transition-all text-left leading-relaxed"
+                      className="text-[11px] px-3.5 py-2 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:border-[#0079F2]/30 hover:bg-[#0079F2]/5 transition-all text-left leading-relaxed"
                       data-testid={`prompt-pill-${idx}`}
                     >
                       {prompt}
@@ -1792,7 +1792,7 @@ export default function Dashboard() {
                   {TEMPLATES.map((tmpl) => (
                     <button
                       key={tmpl.name}
-                      className={`relative flex flex-col items-start gap-2 p-3.5 rounded-xl border ${tmpl.borderColor} bg-[var(--ide-panel)] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[180px] shrink-0`}
+                      className={`relative flex flex-col items-start gap-2 p-3.5 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 ${tmpl.borderColor} bg-[var(--ide-panel)] transition-all text-left group active:scale-[0.98] overflow-hidden hover:scale-[1.02] hover:-translate-y-0.5 min-w-[180px] shrink-0`}
                       onClick={() => createFromTemplate.mutate({ templateId: tmpl.id })}
                       disabled={createFromTemplate.isPending}
                       data-testid={`template-${tmpl.id}`}
@@ -1996,9 +1996,9 @@ export default function Dashboard() {
               </div>
 
               {projectsQuery.isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="skeleton-projects-grid">
+                <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="skeleton-projects-grid">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex flex-col p-4 rounded-xl border border-[var(--ide-border)]/50 bg-[var(--ide-panel)]/40">
+                    <div key={i} className="flex flex-col p-4 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)]/50 bg-[var(--ide-panel)]/40">
                       <div className="flex items-start justify-between mb-3">
                         <Skeleton className="w-9 h-9 rounded-lg bg-[var(--ide-surface)]" />
                         <Skeleton className="w-6 h-6 rounded-md bg-[var(--ide-surface)]" />
@@ -2054,9 +2054,9 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : viewMode === "grid" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
+                <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 animate-fade-in">
                   <button
-                    className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[var(--ide-border)] bg-[var(--ide-panel)]/20 hover:bg-[var(--ide-panel)]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
+                    className="flex flex-col items-center justify-center p-4 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-dashed border-[var(--ide-border)] bg-[var(--ide-panel)]/20 hover:bg-[var(--ide-panel)]/50 hover:border-[#0079F2]/40 cursor-pointer transition-all group min-h-[120px]"
                     onClick={() => setDialogOpen(true)}
                     data-testid="card-create-new-project"
                   >
@@ -2071,7 +2071,7 @@ export default function Dashboard() {
                     return (
                       <div
                         key={project.id}
-                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border border-[var(--ide-border)]/50 border-l-2 ${isProjectMobile ? "border-l-purple-400" : langInfo.borderAccent} bg-[var(--ide-panel)]/40 hover:bg-[var(--ide-panel)]/80 hover:border-[var(--ide-border)] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
+                        className={`flex flex-col ${isMobile ? "p-5" : "p-4"} rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)]/50 border-l-2 ${isProjectMobile ? "border-l-purple-400" : langInfo.borderAccent} bg-[var(--ide-panel)]/40 hover:bg-[var(--ide-panel)]/80 hover:border-[var(--ide-border)] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer transition-all group ${isMobile ? "min-h-[80px] active:scale-[0.98]" : ""}`}
                         onClick={() => setLocation(`/project/${project.id}`)}
                         data-testid={`card-project-${project.id}`}
                       >
@@ -2293,7 +2293,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <p className="text-sm text-[var(--ide-text-secondary)] mb-4">Use the <strong className="text-[var(--ide-text)]">AI panel</strong> (Ctrl+I) to generate code, fix bugs, or ask questions. Choose from Claude, GPT, or Gemini.</p>
-                <div className="grid grid-cols-3 gap-2 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-6">
                   {[
                     { name: "Generate", desc: "Create files from a prompt" },
                     { name: "Fix", desc: "Debug errors automatically" },

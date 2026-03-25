@@ -254,7 +254,7 @@ export function AIModelSelector({
         
         <Select value={currentModel || undefined} onValueChange={handleModelChange}>
           <SelectTrigger 
-            className="w-full h-12 sm:h-14 bg-white dark:bg-gray-900 text-foreground border-2 border-white/40 hover:border-white/60 transition-all shadow-lg"
+            className="w-full h-12 sm:h-14 bg-white dark:bg-gray-900 dark:bg-gray-900 text-foreground border-2 border-white/40 hover:border-white/60 transition-all shadow-lg"
             data-testid="select-ai-model-hero"
           >
             {currentModelData ? (

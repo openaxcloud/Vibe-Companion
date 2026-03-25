@@ -139,7 +139,7 @@ export default function HelpCenter() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-16 max-w-4xl mx-auto">
+        <div className="grid sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-16 max-w-4xl mx-auto">
           <Link href="/docs">
             <Card className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group text-center">
               <BookOpen className="h-8 w-8 mx-auto mb-3 text-indigo-600 group-hover:scale-110 transition-transform" />
@@ -166,7 +166,7 @@ export default function HelpCenter() {
         {/* Categories */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold text-center mb-8">Browse by Category</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categories.map((category) => (
               <Card key={category.title} className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group">
                 <div className={`p-3 bg-${category.color}-100 dark:bg-${category.color}-900/20 rounded-xl w-fit mb-4`}>
@@ -235,13 +235,13 @@ export default function HelpCenter() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-indigo-600 hover:bg-indigo-50" data-testid="button-help-contact-support">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-indigo-600 hover:bg-indigo-50" data-testid="button-help-contact-support">
                   <Mail className="h-5 w-5" />
                   Contact Support
                 </Button>
               </Link>
               <Link href="/forum">
-                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white/10" data-testid="button-help-ask-community">
+                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white dark:bg-gray-900/10" data-testid="button-help-ask-community">
                   <Users className="h-5 w-5" />
                   Ask the Community
                 </Button>

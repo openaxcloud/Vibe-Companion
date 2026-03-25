@@ -129,7 +129,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <StatCard label="Total Users" value={stats.totalUsers || 0} icon={Users} color="#0079F2" />
           <StatCard label="Total Projects" value={stats.totalProjects || 0} icon={Code} color="#0CCE6B" />
           <StatCard label="Executions" value={stats.totalExecutions || 0} icon={Cpu} color="#F59E0B" />

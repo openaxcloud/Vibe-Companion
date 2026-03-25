@@ -93,13 +93,13 @@ export default function Enterprise() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/contact-sales">
-              <Button size="lg" className="gap-2 min-h-[48px] w-full sm:w-auto px-8" data-testid="button-enterprise-contact">
+              <Button size="lg" className="gap-2 min-h-[48px] w-full sm:w-auto px-4 md:px-6 lg:px-8" data-testid="button-enterprise-contact">
                 <Building2 className="h-5 w-5" />
                 Contact Sales
               </Button>
             </Link>
             <Link href="/security">
-              <Button size="lg" variant="outline" className="gap-2 min-h-[48px] w-full sm:w-auto px-8" data-testid="button-enterprise-security">
+              <Button size="lg" variant="outline" className="gap-2 min-h-[48px] w-full sm:w-auto px-4 md:px-6 lg:px-8" data-testid="button-enterprise-security">
                 <Shield className="h-5 w-5" />
                 View Security
               </Button>
@@ -108,7 +108,7 @@ export default function Enterprise() {
         </div>
 
         {/* Stats Section */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16 md:mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 md:mb-20">
           {stats.map((stat) => (
             <Card key={stat.label} className="p-6 text-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
               <div className="text-3xl sm:text-4xl font-bold text-primary mb-2">{stat.value}</div>
@@ -123,7 +123,7 @@ export default function Enterprise() {
           <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
             Built for organizations that demand the highest standards of security, compliance, and support.
           </p>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {enterpriseFeatures.map((feature) => (
               <Card key={feature.title} className="p-6 hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/20">
                 <div className={`p-3 bg-${feature.color}-100 dark:bg-${feature.color}-900/20 rounded-xl w-fit mb-4`}>
@@ -141,7 +141,7 @@ export default function Enterprise() {
         {/* What's Included */}
         <div className="mb-16 md:mb-20">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">What's Included</h2>
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-8">
             <Card className="p-8">
               <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
                 <Key className="h-5 w-5 text-primary" />
@@ -250,13 +250,13 @@ export default function Enterprise() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact-sales">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-slate-900 hover:bg-slate-100" data-testid="button-enterprise-cta-sales">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-slate-900 hover:bg-slate-100" data-testid="button-enterprise-cta-sales">
                   Schedule Demo
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
               <Link href="/pricing">
-                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white/10" data-testid="button-enterprise-cta-pricing">
+                <Button size="lg" variant="outline" className="gap-2 min-h-[48px] border-white/30 text-white hover:bg-white dark:bg-gray-900/10" data-testid="button-enterprise-cta-pricing">
                   View Pricing
                 </Button>
               </Link>

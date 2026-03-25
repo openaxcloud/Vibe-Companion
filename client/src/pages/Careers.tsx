@@ -330,7 +330,7 @@ export default function Careers() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
                   size="lg" 
-                  className="text-[15px] px-8"
+                  className="text-[15px] px-4 md:px-6 lg:px-8"
                   onClick={() => document.getElementById('open-positions')?.scrollIntoView({ behavior: 'smooth' })}
                   data-testid="button-careers-view-roles"
                 >
@@ -340,7 +340,7 @@ export default function Careers() {
                 <Button 
                   size="lg" 
                   variant="outline"
-                  className="text-[15px] px-8"
+                  className="text-[15px] px-4 md:px-6 lg:px-8"
                   onClick={() => navigate('/about')}
                   data-testid="button-careers-learn-about"
                 >
@@ -355,7 +355,7 @@ export default function Careers() {
       {/* Culture Section */}
       <section className="py-12 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid lg:grid-cols-2 gap-8 items-center">
+          <div className="grid lg:grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div className="space-y-8">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-[13px] font-medium mb-4">
@@ -373,7 +373,7 @@ export default function Careers() {
                 </p>
               </div>
               
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {values.map((value, index) => (
                   <div key={index} className="space-y-3">
                     <div className="p-2 bg-primary/10 rounded-lg w-fit">
@@ -396,7 +396,7 @@ export default function Careers() {
                     <CardTitle className="text-2xl">Life at E-Code</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <div className="text-3xl font-bold text-primary">150+</div>
                         <p className="text-[13px] text-muted-foreground">Team members</p>
@@ -448,7 +448,7 @@ export default function Careers() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {benefits.map((benefit, index) => (
               <Card key={index} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <CardHeader>

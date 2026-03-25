@@ -11,7 +11,7 @@ import { useDeviceType } from "@/hooks/use-media-query";
 
 function DocScreenshot({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="my-6 rounded-xl border border-[var(--ide-border)] overflow-hidden shadow-lg">
+    <div className="my-6 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] overflow-hidden shadow-lg">
       <img
         src={src}
         alt={alt}
@@ -358,7 +358,7 @@ export default function Documentation() {
 
         <main className="flex-1 overflow-y-auto min-w-0">
           {currentArticle ? (
-            <div className={`max-w-3xl mx-auto ${isMobile ? 'px-4 py-4' : 'px-8 py-8'}`}>
+            <div className={`max-w-3xl mx-auto ${isMobile ? 'px-4 py-4' : 'px-4 md:px-6 lg:px-8 py-8'}`}>
               <div className="flex items-center gap-2 text-[11px] text-[var(--ide-text-muted)] mb-4">
                 <span>{currentSection?.title}</span>
                 <ChevronRight className="w-3 h-3" />

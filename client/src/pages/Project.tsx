@@ -126,7 +126,7 @@ function FileTypeIcon({ filename, className = "" }: { filename: string; classNam
     css: { bg: "bg-pink-500", text: "text-white", label: "CS" },
     html: { bg: "bg-orange-500", text: "text-white", label: "HT" },
     json: { bg: "bg-amber-500", text: "text-black", label: "JS" },
-    md: { bg: "bg-gray-500", text: "text-white", label: "MD" },
+    md: { bg: "bg-gray-50 dark:bg-gray-8000", text: "text-white", label: "MD" },
     go: { bg: "bg-cyan-500", text: "text-white", label: "GO" },
     rb: { bg: "bg-red-500", text: "text-white", label: "RB" },
     c: { bg: "bg-indigo-500", text: "text-white", label: "C" },
@@ -150,7 +150,7 @@ function FileTypeIcon({ filename, className = "" }: { filename: string; classNam
     xml: { bg: "bg-orange-600", text: "text-white", label: "XM" },
     sql: { bg: "bg-blue-600", text: "text-white", label: "SQ" },
     env: { bg: "bg-yellow-600", text: "text-black", label: ".E" },
-    lock: { bg: "bg-gray-500", text: "text-white", label: "LK" },
+    lock: { bg: "bg-gray-50 dark:bg-gray-8000", text: "text-white", label: "LK" },
     txt: { bg: "bg-gray-400", text: "text-white", label: "TX" },
     log: { bg: "bg-gray-400", text: "text-white", label: "LG" },
     dockerfile: { bg: "bg-blue-500", text: "text-white", label: "DK" },
@@ -4352,9 +4352,9 @@ function _projectPage() {
             <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight}>
               <div className="relative w-full h-full">
                 {wsStatus === "running" && livePreviewUrl ? (
-                  <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-white" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
+                  <iframe id="webview-tab-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-gray-900 dark:bg-white dark:bg-gray-900" title="Live Preview" loading="lazy" data-testid="iframe-webview-tab" />
                 ) : previewHtml ? (
-                  <iframe id="webview-tab-iframe" srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
+                  <iframe id="webview-tab-iframe" srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white dark:bg-gray-900" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-webview-tab-html" />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-[var(--ide-text-muted)] gap-3">
                     <div className="w-14 h-14 rounded-2xl bg-[var(--ide-bg)] border border-[var(--ide-border)] flex items-center justify-center">
@@ -4378,7 +4378,7 @@ function _projectPage() {
                         const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
                         try { iframe?.contentWindow?.postMessage({ type: "navigate", direction: "prev" }, "*"); } catch {}
                       }}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white dark:bg-gray-900/10 transition-colors"
                       data-testid="button-slide-prev"
                     >
                       <ChevronLeft className="w-4 h-4" />
@@ -4389,7 +4389,7 @@ function _projectPage() {
                         const iframe = (document.getElementById("webview-tab-iframe") || document.querySelector("[data-testid='iframe-webview-tab-html']")) as HTMLIFrameElement;
                         try { iframe?.contentWindow?.postMessage({ type: "navigate", direction: "next" }, "*"); } catch {}
                       }}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white dark:bg-gray-900/10 transition-colors"
                       data-testid="button-slide-next"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -4400,7 +4400,7 @@ function _projectPage() {
                         try { iframe?.contentWindow?.postMessage({ type: "fullscreen" }, "*"); } catch {}
                         try { iframe?.requestFullscreen?.(); } catch {}
                       }}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors ml-1"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white dark:bg-gray-900/10 transition-colors ml-1"
                       data-testid="button-slide-fullscreen"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
@@ -5337,7 +5337,7 @@ function _projectPage() {
             </div>
             <h3 className="text-xl font-semibold text-[var(--ide-text)] mb-2" data-testid="text-welcome-heading">Welcome to your project</h3>
             <p className="text-sm text-[var(--ide-text-muted)] mb-8 leading-relaxed">Get started by creating your first file or asking AI for help</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
               <button
                 className="flex flex-col items-center gap-2 px-4 py-4 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border)] hover:border-[#0CCE6B]/40 hover:bg-[#0CCE6B]/5 transition-all text-center group"
                 onClick={() => setNewFileDialogOpen(true)}
@@ -5512,7 +5512,7 @@ function _projectPage() {
           <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 overflow-hidden">
               <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight}>
-                <iframe id="live-preview-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
+                <iframe id="live-preview-iframe" src={effectivePreviewUrl!} className="w-full h-full border-0 bg-white dark:bg-gray-900" title="Live Preview" loading="lazy" data-testid="iframe-live-preview" />
               </DeviceFrame>
             </div>
             {visualEditorActive && visualEditorIframeId === "live-preview-iframe" && (
@@ -5545,7 +5545,7 @@ function _projectPage() {
             </div>
           </div>
           <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight}>
-            <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
+            <iframe srcDoc={injectErudaIntoHtml(previewHtml!, devToolsActive)} className="w-full h-full border-0 bg-white dark:bg-gray-900" sandbox="allow-scripts" title="HTML Preview" loading="lazy" data-testid="iframe-html-preview-mobile" />
           </DeviceFrame>
         </>
       ) : (
@@ -5716,7 +5716,7 @@ function _projectPage() {
   return (
     <div className="h-screen flex flex-col bg-[var(--ide-panel)] text-sm select-none overflow-hidden" data-testid="project-workspace" tabIndex={-1}>
       {/* TOP BAR */}
-      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]" : "grid-cols-3 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
+      <div className={`grid items-center ${isMobile ? "grid-cols-[1fr_auto_auto] gap-1 px-2 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]" : "grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)]"} h-11 shrink-0 z-40 transition-all duration-200 ${isMobile && mobileToolbarHidden ? "-mt-11" : ""}`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <button className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-150 group ${"hover:bg-[var(--ide-panel)]"}`} onClick={() => setLocation("/dashboard")} title="Home" data-testid="button-back">
             <img src="/logo.png" alt="E-Code" width={16} height={16} className="rounded group-hover:scale-110 transition-transform" style={{ objectFit: 'contain' }} />
@@ -6396,7 +6396,7 @@ function _projectPage() {
                                 live: "bg-green-500/10 text-green-400 border-green-500/20",
                                 building: "bg-blue-500/10 text-blue-400 border-blue-500/20",
                                 failed: "bg-red-500/10 text-red-400 border-red-500/20",
-                                stopped: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+                                stopped: "bg-gray-50 dark:bg-gray-8000/10 text-gray-400 border-gray-500/20",
                               };
                               const dotColors: Record<string, string> = {
                                 live: "bg-[#0CCE6B]",
@@ -6667,7 +6667,7 @@ function _projectPage() {
                 <div className="px-4 py-2">
                   <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest">More</span>
                 </div>
-                <div className="grid grid-cols-4 gap-1 px-3 pb-4">
+                <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1 px-3 pb-4">
                   {overflowTabs.map(({ id, icon: Icon, label, color }) => {
                     const isActive = mobileTab === id;
                     return (
@@ -7110,7 +7110,7 @@ function _projectPage() {
 
                       <div>
                         <span className="text-[10px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider block mb-2">Deployment Type</span>
-                        <div className="grid grid-cols-2 gap-1.5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                           {([
                             { type: "autoscale" as const, icon: Layers, label: "Autoscale", desc: "Auto-scaling web service" },
                             { type: "static" as const, icon: Globe, label: "Static", desc: "Static site hosting" },
@@ -7119,7 +7119,7 @@ function _projectPage() {
                           ]).map(({ type, icon: Icon, label, desc }) => (
                             <button
                               key={type}
-                              className={`p-2 rounded-lg border text-left transition-all ${deploymentType === type ? "border-[#0079F2] bg-[#0079F2]/10" : "border-[var(--ide-border)] bg-[var(--ide-bg)] hover:border-[var(--ide-text-muted)]"}`}
+                              className={`p-2 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 text-left transition-all ${deploymentType === type ? "border-[#0079F2] bg-[#0079F2]/10" : "border-[var(--ide-border)] bg-[var(--ide-bg)] hover:border-[var(--ide-text-muted)]"}`}
                               onClick={() => setDeploymentType(type)}
                               data-testid={`deploy-type-${type}`}
                             >
@@ -7288,7 +7288,7 @@ function _projectPage() {
                                 live: "bg-green-500/10 text-green-400 border-green-500/20",
                                 building: "bg-blue-500/10 text-blue-400 border-blue-500/20",
                                 failed: "bg-red-500/10 text-red-400 border-red-500/20",
-                                stopped: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+                                stopped: "bg-gray-50 dark:bg-gray-8000/10 text-gray-400 border-gray-500/20",
                               };
                               const dotColors: Record<string, string> = {
                                 live: "bg-[#0CCE6B]",
@@ -7435,7 +7435,7 @@ function _projectPage() {
                                   <button className="text-[9px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20" onClick={() => stopProcessMutation.mutate()} disabled={stopProcessMutation.isPending} data-testid="button-stop-process">{stopProcessMutation.isPending ? "Stopping..." : "Stop"}</button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px]">
                                 <div>
                                   <span className="text-[var(--ide-text-muted)]">Port</span>
                                   <span className="ml-1 text-[var(--ide-text)] font-mono" data-testid="text-process-port">{proc.port}</span>
@@ -7505,7 +7505,7 @@ function _projectPage() {
                         <div className="py-6 text-center"><Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mx-auto" /></div>
                       ) : deployAnalyticsQuery.data ? (
                         <>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <div className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid="analytics-page-views">
                               <div className="flex items-center gap-1.5 mb-1">
                                 <Eye className="w-3 h-3 text-blue-400" />
@@ -8510,7 +8510,7 @@ function _projectPage() {
                     </div>
                     <div className="flex-1 flex overflow-hidden">
                       <div className="flex-1 overflow-hidden">
-                        <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight} className="bg-white">
+                        <DeviceFrame selectedPreset={selectedDevicePreset} customWidth={customDeviceWidth} customHeight={customDeviceHeight} className="bg-white dark:bg-gray-900">
                           {artifactPreviewUrl ? (
                             <iframe id="preview-panel-iframe" src={artifactPreviewUrl} className="w-full h-full border-0" title={`${activeArtifact?.name || "Artifact"} Preview`} loading="lazy" data-testid="iframe-preview-panel" />
                           ) : artifactPreviewHtml ? (
@@ -9200,7 +9200,7 @@ function _projectPage() {
                     <button
                       key={t}
                       type="button"
-                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg border text-[9px] font-medium transition-all ${selected ? "border-[var(--ide-text)] bg-[var(--ide-surface)]" : "border-[var(--ide-border)] hover:border-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/50"}`}
+                      className={`flex flex-col items-center gap-1 px-1 py-2 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 text-[9px] font-medium transition-all ${selected ? "border-[var(--ide-text)] bg-[var(--ide-surface)]" : "border-[var(--ide-border)] hover:border-[var(--ide-text-muted)] hover:bg-[var(--ide-surface)]/50"}`}
                       style={selected ? { borderColor: meta.color, backgroundColor: `${meta.color}10` } : undefined}
                       onClick={() => setNewArtifactType(t)}
                       data-testid={`artifact-type-${t}`}

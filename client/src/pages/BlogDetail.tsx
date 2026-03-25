@@ -159,7 +159,7 @@ export default function BlogDetail() {
           {filteredRelatedPosts.length > 0 && (
             <div>
               <h2 className="text-2xl font-bold mb-6">Related Articles</h2>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {filteredRelatedPosts.map((relatedPost: any) => (
                   <Card
                     key={relatedPost.id}

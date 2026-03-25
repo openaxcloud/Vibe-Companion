@@ -1755,7 +1755,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
               <Label className="text-[11px] text-[var(--ide-text-secondary)]">Type</Label>
               <div className="grid grid-cols-5 gap-1.5">
                 {['web-app', 'mobile-app', 'slides', 'animation', 'design', 'data-visualization', 'automation', '3d-game', 'document', 'spreadsheet'].map((t) => (
-                  <button key={t} type="button" className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg border text-[9px] font-medium transition-all ${newArtifactType === t ? 'border-[#0079F2] bg-[#0079F2]/10 text-[#0079F2]' : 'border-[var(--ide-border)] hover:border-[var(--ide-text-muted)] text-[var(--ide-text-muted)]'}`} onClick={() => setNewArtifactType(t)}>
+                  <button key={t} type="button" className={`flex flex-col items-center gap-1 px-1 py-2 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 text-[9px] font-medium transition-all ${newArtifactType === t ? 'border-[#0079F2] bg-[#0079F2]/10 text-[#0079F2]' : 'border-[var(--ide-border)] hover:border-[var(--ide-text-muted)] text-[var(--ide-text-muted)]'}`} onClick={() => setNewArtifactType(t)}>
                     <span className="leading-tight text-center">{t.replace(/-/g, ' ')}</span>
                   </button>
                 ))}

@@ -180,7 +180,7 @@ export default function Support() {
       <div className="space-y-8">
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {supportChannels.map((channel, index) => (
           <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="pt-6">
@@ -205,7 +205,7 @@ export default function Support() {
       </div>
 
       <Tabs defaultValue="help" className="space-y-4" data-testid="tabs-support">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <TabsTrigger value="help" data-testid="tab-help">Help Articles</TabsTrigger>
           <TabsTrigger value="faqs" data-testid="tab-faqs">FAQs</TabsTrigger>
           <TabsTrigger value="contact" data-testid="tab-contact">Contact Us</TabsTrigger>
@@ -239,7 +239,7 @@ export default function Support() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-1 md:grid-cols-2 gap-4">
                 {commonIssues.map((issue, index) => (
                   <Card key={index}>
                     <CardContent className="pt-6">
@@ -272,7 +272,7 @@ export default function Support() {
               <CardTitle>Browse by Category</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-3 gap-3">
+              <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {[
                   { name: 'Getting Started', icon: <Zap />, count: 24 },
                   { name: 'Account & Billing', icon: <CreditCard />, count: 18 },
@@ -359,7 +359,7 @@ export default function Support() {
                   </select>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="ticket-name">Your Name</Label>
                     <Input

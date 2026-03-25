@@ -99,7 +99,7 @@ export default function OpenInReplit() {
 
   return (
     <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" data-testid="open-in-ecode-page">
-      <nav className="flex items-center justify-between px-6 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
+      <nav className="flex items-center justify-between px-6 lg:px-4 md:px-4 md:px-6 lg:px-8 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
         <div className="flex items-center gap-3">
           <Link href={isAuthenticated ? "/dashboard" : "/"}>
             <button className="flex items-center gap-2 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="button-back">
@@ -147,7 +147,7 @@ export default function OpenInReplit() {
         </div>
 
         <div className="space-y-8">
-          <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
+          <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
             <h2 className="text-lg font-semibold mb-5 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#7C65CB]" />
               Configure Your Link
@@ -164,7 +164,7 @@ export default function OpenInReplit() {
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="e.g., Build a portfolio website with a dark theme and project showcase..."
                   rows={4}
-                  className="w-full rounded-lg border border-[var(--ide-border)] bg-[var(--ide-bg)] text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] px-4 py-3 text-sm leading-relaxed resize-y outline-none focus:border-[#0079F2]/50 focus:ring-1 focus:ring-[#0079F2]/20 transition-all"
+                  className="w-full rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-bg)] text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] px-4 py-3 text-sm leading-relaxed resize-y outline-none focus:border-[#0079F2]/50 focus:ring-1 focus:ring-[#0079F2]/20 transition-all"
                   data-testid="input-link-prompt"
                 />
                 {prompt.trim() && (
@@ -179,7 +179,7 @@ export default function OpenInReplit() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setStackMode("design")}
-                    className={`flex-1 flex items-center gap-3 p-4 rounded-xl border transition-all ${
+                    className={`flex-1 flex items-center gap-3 p-4 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 transition-all ${
                       stackMode === "design"
                         ? "border-[#7C65CB]/50 bg-[#7C65CB]/10 text-[var(--ide-text)]"
                         : "border-[var(--ide-border)] bg-[var(--ide-bg)] text-[var(--ide-text-secondary)] hover:border-[#3B4B5F]"
@@ -194,7 +194,7 @@ export default function OpenInReplit() {
                   </button>
                   <button
                     onClick={() => setStackMode("build")}
-                    className={`flex-1 flex items-center gap-3 p-4 rounded-xl border transition-all ${
+                    className={`flex-1 flex items-center gap-3 p-4 rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 transition-all ${
                       stackMode === "build"
                         ? "border-[#0079F2]/50 bg-[#0079F2]/10 text-[var(--ide-text)]"
                         : "border-[var(--ide-border)] bg-[var(--ide-bg)] text-[var(--ide-text-secondary)] hover:border-[#3B4B5F]"
@@ -230,7 +230,7 @@ export default function OpenInReplit() {
           </div>
 
           {generatedUrl && (
-            <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
+            <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
               <h2 className="text-lg font-semibold mb-5 flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-[#0CCE6B]" />
                 Generated Link
@@ -282,7 +282,7 @@ export default function OpenInReplit() {
           )}
 
           {generatedUrl && (
-            <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
+            <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
               <h2 className="text-lg font-semibold mb-5 flex items-center gap-2">
                 <Eye className="w-4 h-4 text-[#F26522]" />
                 Badge
@@ -305,7 +305,7 @@ export default function OpenInReplit() {
 
                 <div>
                   <Label className="text-xs font-medium text-[var(--ide-text-muted)] mb-2 block">Preview</Label>
-                  <div className="inline-block p-4 rounded-lg bg-white/5 border border-[var(--ide-border)]" data-testid="badge-preview">
+                  <div className="inline-block p-4 rounded-lg bg-white dark:bg-gray-900/5 border border-[var(--ide-border)]" data-testid="badge-preview">
                     <BadgeSVG caption={badgeCaption || "Open in E-Code"} />
                   </div>
                 </div>
@@ -351,7 +351,7 @@ export default function OpenInReplit() {
             </div>
           )}
 
-          <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
+          <div className="rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 border-[var(--ide-border)] bg-[var(--ide-panel)] p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Info className="w-4 h-4 text-[var(--ide-text-muted)]" />
               How It Works

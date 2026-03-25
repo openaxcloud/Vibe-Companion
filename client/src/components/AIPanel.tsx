@@ -3385,7 +3385,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
                           isOn && !sw.disabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
                         }`}>
-                          <div className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
+                          <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
                         </div>
                       </button>
                     );
@@ -3443,7 +3443,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
                           isActive && !isDisabledByLite ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
                         }`}>
-                          <div className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
+                          <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
                         </div>
                       </button>
                     );
@@ -3468,7 +3468,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
                       audioOutputEnabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
                     }`}>
-                      <div className="w-3 h-3 rounded-full bg-white mx-0.5 shadow-sm" />
+                      <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
                     </div>
                   </button>
                   <div className="px-2.5 pt-1">

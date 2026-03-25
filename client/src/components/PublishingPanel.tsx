@@ -676,7 +676,7 @@ function OverviewTab({ projectId, overview }: { projectId: string; overview: Ove
       {overview?.isPublished && fullUrl && (
         <div className="bg-[var(--ide-surface)] rounded-lg p-3 border border-[var(--ide-border)] flex flex-col items-center">
           <span className="text-[10px] text-[var(--ide-text-muted)] uppercase mb-2 font-semibold">QR Code for Mobile Access</span>
-          <div className="bg-white p-2 rounded" data-testid="qr-code-container">
+          <div className="bg-white dark:bg-gray-900 p-2 rounded" data-testid="qr-code-container">
             <QRCodeDisplay url={fullUrl} />
           </div>
           <span className="text-[9px] text-[var(--ide-text-muted)] mt-1">Scan to open on mobile</span>

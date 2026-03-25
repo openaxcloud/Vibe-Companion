@@ -119,7 +119,7 @@ export default function Contact() {
         </div>
 
         {/* Quick Contact Options */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-16 max-w-4xl mx-auto">
+        <div className="grid sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-16 max-w-4xl mx-auto">
           <Link href="/contact-sales" data-testid="link-contact-sales">
             <Card className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group text-center" data-testid="card-contact-sales">
               <Building2 className="h-8 w-8 mx-auto mb-3 text-blue-600 group-hover:scale-110 transition-transform" />
@@ -143,7 +143,7 @@ export default function Contact() {
           </Link>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
+        <div className="grid lg:grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
           {/* Contact Form */}
           <div>
             <h2 className="text-2xl font-bold mb-6">Send us a message</h2>
@@ -162,7 +162,7 @@ export default function Contact() {
             ) : (
               <Card className="p-6 md:p-8">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">{t('contact.form.name')} *</Label>
                       <Input
@@ -188,7 +188,7 @@ export default function Contact() {
                     </div>
                   </div>
 
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="company">{t('contact.form.company')}</Label>
                       <Input

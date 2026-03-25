@@ -165,7 +165,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       {/* Mission Section */}
       <section className="py-10 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-6 items-center">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div>
               <Badge variant="outline" className="mb-4">
                 <Target className="h-3 w-3 mr-1" />
@@ -217,7 +217,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
                       The raise accelerates enterprise go-to-market, compliance automation, and sovereign-ready
                       infrastructure investments so customers can scale with confidence.
                     </p>
-                    <div className="grid grid-cols-3 gap-4 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                       <div>
                         <div className="text-2xl font-bold">2025</div>
                         <p className="text-[13px] text-muted-foreground">Global launch</p>
@@ -257,7 +257,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
+          <div className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
             <Card className="border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50/50 to-transparent dark:from-violet-950/20">
               <CardHeader>
                 <div className="p-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-lg w-fit mb-3">
@@ -331,7 +331,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       {/* Stats Section */}
       <section className="py-12 sm:py-16 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             {stats.map((stat) => (
               <Card key={stat.label} className="h-full border-primary/20">
                 <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -363,7 +363,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
               The beliefs that shape every line of code, every partnership, and every promise we make.
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {valuesWithIcons.map((value, index: number) => (
               <Card key={index}>
                 <CardHeader>
@@ -422,7 +422,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
               advantage for every enterprise.
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {team.map((member, index: number) => (
               <Card key={index}>
                 <CardContent className="pt-6">
