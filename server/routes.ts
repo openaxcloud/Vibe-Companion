@@ -5110,6 +5110,57 @@ export async function registerRoutes(
     return res.json(getAllTemplates());
   });
 
+  app.get("/api/marketplace/templates", (req: Request, res: Response) => {
+    try {
+      let templates = getAllTemplates();
+      const { query, category, featured, official, community, sortBy, page, limit: limitStr } = req.query;
+      if (query && typeof query === "string") {
+        const q = query.toLowerCase();
+        templates = templates.filter((t: any) => t.name?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q));
+      }
+      if (category && category !== "all") {
+        templates = templates.filter((t: any) => t.category === category || t.language === category);
+      }
+      if (featured === "true") templates = templates.filter((t: any) => t.featured);
+      if (official === "true") templates = templates.filter((t: any) => !t.community);
+      if (community === "true") templates = templates.filter((t: any) => t.community);
+      const total = templates.length;
+      const pg = parseInt(String(page || "1"), 10);
+      const lim = parseInt(String(limitStr || "20"), 10);
+      const paginated = templates.slice((pg - 1) * lim, pg * lim);
+      return res.json({ templates: paginated, total, page: pg, totalPages: Math.ceil(total / lim) });
+    } catch { return res.json({ templates: [], total: 0, page: 1, totalPages: 0 }); }
+  });
+
+  app.get("/api/marketplace/trending", (_req: Request, res: Response) => {
+    try {
+      const templates = getAllTemplates();
+      const trending = templates.slice(0, parseInt(String(_req.query.limit || "5"), 10));
+      return res.json(trending);
+    } catch { return res.json([]); }
+  });
+
+  app.get("/api/marketplace/categories", (_req: Request, res: Response) => {
+    try {
+      const templates = getAllTemplates();
+      const cats = [...new Set(templates.map((t: any) => t.category || t.language || "other"))];
+      return res.json(cats.map(c => ({ id: c, name: String(c).charAt(0).toUpperCase() + String(c).slice(1), count: templates.filter((t: any) => (t.category || t.language) === c).length })));
+    } catch { return res.json([]); }
+  });
+
+  app.get("/api/marketplace/tags", (_req: Request, res: Response) => {
+    try {
+      const templates = getAllTemplates();
+      const tagSet = new Set<string>();
+      templates.forEach((t: any) => { if (t.tags) t.tags.forEach((tag: string) => tagSet.add(tag)); });
+      return res.json([...tagSet]);
+    } catch { return res.json([]); }
+  });
+
+  app.post("/api/marketplace/template/:id/track", (req: Request, res: Response) => {
+    return res.json({ success: true });
+  });
+
   app.get("/api/qrcode", requireAuth, async (req: Request, res: Response) => {
     try {
       const { data } = req.query;

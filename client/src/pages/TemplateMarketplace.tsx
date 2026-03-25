@@ -359,7 +359,7 @@ export default function TemplateMarketplace() {
           </Tabs>
 
           {/* Trending Section */}
-          {activeTab === 'all' && trendingTemplates && trendingTemplates.length > 0 && (
+          {activeTab === 'all' && Array.isArray(trendingTemplates) && trendingTemplates.length > 0 && (
             <div className="mb-8" data-testid="trending-section">
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="h-5 w-5 text-orange-500" />
