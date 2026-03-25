@@ -2379,9 +2379,9 @@ export class DatabaseStorage implements IStorage {
     const languageCount = languageRows.length;
 
     const configuredAiModels: string[] = [];
-    if (process.env.OPENAI_API_KEY) configuredAiModels.push("openai");
-    if (process.env.ANTHROPIC_API_KEY) configuredAiModels.push("anthropic");
-    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY) configuredAiModels.push("gemini");
+    if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) configuredAiModels.push("openai");
+    if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) configuredAiModels.push("anthropic");
+    if (process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY) configuredAiModels.push("gemini");
     const aiModelCount = configuredAiModels.length;
 
     return [

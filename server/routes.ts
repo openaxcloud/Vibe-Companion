@@ -8186,6 +8186,64 @@ export async function registerRoutes(
     }
   });
 
+  // --- AI Models API (for AIModelSelector) ---
+  function getAvailableAIModels() {
+    const models: Array<{id: string; name: string; provider: string; description: string; maxTokens: number; supportsStreaming: boolean; costPer1kTokens: number; available: boolean}> = [];
+    if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) {
+      models.push(
+        { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic", description: "Latest Claude Sonnet — fast, intelligent, great for coding", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.003, available: true },
+        { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: "anthropic", description: "Fast and affordable for quick tasks", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.001, available: true },
+      );
+    }
+    if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) {
+      models.push(
+        { id: "gpt-4o", name: "GPT-4o", provider: "openai", description: "OpenAI's most capable model", maxTokens: 4096, supportsStreaming: true, costPer1kTokens: 0.005, available: true },
+        { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "openai", description: "Fast and affordable GPT-4 class model", maxTokens: 4096, supportsStreaming: true, costPer1kTokens: 0.00015, available: true },
+      );
+    }
+    if (process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      models.push(
+        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini", description: "Google's fast multimodal model", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.00025, available: true },
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "gemini", description: "Google's most capable model", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.00125, available: true },
+      );
+    }
+    return models;
+  }
+
+  app.get("/api/models", async (_req: Request, res: Response) => {
+    try {
+      const models = getAvailableAIModels();
+      res.json({ models });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch models" });
+    }
+  });
+
+  app.get("/api/models/preferred", async (req: Request, res: Response) => {
+    try {
+      const models = getAvailableAIModels();
+      let preferredModel: string | null = null;
+      if (!preferredModel && models.length > 0) {
+        preferredModel = models[0].id;
+      }
+      res.json({ preferredModel, availableModels: models.length });
+    } catch (err) {
+      res.json({ preferredModel: null, availableModels: 0 });
+    }
+  });
+
+  app.post("/api/models/preferred", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { modelId } = req.body;
+      if (!modelId || typeof modelId !== "string") {
+        return res.status(400).json({ message: "modelId is required" });
+      }
+      res.json({ success: true, preferredModel: modelId });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to save preference" });
+    }
+  });
+
   // --- AI ASSISTANT ---
   const anthropic = new Anthropic({
     apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
