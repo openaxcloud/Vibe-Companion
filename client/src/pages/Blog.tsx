@@ -144,7 +144,7 @@ export default function Blog() {
       <PublicNavbar />
 
       {/* Hero Section */}
-      <section className="py-12 sm:py-16 md:py-20 px-4 bg-gradient-to-b from-primary/5 to-transparent">
+      <section className="py-12 sm:py-16 md:py-10 px-4 bg-gradient-to-b from-primary/5 to-transparent">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 sm:space-y-6">
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold">

@@ -89,7 +89,7 @@ export default function MarketingBounties() {
       <main>
         <section className="relative overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-blue-600 text-white">
           <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,_#ffffff55,_transparent_60%)]" />
-          <div className="relative mx-auto flex max-w-6xl flex-col gap-12 px-4 py-24 lg:flex-row lg:items-center">
+          <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12 lg:flex-row lg:items-center">
             <div className="flex-1 space-y-6">
               <Badge className="bg-white/10 text-white hover:bg-white/20">Developer marketplace</Badge>
               <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-6xl">
@@ -182,7 +182,7 @@ export default function MarketingBounties() {
         </section>
 
         <section className="bg-muted/30 py-20">
-          <div className="mx-auto flex max-w-6xl flex-col gap-12 px-4 lg:flex-row">
+          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 lg:flex-row">
             <div className="flex-1 space-y-4">
               <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-200">
                 Trusted workflow

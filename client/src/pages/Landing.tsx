@@ -282,7 +282,7 @@ export default function Landing() {
         {/* Content */}
         <div className="container-responsive relative z-10 max-w-7xl text-center px-4 py-20">
           <LazyMotionDiv 
-            className="space-y-8"
+            className="space-y-4"
             variants={staggerContainer}
             initial="initial"
             animate="animate"
@@ -535,7 +535,7 @@ export default function Landing() {
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-background)] to-[var(--ecode-surface-tertiary)]" data-testid="section-stats">
         <div className="container-responsive max-w-7xl">
           <LazyMotionDiv 
-            className="grid grid-cols-2 md:grid-cols-4 gap-8"
+            className="grid grid-cols-2 md:grid-cols-4 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -712,7 +712,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -862,7 +862,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -900,7 +900,7 @@ export default function Landing() {
       {/* Showcase Section with Images */}
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-surface-tertiary)] to-[var(--ecode-background)]" data-testid="section-showcase">
         <div className="container-responsive max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-12 items-center mb-20">
+          <div className="grid lg:grid-cols-2 gap-6 items-center mb-20">
             <LazyMotionDiv
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -949,7 +949,7 @@ export default function Landing() {
             </LazyMotionDiv>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-6 items-center">
             <LazyMotionDiv
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1082,7 +1082,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-3 gap-8"
+            className="grid md:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -1131,7 +1131,7 @@ export default function Landing() {
             <p className="text-[13px] text-[var(--ecode-text-muted)] mb-8">
               Trusted by Fortune 500 companies and startups alike
             </p>
-            <div className="flex flex-wrap justify-center items-center gap-12 opacity-60 grayscale hover:grayscale-0 transition-all duration-300 hover:opacity-100 text-[var(--ecode-text)]">
+            <div className="flex flex-wrap justify-center items-center gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-300 hover:opacity-100 text-[var(--ecode-text)]">
               <SiGoogle className="h-8 w-auto" />
               <span className="text-2xl font-bold">Microsoft</span>
               {/* Amazon icon removed */}

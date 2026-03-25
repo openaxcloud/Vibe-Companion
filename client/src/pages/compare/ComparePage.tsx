@@ -301,7 +301,7 @@ export default function ComparePage() {
 
   return (
     <MarketingLayout>
-      <section className="relative overflow-hidden py-12 sm:py-16 lg:py-24 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900" data-testid="section-hero">
+      <section className="relative overflow-hidden py-12 sm:py-16 lg:py-12 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900" data-testid="section-hero">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -left-32 top-16 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl animate-pulse" />
           <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
@@ -622,7 +622,7 @@ export default function ComparePage() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-24 bg-gradient-to-b from-slate-900 to-slate-950" data-testid="section-cta">
+      <section className="py-12 sm:py-16 lg:py-12 bg-gradient-to-b from-slate-900 to-slate-950" data-testid="section-cta">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
           <Card className="bg-gradient-to-r from-sky-900/50 via-indigo-900/50 to-purple-900/50 border-white/10 overflow-hidden relative">
             <div className="absolute inset-0 bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-purple-500/10" />

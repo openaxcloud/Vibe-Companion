@@ -128,7 +128,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
   return (
     <>
       {/* Hero Section */}
-      <section className="py-12 sm:py-16 md:py-20 px-4 bg-gradient-to-b from-primary/5 to-transparent">
+      <section className="py-12 sm:py-16 md:py-10 px-4 bg-gradient-to-b from-primary/5 to-transparent">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-5 sm:space-y-7">
             <Badge variant="secondary" className="mb-2 sm:mb-4 text-[11px] sm:text-[13px]">
@@ -163,9 +163,9 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       </section>
 
       {/* Mission Section */}
-      <section className="py-20 px-4">
+      <section className="py-10 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="grid md:grid-cols-2 gap-6 items-center">
             <div>
               <Badge variant="outline" className="mb-4">
                 <Target className="h-3 w-3 mr-1" />
@@ -240,7 +240,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       </section>
 
       {/* AI Agent Innovation Section */}
-      <section className="py-20 px-4 bg-gradient-to-b from-transparent via-violet-50/10 to-transparent dark:via-violet-950/20">
+      <section className="py-10 px-4 bg-gradient-to-b from-transparent via-violet-50/10 to-transparent dark:via-violet-950/20">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
             <Badge variant="default" className="mb-4 text-[13px] px-4 py-1">
@@ -355,7 +355,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       </section>
 
       {/* Values Section */}
-      <section className="py-20 px-4 bg-muted/30">
+      <section className="py-10 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Our leadership principles</h2>
@@ -382,7 +382,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       </section>
 
       {/* Timeline Section */}
-      <section className="py-20 px-4">
+      <section className="py-10 px-4">
         <div className="container mx-auto max-w-4xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Milestones on our climb</h2>
@@ -413,7 +413,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       </section>
 
       {/* Team Section */}
-      <section className="py-20 px-4 bg-muted/30">
+      <section className="py-10 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Executive leadership</h2>
@@ -449,7 +449,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4">
+      <section className="py-10 px-4">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-bold mb-4">
             Set a new rhythm for your builders

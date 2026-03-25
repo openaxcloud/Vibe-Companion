@@ -307,7 +307,7 @@ export default function Careers() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-600/10 to-pink-600/10" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(var(--primary),0.1),transparent_50%)]" />
         
-        <div className="relative py-24 px-4">
+        <div className="relative py-12 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center space-y-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
@@ -353,9 +353,9 @@ export default function Careers() {
       </section>
 
       {/* Culture Section */}
-      <section className="py-24 px-4">
+      <section className="py-12 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 items-center">
             <div className="space-y-8">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-[13px] font-medium mb-4">
@@ -433,7 +433,7 @@ export default function Careers() {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-24 px-4 bg-gradient-to-b from-muted/50 to-background">
+      <section className="py-12 px-4 bg-gradient-to-b from-muted/50 to-background">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-[13px] font-medium mb-4">
@@ -473,7 +473,7 @@ export default function Careers() {
       </section>
 
       {/* Open Positions */}
-      <section id="open-positions" className="py-24 px-4">
+      <section id="open-positions" className="py-12 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-[13px] font-medium mb-4">
@@ -560,7 +560,7 @@ export default function Careers() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 bg-primary text-primary-foreground">
+      <section className="py-10 px-4 bg-primary text-primary-foreground">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-bold mb-4">
             Ready to make an impact?

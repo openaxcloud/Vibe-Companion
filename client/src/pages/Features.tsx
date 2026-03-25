@@ -233,7 +233,7 @@ export default function Features() {
       <PublicNavbar />
 
       {/* Hero Section */}
-      <section className="py-12 sm:py-16 md:py-20 px-4 bg-gradient-to-b from-primary/5 to-transparent">
+      <section className="py-12 sm:py-16 md:py-10 px-4 bg-gradient-to-b from-primary/5 to-transparent">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 sm:space-y-6">
             <Badge variant="secondary" className="mb-2 sm:mb-4 text-[11px] sm:text-[13px]">
@@ -272,7 +272,7 @@ export default function Features() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-12 sm:py-16 md:py-20 px-4">
+      <section className="py-12 sm:py-16 md:py-10 px-4">
         <div className="container mx-auto max-w-7xl">
           <Tabs defaultValue="All" className="w-full">
             <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 w-full max-w-3xl mx-auto gap-1 h-auto flex-wrap">
@@ -327,9 +327,9 @@ export default function Features() {
       </section>
 
       {/* Platform Overview */}
-      <section className="py-20 px-4 bg-muted/30">
+      <section className="py-10 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="grid md:grid-cols-2 gap-6 items-center">
             <div>
               <Badge variant="secondary" className="mb-4">
                 <Layers className="h-3 w-3 mr-1" />
@@ -413,7 +413,7 @@ export default function Features() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4">
+      <section className="py-10 px-4">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-bold mb-4">
             Experience the future of development

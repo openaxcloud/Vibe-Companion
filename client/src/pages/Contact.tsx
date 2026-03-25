@@ -104,7 +104,7 @@ export default function Contact() {
         structuredData={structuredData.localBusiness()}
       />
 
-      <div className="container mx-auto px-4 py-12 sm:py-16 md:py-20">
+      <div className="container mx-auto px-4 py-12 sm:py-16 md:py-10">
         {/* Hero Section */}
         <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16">
           <Badge className="mb-4 px-4 py-1.5 text-[13px] font-medium bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0">
@@ -143,7 +143,7 @@ export default function Contact() {
           </Link>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
           {/* Contact Form */}
           <div>
             <h2 className="text-2xl font-bold mb-6">Send us a message</h2>
