@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -61,7 +60,6 @@ const offices = [
 ];
 
 export default function Contact() {
-  const { t } = useTranslation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -82,13 +80,13 @@ export default function Contact() {
 
       setIsSubmitted(true);
       toast({
-        title: t('contact.success.title'),
-        description: t('contact.success.description'),
+        title: "Message Sent",
+        description: "We'll get back to you within 24 hours.",
         variant: "default"
       });
     } catch (error) {
       toast({
-        title: t('common.error'),
+        title: "Error",
         description: "Failed to send message. Please try again.",
         variant: "destructive"
       });
@@ -105,20 +103,18 @@ export default function Contact() {
       />
 
       <div className="container mx-auto px-4 py-12 sm:py-16 md:py-10">
-        {/* Hero Section */}
         <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16">
           <Badge className="mb-4 px-4 py-1.5 text-[13px] font-medium bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0">
-            {t('common.contactUs')}
+            Contact Us
           </Badge>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-            {t('contact.title')}
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent" data-testid="text-contact-title">
+            Get in Touch
           </h1>
-          <p className="text-[15px] sm:text-xl text-muted-foreground max-w-3xl mx-auto">
-            {t('contact.subtitle')}
+          <p className="text-[15px] sm:text-xl text-muted-foreground max-w-3xl mx-auto" data-testid="text-contact-subtitle">
+            Have a question, want a demo, or ready to get started? We'd love to hear from you.
           </p>
         </div>
 
-        {/* Quick Contact Options */}
         <div className="grid sm:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-16 max-w-4xl mx-auto">
           <Link href="/contact-sales" data-testid="link-contact-sales">
             <Card className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group text-center" data-testid="card-contact-sales">
@@ -144,7 +140,6 @@ export default function Contact() {
         </div>
 
         <div className="grid lg:grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
-          {/* Contact Form */}
           <div>
             <h2 className="text-2xl font-bold mb-6">Send us a message</h2>
 
@@ -164,7 +159,7 @@ export default function Contact() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name">{t('contact.form.name')} *</Label>
+                      <Label htmlFor="name">Full Name *</Label>
                       <Input
                         id="name"
                         required
@@ -175,7 +170,7 @@ export default function Contact() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">{t('contact.form.email')} *</Label>
+                      <Label htmlFor="email">Email *</Label>
                       <Input
                         id="email"
                         type="email"
@@ -190,7 +185,7 @@ export default function Contact() {
 
                   <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="company">{t('contact.form.company')}</Label>
+                      <Label htmlFor="company">Company</Label>
                       <Input
                         id="company"
                         placeholder="Company name"
@@ -220,7 +215,7 @@ export default function Contact() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="message">{t('contact.form.message')} *</Label>
+                    <Label htmlFor="message">Message *</Label>
                     <Textarea
                       id="message"
                       required
@@ -242,12 +237,12 @@ export default function Contact() {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        {t('common.loading')}
+                        Sending...
                       </>
                     ) : (
                       <>
                         <Send className="h-5 w-5" />
-                        {t('contact.form.submit')}
+                        Send Message
                       </>
                     )}
                   </Button>
@@ -256,7 +251,6 @@ export default function Contact() {
             )}
           </div>
 
-          {/* Contact Info & Offices */}
           <div className="space-y-8">
             <div>
               <h2 className="text-2xl font-bold mb-6">Other ways to reach us</h2>
