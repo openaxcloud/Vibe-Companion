@@ -152,14 +152,10 @@ export function ReplitMobileInputBar({
 
   return (
     <div
-      className={cn(
-        "fixed left-0 right-0 z-[55] px-3 transition-[bottom] duration-200",
-        keyboardVisible ? "bottom-0" : "bottom-[52px]"
-      )}
+      className="shrink-0 z-[55] px-3"
       style={{
-        paddingBottom: keyboardVisible
-          ? '8px'
-          : 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+        paddingBottom: '4px',
+        paddingTop: '4px',
       }}
     >
       <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-2xl shadow-lg overflow-visible">

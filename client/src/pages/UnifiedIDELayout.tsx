@@ -998,7 +998,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   // === MOBILE LAYOUT ===
   if (deviceType === 'mobile') {
     return (
-      <div className={cn('flex flex-col h-screen w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} data-testid="mobile-layout" data-ide-layout="unified">
+      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh' }} data-testid="mobile-layout" data-ide-layout="unified">
         <ReplitMobileHeader
           activeTab={mobileActiveTab}
           onBack={handleMobileBack}
@@ -1011,9 +1011,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         />
 
         <div
-          className="flex-1 overflow-hidden"
+          className="flex-1 overflow-hidden min-h-0"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
-          style={{ paddingBottom: mobileActiveTab === 'agent' ? '8rem' : '0.5rem' }}
         >
           <div key={mobileActiveTab} className="h-full overflow-auto animate-fade-in">
             {renderMobileContent()}
