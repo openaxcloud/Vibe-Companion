@@ -499,6 +499,20 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     }
   }, [mobileAgentHandlers?.handleSubmit]);
 
+  const bootstrapConsumedRef = useRef(false);
+  useEffect(() => {
+    if (bootstrapConsumedRef.current || !projectId) return;
+    const promptKey = `agent-prompt-${projectId}`;
+    const savedPrompt = sessionStorage.getItem(promptKey);
+    if (savedPrompt) {
+      bootstrapConsumedRef.current = true;
+      sessionStorage.removeItem(promptKey);
+      sessionStorage.removeItem(`agent-build-mode-${projectId}`);
+      setPendingAIMessage(savedPrompt);
+      pendingMobileMessageRef.current = savedPrompt;
+    }
+  }, [projectId]);
+
   // Tab content animation
   const [displayedTab, setDisplayedTab] = useState(activeTab);
   const [tabContentVisible, setTabContentVisible] = useState(true);

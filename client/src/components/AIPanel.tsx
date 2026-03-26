@@ -1273,12 +1273,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   }, [input]);
 
-  useEffect(() => {
-    if (pendingMessage && conversationLoaded && !isStreaming) {
-      setInput(pendingMessage);
-      onPendingMessageConsumed?.();
-    }
-  }, [pendingMessage, conversationLoaded, isStreaming]);
+  const pendingMessageProcessedRef = useRef<string | null>(null);
+  const pendingMessageRef = useRef(pendingMessage);
+  pendingMessageRef.current = pendingMessage;
 
   const processSSEStream = useCallback(async (
     response: Response,
@@ -2082,6 +2079,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   const sendMessageDirectRef = useRef(sendMessageDirect);
   sendMessageDirectRef.current = sendMessageDirect;
+
+  useEffect(() => {
+    const msg = pendingMessageRef.current;
+    if (msg && conversationLoaded && !isStreaming && msg !== pendingMessageProcessedRef.current) {
+      pendingMessageProcessedRef.current = msg;
+      onPendingMessageConsumed?.();
+      setTimeout(() => {
+        sendMessageDirectRef.current(msg);
+      }, 100);
+    }
+  }, [pendingMessageRef.current, conversationLoaded, isStreaming]);
 
   const addFilesExternalRef = useRef(addFilesExternal);
   addFilesExternalRef.current = addFilesExternal;
