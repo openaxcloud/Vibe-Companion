@@ -232,18 +232,16 @@ export async function executeTask(
         // Single-step task: use the task title as the step
         const step = await storage.createTaskStep({
           taskId,
-          orderIndex: 0,
+          sortOrder: 0,
           title: task.title,
-          description: task.description || task.title,
         });
         steps = [step];
       } else {
         for (let i = 0; i < planSteps.length; i++) {
           const step = await storage.createTaskStep({
             taskId,
-            orderIndex: i,
+            sortOrder: i,
             title: planSteps[i],
-            description: planSteps[i],
           });
           steps.push(step);
         }

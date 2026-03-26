@@ -588,7 +588,7 @@ export interface IStorage {
   getPlanTasks(planId: string): Promise<AiPlanTask[]>;
   createPlanTask(data: InsertAiPlanTask): Promise<AiPlanTask>;
   createPlanTasks(data: InsertAiPlanTask[]): Promise<AiPlanTask[]>;
-  updatePlanTask(id: string, data: Partial<{ title: string; description: string; complexity: string; status: string; orderIndex: number }>): Promise<AiPlanTask | undefined>;
+  updatePlanTask(id: string, data: Partial<{ title: string; description: string; status: string; sortOrder: number }>): Promise<AiPlanTask | undefined>;
   deletePlanTasks(planId: string): Promise<boolean>;
   replacePlanAtomically(params: {
     projectId: string;
@@ -3695,7 +3695,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTaskSteps(taskId: string): Promise<TaskStep[]> {
-    return db.select().from(taskSteps).where(eq(taskSteps.taskId, taskId)).orderBy(taskSteps.orderIndex);
+    return db.select().from(taskSteps).where(eq(taskSteps.taskId, taskId)).orderBy(taskSteps.sortOrder);
   }
 
   async createTaskStep(data: InsertTaskStep): Promise<TaskStep> {
@@ -3772,7 +3772,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlanTasks(planId: string): Promise<AiPlanTask[]> {
-    return db.select().from(aiPlanTasks).where(eq(aiPlanTasks.planId, planId)).orderBy(aiPlanTasks.orderIndex);
+    return db.select().from(aiPlanTasks).where(eq(aiPlanTasks.planId, planId)).orderBy(aiPlanTasks.sortOrder);
   }
 
   async createPlanTask(data: InsertAiPlanTask): Promise<AiPlanTask> {
@@ -3785,7 +3785,7 @@ export class DatabaseStorage implements IStorage {
     return db.insert(aiPlanTasks).values(data).returning();
   }
 
-  async updatePlanTask(id: string, data: Partial<{ title: string; description: string; complexity: string; status: string; orderIndex: number }>): Promise<AiPlanTask | undefined> {
+  async updatePlanTask(id: string, data: Partial<{ title: string; description: string; status: string; sortOrder: number }>): Promise<AiPlanTask | undefined> {
     const [task] = await db.update(aiPlanTasks).set(data).where(eq(aiPlanTasks.id, id)).returning();
     return task;
   }
@@ -3826,10 +3826,9 @@ export class DatabaseStorage implements IStorage {
               planId: plan.id,
               title: t.title,
               description: t.description,
-              complexity: t.complexity,
               dependsOn: t.dependsOn.map(String),
               status: "pending" as const,
-              orderIndex: i,
+              sortOrder: i,
             }))
           ).returning()
         : [];

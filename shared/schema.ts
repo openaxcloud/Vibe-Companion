@@ -515,9 +515,9 @@ export const gitBackups = pgTable("git_backups", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   version: integer("version").notNull(),
-  compressedData: text("compressed_data").notNull(),
+  data: text("data").notNull(),
   sizeBytes: integer("size_bytes").notNull(),
-  trigger: text("trigger").notNull().$type<BackupTrigger>(),
+  triggerType: text("trigger_type").notNull().$type<BackupTrigger>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("git_backups_project_version_idx").on(table.projectId, table.version),
@@ -526,9 +526,9 @@ export const gitBackups = pgTable("git_backups", {
 export const insertGitBackupSchema = createInsertSchema(gitBackups).pick({
   projectId: true,
   version: true,
-  compressedData: true,
+  data: true,
   sizeBytes: true,
-  trigger: true,
+  triggerType: true,
 });
 export type InsertGitBackup = z.infer<typeof insertGitBackupSchema>;
 export type GitBackup = typeof gitBackups.$inferSelect;
@@ -962,11 +962,11 @@ export const aiPlanTasks = pgTable("ai_plan_tasks", {
   planId: varchar("plan_id", { length: 36 }).notNull(),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
-  complexity: text("complexity").notNull().default("medium"),
   dependsOn: text("depends_on").array().default([]),
   status: text("status").notNull().default("pending"),
-  orderIndex: integer("order_index").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("ai_plan_task_plan_idx").on(table.planId),
 ]);
@@ -975,10 +975,9 @@ export const insertAiPlanTaskSchema = createInsertSchema(aiPlanTasks).pick({
   planId: true,
   title: true,
   description: true,
-  complexity: true,
   dependsOn: true,
   status: true,
-  orderIndex: true,
+  sortOrder: true,
 });
 export type InsertAiPlanTask = z.infer<typeof insertAiPlanTaskSchema>;
 export type AiPlanTask = typeof aiPlanTasks.$inferSelect;
@@ -1905,11 +1904,11 @@ export type Task = typeof tasks.$inferSelect;
 export const taskSteps = pgTable("task_steps", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   taskId: varchar("task_id", { length: 36 }).notNull(),
-  orderIndex: integer("order_index").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
   title: text("title").notNull(),
-  description: text("description").notNull().default(""),
   status: text("status").notNull().default("pending"),
   output: text("output"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
 }, (table) => [
@@ -1918,9 +1917,8 @@ export const taskSteps = pgTable("task_steps", {
 
 export const insertTaskStepSchema = createInsertSchema(taskSteps).pick({
   taskId: true,
-  orderIndex: true,
+  sortOrder: true,
   title: true,
-  description: true,
 });
 export type InsertTaskStep = z.infer<typeof insertTaskStepSchema>;
 export type TaskStep = typeof taskSteps.$inferSelect;

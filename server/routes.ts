@@ -9344,10 +9344,9 @@ Any closing remarks...`;
             id: t.id,
             title: t.title,
             description: t.description,
-            complexity: t.complexity,
             dependsOn: t.dependsOn,
             status: t.status,
-            orderIndex: t.orderIndex,
+            sortOrder: t.sortOrder,
           })),
         })}\n\n`);
       }
@@ -10658,11 +10657,11 @@ Always cite your sources in your response when using information from web search
 
       const userId = req.session.userId!;
       const approvedPlan = await storage.getLatestPlan(projectId, userId);
-      let planTasks: { id: string; title: string; description: string; status: string; orderIndex: number }[] = [];
+      let planTasks: { id: string; title: string; description: string; status: string; sortOrder: number }[] = [];
       let currentTaskIndex = 0;
       if (approvedPlan && approvedPlan.status === "approved") {
         const tasks = await storage.getPlanTasks(approvedPlan.id);
-        planTasks = tasks.map(t => ({ id: t.id, title: t.title, description: t.description, status: t.status, orderIndex: t.orderIndex }));
+        planTasks = tasks.map(t => ({ id: t.id, title: t.title, description: t.description, status: t.status, sortOrder: t.sortOrder }));
         const firstPending = planTasks.findIndex(t => t.status === "pending");
         currentTaskIndex = firstPending >= 0 ? firstPending : 0;
       }
@@ -10675,7 +10674,7 @@ Always cite your sources in your response when using information from web search
         if (task.status === "pending") {
           await storage.updatePlanTask(task.id, { status: "in-progress" });
           task.status = "in-progress";
-          res.write(`data: ${JSON.stringify({ type: "task_progress", taskId: task.id, status: "in-progress", orderIndex: task.orderIndex })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: "task_progress", taskId: task.id, status: "in-progress", sortOrder: task.sortOrder })}\n\n`);
         }
       }
 
@@ -10686,7 +10685,7 @@ Always cite your sources in your response when using information from web search
         const task = planTasks[currentTaskIndex];
         await storage.updatePlanTask(task.id, { status: "done" });
         task.status = "done";
-        res.write(`data: ${JSON.stringify({ type: "task_progress", taskId: task.id, status: "done", orderIndex: task.orderIndex })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "task_progress", taskId: task.id, status: "done", sortOrder: task.sortOrder })}\n\n`);
         currentTaskIndex++;
 
         if (currentTaskIndex < planTasks.length) {
@@ -17989,9 +17988,8 @@ print(json.dumps({"results":tests,"duration":dur}))`;
         for (let i = 0; i < plan.length; i++) {
           await storage.createTaskStep({
             taskId: task.id,
-            orderIndex: i,
+            sortOrder: i,
             title: plan[i],
-            description: plan[i],
           });
         }
       }
@@ -18266,9 +18264,8 @@ Respond ONLY with the JSON array, no other text.`;
           for (let j = 0; j < pt.plan.length; j++) {
             await storage.createTaskStep({
               taskId: task.id,
-              orderIndex: j,
+              sortOrder: j,
               title: pt.plan[j],
-              description: pt.plan[j],
             });
           }
         }

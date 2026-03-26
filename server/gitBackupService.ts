@@ -29,9 +29,9 @@ export async function createBackup(
       const backup = await storage.createGitBackup({
         projectId,
         version: nextVersion,
-        compressedData: compressedBase64,
+        data: compressedBase64,
         sizeBytes: compressed.length,
-        trigger,
+        triggerType: trigger,
       });
 
       await pruneOldBackups(projectId, DEFAULT_RETENTION);
@@ -60,7 +60,7 @@ export async function restoreFromBackup(
 
     if (!backup) return false;
 
-    const compressed = Buffer.from(backup.compressedData, "base64");
+    const compressed = Buffer.from(backup.data, "base64");
     const decompressed = await gunzip(compressed);
     const packed = decompressed.toString("utf-8");
 
@@ -119,7 +119,7 @@ export async function verifyBackupIntegrity(
     const backup = await storage.getLatestGitBackup(projectId);
     if (!backup) return false;
 
-    const compressed = Buffer.from(backup.compressedData, "base64");
+    const compressed = Buffer.from(backup.data, "base64");
     const decompressed = await gunzip(compressed);
     const packed = decompressed.toString("utf-8");
     const entries = JSON.parse(packed);
