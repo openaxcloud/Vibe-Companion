@@ -13323,7 +13323,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
         const raw = typeof rawData === "string" ? rawData : rawData.toString();
         if (raw.length > MAX_COLLAB_MSG_SIZE) return;
 
-        const data = JSON.parse(raw);
+        let data: any;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          return;
+        }
         if (!data || typeof data.type !== "string") return;
 
         switch (data.type) {
