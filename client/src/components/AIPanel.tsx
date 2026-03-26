@@ -102,10 +102,10 @@ interface PlanTask {
   id?: string;
   title: string;
   description: string;
-  complexity: "simple" | "medium" | "complex";
+  complexity?: "simple" | "medium" | "complex";
   dependsOn: number[];
   status: "pending" | "in-progress" | "done";
-  orderIndex: number;
+  sortOrder: number;
 }
 
 interface Plan {
@@ -378,7 +378,7 @@ function PlanTaskCard({ task, index, expanded, onToggle, onStatusChange }: {
   onToggle: () => void;
   onStatusChange?: (status: "pending" | "in-progress" | "done") => void;
 }) {
-  const complexity = COMPLEXITY_COLORS[task.complexity] || COMPLEXITY_COLORS.medium;
+  const complexity = COMPLEXITY_COLORS[task.complexity || "medium"] || COMPLEXITY_COLORS.medium;
   const statusIcon = task.status === "done"
     ? <CheckCircle2 className="w-4 h-4 text-[#0CCE6B]" />
     : task.status === "in-progress"
@@ -787,7 +787,7 @@ function parsePlanFromResponse(content: string): { title: string; tasks: PlanTas
         complexity: ["simple", "medium", "complex"].includes(t.complexity) ? t.complexity : "medium",
         dependsOn: Array.isArray(t.dependsOn) ? t.dependsOn : [],
         status: "pending" as const,
-        orderIndex: i,
+        sortOrder: i,
       })),
     };
   } catch {
@@ -1123,14 +1123,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         if (res.ok) {
           const data = await res.json();
           if (data.plan && data.tasks) {
-            const mappedTasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity: string; dependsOn: string[] | null; status: string; orderIndex: number }) => ({
+            const mappedTasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity?: string; dependsOn: string[] | null; status: string; sortOrder: number }) => ({
               id: t.id,
               title: t.title,
               description: t.description,
-              complexity: t.complexity as "simple" | "medium" | "complex",
+              complexity: (t.complexity as "simple" | "medium" | "complex") || "medium",
               dependsOn: (t.dependsOn || []).map(Number),
               status: t.status as "pending" | "in-progress" | "done",
-              orderIndex: t.orderIndex,
+              sortOrder: t.sortOrder,
             }));
             setCurrentPlan({
               id: data.plan.id,
@@ -1626,14 +1626,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
             );
           } else if (data.type === "plan_created" && data.plan && data.tasks) {
-            const mappedTasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity: string; dependsOn: string[] | null; status: string; orderIndex: number }) => ({
+            const mappedTasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity?: string; dependsOn: string[] | null; status: string; sortOrder: number }) => ({
               id: t.id,
               title: t.title,
               description: t.description,
-              complexity: t.complexity as "simple" | "medium" | "complex",
+              complexity: (t.complexity as "simple" | "medium" | "complex") || "medium",
               dependsOn: (t.dependsOn || []).map(Number),
               status: t.status as "pending" | "in-progress" | "done",
-              orderIndex: t.orderIndex,
+              sortOrder: t.sortOrder,
             }));
             setCurrentPlan({
               id: data.plan.id,
@@ -2757,7 +2757,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 complexity: typeof t.complexity === "string" && ["simple", "medium", "complex"].includes(t.complexity) ? t.complexity as "simple" | "medium" | "complex" : "medium",
                 dependsOn: Array.isArray(t.dependsOn) ? t.dependsOn : [],
                 status: "pending" as const,
-                orderIndex: idx,
+                sortOrder: idx,
               }));
 
               return (
@@ -3031,14 +3031,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       if (res.ok) {
         const data = await res.json();
-        const tasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity: string; dependsOn: string[] | null; status: string; orderIndex: number }) => ({
+        const tasks: PlanTask[] = data.tasks.map((t: { id: string; title: string; description: string; complexity?: string; dependsOn: string[] | null; status: string; sortOrder: number }) => ({
           id: t.id,
           title: t.title,
           description: t.description,
-          complexity: t.complexity as "simple" | "medium" | "complex",
+          complexity: (t.complexity as "simple" | "medium" | "complex") || "medium",
           dependsOn: (t.dependsOn || []).map(Number),
           status: t.status as "pending" | "in-progress" | "done",
-          orderIndex: t.orderIndex,
+          sortOrder: t.sortOrder,
         }));
         setCurrentPlan({ ...currentPlan, status: "approved", tasks });
         setApprovedPlanTasks(tasks);
