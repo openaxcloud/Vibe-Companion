@@ -9332,7 +9332,7 @@ Any closing remarks...`;
           userId,
           title: planData.title,
           model: requestedModel || "gpt",
-          tasks: planData.tasks.map(t => ({ ...t, dependsOn: t.dependsOn.map(String) })),
+          tasks: planData.tasks.map(t => ({ title: t.title, description: t.description, dependsOn: t.dependsOn.map(String) })),
           userMessage: messages[messages.length - 1]?.content || "",
           assistantMessage: fullContent,
         });

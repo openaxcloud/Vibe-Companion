@@ -595,7 +595,7 @@ export interface IStorage {
     userId: string;
     title: string;
     model: string;
-    tasks: Array<{ title: string; description: string; complexity: string; dependsOn: string[] }>;
+    tasks: Array<{ title: string; description: string; dependsOn: string[] }>;
     userMessage: string;
     assistantMessage: string;
   }): Promise<{ plan: AiPlan; createdTasks: AiPlanTask[] }>;
@@ -3800,7 +3800,7 @@ export class DatabaseStorage implements IStorage {
     userId: string;
     title: string;
     model: string;
-    tasks: Array<{ title: string; description: string; complexity: string; dependsOn: string[] }>;
+    tasks: Array<{ title: string; description: string; dependsOn: string[] }>;
     userMessage: string;
     assistantMessage: string;
   }): Promise<{ plan: AiPlan; createdTasks: AiPlanTask[] }> {
