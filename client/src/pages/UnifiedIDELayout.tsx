@@ -500,6 +500,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   }, [mobileAgentHandlers?.handleSubmit]);
 
   const bootstrapConsumedRef = useRef(false);
+  const bootstrapPromptRef = useRef<string | null>(null);
   useEffect(() => {
     if (bootstrapConsumedRef.current || !projectId) return;
     const promptKey = `agent-prompt-${projectId}`;
@@ -508,10 +509,23 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       bootstrapConsumedRef.current = true;
       sessionStorage.removeItem(promptKey);
       sessionStorage.removeItem(`agent-build-mode-${projectId}`);
-      setPendingAIMessage(savedPrompt);
-      pendingMobileMessageRef.current = savedPrompt;
+      bootstrapPromptRef.current = savedPrompt;
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (!bootstrapPromptRef.current) return;
+    const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+    if (h?.handleSubmit) {
+      const prompt = bootstrapPromptRef.current;
+      bootstrapPromptRef.current = null;
+      try {
+        h.handleSubmit(prompt);
+      } catch (err) {
+        console.error('[Bootstrap] Failed to send prompt:', err);
+      }
+    }
+  }, [mobileAgentHandlers?.handleSubmit]);
 
   // Tab content animation
   const [displayedTab, setDisplayedTab] = useState(activeTab);
@@ -1396,6 +1410,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                       onPendingMessageConsumed={() => setPendingAIMessage(null)}
                       agentToolsSettings={agentToolsSettings}
                       onAgentToolsSettingsChange={setAgentToolsSettings}
+                      onExternalInput={setMobileAgentHandlers}
                     />
                   </TabsContent>
 

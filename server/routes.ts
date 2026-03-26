@@ -5079,6 +5079,7 @@ export async function registerRoutes(
         name: projectName,
         language,
         projectType: options?.framework === "react" ? "web-app" : "web-app",
+        outputType: "web",
         visibility: "public",
       });
       await storage.createArtifact({
