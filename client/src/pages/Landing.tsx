@@ -207,10 +207,10 @@ export default function Landing() {
         }
       };
       
-      const result = await apiRequest('POST', '/api/workspace/bootstrap', requestPayload) as any;
+      const response = await apiRequest('POST', '/api/workspace/bootstrap', requestPayload);
+      const result = await response.json();
 
       if (result.success) {
-        // Store prompt and build mode for the IDE Agent panel to pick up
         sessionStorage.setItem(`agent-prompt-${result.projectId}`, pendingBuildPrompt);
         sessionStorage.setItem(`agent-build-mode-${result.projectId}`, mode);
         
