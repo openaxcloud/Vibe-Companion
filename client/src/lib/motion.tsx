@@ -1,11 +1,8 @@
-import { motion, AnimatePresence, type Variants } from "framer-motion";
-import type { PanInfo } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const LazyMotionDiv = motion.div;
-export const LazyMotionButton = motion.button;
-export const LazyMotionSpan = motion.span;
 export const LazyAnimatePresence = AnimatePresence;
-export { AnimatePresence, type Variants, type PanInfo };
+export { AnimatePresence };
 export const CSSFade = ({ children, ...props }: any) => <div {...props}>{children}</div>;
 export const CSSSlide = ({ children, ...props }: any) => <div {...props}>{children}</div>;
 export const fadeVariants = { hidden: { opacity: 0 }, visible: { opacity: 1 } };

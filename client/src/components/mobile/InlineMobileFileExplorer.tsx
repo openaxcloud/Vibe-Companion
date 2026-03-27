@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useReducedMotion, SPRING_CONFIG, getReducedMotionTransition } from '@/hooks/use-reduced-motion';
+import { VirtualFileTree } from './VirtualFileTree';
 
 interface FileItem {
   id: number;
@@ -245,6 +246,9 @@ export function InlineMobileFileExplorer({
 
   const fileTree = buildTree(filteredFiles);
 
+  // Use VirtualFileTree for large file lists (50+ files) for performance
+  const useVirtualTree = (files?.length || 0) > 50;
+
   return (
     <div className={cn("flex flex-col h-full bg-[var(--ecode-background)]", className)}>
       <div className="flex items-center gap-2 p-3 border-b border-[var(--ecode-border)]">
@@ -293,8 +297,17 @@ export function InlineMobileFileExplorer({
           <FileTreeSkeleton />
         ) : fileTree.length === 0 ? (
           <NoFilesEmptyState onCreateFile={onCreateFile} />
+        ) : useVirtualTree ? (
+          <VirtualFileTree
+            files={fileTree}
+            onFileSelect={onFileSelect}
+            expandedFolders={expandedFolders}
+            onToggleFolder={handleToggleFolder}
+            currentFileId={selectedFileId}
+            className="h-full"
+          />
         ) : (
-          <LazyMotionDiv 
+          <LazyMotionDiv
             className="py-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

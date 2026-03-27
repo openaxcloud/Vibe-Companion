@@ -885,11 +885,11 @@ function UnifiedIDELayout({
       case 'files':
         return (
           <Suspense fallback={<FileExplorerSkeleton />}>
-            <ReplitFileExplorer
+            <InlineMobileFileExplorer
               projectId={projectId}
-              onFileSelect={handleFileSelect}
+              onFileSelect={(file) => handleFileSelect({ id: file.id, name: file.name })}
               selectedFileId={selectedFileId}
-              isBootstrapping={!!bootstrapToken}
+              className="h-full"
             />
           </Suspense>
         );
@@ -967,13 +967,11 @@ function UnifiedIDELayout({
       case 'search':
         return (
           <Suspense fallback={<MobileLoadingSkeleton />}>
-            <GlobalSearch
+            <MobileSearch
               isOpen={true}
-              inline={true}
               onClose={() => setMobileActiveTab('agent')}
-              projectId={projectId}
-              onFileSelect={(file) => {
-                handleFileSelect({ id: file.id, name: file.name });
+              onSearch={(query, category) => {
+                console.log('[MobileSearch] Search:', query, category);
               }}
             />
           </Suspense>
@@ -1029,13 +1027,25 @@ function UnifiedIDELayout({
       case 'notifications':
         return (
           <Suspense fallback={<MobileLoadingSkeleton />}>
-            <MobileNotifications />
+            <MobileSlidePanel
+              isOpen={true}
+              onClose={() => setMobileActiveTab('agent')}
+              title="Notifications"
+            >
+              <MobileNotifications />
+            </MobileSlidePanel>
           </Suspense>
         );
       case 'profile':
         return (
           <Suspense fallback={<MobileLoadingSkeleton />}>
-            <MobileProfile />
+            <MobileSlidePanel
+              isOpen={true}
+              onClose={() => setMobileActiveTab('agent')}
+              title="Profile"
+            >
+              <MobileProfile />
+            </MobileSlidePanel>
           </Suspense>
         );
       case 'more':
@@ -1060,11 +1070,15 @@ function UnifiedIDELayout({
       case 'editor':
         return (
           <Suspense fallback={<EditorSkeleton />}>
-            <EnhancedMobileCodeEditor
-              projectId={projectId}
-              fileId={selectedFileId}
-              className="h-full"
-            />
+            <div className="relative h-full">
+              <EnhancedMobileCodeEditor
+                projectId={projectId}
+                fileId={selectedFileId}
+                className="h-full"
+              />
+              {/* Floating code actions overlay for mobile editor */}
+              <MobileCodeActions editor={null} className="absolute bottom-4 right-4 z-20" />
+            </div>
           </Suspense>
         );
       case 'terminal':
@@ -1490,14 +1504,19 @@ function UnifiedIDELayout({
         data-ide-layout="unified"
         data-layout-type="mobile"
       >
-        {/* Replit-style Mobile Header - compact */}
-        <ReplitMobileHeader
-          activeTab={mobileActiveTab}
-          onBack={() => window.history.back()}
-          onHistory={() => handleAddTool('history')}
-          onNewTab={() => setShowQuickFileSearch(true)}
-          onMore={() => setShowMobileMoreMenu(true)}
-        />
+        {/* E-Code Mobile IDE Header - glassmorphic design */}
+        <Suspense fallback={null}>
+          <MobileIDEHeader
+            projectName={project?.name || 'Project'}
+            isRunning={isRunning}
+            onRun={handleRunStop}
+            onStop={handleRunStop}
+            onSearch={() => setMobileActiveTab('search' as MobileTab)}
+            onSettings={() => handleAddOpenTab('settings')}
+            onShare={() => {}}
+            className="z-30"
+          />
+        </Suspense>
 
         {/* Main Content Area - maximized vertical space */}
         <div 

@@ -1,9 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "./styles/micro-interactions.css";
-@import "./styles/performance-animations.css";
-@import "./styles/replit-theme.css";
-@import "./styles/agent-animations.css";
 
 @custom-variant dark (&:is(.dark *));
 
