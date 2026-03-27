@@ -22,7 +22,7 @@ import AcceptInvite from "@/pages/AcceptInvite";
 import { useAuth } from "@/hooks/use-auth";
 import { Component, lazy, Suspense, type ReactNode } from "react";
 import Project from "@/pages/Project";
-import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
+import UnifiedIDELayout from "@/components/ide/UnifiedIDELayout";
 import Frameworks from "@/pages/Frameworks";
 import ThemeEditor from "@/pages/ThemeEditor";
 import ThemesExplore from "@/pages/ThemesExplore";
