@@ -7734,7 +7734,7 @@ export async function registerRoutes(
       if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
       const backup = await createBackup(project.id, "manual");
       if (!backup) return res.status(400).json({ message: "No git state to backup" });
-      return res.status(201).json({ id: backup.id, version: backup.version, sizeBytes: backup.sizeBytes, trigger: backup.trigger, createdAt: backup.createdAt });
+      return res.status(201).json({ id: backup.id, version: backup.version, sizeBytes: backup.sizeBytes, trigger: backup.triggerType, createdAt: backup.createdAt });
     } catch (err) {
       return res.status(500).json({ message: err instanceof Error ? err.message : "Failed to create backup" });
     }
@@ -7763,7 +7763,7 @@ export async function registerRoutes(
         id: b.id,
         version: b.version,
         sizeBytes: b.sizeBytes,
-        trigger: b.trigger,
+        trigger: b.triggerType,
         createdAt: b.createdAt,
       })));
     } catch (err: any) {
