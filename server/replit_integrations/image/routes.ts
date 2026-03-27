@@ -2,7 +2,7 @@ import type { Express, Request, Response, RequestHandler } from "express";
 import { openai } from "./client";
 import { storage } from "../../storage";
 
-export function registerImageRoutes(app: Express, ...middlewares: RequestHandler[]): void {
+export function registerImageRoutes(app: Express, ...middlewares: any[]): void {
   app.post("/api/generate-image", ...middlewares, async (req: Request, res: Response) => {
     try {
       const { prompt, size = "1024x1024" } = req.body;

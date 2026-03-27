@@ -20984,7 +20984,8 @@ export default function App() {
 
   app.delete("/api/projects/:projectId/feedback/:feedbackId", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { projectId, feedbackId } = req.params;
+      const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
+      const feedbackId = Array.isArray(req.params.feedbackId) ? req.params.feedbackId[0] : req.params.feedbackId;
       const project = await storage.getProject(projectId);
       if (!project || project.userId !== req.session.userId) {
         return res.status(403).json({ message: "Not authorized" });
@@ -21002,12 +21003,13 @@ export default function App() {
   // --- AI CREDENTIAL CONFIGS ---
   app.get("/api/projects/:projectId/ai-credentials", requireAuth, async (req: Request, res: Response) => {
     try {
-      const project = await storage.getProject(req.params.projectId);
+      const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
+      const project = await storage.getProject(projectId);
       if (!project || project.userId !== req.session.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const configs = await storage.getAiCredentialConfigs(req.params.projectId);
-      const envVars = await storage.getProjectEnvVars(req.params.projectId);
+      const configs = await storage.getAiCredentialConfigs(projectId);
+      const envVars = await storage.getProjectEnvVars(projectId);
       const providers = ["openai", "anthropic", "google", "openrouter", "perplexity", "mistral"];
       const result = providers.map(p => {
         const cfg = configs.find(c => c.provider === p);
@@ -21023,11 +21025,12 @@ export default function App() {
 
   app.put("/api/projects/:projectId/ai-credentials/:provider", requireAuth, async (req: Request, res: Response) => {
     try {
-      const project = await storage.getProject(req.params.projectId);
+      const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
+      const project = await storage.getProject(projectId);
       if (!project || project.userId !== req.session.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const { provider } = req.params;
+      const provider = Array.isArray(req.params.provider) ? req.params.provider[0] : req.params.provider;
       const validProviders = ["openai", "anthropic", "google", "openrouter", "perplexity", "mistral"];
       if (!validProviders.includes(provider)) {
         return res.status(400).json({ message: "Invalid provider" });
@@ -21037,10 +21040,10 @@ export default function App() {
         apiKey: z.string().optional(),
       }).parse(req.body);
       if (mode === "byok" && apiKey) {
-        const config = await storage.upsertAiCredentialConfig(req.params.projectId, provider, mode, apiKey);
+        const config = await storage.upsertAiCredentialConfig(projectId, provider, mode, apiKey);
         return res.json({ provider: config.provider, mode: config.mode, hasApiKey: !!config.apiKey });
       }
-      const config = await storage.upsertAiCredentialConfig(req.params.projectId, provider, mode);
+      const config = await storage.upsertAiCredentialConfig(projectId, provider, mode);
       return res.json({ provider: config.provider, mode: config.mode, hasApiKey: !!config.apiKey });
     } catch (err: any) {
       if (err.name === "ZodError") return res.status(400).json({ message: "Invalid request body" });
@@ -21050,16 +21053,17 @@ export default function App() {
 
   app.post("/api/projects/:projectId/ai-credentials/:provider/approve-managed", requireAuth, async (req: Request, res: Response) => {
     try {
-      const project = await storage.getProject(req.params.projectId);
+      const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
+      const project = await storage.getProject(projectId);
       if (!project || project.userId !== req.session.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const { provider } = req.params;
+      const provider = Array.isArray(req.params.provider) ? req.params.provider[0] : req.params.provider;
       const validProviders = ["openai", "anthropic", "google", "openrouter", "perplexity", "mistral"];
       if (!validProviders.includes(provider)) {
         return res.status(400).json({ message: "Invalid provider" });
       }
-      const config = await storage.upsertAiCredentialConfig(req.params.projectId, provider, "managed");
+      const config = await storage.upsertAiCredentialConfig(projectId, provider, "managed");
       return res.json({ provider: config.provider, mode: config.mode, approved: true });
     } catch {
       return res.status(500).json({ message: "Failed to approve managed credentials" });
@@ -21169,16 +21173,17 @@ export default function App() {
     try {
       const userId = req.session.userId!;
       const user = await storage.getUser(userId);
+      const postId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
       const { content } = req.body;
       if (!content?.trim()) return res.status(400).json({ message: "Content required" });
       const [reply] = await communityDb.insert(communityReplies).values({
-        postId: req.params.postId, userId,
+        postId, userId,
         authorName: user?.displayName || user?.email || "Anonymous",
         content: content.trim().slice(0, 5000),
       }).returning();
       await communityDb.update(communityPosts).set({
         replyCount: drizzleSql`reply_count + 1`,
-      }).where(drizzleEq(communityPosts.id, req.params.postId));
+      }).where(drizzleEq(communityPosts.id, postId));
       res.json({ reply });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -21188,15 +21193,16 @@ export default function App() {
   app.post("/api/community/posts/:postId/like", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     try {
       const userId = req.session.userId!;
+      const postId = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
       const existing = await communityDb.select().from(communityLikes)
-        .where(drizzleAnd(drizzleEq(communityLikes.postId, req.params.postId), drizzleEq(communityLikes.userId, userId)));
+        .where(drizzleAnd(drizzleEq(communityLikes.postId, postId), drizzleEq(communityLikes.userId, userId)));
       if (existing.length > 0) {
         await communityDb.delete(communityLikes).where(drizzleEq(communityLikes.id, existing[0].id));
-        await communityDb.update(communityPosts).set({ likes: drizzleSql`GREATEST(likes - 1, 0)` }).where(drizzleEq(communityPosts.id, req.params.postId));
+        await communityDb.update(communityPosts).set({ likes: drizzleSql`GREATEST(likes - 1, 0)` }).where(drizzleEq(communityPosts.id, postId));
         return res.json({ liked: false });
       }
-      await communityDb.insert(communityLikes).values({ postId: req.params.postId, userId });
-      await communityDb.update(communityPosts).set({ likes: drizzleSql`likes + 1` }).where(drizzleEq(communityPosts.id, req.params.postId));
+      await communityDb.insert(communityLikes).values({ postId, userId });
+      await communityDb.update(communityPosts).set({ likes: drizzleSql`likes + 1` }).where(drizzleEq(communityPosts.id, postId));
       res.json({ liked: true });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
