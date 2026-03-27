@@ -879,7 +879,7 @@ function UnifiedIDELayout({
       case 'terminal':
         return (
           <Suspense fallback={<TerminalSkeleton />}>
-            <EnhancedMobileTerminal projectId={projectId} />
+            <MobileTerminal projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'files':
@@ -1525,14 +1525,16 @@ function UnifiedIDELayout({
           data-testid="mobile-swipe-area"
           style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '3rem' }}
         >
-          <div
+          <PageTransition
             key={mobileActiveTab}
-            className="h-full overflow-auto animate-fade-in"
+            variant="fade"
+            duration={0.2}
+            className="h-full overflow-auto"
           >
             <OptimizedErrorBoundary level="component">
               {renderMobileContent()}
             </OptimizedErrorBoundary>
-          </div>
+          </PageTransition>
         </div>
 
         {/* Replit-style Floating Input Bar - Only shown on Agent tab */}
@@ -1582,36 +1584,49 @@ function UnifiedIDELayout({
           onPlayStop={handleRunStop}
         />
 
-        <Suspense fallback={null}>
-          <MobileMoreMenu
-            projectId={projectId}
-            isOpen={showMobileMoreMenu}
-            onClose={() => setShowMobileMoreMenu(false)}
-            onOpenGit={() => { setShowMobileMoreMenu(false); handleAddOpenTab('git'); }}
-            onOpenPackages={() => { setShowMobileMoreMenu(false); handleAddOpenTab('packages'); }}
-            onOpenSecrets={() => { setShowMobileMoreMenu(false); handleAddOpenTab('secrets'); }}
-            onOpenDatabase={() => { setShowMobileMoreMenu(false); handleAddOpenTab('database'); }}
-            onOpenSettings={() => { setShowMobileMoreMenu(false); handleAddOpenTab('settings'); }}
-            onOpenDebug={() => { setShowMobileMoreMenu(false); handleAddOpenTab('debug'); }}
-            onOpenCollaboration={() => { setShowMobileMoreMenu(false); handleAddOpenTab('collaboration'); }}
-            onOpenWorkflows={() => { setShowMobileMoreMenu(false); handleAddOpenTab('workflows'); }}
-            onOpenHistory={() => { setShowMobileMoreMenu(false); handleAddOpenTab('history'); }}
-            onOpenCheckpoints={() => { setShowMobileMoreMenu(false); handleAddOpenTab('checkpoints'); }}
-            onOpenExtensions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('extensions'); }}
-            onOpenSecurity={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security'); }}
-            onOpenDeploy={() => { setShowMobileMoreMenu(false); handleAddOpenTab('deploy'); }}
-            onOpenWeb={() => { setShowMobileMoreMenu(false); handleAddOpenTab('preview'); }}
-            onOpenActions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('actions'); }}
-            onOpenTools={() => { setShowMobileMoreMenu(false); handleAddOpenTab('tools'); }}
-            onOpenCommandPalette={() => { setShowMobileMoreMenu(false); setShowCommandPalette(true); }}
-            onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
-            onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
-            onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
-            problemsCount={errorsCount}
-          />
-        </Suspense>
+        {/* BottomSheet wrapper for More Menu */}
+        <BottomSheet
+          isOpen={showMobileMoreMenu}
+          onClose={() => setShowMobileMoreMenu(false)}
+          height="80vh"
+        >
+          <Suspense fallback={null}>
+            <MobileMoreMenu
+              projectId={projectId}
+              isOpen={showMobileMoreMenu}
+              onClose={() => setShowMobileMoreMenu(false)}
+              onOpenGit={() => { setShowMobileMoreMenu(false); handleAddOpenTab('git'); }}
+              onOpenPackages={() => { setShowMobileMoreMenu(false); handleAddOpenTab('packages'); }}
+              onOpenSecrets={() => { setShowMobileMoreMenu(false); handleAddOpenTab('secrets'); }}
+              onOpenDatabase={() => { setShowMobileMoreMenu(false); handleAddOpenTab('database'); }}
+              onOpenSettings={() => { setShowMobileMoreMenu(false); handleAddOpenTab('settings'); }}
+              onOpenDebug={() => { setShowMobileMoreMenu(false); handleAddOpenTab('debug'); }}
+              onOpenCollaboration={() => { setShowMobileMoreMenu(false); handleAddOpenTab('collaboration'); }}
+              onOpenWorkflows={() => { setShowMobileMoreMenu(false); handleAddOpenTab('workflows'); }}
+              onOpenHistory={() => { setShowMobileMoreMenu(false); handleAddOpenTab('history'); }}
+              onOpenCheckpoints={() => { setShowMobileMoreMenu(false); handleAddOpenTab('checkpoints'); }}
+              onOpenExtensions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('extensions'); }}
+              onOpenSecurity={() => { setShowMobileMoreMenu(false); handleAddOpenTab('security'); }}
+              onOpenDeploy={() => { setShowMobileMoreMenu(false); handleAddOpenTab('deploy'); }}
+              onOpenWeb={() => { setShowMobileMoreMenu(false); handleAddOpenTab('preview'); }}
+              onOpenActions={() => { setShowMobileMoreMenu(false); handleAddOpenTab('actions'); }}
+              onOpenTools={() => { setShowMobileMoreMenu(false); handleAddOpenTab('tools'); }}
+              onOpenCommandPalette={() => { setShowMobileMoreMenu(false); setShowCommandPalette(true); }}
+              onOpenGlobalSearch={() => { setShowMobileMoreMenu(false); handleAddOpenTab('search'); }}
+              onOpenQuickFileSearch={() => { setShowMobileMoreMenu(false); setShowQuickFileSearch(true); }}
+              onOpenKeyboardShortcuts={() => { setShowMobileMoreMenu(false); setShowKeyboardShortcuts(true); }}
+              problemsCount={errorsCount}
+            />
+          </Suspense>
+        </BottomSheet>
 
-        {showCommandPalette && (
+        {/* MobileModal wrapper for Command Palette */}
+        <MobileModal
+          isOpen={showCommandPalette}
+          onClose={() => setShowCommandPalette(false)}
+          title="Command Palette"
+          variant="center"
+        >
           <Suspense fallback={null}>
             <CommandPalette
               open={showCommandPalette}
@@ -1631,7 +1646,7 @@ function UnifiedIDELayout({
               }}
             />
           </Suspense>
-        )}
+        </MobileModal>
 
         {/* Mobile Tools Sheet */}
         <ReplitToolsSheet
