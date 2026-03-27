@@ -2,13 +2,8 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Monitor, Apple, Download, ChevronDown, ChevronUp, Keyboard, Layout, RefreshCw, Zap, Shield, Github, Menu, X } from "lucide-react";
-
-function ECodeLogo({ size = 32 }: { size?: number }) {
-  return (
-    <img src="/logo.png" alt="E-Code" width={size} height={size} className="rounded" style={{ objectFit: 'contain' }} />
-  );
-}
+import { Monitor, Apple, Download, ChevronDown, ChevronUp, Keyboard, Layout, RefreshCw, Zap, Shield, Github } from "lucide-react";
+import { MarketingLayout } from "@/components/layout/MarketingLayout";
 
 function detectOS(): "mac" | "win" | "linux" {
   if (typeof navigator === "undefined") return "mac";
@@ -47,7 +42,6 @@ const faqs = [
 export default function Desktop() {
   const [detectedOS] = useState<"mac" | "win" | "linux">(detectOS);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const releaseQuery = useQuery<{ version: string | null; changelog?: string; platforms: Record<string, { downloadUrl: string; fileSize: number | null; sha256: string | null }> }>({
     queryKey: ["/api/desktop/releases/latest"],
@@ -78,54 +72,8 @@ export default function Desktop() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)] overflow-x-hidden" data-testid="desktop-page">
-      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-4 md:px-4 md:px-6 lg:px-8 lg:px-12 h-16 border-b border-[var(--ide-border)]/50 bg-[var(--ide-bg)]">
-        <Link href="/" className="flex items-center gap-3">
-          <ECodeLogo size={28} />
-          <span className="text-lg font-bold tracking-tight">E-Code</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-8">
-          <Link href="/demo" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-ai">AI</Link>
-          <Link href="/teams" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-teams">Teams</Link>
-          <Link href="/desktop" className="text-sm text-[var(--ide-text)] font-medium" data-testid="nav-desktop">Desktop App</Link>
-          <Link href="/pricing" className="text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] transition-colors" data-testid="nav-pricing">Pricing</Link>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/login">
-            <Button variant="ghost" className="hidden md:inline-flex text-sm text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)]" data-testid="nav-login">Log in</Button>
-          </Link>
-          <Link href="/login?signup=true">
-            <Button className="hidden md:inline-flex h-9 px-5 text-sm font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg" data-testid="nav-signup">Sign up</Button>
-          </Link>
-          <button
-            className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            data-testid="button-mobile-menu"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-      </nav>
-
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-16 z-50">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute top-0 right-0 w-[280px] h-full bg-[var(--ide-bg)] border-l border-[var(--ide-border)]/50 flex flex-col">
-            <nav className="flex flex-col p-6 gap-2">
-              <Link href="/demo" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)}>AI</Link>
-              <Link href="/teams" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)}>Teams</Link>
-              <Link href="/desktop" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text)] font-medium bg-[var(--ide-panel)]" onClick={() => setMobileMenuOpen(false)} data-testid="mobile-nav-desktop">Desktop App</Link>
-              <Link href="/pricing" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
-              <div className="my-3 border-t border-[var(--ide-border)]/50" />
-              <Link href="/login" className="flex items-center px-4 py-3 rounded-xl text-[15px] text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors" onClick={() => setMobileMenuOpen(false)}>Log in</Link>
-              <Link href="/login?signup=true" onClick={() => setMobileMenuOpen(false)}>
-                <Button className="w-full h-11 text-[15px] font-semibold bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-xl">Sign up</Button>
-              </Link>
-            </nav>
-          </div>
-        </div>
-      )}
-
+    <MarketingLayout>
+      <div data-testid="desktop-page">
       <section className="relative z-10 flex flex-col items-center pt-20 pb-16 px-6 lg:pt-28 lg:pb-24">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] bg-gradient-radial from-[#0079F2]/6 via-[#0079F2]/1 to-transparent rounded-full blur-3xl" />
@@ -341,27 +289,7 @@ export default function Desktop() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-[var(--ide-border)]/50 bg-[var(--ide-bg)] px-6 lg:px-4 md:px-4 md:px-6 lg:px-8 lg:px-12 py-10">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start justify-between gap-8">
-          <div className="flex items-center gap-2">
-            <ECodeLogo size={20} />
-            <span className="font-bold text-sm">E-Code</span>
-          </div>
-          <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-[var(--ide-text-muted)]">
-            <Link href="/pricing" className="hover:text-[var(--ide-text)] transition-colors">Pricing</Link>
-            <Link href="/teams" className="hover:text-[var(--ide-text)] transition-colors">Teams</Link>
-            <Link href="/desktop" className="hover:text-[var(--ide-text)] transition-colors">Desktop App</Link>
-            <Link href="/docs" className="hover:text-[var(--ide-text)] transition-colors">Docs</Link>
-            <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
-            <a href="mailto:support@e-code.ai" className="hover:text-[var(--ide-text)] transition-colors">Contact</a>
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto mt-6 pt-5 border-t border-[var(--ide-border)]/50 flex items-center justify-between">
-          <p className="text-xs text-[var(--ide-text-muted)]">&copy; {new Date().getFullYear()} E-Code. All rights reserved.</p>
-          <a href="#" className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"><Github className="w-4 h-4" /></a>
-        </div>
-      </footer>
-    </div>
+      </div>
+    </MarketingLayout>
   );
 }

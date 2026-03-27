@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { MarketingLayout } from "@/components/layout/MarketingLayout";
 
 const steps = [
   { id: 1, label: "Choose Plan", icon: ListChecks },
@@ -217,7 +218,8 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--ide-bg)] text-[var(--ide-text)]">
+    <MarketingLayout>
+    <div className="min-h-screen text-foreground">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div className="flex items-center gap-4 mb-8 sm:mb-12">
           <Button
@@ -478,5 +480,6 @@ export default function Pricing() {
         )}
       </div>
     </div>
+    </MarketingLayout>
   );
 }
