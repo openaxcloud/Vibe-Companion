@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
+import { MobileCodeKeyboard } from './MobileCodeKeyboard';
+import { MobileCodeJoystick } from './MobileCodeJoystick';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface LazyMobileCodeEditorProps {
   projectId: string;
@@ -53,6 +56,85 @@ export function LazyMobileCodeEditor({ projectId, fileId, className }: LazyMobil
     } catch { /* ignore */ }
     setSaving(false);
   };
+
+  const isMobile = useIsMobile();
+  const [keyboardExpanded, setKeyboardExpanded] = useState(false);
+
+  // Determine language from file extension
+  const getLanguage = (ext: string) => {
+    const map: Record<string, string> = {
+      js: 'javascript', jsx: 'javascript', mjs: 'javascript',
+      ts: 'typescript', tsx: 'typescript',
+      py: 'python', html: 'html', htm: 'html',
+      css: 'css', scss: 'css', json: 'json',
+    };
+    return (map[ext] || 'generic') as any;
+  };
+
+  // Insert text at cursor position in textarea
+  const handleKeyboardInsert = useCallback((text: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const newContent = content.substring(0, start) + text + content.substring(end);
+    setContent(newContent);
+    // Set cursor after inserted text
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = start + text.length;
+      ta.focus();
+    });
+  }, [content]);
+
+  // Handle keyboard actions (undo, redo, indent, etc.)
+  const handleKeyboardAction = useCallback((action: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+
+    switch (action) {
+      case 'undo':
+        document.execCommand('undo');
+        break;
+      case 'redo':
+        document.execCommand('redo');
+        break;
+      case 'indent': {
+        const before = content.substring(0, start);
+        const selected = content.substring(start, end);
+        const indented = selected.split('\n').map(line => '  ' + line).join('\n');
+        setContent(before + indented + content.substring(end));
+        break;
+      }
+      case 'outdent': {
+        const before = content.substring(0, start);
+        const selected = content.substring(start, end);
+        const outdented = selected.split('\n').map(line => line.replace(/^  /, '')).join('\n');
+        setContent(before + outdented + content.substring(end));
+        break;
+      }
+      case 'comment': {
+        const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+        const lineEnd = content.indexOf('\n', end);
+        const actualEnd = lineEnd === -1 ? content.length : lineEnd;
+        const line = content.substring(lineStart, actualEnd);
+        const commented = line.startsWith('// ') ? line.replace(/^\/\/ /, '') : '// ' + line;
+        setContent(content.substring(0, lineStart) + commented + content.substring(actualEnd));
+        break;
+      }
+      case 'copy':
+        if (start !== end) {
+          navigator.clipboard?.writeText(content.substring(start, end));
+        }
+        break;
+      case 'paste':
+        navigator.clipboard?.readText().then(text => {
+          if (text) handleKeyboardInsert(text);
+        });
+        break;
+    }
+  }, [content, handleKeyboardInsert]);
 
   const hasChanges = content !== originalContent;
   const ext = filename.split('.').pop()?.toLowerCase() || '';
@@ -112,7 +194,55 @@ export function LazyMobileCodeEditor({ projectId, fileId, className }: LazyMobil
           className="w-full h-full bg-transparent text-[12px] text-[var(--ide-text)] font-mono leading-[18px] p-2 pl-12 outline-none resize-none mobile-scroll"
           style={{ tabSize: 2, scrollbarWidth: 'none' }}
         />
+        {/* Replit-style Joystick for code navigation */}
+        {isMobile && (
+          <MobileCodeJoystick
+            className="absolute bottom-3 right-3 z-20"
+            onScroll={(direction, velocity) => {
+              const ta = textareaRef.current;
+              if (!ta) return;
+              const scrollAmount = velocity * 60;
+              ta.scrollTop += direction === 'down' ? scrollAmount : -scrollAmount;
+            }}
+            onCursorMove={(direction) => {
+              const ta = textareaRef.current;
+              if (!ta) return;
+              const pos = ta.selectionStart;
+              const lines = content.split('\n');
+              let currentLine = 0;
+              let charCount = 0;
+              for (let i = 0; i < lines.length; i++) {
+                if (charCount + lines[i].length + 1 > pos) { currentLine = i; break; }
+                charCount += lines[i].length + 1;
+              }
+              const colInLine = pos - charCount;
+              let newPos = pos;
+              if (direction === 'left') newPos = Math.max(0, pos - 1);
+              else if (direction === 'right') newPos = Math.min(content.length, pos + 1);
+              else if (direction === 'up' && currentLine > 0) {
+                const prevLineStart = charCount - lines[currentLine - 1].length - 1;
+                newPos = prevLineStart + Math.min(colInLine, lines[currentLine - 1].length);
+              } else if (direction === 'down' && currentLine < lines.length - 1) {
+                const nextLineStart = charCount + lines[currentLine].length + 1;
+                newPos = nextLineStart + Math.min(colInLine, lines[currentLine + 1].length);
+              }
+              ta.selectionStart = ta.selectionEnd = newPos;
+              ta.focus();
+            }}
+          />
+        )}
       </div>
+      {/* Mobile Code Keyboard - coding assistance toolbar */}
+      {isMobile && (
+        <MobileCodeKeyboard
+          language={getLanguage(ext)}
+          onInsert={handleKeyboardInsert}
+          onAction={handleKeyboardAction as any}
+          onSnippetSelect={(snippet) => handleKeyboardInsert(snippet.insert)}
+          isExpanded={keyboardExpanded}
+          onToggleExpand={() => setKeyboardExpanded(!keyboardExpanded)}
+        />
+      )}
       <div className="flex items-center justify-between px-3 py-1 bg-[var(--ide-panel)] border-t border-[var(--ide-border)]">
         <span className="text-[9px] text-[var(--ide-text-muted)]">{ext.toUpperCase()} • {lineCount} lines</span>
         <span className="text-[9px] text-[var(--ide-text-muted)]">{(content.length / 1024).toFixed(1)} KB</span>

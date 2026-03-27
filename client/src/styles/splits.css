@@ -1,0 +1,323 @@
+/* Splits Layout System Styles */
+
+/* Smooth transitions for layout changes */
+.splits-layout {
+  --splits-animation-duration: 0.3s;
+  --splits-animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --splits-resize-handle-size: 4px;
+  --splits-resize-handle-hover-size: 8px;
+  --splits-drop-zone-color: rgba(59, 130, 246, 0.2);
+  --splits-drop-zone-border-color: rgb(59, 130, 246);
+  --splits-drag-radius: 50px;
+}
+
+/* Pane animations */
+.splits-pane {
+  transition: transform var(--splits-animation-duration) var(--splits-animation-easing),
+              opacity var(--splits-animation-duration) var(--splits-animation-easing);
+}
+
+.splits-pane-dragging {
+  opacity: 0.6;
+  transform: scale(0.98);
+}
+
+.splits-pane-dropping {
+  animation: pane-drop 0.3s ease-out;
+}
+
+@keyframes pane-drop {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Tab animations */
+.splits-tab {
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.splits-tab:hover {
+  background: var(--ecode-hover);
+}
+
+.splits-tab-active {
+  background: var(--ecode-surface);
+}
+
+.splits-tab-dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+/* Drop zone indicators */
+.splits-drop-zone {
+  position: absolute;
+  pointer-events: none;
+  background: var(--splits-drop-zone-color);
+  border: 2px dashed var(--splits-drop-zone-border-color);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.splits-drop-zone-active {
+  animation: drop-zone-pulse 1s infinite;
+}
+
+@keyframes drop-zone-pulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Conical drop zones */
+.splits-drop-cone {
+  position: absolute;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--splits-drop-zone-color) 45deg,
+    transparent 90deg,
+    transparent 90deg,
+    var(--splits-drop-zone-color) 135deg,
+    transparent 180deg,
+    transparent 180deg,
+    var(--splits-drop-zone-color) 225deg,
+    transparent 270deg,
+    transparent 270deg,
+    var(--splits-drop-zone-color) 315deg,
+    transparent 360deg
+  );
+  width: calc(var(--splits-drag-radius) * 2);
+  height: calc(var(--splits-drag-radius) * 2);
+  border-radius: 50%;
+  animation: rotate-cone 2s linear infinite;
+}
+
+@keyframes rotate-cone {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Resize handles */
+.splits-resize-handle {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.splits-resize-handle-horizontal {
+  width: var(--splits-resize-handle-size);
+  cursor: col-resize;
+}
+
+.splits-resize-handle-horizontal:hover {
+  width: var(--splits-resize-handle-hover-size);
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.splits-resize-handle-vertical {
+  height: var(--splits-resize-handle-size);
+  cursor: row-resize;
+}
+
+.splits-resize-handle-vertical:hover {
+  height: var(--splits-resize-handle-hover-size);
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.splits-resize-handle-dragging {
+  background: rgba(59, 130, 246, 0.5) !important;
+}
+
+/* Floating panes */
+.splits-floating-pane {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+              0 10px 10px -5px rgba(0, 0, 0, 0.04),
+              0 0 0 1px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+.splits-floating-pane:hover {
+  box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.15),
+              0 15px 15px -5px rgba(0, 0, 0, 0.06),
+              0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.splits-floating-pane-maximized {
+  animation: maximize-pane 0.3s ease-out;
+}
+
+@keyframes maximize-pane {
+  from {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.splits-floating-pane-minimized {
+  animation: minimize-pane 0.2s ease-out;
+}
+
+@keyframes minimize-pane {
+  from {
+    height: auto;
+  }
+  to {
+    height: 40px;
+  }
+}
+
+/* Spring physics for natural movement */
+.splits-spring-animation {
+  animation: spring-bounce 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes spring-bounce {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.05);
+  }
+  60% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Drag overlay */
+.splits-drag-overlay {
+  cursor: grabbing !important;
+  pointer-events: none;
+  z-index: 10000;
+  animation: drag-wiggle 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes drag-wiggle {
+  from {
+    transform: rotate(-1deg) scale(1.02);
+  }
+  to {
+    transform: rotate(1deg) scale(1.02);
+  }
+}
+
+/* Tab bar scrolling */
+.splits-tab-bar {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.splits-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth scroll behavior */
+.splits-smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Focus states */
+.splits-pane:focus-within {
+  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline-offset: -2px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .splits-layout {
+    --splits-drop-zone-color: rgba(96, 165, 250, 0.2);
+    --splits-drop-zone-border-color: rgb(96, 165, 250);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .splits-layout {
+    --splits-resize-handle-size: 8px;
+    --splits-resize-handle-hover-size: 12px;
+  }
+  
+  .splits-floating-pane {
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
+}
+
+/* Accessibility - High contrast mode */
+@media (prefers-contrast: high) {
+  .splits-drop-zone {
+    border-width: 3px;
+  }
+  
+  .splits-resize-handle {
+    background: currentColor;
+  }
+}
+
+/* Performance optimizations */
+.splits-layout * {
+  will-change: auto;
+}
+
+.splits-pane-animating {
+  will-change: transform, opacity;
+}
+
+.splits-resize-active * {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Loading states */
+.splits-pane-loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.splits-pane-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    left: 100%;
+  }
+}

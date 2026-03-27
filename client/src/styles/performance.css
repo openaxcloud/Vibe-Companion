@@ -1,0 +1,132 @@
+/* Performance optimizations */
+
+/* Container queries for optimized layout performance */
+.contain-layout {
+  contain: layout;
+}
+
+.contain-style {
+  contain: style;
+}
+
+.contain-paint {
+  contain: paint;
+}
+
+.contain-all {
+  contain: layout style paint;
+}
+
+/* Hardware acceleration for animations */
+.hardware-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Smooth animations with transforms instead of position */
+.smooth-transition {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Optimized card performance */
+.performance-card {
+  contain: layout style paint;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Optimized scrolling */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent layout thrashing */
+.stable-layout {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Optimized panel backgrounds (Solid Colors) */
+.backdrop-optimized {
+  background-color: var(--background-default);
+  transform: translateZ(0);
+}
+
+/* Motion preference support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .smooth-transition {
+    transition: none !important;
+  }
+  
+  .hardware-accelerated {
+    will-change: auto !important;
+  }
+}
+
+/* Optimize images */
+img {
+  content-visibility: auto;
+}
+
+/* Optimize large lists */
+.virtual-list {
+  content-visibility: auto;
+  contain: strict;
+}
+
+/* Skeleton loading animations */
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.skeleton-loading {
+  animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Optimized hover effects using transforms */
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.2);
+}
+
+/* Optimized scale animations */
+.scale-on-hover {
+  transition: transform 0.2s ease-out;
+}
+
+.scale-on-hover:hover {
+  transform: scale(1.05) translateZ(0);
+}
+
+/* GPU accelerated animations */
+.gpu-accelerated {
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+}

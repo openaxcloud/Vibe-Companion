@@ -61,6 +61,18 @@ import { QuickFileSearch } from '@/components/ide/QuickFileSearch';
 import { KeyboardShortcutsOverlay } from '@/components/ide/KeyboardShortcutsOverlay';
 import { ReplitFileExplorer } from '@/components/editor/ReplitFileExplorer';
 import { ReplitMobileNavigation, ReplitMobileInputBar, ReplitMobileHeader, type MobileTab } from '@/components/mobile';
+import { ReplitBottomTabs } from '@/components/mobile/ReplitBottomTabs';
+import { MobileFAB } from '@/components/mobile/MobileFAB';
+import {
+  FileExplorerSkeleton, EditorSkeleton, TerminalSkeleton,
+  PreviewSkeleton, AgentSkeleton, DeploySkeleton,
+  MobileLoadingSkeleton
+} from '@/components/mobile/MobileLoadingSkeleton';
+import { MobileCodeKeyboard } from '@/components/mobile/MobileCodeKeyboard';
+import { MobileEmptyState } from '@/components/mobile/MobileEmptyState';
+import { PageTransition, BottomSheet, MobileModal } from '@/components/mobile/MobileTransitions';
+
+const MobileTerminal = instrumentedLazy(() => import('@/components/mobile/MobileTerminal').then(mod => ({ default: mod.MobileTerminal })), 'MobileTerminal');
 
 const ReplitMonacoEditor = instrumentedLazy(() => import('@/components/editor/ReplitMonacoEditor').then(mod => ({ default: mod.ReplitMonacoEditor })), 'ReplitMonacoEditor');
 const ReplitTerminalPanel = instrumentedLazy(() => import('@/components/editor/ReplitTerminalPanel').then(mod => ({ default: mod.ReplitTerminalPanel })), 'ReplitTerminalPanel');
@@ -80,6 +92,26 @@ const MobilePreviewPanel = instrumentedLazy(() => import('@/components/mobile/Mo
 const MobileMoreMenu = instrumentedLazy(() => import('@/components/mobile/MobileMoreMenu').then(mod => ({ default: mod.MobileMoreMenu })), 'MobileMoreMenu');
 const MobileSecurityPanel = instrumentedLazy(() => import('@/components/mobile/MobileSecurityPanel').then(mod => ({ default: mod.MobileSecurityPanel })), 'MobileSecurityPanel');
 const MobileTabSwitcher = instrumentedLazy(() => import('@/components/mobile/MobileTabSwitcher').then(mod => ({ default: mod.MobileTabSwitcher })), 'MobileTabSwitcher');
+
+// Mobile-optimized panels (touch-first design from E-Code-Old)
+const MobileGitPanel = instrumentedLazy(() => import('@/components/mobile/MobileGitPanel').then(mod => ({ default: mod.MobileGitPanel })), 'MobileGitPanel');
+const MobileDatabasePanel = instrumentedLazy(() => import('@/components/mobile/MobileDatabasePanel').then(mod => ({ default: mod.MobileDatabasePanel })), 'MobileDatabasePanel');
+const MobileDebugPanel = instrumentedLazy(() => import('@/components/mobile/MobileDebugPanel').then(mod => ({ default: mod.MobileDebugPanel })), 'MobileDebugPanel');
+const MobileDeployPanel = instrumentedLazy(() => import('@/components/mobile/MobileDeployPanel').then(mod => ({ default: mod.MobileDeployPanel })), 'MobileDeployPanel');
+const MobilePackagesPanel = instrumentedLazy(() => import('@/components/mobile/MobilePackagesPanel').then(mod => ({ default: mod.MobilePackagesPanel })), 'MobilePackagesPanel');
+const MobileSecretsPanel = instrumentedLazy(() => import('@/components/mobile/MobileSecretsPanel').then(mod => ({ default: mod.MobileSecretsPanel })), 'MobileSecretsPanel');
+const MobileCollaborationPanel = instrumentedLazy(() => import('@/components/mobile/MobileCollaborationPanel').then(mod => ({ default: mod.MobileCollaborationPanel })), 'MobileCollaborationPanel');
+const MobileSessionsPanel = instrumentedLazy(() => import('@/components/mobile/MobileSessionsPanel').then(mod => ({ default: mod.MobileSessionsPanel })), 'MobileSessionsPanel');
+const MobileBuildDashboard = instrumentedLazy(() => import('@/components/mobile/MobileBuildDashboard').then(mod => ({ default: mod.MobileBuildDashboard })), 'MobileBuildDashboard');
+const MobileSearch = instrumentedLazy(() => import('@/components/mobile/MobileSearch').then(mod => ({ default: mod.MobileSearch })), 'MobileSearch');
+const MobileNotifications = instrumentedLazy(() => import('@/components/mobile/MobileNotifications').then(mod => ({ default: mod.MobileNotifications })), 'MobileNotifications');
+const MobileSlidePanel = instrumentedLazy(() => import('@/components/mobile/MobileSlidePanel').then(mod => ({ default: mod.MobileSlidePanel })), 'MobileSlidePanel');
+const EnhancedMobileCodeEditor = instrumentedLazy(() => import('@/components/mobile/EnhancedMobileCodeEditor').then(mod => ({ default: mod.EnhancedMobileCodeEditor })), 'EnhancedMobileCodeEditor');
+const InlineMobileFileExplorer = instrumentedLazy(() => import('@/components/mobile/InlineMobileFileExplorer').then(mod => ({ default: mod.InlineMobileFileExplorer })), 'InlineMobileFileExplorer');
+const MobileCodeActions = instrumentedLazy(() => import('@/components/mobile/MobileCodeActions').then(mod => ({ default: mod.MobileCodeActions })), 'MobileCodeActions');
+const MobileProfile = instrumentedLazy(() => import('@/components/mobile/MobileProfile').then(mod => ({ default: mod.MobileProfile })), 'MobileProfile');
+const MobileIDEHeader = instrumentedLazy(() => import('@/components/mobile/MobileIDEHeader').then(mod => ({ default: mod.MobileIDEHeader })), 'MobileIDEHeader');
+const VirtualFileTree = instrumentedLazy(() => import('@/components/mobile/VirtualFileTree').then(mod => ({ default: mod.VirtualFileTree })), 'VirtualFileTree');
 
 const CommandPalette = instrumentedLazy(() => import('@/components/CommandPalette').then(mod => ({ default: mod.CommandPalette })), 'CommandPalette');
 const GlobalSearch = instrumentedLazy(() => import('@/components/GlobalSearch').then(mod => ({ default: mod.GlobalSearch })), 'GlobalSearch');
@@ -762,11 +794,7 @@ function UnifiedIDELayout({
     // This prevents WebSocket disconnection when isLoadingProject oscillates
     // The agent panel handles its own loading state during bootstrap
     if (isLoadingProject && !(mobileActiveTab === 'agent' && bootstrapToken)) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <ECodeLoading size="md" text="Loading workspace..." />
-        </div>
-      );
+      return <MobileLoadingSkeleton />;
     }
     
     switch (mobileActiveTab) {
@@ -776,7 +804,7 @@ function UnifiedIDELayout({
           return <AppNotReadyPlaceholder tabName="Preview" projectId={projectId} />;
         }
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Preview..." /></div>}>
+          <Suspense fallback={<PreviewSkeleton />}>
             <MobilePreviewPanel projectId={projectId} />
           </Suspense>
         );
@@ -802,61 +830,61 @@ function UnifiedIDELayout({
           return <AppNotReadyPlaceholder tabName="Deploy" projectId={projectId} />;
         }
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Deploy..." /></div>}>
-            <ReplitDeploymentPanel projectId={projectId} />
+          <Suspense fallback={<DeploySkeleton />}>
+            <MobileDeployPanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'git':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Git..." /></div>}>
-            <ReplitGitPanel projectId={projectId} />
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileGitPanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'packages':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Packages..." /></div>}>
-            <ReplitPackagesPanel projectId={projectId} />
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobilePackagesPanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'secrets':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Secrets..." /></div>}>
-            <ReplitSecretsPanel projectId={projectId} />
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileSecretsPanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'database':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Database..." /></div>}>
-            <DatabasePanel projectId={projectId} />
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileDatabasePanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'auth':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Auth..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ReplitAuthPanel projectId={projectId} />
           </Suspense>
         );
       case 'shell':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Shell..." /></div>}>
+          <Suspense fallback={<TerminalSkeleton />}>
             <ShellPanel projectId={projectId} />
           </Suspense>
         );
       case 'storage':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Storage..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <AppStoragePanel projectId={projectId} />
           </Suspense>
         );
       case 'terminal':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Terminal..." /></div>}>
+          <Suspense fallback={<TerminalSkeleton />}>
             <EnhancedMobileTerminal projectId={projectId} />
           </Suspense>
         );
       case 'files':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}>
+          <Suspense fallback={<FileExplorerSkeleton />}>
             <ReplitFileExplorer
               projectId={projectId}
               onFileSelect={handleFileSelect}
@@ -867,79 +895,78 @@ function UnifiedIDELayout({
         );
       case 'history':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading History..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ReplitHistoryPanel projectId={projectId} />
           </Suspense>
         );
       case 'themes':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Themes..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ReplitThemesPanel projectId={projectId} />
           </Suspense>
         );
       case 'multiplayers':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Multiplayers..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ReplitMultiplayers projectId={projectId} />
           </Suspense>
         );
       case 'checkpoints':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Checkpoints..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <UnifiedCheckpointsPanel projectId={projectId} maxHeight="calc(100vh - 120px)" />
           </Suspense>
         );
       case 'settings':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Settings..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ReplitSettingsPanel projectId={projectId} />
           </Suspense>
         );
       case 'extensions':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Extensions..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ExtensionsMarketplace projectId={parseInt(projectId, 10)} className="h-full" />
           </Suspense>
         );
       case 'workflows':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Workflows..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <WorkflowsPanel projectId={projectId} />
           </Suspense>
         );
       case 'debug':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Debug..." /></div>}>
-            <ReplitDebuggerPanel projectId={projectId} />
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileDebugPanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'testing':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Testing..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <ReplitTestingPanel projectId={projectId} />
           </Suspense>
         );
       case 'security':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Security..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <MobileSecurityPanel projectId={projectId} />
           </Suspense>
         );
       case 'collaboration':
-        return user ? (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Collaboration..." /></div>}>
-            <CollaborationPanel
+        return (
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileCollaborationPanel
               projectId={parseInt(projectId, 10)}
               projectName={project?.name}
-              currentUser={user}
-              currentFile={selectedFileId ? files.find(f => f.id === selectedFileId)?.name : undefined}
-              className="h-full"
+              isOpen={true}
+              onClose={() => setMobileActiveTab('agent')}
             />
           </Suspense>
-        ) : null;
+        );
       case 'search':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Search..." /></div>}>
+          <Suspense fallback={<MobileLoadingSkeleton />}>
             <GlobalSearch
               isOpen={true}
               inline={true}
@@ -953,7 +980,7 @@ function UnifiedIDELayout({
         );
       case 'actions':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Actions..." /></div>}>
+          <Suspense fallback={<AgentSkeleton />}>
             <AgentPanelErrorBoundary>
               <ReplitAgentPanelV3
                 projectId={projectId}
@@ -971,7 +998,7 @@ function UnifiedIDELayout({
         );
       case 'tools':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tools..." /></div>}>
+          <Suspense fallback={<AgentSkeleton />}>
             <AgentPanelErrorBoundary>
               <ReplitAgentPanelV3
                 projectId={projectId}
@@ -987,10 +1014,44 @@ function UnifiedIDELayout({
             </AgentPanelErrorBoundary>
           </Suspense>
         );
+      case 'sessions':
+        return (
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileSessionsPanel className="h-full" />
+          </Suspense>
+        );
+      case 'build':
+        return (
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileBuildDashboard />
+          </Suspense>
+        );
+      case 'notifications':
+        return (
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileNotifications />
+          </Suspense>
+        );
+      case 'profile':
+        return (
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileProfile />
+          </Suspense>
+        );
       case 'more':
         return null;
       default:
-        return null;
+        return (
+          <MobileEmptyState
+            variant="no-content"
+            title="Panel non disponible"
+            description="Ce panel n'est pas encore disponible sur mobile."
+            action={{
+              label: "Retour à l'Agent",
+              onClick: () => setMobileActiveTab('agent'),
+            }}
+          />
+        );
     }
   };
 
@@ -998,8 +1059,8 @@ function UnifiedIDELayout({
     switch (tabletPanel) {
       case 'editor':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
-            <LazyMobileCodeEditor
+          <Suspense fallback={<EditorSkeleton />}>
+            <EnhancedMobileCodeEditor
               projectId={projectId}
               fileId={selectedFileId}
               className="h-full"
@@ -1008,7 +1069,7 @@ function UnifiedIDELayout({
         );
       case 'terminal':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+          <Suspense fallback={<TerminalSkeleton />}>
             <ReplitTerminalPanel projectId={projectId} />
           </Suspense>
         );
@@ -1018,13 +1079,13 @@ function UnifiedIDELayout({
           return <AppNotReadyPlaceholder tabName="Preview" projectId={projectId} />;
         }
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+          <Suspense fallback={<PreviewSkeleton />}>
             <ResponsiveWebPreview projectId={projectId} />
           </Suspense>
         );
       case 'agent':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+          <Suspense fallback={<AgentSkeleton />}>
             <AgentPanelErrorBoundary>
               <ReplitAgentPanelV3
                 projectId={projectId}
@@ -1040,8 +1101,8 @@ function UnifiedIDELayout({
         );
       case 'more':
         return (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading..." /></div>}>
-            <MobileMoreMenu 
+          <Suspense fallback={<MobileLoadingSkeleton />}>
+            <MobileMoreMenu
               projectId={projectId}
               isOpen={true}
               inline={true}
@@ -1478,20 +1539,28 @@ function UnifiedIDELayout({
           />
         )}
 
-        {/* Replit-style Bottom Navigation */}
-        <ReplitMobileNavigation
+        {/* Premium Glassmorphic Bottom Navigation */}
+        <ReplitBottomTabs
           activeTab={mobileActiveTab}
-          onTabChange={setMobileActiveTab}
+          onTabChange={(tab: string) => {
+            if (tab === 'more') {
+              setShowMobileMoreMenu(true);
+            } else {
+              setMobileActiveTab(tab as MobileTab);
+            }
+          }}
+          badgeCounts={{
+            git: gitChangesCount > 0 ? gitChangesCount : undefined,
+            errors: errorsCount > 0 ? errorsCount : undefined,
+          }}
+          isConnected={isConnected}
+        />
+
+        {/* Floating Play/Stop FAB */}
+        <MobileFAB
+          projectId={projectId}
           isRunning={isRunning}
           onPlayStop={handleRunStop}
-          isPanelOpen={showToolsSheet}
-          onPanelToggle={() => setShowToolsSheet(!showToolsSheet)}
-          onMorePress={() => setShowMobileMoreMenu(true)}
-          openTabs={openTabs}
-          activeOpenTabId={activeOpenTabId}
-          onOpenTabSelect={handleSelectOpenTab}
-          onAddTab={() => setShowToolsSheet(true)}
-          onTabSwitcherOpen={() => setShowTabSwitcher(true)}
         />
 
         <Suspense fallback={null}>
@@ -1632,7 +1701,7 @@ function UnifiedIDELayout({
 
         <div className="flex-1 flex flex-col">
           {/* Replit-style Header for Tablet - Integrated with File Drawer Toggle */}
-          <header className="sticky top-0 z-30 flex items-center justify-between h-12 px-3 bg-white dark:bg-gray-900 dark:bg-[#1C1C1C] border-b border-gray-200 dark:border-gray-700 dark:border-gray-700">
+          <header className="sticky top-0 z-30 flex items-center justify-between h-12 px-3 bg-white dark:bg-[#1C1C1C] border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -1646,7 +1715,7 @@ function UnifiedIDELayout({
             </div>
             
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-900 dark:text-white dark:text-white text-[13px] capitalize">
+              <span className="font-medium text-gray-900 dark:text-white text-[13px] capitalize">
                 {mobileActiveTab}
               </span>
             </div>
@@ -1705,20 +1774,28 @@ function UnifiedIDELayout({
             />
           )}
 
-          {/* Replit-style Bottom Navigation for Tablet */}
-          <ReplitMobileNavigation
+          {/* Premium Glassmorphic Bottom Navigation for Tablet */}
+          <ReplitBottomTabs
             activeTab={mobileActiveTab}
-            onTabChange={setMobileActiveTab}
+            onTabChange={(tab: string) => {
+              if (tab === 'more') {
+                setShowMobileMoreMenu(true);
+              } else {
+                setMobileActiveTab(tab as MobileTab);
+              }
+            }}
+            badgeCounts={{
+              git: gitChangesCount > 0 ? gitChangesCount : undefined,
+              errors: errorsCount > 0 ? errorsCount : undefined,
+            }}
+            isConnected={isConnected}
+          />
+
+          {/* Floating Play/Stop FAB for Tablet */}
+          <MobileFAB
+            projectId={projectId}
             isRunning={isRunning}
             onPlayStop={handleRunStop}
-            isPanelOpen={showToolsSheet}
-            onPanelToggle={() => setShowToolsSheet(!showToolsSheet)}
-            onMorePress={() => setShowMobileMoreMenu(true)}
-            openTabs={openTabs}
-            activeOpenTabId={activeOpenTabId}
-            onOpenTabSelect={handleSelectOpenTab}
-            onAddTab={() => setShowToolsSheet(true)}
-            onTabSwitcherOpen={() => setShowTabSwitcher(true)}
           />
         </div>
 
