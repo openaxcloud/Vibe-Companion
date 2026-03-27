@@ -104,8 +104,9 @@ export function MobileTerminal({
     termInstanceRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/terminal?projectId=${projectId}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const host = window.location.host;
+    const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(String(projectId))}&sessionId=${encodeURIComponent(sessionId || 'default')}`;
     
     try {
       const ws = new WebSocket(wsUrl);

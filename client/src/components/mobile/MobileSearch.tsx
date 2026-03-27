@@ -47,9 +47,13 @@ export function MobileSearch({ isOpen, onClose, onSearch }: MobileSearchProps) {
 
   useEffect(() => {
     if (isOpen) {
-      const stored = localStorage.getItem('recentSearches');
-      if (stored) {
-        setRecentSearches(JSON.parse(stored));
+      try {
+        const stored = localStorage.getItem('recentSearches');
+        if (stored) {
+          setRecentSearches(JSON.parse(stored));
+        }
+      } catch {
+        // localStorage may be unavailable in some environments (Replit sandbox)
       }
       
       setTimeout(() => {
@@ -81,7 +85,7 @@ export function MobileSearch({ isOpen, onClose, onSearch }: MobileSearchProps) {
     ];
 
     setRecentSearches(updatedSearches);
-    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
+    try { localStorage.setItem('recentSearches', JSON.stringify(updatedSearches)); } catch {}
 
     onSearch?.(searchQuery, category);
     setShowResults(true);
@@ -136,7 +140,7 @@ export function MobileSearch({ isOpen, onClose, onSearch }: MobileSearchProps) {
 
   const clearRecentSearches = () => {
     setRecentSearches([]);
-    localStorage.removeItem('recentSearches');
+    try { localStorage.removeItem('recentSearches'); } catch {}
     
     if ('vibrate' in navigator) {
       navigator.vibrate(5);
