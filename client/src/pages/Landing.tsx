@@ -229,10 +229,10 @@ export default function Landing() {
       } else {
         throw new Error(result.error || 'Bootstrap failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: 'Failed to create workspace. Please try again.',
+        description: error?.message || 'Failed to create workspace. Please try again.',
         variant: 'destructive'
       });
     }

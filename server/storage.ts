@@ -1436,9 +1436,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async checkProjectLimit(userId: string): Promise<{ allowed: boolean; current: number; limit: number }> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (user?.isAdmin) {
+      const userProjects = await db.select().from(projects).where(and(eq(projects.userId, userId), sql`${projects.deletedAt} IS NULL`));
+      return { allowed: true, current: userProjects.length, limit: 999999 };
+    }
     const quota = await this.getUserQuota(userId);
     const limits = await this.getPlanLimits(quota.plan || "free");
-    const userProjects = await db.select().from(projects).where(eq(projects.userId, userId));
+    const userProjects = await db.select().from(projects).where(and(eq(projects.userId, userId), sql`${projects.deletedAt} IS NULL`));
     return { allowed: userProjects.length < limits.maxProjects, current: userProjects.length, limit: limits.maxProjects };
   }
 
