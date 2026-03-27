@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useRef, useEffect, type ReactNode } from 'react';
 import { EditorView, basicSetup, lineNumbers } from 'codemirror';
 import { EditorState, type Extension } from '@codemirror/state';

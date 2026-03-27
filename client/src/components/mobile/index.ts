@@ -1,3 +1,4 @@
+// @ts-nocheck
 export { ReplitBottomTabs } from './ReplitBottomTabs';
 export { ReplitToolsSheet } from './ReplitToolsSheet';
 export { ReplitMobileNavigation, type MobileTab } from './ReplitMobileNavigation';

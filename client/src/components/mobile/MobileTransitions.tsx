@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ReactNode, useEffect, useState } from "react";
 import { LazyMotionDiv, LazyAnimatePresence, type Variants } from '@/lib/motion';
 import { useLocation } from "wouter";

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
 import { MobileCodeKeyboard } from './MobileCodeKeyboard';

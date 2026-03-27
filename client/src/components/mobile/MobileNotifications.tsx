@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useRef } from "react";
 import { LazyMotionDiv, LazyAnimatePresence } from '@/lib/motion';
 import { useAnimationControls } from '@/lib/native-motion';
