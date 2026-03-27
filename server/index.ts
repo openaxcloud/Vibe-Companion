@@ -62,44 +62,61 @@ const app = express();
 app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
-const replitDomains = process.env.REPLIT_DOMAINS
-  ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
-  : [];
-const frameAncestors = ["'self'", "https://*.replit.dev", "https://*.replit.com", "https://*.repl.co", ...replitDomains];
+const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG);
+const isDev = process.env.NODE_ENV !== "production";
 
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        connectSrc: ["'self'", "wss:", "ws:", "https://api.anthropic.com", "https://api.openai.com", "https://generativelanguage.googleapis.com"],
-        frameSrc: ["'self'"],
-        frameAncestors,
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
+if (isReplit && isDev) {
+  // In Replit dev mode, use minimal helmet to avoid blocking the preview iframe
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: false,
+      frameguard: false,
+      hsts: false,
+    })
+  );
+} else {
+  const replitDomains = process.env.REPLIT_DOMAINS
+    ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
+    : [];
+  const frameAncestors = ["'self'", "https://*.replit.dev", "https://*.replit.com", "https://*.repl.co", ...replitDomains];
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          imgSrc: ["'self'", "data:", "blob:", "https:"],
+          connectSrc: ["'self'", "wss:", "ws:", "https://api.anthropic.com", "https://api.openai.com", "https://generativelanguage.googleapis.com"],
+          frameSrc: ["'self'"],
+          frameAncestors,
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-    },
-    frameguard: false,
-  })
-);
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+      },
+      frameguard: false,
+    })
+  );
+}
 
 const allowedOrigins = process.env.REPLIT_DOMAINS
   ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
   : undefined;
 
 app.use(cors({
-  origin: allowedOrigins || (process.env.NODE_ENV === "production" ? false : true),
+  origin: (isReplit && isDev) ? true : (allowedOrigins || (process.env.NODE_ENV === "production" ? false : true)),
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-CSRF-Token", "Authorization"],
