@@ -2,6 +2,9 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export const LazyMotionDiv = motion.div;
 export const LazyMotionButton = motion.button;
+export const LazyMotionSpan = motion.span;
+export const LazyMotionLi = motion.li;
+export const LazyMotionNav = motion.nav;
 export const LazyAnimatePresence = AnimatePresence;
 export { AnimatePresence };
 export const CSSFade = ({ children, ...props }: any) => <div {...props}>{children}</div>;

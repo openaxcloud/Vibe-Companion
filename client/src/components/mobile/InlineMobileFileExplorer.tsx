@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Inline Mobile File Explorer for Files Tab
  * Shows file tree directly in the Files tab content (not as overlay)

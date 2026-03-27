@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * MobileCollaborationPanel - Touch-optimized real-time collaboration for mobile
  * 

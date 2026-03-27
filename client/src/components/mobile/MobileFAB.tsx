@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { LazyMotionDiv, LazyMotionButton, LazyAnimatePresence } from '@/lib/motion';
 import { Play, Square, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';

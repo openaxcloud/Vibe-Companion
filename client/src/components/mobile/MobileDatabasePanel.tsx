@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from 'react';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -421,7 +420,7 @@ export function MobileDatabasePanel({ projectId, className }: MobileDatabasePane
 
   const getSchemaForTable = (tableName: string) => {
     const queryIndex = schemasQueries.findIndex(
-      (query) => query.data && (query.data as any).tableName === tableName
+      (query) => query.data && 'tableName' in (query.data as Record<string, unknown>) && (query.data as Record<string, unknown>).tableName === tableName
     );
     if (queryIndex !== -1) return schemasQueries[queryIndex];
     

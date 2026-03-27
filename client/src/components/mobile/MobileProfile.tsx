@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { User, Settings, Moon, Sun, LogOut, ChevronRight, Code, Users, Flame, Edit2, Shield, Bell, CreditCard, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";

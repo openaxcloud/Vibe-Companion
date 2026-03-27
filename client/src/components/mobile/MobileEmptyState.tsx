@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { LucideIcon, FolderOpen, Code, Terminal, Search, FileX, Inbox, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

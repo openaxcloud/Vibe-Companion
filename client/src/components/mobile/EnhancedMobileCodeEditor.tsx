@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Enhanced Mobile Code Editor with Design System Integration
  * Migrated to CodeMirror 6 - Adds SearchReplace, StatusBar, and IDE event handling

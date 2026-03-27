@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -334,7 +333,7 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
   }
 
   if (isError) {
-    const errorMessage = (error as any)?.message || 'Failed to load Git status';
+    const errorMessage = (error instanceof Error ? error.message : null) || 'Failed to load Git status';
     const isAuthError = errorMessage.includes('Authentication') || errorMessage.includes('401');
     
     return (

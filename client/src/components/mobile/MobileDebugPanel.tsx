@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
@@ -222,19 +221,19 @@ export function MobileDebugPanel({ projectId, className }: MobileDebugPanelProps
   });
 
   const handleStart = () => {
-    startMutation.mutate(undefined as any);
+    startMutation.mutate(undefined!);
   };
 
   const handlePause = () => {
-    pauseMutation.mutate(undefined as any);
+    pauseMutation.mutate(undefined!);
   };
 
   const handleContinue = () => {
-    continueMutation.mutate(undefined as any);
+    continueMutation.mutate(undefined!);
   };
 
   const handleStop = () => {
-    stopMutation.mutate(undefined as any);
+    stopMutation.mutate(undefined!);
   };
 
   const toggleBreakpoint = (id: string) => {
