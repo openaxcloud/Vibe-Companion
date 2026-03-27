@@ -62,6 +62,11 @@ const app = express();
 app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
+const replitDomains = process.env.REPLIT_DOMAINS
+  ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
+  : [];
+const frameAncestors = ["'self'", "https://*.replit.dev", "https://*.replit.com", "https://*.repl.co", ...replitDomains];
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -73,6 +78,7 @@ app.use(
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: ["'self'", "wss:", "ws:", "https://api.anthropic.com", "https://api.openai.com", "https://generativelanguage.googleapis.com"],
         frameSrc: ["'self'"],
+        frameAncestors,
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
       },
@@ -84,6 +90,7 @@ app.use(
       maxAge: 31536000,
       includeSubDomains: true,
     },
+    frameguard: false,
   })
 );
 
@@ -446,12 +453,7 @@ async function initTaskTables() {
   process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
 
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
+  httpServer.listen(port, "0.0.0.0",
     () => {
       log(`serving on port ${port}`);
 
