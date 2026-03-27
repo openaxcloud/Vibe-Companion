@@ -1,7 +1,6 @@
 import * as github from "./github";
 import { storage } from "./storage";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const AdmZip = require("adm-zip");
+import AdmZip from "adm-zip";
 
 const BINARY_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",

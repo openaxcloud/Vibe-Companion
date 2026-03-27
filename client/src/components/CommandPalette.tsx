@@ -101,7 +101,7 @@ interface CategoryDef {
   children: CommandItem[];
 }
 
-export default function CommandPalette({
+export function CommandPalette({
   open,
   onClose,
   files,
@@ -477,3 +477,5 @@ export default function CommandPalette({
     </div>
   );
 }
+
+export default CommandPalette;

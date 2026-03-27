@@ -258,7 +258,7 @@ export default function Landing() {
     <MarketingLayout>
       {/* Hero Section with E-Code Gradient */}
       <LazyMotionDiv 
-        className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-[var(--ecode-background)]"
+        className="relative min-h-fit flex items-center justify-center overflow-hidden bg-[var(--ecode-background)]"
         style={{ fontFamily: 'var(--ecode-font-sans)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -280,7 +280,7 @@ export default function Landing() {
         <div className="absolute inset-0 bg-grid-pattern opacity-5 dark:opacity-10" />
         
         {/* Content */}
-        <div className="container-responsive relative z-10 max-w-7xl text-center px-4 py-20">
+        <div className="container-responsive relative z-10 max-w-7xl text-center px-4 py-12 pt-16">
           <LazyMotionDiv 
             className="space-y-4"
             variants={staggerContainer}
@@ -535,7 +535,7 @@ export default function Landing() {
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-background)] to-[var(--ecode-surface-tertiary)]" data-testid="section-stats">
         <div className="container-responsive max-w-7xl">
           <LazyMotionDiv 
-            className="grid grid-cols-1 md:grid-cols-2 md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -712,7 +712,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -798,7 +798,7 @@ export default function Landing() {
                         </Badge>
                       ))}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4 border-t border-[var(--ecode-border)]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-4 border-t border-[var(--ecode-border)]">
                       {Object.entries(project.metrics).map(([key, value]) => (
                         <div key={key} className="text-center">
                           <div className="text-[13px] font-semibold text-[var(--ecode-text)]">
@@ -862,7 +862,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-1 md:grid-cols-2 lg:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
@@ -1082,7 +1082,7 @@ export default function Landing() {
           </LazyMotionDiv>
 
           <LazyMotionDiv 
-            className="grid md:grid-cols-1 md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
