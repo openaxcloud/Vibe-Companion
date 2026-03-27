@@ -68,7 +68,7 @@ export function LazyMobileCodeEditor({ projectId, fileId, className }: LazyMobil
       py: 'python', html: 'html', htm: 'html',
       css: 'css', scss: 'css', json: 'json',
     };
-    return (map[ext] || 'generic') as any;
+    return map[ext] || 'generic';
   };
 
   // Insert text at cursor position in textarea
@@ -87,7 +87,7 @@ export function LazyMobileCodeEditor({ projectId, fileId, className }: LazyMobil
   }, [content]);
 
   // Handle keyboard actions (undo, redo, indent, etc.)
-  const handleKeyboardAction = useCallback((action: string) => {
+  const handleKeyboardAction = useCallback((action: 'undo' | 'redo' | 'indent' | 'outdent' | 'comment' | 'copy' | 'paste') => {
     const ta = textareaRef.current;
     if (!ta) return;
     const start = ta.selectionStart;
@@ -237,7 +237,7 @@ export function LazyMobileCodeEditor({ projectId, fileId, className }: LazyMobil
         <MobileCodeKeyboard
           language={getLanguage(ext)}
           onInsert={handleKeyboardInsert}
-          onAction={handleKeyboardAction as any}
+          onAction={handleKeyboardAction}
           onSnippetSelect={(snippet) => handleKeyboardInsert(snippet.insert)}
           isExpanded={keyboardExpanded}
           onToggleExpand={() => setKeyboardExpanded(!keyboardExpanded)}

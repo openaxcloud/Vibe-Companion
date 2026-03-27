@@ -139,7 +139,7 @@ export function EnhancedMobileCodeEditor(props: EnhancedMobileCodeEditorProps) {
       try {
         let searchRegex: RegExp;
 
-        if (options.useRegex) {
+        if (options.regex) {
           searchRegex = new RegExp(
             query,
             options.caseSensitive ? 'g' : 'gi'
@@ -164,10 +164,10 @@ export function EnhancedMobileCodeEditor(props: EnhancedMobileCodeEditorProps) {
 
           while ((match = searchRegex.exec(line)) !== null) {
             results.push({
+              match: match[0],
               line: lineIndex + 1,
               column: match.index + 1,
-              length: match[0].length,
-              text: match[0],
+              endColumn: match.index + 1 + match[0].length,
             });
           }
         });
@@ -181,47 +181,43 @@ export function EnhancedMobileCodeEditor(props: EnhancedMobileCodeEditorProps) {
   );
 
   const handleReplace = useCallback(
-    (query: string, replacement: string, options: SearchOptions): number => {
-      if (!editorViewRef.current) return 0;
+    (query: string, replacement: string): void => {
+      if (!editorViewRef.current) return;
 
-      const results = handleSearch(query, options);
-      if (results.length === 0) return 0;
+      const results = handleSearch(query, {});
+      if (results.length === 0) return;
 
       const firstResult = results[0];
       const doc = editorViewRef.current.state.doc;
       const line = doc.line(firstResult.line);
       const from = line.from + firstResult.column - 1;
-      const to = from + firstResult.length;
+      const to = from + (firstResult.endColumn - firstResult.column);
 
       editorViewRef.current.dispatch({
         changes: { from, to, insert: replacement }
       });
-
-      return 1;
     },
     [handleSearch]
   );
 
   const handleReplaceAll = useCallback(
-    (query: string, replacement: string, options: SearchOptions): number => {
-      if (!editorViewRef.current) return 0;
+    (query: string, replacement: string): void => {
+      if (!editorViewRef.current) return;
 
-      const results = handleSearch(query, options);
-      if (results.length === 0) return 0;
+      const results = handleSearch(query, {});
+      if (results.length === 0) return;
 
       const doc = editorViewRef.current.state.doc;
       const changes = results.map((result) => {
         const line = doc.line(result.line);
         const from = line.from + result.column - 1;
-        const to = from + result.length;
+        const to = from + (result.endColumn - result.column);
         return { from, to, insert: replacement };
       }).reverse();
 
       editorViewRef.current.dispatch({ changes });
 
       toast({ title: `Replaced ${results.length} occurrence${results.length !== 1 ? 's' : ''}` });
-
-      return results.length;
     },
     [handleSearch, toast]
   );
