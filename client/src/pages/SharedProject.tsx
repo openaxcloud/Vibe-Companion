@@ -1,0 +1,421 @@
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useParams } from "wouter";
+import { Button } from "@/components/ui/button";
+import {
+  ChevronLeft, Play, Terminal, Loader2, Globe, Code2, Eye,
+  File as FileIcon, X, RefreshCw, Share2, GitFork, ExternalLink,
+  Maximize2, Minimize2, Copy, Check
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
+import type { Project, File } from "@shared/schema";
+
+interface SharedData {
+  project: Project;
+  files: File[];
+}
+
+export default function SharedProject() {
+  const [, setLocation] = useLocation();
+  const params = useParams<{ id: string }>();
+  const projectId = params.id;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [openTabs, setOpenTabs] = useState<string[]>([]);
+  const [isRunning, setIsRunning] = useState(false);
+  const [output, setOutput] = useState("");
+  const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const { data, isLoading, error } = useQuery<SharedData>({
+    queryKey: ["/api/shared", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/shared/${projectId}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Project not found or not published");
+      }
+      return res.json();
+    },
+  });
+
+  const hasHtmlPreview = data?.files?.some(f => f.filename === "index.html" || f.filename.endsWith(".html"));
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    if (window.innerWidth < 768) setSidebarOpen(false);
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    if (data?.files?.[0] && !activeFileId) {
+      const f = data.files[0];
+      setActiveFileId(f.id);
+      setOpenTabs([f.id]);
+    }
+  }, [data, activeFileId]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [output]);
+
+  useEffect(() => {
+    if (!hasHtmlPreview && data) {
+      setViewMode("code");
+    }
+  }, [hasHtmlPreview, data]);
+
+  const activeFile = data?.files?.find((f) => f.id === activeFileId);
+
+  const openFile = (file: File) => {
+    if (!openTabs.includes(file.id)) setOpenTabs((prev) => [...prev, file.id]);
+    setActiveFileId(file.id);
+    if (isMobile) setSidebarOpen(false);
+  };
+
+  const closeTab = (fileId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const newTabs = openTabs.filter((id) => id !== fileId);
+    setOpenTabs(newTabs);
+    if (activeFileId === fileId) setActiveFileId(newTabs[newTabs.length - 1] || null);
+  };
+
+  const handleRun = async () => {
+    if (!activeFile || isRunning) return;
+    setIsRunning(true);
+    setOutput("");
+    try {
+      const res = await fetch("/api/demo/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: activeFile.content, language: data?.project.language || "javascript" }),
+      });
+      const result = await res.json();
+      let out = "";
+      if (result.stdout) out += result.stdout;
+      if (result.stderr) out += (out ? "\n" : "") + result.stderr;
+      if (!out) out = `Process exited with code ${result.exitCode}`;
+      setOutput(out);
+    } catch {
+      setOutput("Execution failed.");
+    }
+    setIsRunning(false);
+  };
+
+  const forkMutation = useMutation({
+    mutationFn: async (visibility?: string) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/fork`, { visibility: visibility || "public" });
+      return res.json();
+    },
+    onSuccess: (newProject: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Project forked!", description: `Created "${newProject.name}"` });
+      setLocation(`/project/${newProject.id}`);
+    },
+    onError: (err: any) => {
+      toast({ title: "Fork failed", description: err.message || "Please log in to fork projects", variant: "destructive" });
+    },
+  });
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getFileColor = (filename: string) => {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const c: Record<string, string> = { js: "text-yellow-400", jsx: "text-yellow-400", ts: "text-blue-400", tsx: "text-blue-400", py: "text-green-400", json: "text-orange-400", css: "text-pink-400", html: "text-red-400", md: "text-gray-400" };
+    return c[ext || ""] || "text-[var(--ide-text-secondary)]";
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-[#0079F2]" />
+          <span className="text-sm text-[var(--ide-text-secondary)]">Loading project...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    const isPrivateError = (error as any)?.message?.includes("private") || (error as any)?.message?.includes("team");
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-[var(--ide-bg)] gap-3">
+        {isPrivateError ? (
+          <>
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-2">
+              <Globe className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--ide-text)]" data-testid="text-private-project">This project is private</h2>
+            <p className="text-sm text-[var(--ide-text-secondary)] text-center max-w-xs">You don't have permission to view this project. Ask the owner to invite you as a guest.</p>
+            <Button variant="outline" onClick={() => setLocation("/")} className="mt-2 border-[var(--ide-border)] text-[var(--ide-text)]" data-testid="btn-go-home">Go to Dashboard</Button>
+          </>
+        ) : (
+          <>
+            <Share2 className="w-10 h-10 text-[var(--ide-border)]" />
+            <p className="text-sm text-[var(--ide-text-secondary)]">This project is not available</p>
+            <Button variant="ghost" className="text-[#0079F2] text-xs" onClick={() => setLocation("/")} data-testid="button-back-shared-error">
+              Go to E-Code
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-3 text-xs bg-black/60 text-white hover:bg-black/80 backdrop-blur-sm rounded-lg"
+            onClick={() => setIsFullscreen(false)}
+            data-testid="button-exit-fullscreen"
+          >
+            <Minimize2 className="w-3.5 h-3.5 mr-1.5" /> Exit Fullscreen
+          </Button>
+        </div>
+        <iframe
+          ref={iframeRef}
+          src={`/api/shared/${projectId}/preview`}
+          className="w-full h-full border-0"
+          title={data?.project.name || "Preview"}
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-[var(--ide-bg)] text-sm select-none">
+      <div className="flex items-center justify-between px-3 h-12 bg-[var(--ide-panel)] border-b border-[var(--ide-border)] shrink-0">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-7 h-7 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+            onClick={() => setLocation("/")}
+            data-testid="button-back-shared"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--ide-text)] truncate max-w-[200px]" data-testid="text-project-name">{data?.project.name}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--ide-surface)] text-[var(--ide-text-secondary)] shrink-0">{data?.project.language}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {hasHtmlPreview && (
+            <div className="flex items-center bg-[var(--ide-surface)] rounded-lg p-0.5 mr-2">
+              <button
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all ${viewMode === "preview" ? "bg-[#0079F2] text-white shadow-sm" : "text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)]"}`}
+                onClick={() => setViewMode("preview")}
+                data-testid="button-view-preview"
+              >
+                <Eye className="w-3 h-3" /> Preview
+              </button>
+              <button
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all ${viewMode === "code" ? "bg-[#0079F2] text-white shadow-sm" : "text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)]"}`}
+                onClick={() => setViewMode("code")}
+                data-testid="button-view-code"
+              >
+                <Code2 className="w-3 h-3" /> Code
+              </button>
+            </div>
+          )}
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2.5 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+            onClick={handleCopyLink}
+            data-testid="button-copy-link"
+          >
+            {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+          </Button>
+
+          {viewMode === "preview" && hasHtmlPreview && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2.5 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+              onClick={() => window.open(`/api/shared/${projectId}/preview`, '_blank')}
+              data-testid="button-open-new-tab"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </Button>
+          )}
+
+          {viewMode === "preview" && hasHtmlPreview && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2.5 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+              onClick={() => setIsFullscreen(true)}
+              data-testid="button-fullscreen"
+            >
+              <Maximize2 className="w-3 h-3" />
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-3 text-xs font-medium gap-1.5 text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] border border-[var(--ide-border)]"
+            onClick={() => forkMutation.mutate(undefined)}
+            disabled={forkMutation.isPending}
+            data-testid="button-fork-shared"
+          >
+            {forkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitFork className="w-3 h-3" />} Fork
+          </Button>
+
+          {viewMode === "code" && (
+            <Button
+              size="sm"
+              className="h-7 px-3 text-xs font-medium gap-1.5 bg-[#0CCE6B] hover:bg-[#0BBF62] text-[#0E1525]"
+              onClick={handleRun}
+              disabled={isRunning || !activeFile}
+              data-testid="button-run-shared"
+            >
+              {isRunning ? <><Loader2 className="w-3 h-3 animate-spin" /> Running</> : <><Play className="w-3 h-3 fill-current" /> Run</>}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {viewMode === "preview" ? (
+        <div className="flex-1 overflow-hidden relative bg-[#0E1525]">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-[var(--ide-panel)]/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-[var(--ide-border)]/50">
+            <Globe className="w-3 h-3 text-[var(--ide-text-secondary)]" />
+            <span className="text-[11px] text-[var(--ide-text-secondary)] font-medium">{data?.project.name}</span>
+            <button
+              className="ml-1 p-0.5 hover:bg-[var(--ide-surface)] rounded"
+              onClick={() => iframeRef.current?.contentWindow?.location.reload()}
+              data-testid="button-refresh-preview"
+            >
+              <RefreshCw className="w-3 h-3 text-[var(--ide-text-muted)]" />
+            </button>
+          </div>
+          <iframe
+            ref={iframeRef}
+            src={`/api/shared/${projectId}/preview`}
+            className="w-full h-full border-0"
+            title={data?.project.name || "Preview"}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            data-testid="iframe-preview"
+          />
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {sidebarOpen && (
+            <>
+              {isMobile && <div className="absolute inset-0 top-12 bg-black/40 z-20" onClick={() => setSidebarOpen(false)} />}
+              <div className={`${isMobile ? "absolute left-0 top-12 bottom-0 z-30" : "relative"} w-[220px] bg-[var(--ide-panel)] border-r border-[var(--ide-border)] flex flex-col shrink-0`}>
+                <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--ide-border)]">
+                  <span className="text-[11px] font-semibold text-[var(--ide-text-secondary)] uppercase tracking-wider">Files</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] md:hidden" onClick={() => setSidebarOpen(false)}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto py-1">
+                  {data?.files?.map((file) => (
+                    <div
+                      key={file.id}
+                      className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${file.id === activeFileId ? "bg-[var(--ide-surface)] text-white" : "text-[var(--ide-text)] hover:bg-[var(--ide-panel)]"}`}
+                      onClick={() => openFile(file)}
+                      data-testid={`shared-file-${file.id}`}
+                    >
+                      <FileIcon className={`w-3.5 h-3.5 ${getFileColor(file.filename)}`} />
+                      <span className="text-xs truncate">{file.filename}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            {openTabs.length > 0 && (
+              <div className="flex items-center bg-[var(--ide-panel)] border-b border-[var(--ide-border)] overflow-x-auto shrink-0 scrollbar-hide">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-7 h-7 mx-1 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)] sm:hidden shrink-0"
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                >
+                  <FileIcon className="w-3.5 h-3.5" />
+                </Button>
+                {openTabs.map((tabId) => {
+                  const file = data?.files?.find((f) => f.id === tabId);
+                  if (!file) return null;
+                  const isActive = tabId === activeFileId;
+                  return (
+                    <div key={tabId} className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer border-r border-[var(--ide-border)] shrink-0 transition-colors ${isActive ? "bg-[var(--ide-panel)] text-white border-t-2 border-t-[#0079F2]" : "text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] border-t-2 border-t-transparent"}`} onClick={() => setActiveFileId(tabId)}>
+                      <FileIcon className={`w-3 h-3 ${getFileColor(file.filename)}`} />
+                      <span className="text-[11px] truncate">{file.filename}</span>
+                      <button className="ml-0.5 p-0.5 rounded hover:bg-[var(--ide-surface)] text-[var(--ide-text-secondary)] hover:text-white" onClick={(e) => closeTab(tabId, e)}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-hidden">
+              {activeFile ? (
+                <CodeEditor
+                  value={activeFile.content}
+                  onChange={() => {}}
+                  language={detectLanguage(activeFile.filename)}
+                  readOnly
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)]">
+                  <p className="text-sm">Select a file to view</p>
+                </div>
+              )}
+            </div>
+
+            <div className="h-[180px] border-t border-[var(--ide-border)] flex flex-col shrink-0">
+              <div className="flex items-center justify-between px-2 border-b border-[var(--ide-border)] bg-[var(--ide-panel)] shrink-0">
+                <div className="flex">
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 text-[var(--ide-text)] border-[#0079F2]">
+                    <Terminal className="w-3 h-3" /> Console
+                  </button>
+                </div>
+                <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-secondary)] hover:text-white hover:bg-[var(--ide-surface)]" onClick={() => setOutput("")}>
+                  <RefreshCw className="w-3 h-3" />
+                </Button>
+              </div>
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "12px" }}>
+                {output ? (
+                  <pre className="text-[var(--ide-text-secondary)] whitespace-pre-wrap">{output}</pre>
+                ) : (
+                  <p className="text-[var(--ide-text-muted)] text-center py-4 text-xs">Press Run to execute the code</p>
+                )}
+                {isRunning && <span className="animate-pulse text-[#0079F2]">_</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
