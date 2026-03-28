@@ -68,8 +68,9 @@ const httpServer = createServer(app);
 const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG);
 const isDev = process.env.NODE_ENV !== "production";
 
-if (isReplit && isDev) {
-  // In Replit dev mode, use minimal helmet to avoid blocking the preview iframe
+if (isReplit) {
+  // On Replit (dev AND production), use minimal helmet to avoid blocking the preview iframe.
+  // Replit's proxy provides its own security layer (TLS, rate limiting, etc.).
   app.use(
     helmet({
       contentSecurityPolicy: false,

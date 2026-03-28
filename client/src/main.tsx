@@ -2,4 +2,27 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Global error diagnostics — helps debug blank/stuck pages on Replit
+window.addEventListener("error", (e) => {
+  console.error("[GLOBAL ERROR]", e.message, e.filename, e.lineno, e.colno, e.error);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("[UNHANDLED REJECTION]", e.reason);
+});
+
+console.log("[main.tsx] React app mounting...");
+
+try {
+  createRoot(document.getElementById("root")!).render(<App />);
+  console.log("[main.tsx] React app mounted successfully");
+} catch (err) {
+  console.error("[main.tsx] Failed to mount React app:", err);
+  // Show a visible error if React fails to mount
+  const root = document.getElementById("root");
+  if (root) {
+    root.innerHTML = `<div style="padding:2rem;color:red;font-family:monospace;">
+      <h2>App failed to load</h2>
+      <pre>${err instanceof Error ? err.message + "\n" + err.stack : String(err)}</pre>
+    </div>`;
+  }
+}
