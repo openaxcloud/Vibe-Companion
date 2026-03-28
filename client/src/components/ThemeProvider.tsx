@@ -120,12 +120,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const { data: installedThemes = [], isLoading: isLoadingInstalled } = useQuery<Theme[]>({
     queryKey: ["/api/themes/installed"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/themes/installed", { credentials: "include" });
+        if (!res.ok) return [];
+        return res.json();
+      } catch { return []; }
+    },
     staleTime: 60000,
     retry: false,
   });
 
   const { data: userThemes = [], isLoading: isLoadingUser } = useQuery<Theme[]>({
     queryKey: ["/api/themes"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/themes", { credentials: "include" });
+        if (!res.ok) return [];
+        return res.json();
+      } catch { return []; }
+    },
     staleTime: 60000,
     retry: false,
   });
