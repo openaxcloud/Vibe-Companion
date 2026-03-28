@@ -67,53 +67,23 @@ const httpServer = createServer(app);
 
 const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG);
 const isDev = process.env.NODE_ENV !== "production";
+log(`Environment: isReplit=${isReplit}, isDev=${isDev}, REPL_ID=${!!process.env.REPL_ID}`, "express");
 
-if (isReplit) {
-  // On Replit (dev AND production), use minimal helmet to avoid blocking the preview iframe.
-  // Replit's proxy provides its own security layer (TLS, rate limiting, etc.).
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: false,
-      crossOriginResourcePolicy: false,
-      frameguard: false,
-      hsts: false,
-    })
-  );
-} else {
-  const replitDomains = process.env.REPLIT_DOMAINS
-    ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
-    : [];
-  const frameAncestors = ["'self'", "https://*.replit.dev", "https://*.replit.com", "https://*.repl.co", ...replitDomains];
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" as const },
+    frameguard: false,
+    hsts: false,
+  })
+);
 
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-          fontSrc: ["'self'", "https://fonts.gstatic.com"],
-          imgSrc: ["'self'", "data:", "blob:", "https:"],
-          connectSrc: ["'self'", "wss:", "ws:", "https://api.anthropic.com", "https://api.openai.com", "https://generativelanguage.googleapis.com"],
-          frameSrc: ["'self'"],
-          frameAncestors,
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-        },
-      },
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
-      crossOriginResourcePolicy: { policy: "cross-origin" },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-      },
-      frameguard: false,
-    })
-  );
-}
+app.use((_req, res, next) => {
+  res.removeHeader("X-Frame-Options");
+  next();
+});
 
 const allowedOrigins = process.env.REPLIT_DOMAINS
   ? process.env.REPLIT_DOMAINS.split(",").map(d => `https://${d.trim()}`)
