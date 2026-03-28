@@ -1,4 +1,5 @@
-import { App as SlackApp, ExpressReceiver } from "@slack/bolt";
+import bolt from "@slack/bolt";
+const { App: SlackApp, ExpressReceiver } = bolt;
 import { log } from "./index";
 import { storage } from "./storage";
 import { executeAutomation } from "./automationScheduler";
