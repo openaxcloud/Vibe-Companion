@@ -119,7 +119,7 @@ const allowedOrigins = process.env.REPLIT_DOMAINS
   : undefined;
 
 app.use(cors({
-  origin: (isReplit && isDev) ? true : (allowedOrigins || (process.env.NODE_ENV === "production" ? false : true)),
+  origin: isReplit ? (allowedOrigins || true) : (process.env.NODE_ENV === "production" ? false : true),
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-CSRF-Token", "Authorization"],

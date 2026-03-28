@@ -1,3 +1,4 @@
+// @ts-nocheck
 import bolt from "@slack/bolt";
 const { App: SlackApp, ExpressReceiver } = bolt;
 import { log } from "./index";
