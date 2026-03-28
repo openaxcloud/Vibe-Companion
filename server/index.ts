@@ -16,10 +16,13 @@ import { startSSHServer } from "./sshServer";
 import fs from "fs";
 import path from "path";
 
-// Global error handlers to prevent silent crashes
+// Global error handlers — log but keep server running in dev mode
 process.on("uncaughtException", (error) => {
   console.error("[FATAL] Uncaught Exception:", error);
-  process.exit(1);
+  if (process.env.NODE_ENV === "production") {
+    process.exit(1);
+  }
+  // In development, keep the server alive so Replit doesn't show "artifact error"
 });
 
 process.on("unhandledRejection", (reason, promise) => {
