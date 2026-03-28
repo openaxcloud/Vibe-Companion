@@ -423,8 +423,10 @@ async function initTaskTables() {
 
   await storage.migrateExistingEnvVarsToEncrypted();
 
-  if (process.env.NODE_ENV === "production") {
+  const distExists = fs.existsSync(path.resolve(import.meta.dirname || __dirname, "..", "dist", "public", "index.html"));
+  if (process.env.NODE_ENV === "production" || distExists) {
     serveStatic(app);
+    log("Serving pre-built frontend from dist/public");
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
