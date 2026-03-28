@@ -1319,6 +1319,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
 
   // === DESKTOP LAYOUT ===
   return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><ECodeLoading size="lg" text="Loading IDE..." /></div>}>
     <div className={cn("flex h-screen bg-[var(--ide-bg)] overflow-hidden", className)} data-testid="desktop-layout" data-ide-layout="unified">
       {/* Activity Bar */}
       <ReplitActivityBar
@@ -1407,6 +1408,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   </TabsList>
 
                   <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount>
+                    <AgentPanelErrorBoundary>
                     <ReplitAgentPanelV3
                       key={`agent-${projectId}`}
                       projectId={projectId}
@@ -1430,6 +1432,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                       onAgentToolsSettingsChange={setAgentToolsSettings}
                       onExternalInput={setMobileAgentHandlers}
                     />
+                    </AgentPanelErrorBoundary>
                   </TabsContent>
 
                   <TabsContent value="actions" className="flex-1 mt-0 overflow-hidden">
@@ -1848,6 +1851,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         </Dialog>
       )}
     </div>
+    </Suspense>
   );
 }
 

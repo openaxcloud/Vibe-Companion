@@ -184,6 +184,7 @@ function App() {
           <TooltipProvider>
             <a href="#main-content" className="skip-to-main">Skip to main content</a>
             <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="Vibe Companion IDE">
+              <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]"><div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" /></div>}>
               <Switch>
                 <Route path="/" component={Landing} />
                 <Route path="/login" component={Auth} />
@@ -284,6 +285,7 @@ function App() {
 
                 <Route component={NotFound} />
               </Switch>
+              </Suspense>
             </div>
             <GlobalShortcuts />
             <CookieConsent />
