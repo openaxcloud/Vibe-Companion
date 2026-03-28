@@ -60,7 +60,11 @@ import { ReplitToolsSheet } from '@/components/ide/ReplitToolsSheet';
 import { QuickFileSearch } from '@/components/ide/QuickFileSearch';
 import { KeyboardShortcutsOverlay } from '@/components/ide/KeyboardShortcutsOverlay';
 import { ReplitFileExplorer } from '@/components/editor/ReplitFileExplorer';
-import { ReplitMobileNavigation, ReplitMobileInputBar, ReplitMobileHeader, type MobileTab } from '@/components/mobile';
+// Direct imports to avoid loading ALL mobile components via barrel file
+import { ReplitMobileNavigation } from '@/components/mobile/ReplitMobileNavigation';
+import { ReplitMobileInputBar } from '@/components/mobile/ReplitMobileInputBar';
+import { ReplitMobileHeader } from '@/components/mobile/ReplitMobileHeader';
+import { type MobileTab } from '@/components/mobile/ReplitMobileNavigation';
 import { ReplitBottomTabs } from '@/components/mobile/ReplitBottomTabs';
 import { MobileFAB } from '@/components/mobile/MobileFAB';
 import {
