@@ -1,6 +1,9 @@
 // @ts-nocheck
 import { ReactNode, useEffect, useState } from "react";
-import { LazyMotionDiv, LazyAnimatePresence, type Variants } from '@/lib/motion';
+import { LazyMotionDiv, LazyAnimatePresence } from '@/lib/motion';
+
+// Variants type definition (was previously imported from motion but not exported)
+type Variants = Record<string, Record<string, any>>;
 import { useLocation } from "wouter";
 
 // Page transition variants

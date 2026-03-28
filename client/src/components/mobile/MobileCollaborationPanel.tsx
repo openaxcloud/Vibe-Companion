@@ -12,7 +12,8 @@
  */
 
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
-import { LazyMotionDiv, LazyMotionButton, LazyAnimatePresence, type PanInfo } from '@/lib/motion';
+import { LazyMotionDiv, LazyMotionButton, LazyAnimatePresence } from '@/lib/motion';
+import { type PanInfo } from '@/lib/native-motion';
 import { 
   Users, 
   UserPlus, 
