@@ -49,10 +49,6 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
   isConnected = true,
 }: ReplitBottomTabsProps) {
   const isMobile = useIsMobile();
-  
-  if (!isMobile) {
-    return null;
-  }
 
   const handleTabClick = useCallback((tabId: string) => {
     onTabChange(tabId);
@@ -60,6 +56,10 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
       navigator.vibrate([8, 50, 4]);
     }
   }, [onTabChange]);
+  
+  if (!isMobile) {
+    return null;
+  }
 
   const getBadgeForTab = (tabId: MobileTab): number | undefined => {
     if (tabId === 'more') {
