@@ -987,7 +987,7 @@ export function useIDEWorkspace(projectId: string) {
         'security-scanner', 'backup'].includes(tabId);
 
       if (isFileTab) {
-        const file = filesQuery.data?.find(f => String(f.id) === tabId);
+        const file = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === tabId) : undefined;
         return {
           id: `file:${tabId}`,
           label: file?.filename?.split('/').pop() || tabId,
@@ -1139,7 +1139,7 @@ export function useIDEWorkspace(projectId: string) {
   }, [project, projectId]);
 
   const files: FileItem[] = useMemo(() => {
-    if (!filesQuery.data) return [];
+    if (!filesQuery.data || !Array.isArray(filesQuery.data)) return [];
     return (filesQuery.data as any[]).map((f: any) => ({
       id: f.id,
       name: f.filename || f.name,
@@ -1177,7 +1177,7 @@ export function useIDEWorkspace(projectId: string) {
     projectName: project?.name || 'Untitled',
     projectDescription: project?.description || '',
     files,
-    filesRaw: filesQuery.data || [],
+    filesRaw: Array.isArray(filesQuery.data) ? filesQuery.data : [],
     isLoadingProject,
     user,
 

@@ -5431,6 +5431,23 @@ export async function registerRoutes(
     return res.json(project);
   });
 
+  app.get("/api/projects/:id/poll", requireAuth, async (req: Request, res: Response) => {
+    return res.json({ messages: [], timestamp: Date.now() });
+  });
+
+  app.get("/api/projects/:id/git/diff", requireAuth, async (req: Request, res: Response) => {
+    const branch = (req.query.branch as string) || 'main';
+    return res.json({ branch, changes: [], hasCommits: false });
+  });
+
+  app.get("/api/projects/:id/git/merge-status", requireAuth, async (req: Request, res: Response) => {
+    return res.json({ status: 'none' });
+  });
+
+  app.get("/api/workspaces/:id/status", requireAuth, async (_req: Request, res: Response) => {
+    return res.json({ status: 'none' });
+  });
+
   app.delete("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
     const deleted = await storage.softDeleteProject(req.params.id, req.session.userId!);
     if (!deleted) {

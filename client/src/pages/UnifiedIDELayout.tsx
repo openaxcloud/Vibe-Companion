@@ -305,7 +305,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const { setTheme: setGlobalTheme } = useTheme();
 
   const historyFiles = useMemo(() =>
-    filesRaw?.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) || [],
+    Array.isArray(filesRaw) ? filesRaw.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) : [],
     [filesRaw]
   );
 
@@ -698,7 +698,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'terminal':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTerminalPanel projectId={projectId} /></Suspense>;
       case 'files':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}><ReplitFileExplorer projectId={projectId} files={filesRaw || []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}><ReplitFileExplorer projectId={projectId} files={Array.isArray(filesRaw) ? filesRaw : []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} /></Suspense>;
       case 'history':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} files={historyFiles} onClose={handleHistoryClose} onFileRestored={handleFileRestored} initialFile={activeFileName || null} /></Suspense>;
       case 'settings':
@@ -1412,7 +1412,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                       activeFileName={activeFileName}
                       activeFileContent={activeFileContent}
                       activeFileLanguage={activeFileLanguage}
-                      files={filesRaw?.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) || []}
+                      files={Array.isArray(filesRaw) ? filesRaw.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) : []}
                       onFileCreated={(file: any) => { workspace.createFileMutation?.reset(); }}
                       onFileUpdated={(file: any) => { }}
                       onApplyCode={(filename: string, code: string) => {
@@ -1497,7 +1497,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                   </div>
                   <ReplitFileExplorer
                     projectId={projectId}
-                    files={filesRaw || []}
+                    files={Array.isArray(filesRaw) ? filesRaw : []}
                     onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })}
                     selectedFileId={activeFileId}
                     dirtyFiles={dirtyFiles}
@@ -1565,7 +1565,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         <CommandPalette
           open={showCommandPalette}
           onClose={() => setShowCommandPalette(false)}
-          files={filesRaw as any}
+          files={Array.isArray(filesRaw) ? filesRaw : []}
           isRunning={isRunning}
           onRun={handleRunStop}
           onNewFile={() => {}}
