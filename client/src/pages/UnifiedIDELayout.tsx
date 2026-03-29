@@ -20,7 +20,6 @@ import { useConnectionStatus } from '@/hooks/use-connection-status';
 import { useProblemsCount } from '@/hooks/use-problems-count';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from '@/components/ThemeProvider';
-import { instrumentedLazy } from '@/utils/instrumented-lazy';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -66,76 +65,64 @@ import { type MobileTab } from '@/components/mobile/ReplitMobileNavigation';
 import { ReplitBottomTabs } from '@/components/mobile/ReplitBottomTabs';
 import { MobileFAB } from '@/components/mobile/MobileFAB';
 
-// Lazy-loaded heavy components
-const ReplitMonacoEditor = instrumentedLazy(() => import('@/components/editor/ReplitMonacoEditor').then(mod => ({ default: mod.ReplitMonacoEditor })), 'ReplitMonacoEditor');
-const ReplitTerminalPanel = instrumentedLazy(() => import('@/components/editor/ReplitTerminalPanel').then(mod => ({ default: mod.ReplitTerminalPanel })), 'ReplitTerminalPanel');
-const ReplitDeploymentPanel = instrumentedLazy(() => import('@/components/ide/ReplitDeploymentPanel').then(mod => ({ default: mod.ReplitDeploymentPanel })), 'ReplitDeploymentPanel');
+import { ReplitMonacoEditor } from '@/components/editor/ReplitMonacoEditor';
+import { ReplitTerminalPanel } from '@/components/editor/ReplitTerminalPanel';
+import { ReplitDeploymentPanel } from '@/components/ide/ReplitDeploymentPanel';
 import { ReplitAgentPanelV3 } from '@/components/ai/ReplitAgentPanelV3';
 import { AgentPanelErrorBoundary } from '@/components/ai/AgentPanelErrorBoundary';
 import type { ExternalInputHandlers } from '@/components/ai/ReplitAgentPanelV3';
-const ResponsiveWebPreview = instrumentedLazy(() => import('@/components/editor/ResponsiveWebPreview').then(mod => ({ default: mod.ResponsiveWebPreview })), 'ResponsiveWebPreview');
-const AgentActionsPanel = instrumentedLazy(() => import('@/components/ide/AgentActionsPanel').then(mod => ({ default: mod.AgentActionsPanel })), 'AgentActionsPanel');
-const ToolsPanel = instrumentedLazy(() => import('@/components/ide/ToolsPanel').then(mod => ({ default: mod.ToolsPanel })), 'ToolsPanel');
-
-// Mobile-specific components - direct imports to avoid React 19 Error #310
-// (wouter v3 navigates synchronously without startTransition, so lazy components
-// suspend during sync updates and crash on mobile)
+import { ResponsiveWebPreview } from '@/components/editor/ResponsiveWebPreview';
+import { AgentActionsPanel } from '@/components/ide/AgentActionsPanel';
+import { ToolsPanel } from '@/components/ide/ToolsPanel';
 import { MobilePreviewPanel } from '@/components/mobile/MobilePreviewPanel';
 import { MobileMoreMenu } from '@/components/mobile/MobileMoreMenu';
 import { MobileSecurityPanel } from '@/components/mobile/MobileSecurityPanel';
 import { MobileTabSwitcher } from '@/components/mobile/MobileTabSwitcher';
-
-// Lazy tool panels
-const CommandPalette = instrumentedLazy(() => import('@/components/CommandPalette'), 'CommandPalette');
-const GlobalSearch = instrumentedLazy(() => import('@/components/GlobalSearch').then(mod => ({ default: mod.GlobalSearch || (mod as any).default })), 'GlobalSearch');
-const CollaborationPanel = instrumentedLazy(() => import('@/components/CollaborationPanel').then(mod => ({ default: mod.CollaborationPanel || (mod as any).default })), 'CollaborationPanel');
-const DatabasePanel = instrumentedLazy(() => import('@/components/ide/DatabasePanel').then(mod => ({ default: mod.DatabasePanel })), 'DatabasePanel');
-const ReplitAuthPanel = instrumentedLazy(() => import('@/components/ide/ReplitAuthPanel').then(mod => ({ default: mod.ReplitAuthPanel })), 'ReplitAuthPanel');
-
-const ReplitGitPanel = instrumentedLazy(() => import('@/components/editor/ReplitGitPanel').then(mod => ({ default: mod.ReplitGitPanel })), 'ReplitGitPanel');
-const ReplitPackagesPanel = instrumentedLazy(() => import('@/components/editor/ReplitPackagesPanel').then(mod => ({ default: mod.ReplitPackagesPanel })), 'ReplitPackagesPanel');
-const ReplitDebuggerPanel = instrumentedLazy(() => import('@/components/editor/ReplitDebuggerPanel').then(mod => ({ default: mod.ReplitDebuggerPanel })), 'ReplitDebuggerPanel');
-const ReplitTestingPanel = instrumentedLazy(() => import('@/components/editor/ReplitTestingPanel').then(mod => ({ default: mod.ReplitTestingPanel })), 'ReplitTestingPanel');
-const ReplitSecretsPanel = instrumentedLazy(() => import('@/components/editor/ReplitSecretsPanel').then(mod => ({ default: mod.ReplitSecretsPanel })), 'ReplitSecretsPanel');
-const ReplitHistoryPanel = instrumentedLazy(() => import('@/components/editor/ReplitHistoryPanel').then(mod => ({ default: mod.ReplitHistoryPanel })), 'ReplitHistoryPanel');
-const UnifiedCheckpointsPanel = instrumentedLazy(() => import('@/components/UnifiedCheckpointsPanel').then(mod => ({ default: mod.UnifiedCheckpointsPanel || (mod as any).default })), 'UnifiedCheckpointsPanel');
-const ReplitSettingsPanel = instrumentedLazy(() => import('@/components/editor/ReplitSettingsPanel').then(mod => ({ default: mod.ReplitSettingsPanel })), 'ReplitSettingsPanel');
-const ReplitThemesPanel = instrumentedLazy(() => import('@/components/editor/ReplitThemesPanel').then(mod => ({ default: mod.ReplitThemesPanel })), 'ReplitThemesPanel');
-const ReplitMultiplayers = instrumentedLazy(() => import('@/components/editor/ReplitMultiplayers').then(mod => ({ default: mod.ReplitMultiplayers })), 'ReplitMultiplayers');
-const WorkflowsPanel = instrumentedLazy(() => import('@/components/ide/WorkflowsPanel').then(mod => ({ default: mod.WorkflowsPanel })), 'WorkflowsPanel');
-const ExtensionsMarketplace = instrumentedLazy(() => import('@/components/ExtensionsMarketplace').then(mod => ({ default: mod.ExtensionsMarketplace || (mod as any).default })), 'ExtensionsMarketplace');
-const VisualEditorPanel = instrumentedLazy(() => import('@/components/ide/VisualEditorPanel').then(mod => ({ default: mod.VisualEditorPanel })), 'VisualEditorPanel');
-const ShellPanel = instrumentedLazy(() => import('@/components/editor/ShellPanel').then(mod => ({ default: mod.ShellPanel })), 'ShellPanel');
-const AppStoragePanel = instrumentedLazy(() => import('@/components/editor/AppStoragePanel').then(mod => ({ default: mod.AppStoragePanel })), 'AppStoragePanel');
-const ReplitConsolePanel = instrumentedLazy(() => import('@/components/ide/ReplitConsolePanel').then(mod => ({ default: mod.ReplitConsolePanel })), 'ReplitConsolePanel');
-const ResourcesPanel = instrumentedLazy(() => import('@/components/ide/ResourcesPanel').then(mod => ({ default: mod.ResourcesPanel })), 'ResourcesPanel');
-const TaskBoard = instrumentedLazy(() => import('@/components/TaskBoard'), 'TaskBoard');
-const LogsViewerPanel = instrumentedLazy(() => import('@/components/ide/LogsViewerPanel').then(mod => ({ default: mod.LogsViewerPanel })), 'LogsViewerPanel');
-
-// Specialized editors
-const SlideEditor = instrumentedLazy(() => import('@/components/SlideEditor'), 'SlideEditor');
-const VideoEditor = instrumentedLazy(() => import('@/components/VideoEditor'), 'VideoEditor');
-const AnimationPreview = instrumentedLazy(() => import('@/components/AnimationPreview'), 'AnimationPreview');
-const DesignCanvas = instrumentedLazy(() => import('@/components/DesignCanvas'), 'DesignCanvas');
-const ConversionDialog = instrumentedLazy(() => import('@/components/ConversionDialog'), 'ConversionDialog');
-
-// Re-integrated panels from legacy layout
-const AutomationsPanel = instrumentedLazy(() => import('@/components/AutomationsPanel'), 'AutomationsPanel');
-const BackupRecoverySection = instrumentedLazy(() => import('@/components/BackupRecoverySection'), 'BackupRecoverySection');
-const ConfigPanel = instrumentedLazy(() => import('@/components/ConfigPanel'), 'ConfigPanel');
-const FeedbackInboxPanel = instrumentedLazy(() => import('@/components/FeedbackInboxPanel'), 'FeedbackInboxPanel');
-const GitHubPanel = instrumentedLazy(() => import('@/components/GitHubPanel'), 'GitHubPanel');
-const IntegrationsPanel = instrumentedLazy(() => import('@/components/IntegrationsPanel'), 'IntegrationsPanel');
-const MCPPanel = instrumentedLazy(() => import('@/components/MCPPanel'), 'MCPPanel');
-const MergeConflictPanel = instrumentedLazy(() => import('@/components/MergeConflictPanel'), 'MergeConflictPanel');
-const MonitoringPanel = instrumentedLazy(() => import('@/components/MonitoringPanel'), 'MonitoringPanel');
-const NetworkingPanel = instrumentedLazy(() => import('@/components/NetworkingPanel'), 'NetworkingPanel');
-const PublishingPanel = instrumentedLazy(() => import('@/components/PublishingPanel'), 'PublishingPanel');
-const SkillsPanel = instrumentedLazy(() => import('@/components/SkillsPanel'), 'SkillsPanel');
-const SSHPanel = instrumentedLazy(() => import('@/components/SSHPanel'), 'SSHPanel');
-const ThreadsPanel = instrumentedLazy(() => import('@/components/ThreadsPanel'), 'ThreadsPanel');
-const TestRunnerPanel = instrumentedLazy(() => import('@/components/TestRunnerPanel'), 'TestRunnerPanel');
-const SecurityScannerPanel = instrumentedLazy(() => import('@/components/SecurityScannerPanel'), 'SecurityScannerPanel');
+import CommandPalette from '@/components/CommandPalette';
+import { GlobalSearch } from '@/components/GlobalSearch';
+import { CollaborationPanel } from '@/components/CollaborationPanel';
+import { DatabasePanel } from '@/components/ide/DatabasePanel';
+import { ReplitAuthPanel } from '@/components/ide/ReplitAuthPanel';
+import { ReplitGitPanel } from '@/components/editor/ReplitGitPanel';
+import { ReplitPackagesPanel } from '@/components/editor/ReplitPackagesPanel';
+import { ReplitDebuggerPanel } from '@/components/editor/ReplitDebuggerPanel';
+import { ReplitTestingPanel } from '@/components/editor/ReplitTestingPanel';
+import { ReplitSecretsPanel } from '@/components/editor/ReplitSecretsPanel';
+import { ReplitHistoryPanel } from '@/components/editor/ReplitHistoryPanel';
+import { UnifiedCheckpointsPanel } from '@/components/UnifiedCheckpointsPanel';
+import { ReplitSettingsPanel } from '@/components/editor/ReplitSettingsPanel';
+import { ReplitThemesPanel } from '@/components/editor/ReplitThemesPanel';
+import { ReplitMultiplayers } from '@/components/editor/ReplitMultiplayers';
+import { WorkflowsPanel } from '@/components/ide/WorkflowsPanel';
+import { ExtensionsMarketplace } from '@/components/ExtensionsMarketplace';
+import { VisualEditorPanel } from '@/components/ide/VisualEditorPanel';
+import { ShellPanel } from '@/components/editor/ShellPanel';
+import { AppStoragePanel } from '@/components/editor/AppStoragePanel';
+import { ReplitConsolePanel } from '@/components/ide/ReplitConsolePanel';
+import { ResourcesPanel } from '@/components/ide/ResourcesPanel';
+import TaskBoard from '@/components/TaskBoard';
+import { LogsViewerPanel } from '@/components/ide/LogsViewerPanel';
+import SlideEditor from '@/components/SlideEditor';
+import VideoEditor from '@/components/VideoEditor';
+import AnimationPreview from '@/components/AnimationPreview';
+import DesignCanvas from '@/components/DesignCanvas';
+import ConversionDialog from '@/components/ConversionDialog';
+import AutomationsPanel from '@/components/AutomationsPanel';
+import BackupRecoverySection from '@/components/BackupRecoverySection';
+import ConfigPanel from '@/components/ConfigPanel';
+import FeedbackInboxPanel from '@/components/FeedbackInboxPanel';
+import GitHubPanel from '@/components/GitHubPanel';
+import IntegrationsPanel from '@/components/IntegrationsPanel';
+import MCPPanel from '@/components/MCPPanel';
+import MergeConflictPanel from '@/components/MergeConflictPanel';
+import MonitoringPanel from '@/components/MonitoringPanel';
+import NetworkingPanel from '@/components/NetworkingPanel';
+import PublishingPanel from '@/components/PublishingPanel';
+import SkillsPanel from '@/components/SkillsPanel';
+import SSHPanel from '@/components/SSHPanel';
+import ThreadsPanel from '@/components/ThreadsPanel';
+import TestRunnerPanel from '@/components/TestRunnerPanel';
+import SecurityScannerPanel from '@/components/SecurityScannerPanel';
 
 interface UnifiedIDELayoutProps {
   projectId: string;
