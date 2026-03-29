@@ -672,6 +672,17 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     : publishState?.status === 'failed' ? 'failed'
     : 'idle';
 
+  const [isDeferredReady, setDeferredReady] = useState(deviceType === 'desktop');
+  useEffect(() => {
+    if (!isDeferredReady) {
+      startTransition(() => setDeferredReady(true));
+    }
+  }, []);
+
+  if (!isDeferredReady) {
+    return <div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
+  }
+
   // Loading state
   if (isLoadingProject && deviceType === 'desktop') {
     return <ECodeLoading fullScreen size="lg" text="Loading workspace..." />;
