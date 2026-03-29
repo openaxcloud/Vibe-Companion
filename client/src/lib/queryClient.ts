@@ -101,7 +101,7 @@ export const queryClient = new QueryClient({
         if (error instanceof Error && error.message.includes("40")) return false;
         return failureCount < 2;
       },
-      gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
+      cacheTime: 10 * 60 * 1000, // 10 minutes garbage collection
     },
     mutations: {
       retry: false,
