@@ -105,10 +105,13 @@ function LazyPage({ component: C }: { component: React.LazyExoticComponent<React
   );
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null; retryCount: number }
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, retryCount: 0 };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -116,6 +119,26 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // React 19 Error #310: "A component suspended while responding to synchronous input"
+    // This is a TRANSIENT error — it only happens when lazy chunks haven't loaded yet.
+    // By the time we retry, the chunks are cached and the render succeeds.
+    const isSyncSuspenseError =
+      error.message?.includes('#310') ||
+      error.message?.includes('synchronous input') ||
+      error.message?.includes('suspended while responding');
+
+    if (isSyncSuspenseError && this.state.retryCount < 3) {
+      console.warn(`[ErrorBoundary] Transient sync suspension error, auto-retrying (attempt ${this.state.retryCount + 1}/3)...`);
+      setTimeout(() => {
+        this.setState((prev) => ({
+          hasError: false,
+          error: null,
+          retryCount: prev.retryCount + 1,
+        }));
+      }, 100);
+      return;
+    }
+
     console.error("[ErrorBoundary]", error, errorInfo);
     try {
       fetch("/api/analytics/track", {
@@ -141,7 +164,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
             <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
             <p className="text-sm text-[var(--ide-text-secondary)] mb-4">{this.state.error?.message || "An unexpected error occurred."}</p>
             <button
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+              onClick={() => { this.setState({ hasError: false, error: null, retryCount: 0 }); window.location.reload(); }}
               className="px-4 py-2 bg-[#0079F2] hover:bg-[#0066CC] text-white text-sm rounded-lg transition-colors"
               data-testid="button-reload"
             >
@@ -208,7 +231,6 @@ function App() {
             <a href="#main-content" className="skip-to-main">Skip to main content</a>
             <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="Vibe Companion IDE">
               <Router hook={useAsyncBrowserLocation}>
-              <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]"><div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" /></div>}>
               <Switch>
                 <Route path="/" component={Landing} />
                 <Route path="/login" component={Auth} />
@@ -309,7 +331,6 @@ function App() {
 
                 <Route component={NotFound} />
               </Switch>
-              </Suspense>
               </Router>
             </div>
             <GlobalShortcuts />
