@@ -1,19 +1,4 @@
-import { QueryClient, QueryFunction, notifyManager } from "@tanstack/react-query";
-import { startTransition } from "react";
-
-// CRITICAL FIX for React 19 Error #310:
-// react-query v5 uses useSyncExternalStore internally for every useQuery/useMutation.
-// When query data changes, useSyncExternalStore forces a SYNCHRONOUS re-render.
-// If any lazy component in the tree hasn't loaded yet, React 19 throws Error #310:
-// "A component suspended while responding to synchronous input."
-//
-// The official TanStack solution: route all query notifications through React's
-// startTransition(). This makes react-query's state updates "transition" updates
-// (low priority), which CAN coexist with Suspense without crashing.
-// See: https://tanstack.com/query/v5/docs/framework/react/guides/render-optimizations
-notifyManager.setScheduler((callback) => {
-  startTransition(callback);
-});
+import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 let csrfToken: string | null = null;
 
