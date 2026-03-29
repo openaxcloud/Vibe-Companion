@@ -23,7 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAsyncBrowserLocation } from "@/hooks/use-async-location";
 import { Component, lazy, Suspense, startTransition, useState, useEffect, type ReactNode } from "react";
 import Project from "@/pages/Project";
-import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
+const UnifiedIDELayout = lazy(() => import("@/pages/UnifiedIDELayout"));
 import Frameworks from "@/pages/Frameworks";
 import ThemeEditor from "@/pages/ThemeEditor";
 import ThemesExplore from "@/pages/ThemesExplore";
@@ -219,7 +219,7 @@ function ProjectRoute() {
 
 function UnifiedProjectRoute() {
   const params = useParams<{ id: string }>();
-  return <UnifiedIDELayout projectId={params.id || ''} />;
+  return <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>}><UnifiedIDELayout projectId={params.id || ''} /></Suspense>;
 }
 
 function App() {
