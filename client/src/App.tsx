@@ -20,7 +20,7 @@ import Privacy from "@/pages/Privacy";
 import VerifyEmail from "@/pages/VerifyEmail";
 import AcceptInvite from "@/pages/AcceptInvite";
 import { useAuth } from "@/hooks/use-auth";
-import { Component, lazy, Suspense, type ReactNode } from "react";
+import { Component, lazy, Suspense, startTransition, type ReactNode } from "react";
 import Project from "@/pages/Project";
 import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
 import Frameworks from "@/pages/Frameworks";
@@ -164,7 +164,11 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     );
   }
   if (!isAuthenticated) return <Redirect to="/login" />;
-  return <Component />;
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]"><div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" /></div>}>
+      <Component />
+    </Suspense>
+  );
 }
 
 function ProjectRoute() {

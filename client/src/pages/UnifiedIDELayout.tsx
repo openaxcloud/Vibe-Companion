@@ -10,7 +10,7 @@
  * Uses useIDEWorkspace for centralized state management
  */
 
-import { useState, useCallback, Suspense, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, Suspense, useRef, useEffect, useMemo, startTransition } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { createPanHandlers, type PanInfo } from '@/lib/native-motion';
@@ -426,7 +426,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     if (PRIMARY_MOBILE_TABS.includes(tab)) {
       lastPrimaryTabRef.current = tab;
     }
-    setMobileActiveTabRaw(tab);
+    startTransition(() => {
+      setMobileActiveTabRaw(tab);
+    });
   }, []);
 
   const returnToLastPrimaryTab = useCallback(() => {
