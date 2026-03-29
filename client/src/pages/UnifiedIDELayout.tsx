@@ -77,11 +77,13 @@ const ResponsiveWebPreview = instrumentedLazy(() => import('@/components/editor/
 const AgentActionsPanel = instrumentedLazy(() => import('@/components/ide/AgentActionsPanel').then(mod => ({ default: mod.AgentActionsPanel })), 'AgentActionsPanel');
 const ToolsPanel = instrumentedLazy(() => import('@/components/ide/ToolsPanel').then(mod => ({ default: mod.ToolsPanel })), 'ToolsPanel');
 
-// Mobile-specific lazy components
-const MobilePreviewPanel = instrumentedLazy(() => import('@/components/mobile/MobilePreviewPanel').then(mod => ({ default: mod.MobilePreviewPanel })), 'MobilePreviewPanel');
+// Mobile-specific components - direct imports to avoid React 19 Error #310
+// (wouter v3 navigates synchronously without startTransition, so lazy components
+// suspend during sync updates and crash on mobile)
+import { MobilePreviewPanel } from '@/components/mobile/MobilePreviewPanel';
 import { MobileMoreMenu } from '@/components/mobile/MobileMoreMenu';
-const MobileSecurityPanel = instrumentedLazy(() => import('@/components/mobile/MobileSecurityPanel').then(mod => ({ default: mod.MobileSecurityPanel })), 'MobileSecurityPanel');
-const MobileTabSwitcher = instrumentedLazy(() => import('@/components/mobile/MobileTabSwitcher').then(mod => ({ default: mod.MobileTabSwitcher })), 'MobileTabSwitcher');
+import { MobileSecurityPanel } from '@/components/mobile/MobileSecurityPanel';
+import { MobileTabSwitcher } from '@/components/mobile/MobileTabSwitcher';
 
 // Lazy tool panels
 const CommandPalette = instrumentedLazy(() => import('@/components/CommandPalette'), 'CommandPalette');
@@ -1148,17 +1150,15 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onSelectTool={(tool) => { handleAddTool(tool); handleAddOpenTab(tool); setShowToolsSheet(false); }}
         />
 
-        <Suspense fallback={null}>
-          <MobileTabSwitcher
-            isOpen={showTabSwitcher}
-            onClose={() => setShowTabSwitcher(false)}
-            openTabs={openTabs}
-            activeTabId={activeOpenTabId}
-            onTabSelect={handleSelectOpenTab}
-            onTabClose={handleCloseOpenTab}
-            onNewTab={() => { setShowTabSwitcher(false); setShowToolsSheet(true); }}
-          />
-        </Suspense>
+        <MobileTabSwitcher
+          isOpen={showTabSwitcher}
+          onClose={() => setShowTabSwitcher(false)}
+          openTabs={openTabs}
+          activeTabId={activeOpenTabId}
+          onTabSelect={handleSelectOpenTab}
+          onTabClose={handleCloseOpenTab}
+          onNewTab={() => { setShowTabSwitcher(false); setShowToolsSheet(true); }}
+        />
       </div>
       </Suspense>
     );
