@@ -23,7 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAsyncBrowserLocation } from "@/hooks/use-async-location";
 import { Component, lazy, Suspense, startTransition, useState, useEffect, type ReactNode } from "react";
 import Project from "@/pages/Project";
-const UnifiedIDELayout = lazy(() => import("@/pages/UnifiedIDELayout"));
+import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
 import Frameworks from "@/pages/Frameworks";
 import ThemeEditor from "@/pages/ThemeEditor";
 import ThemesExplore from "@/pages/ThemesExplore";
