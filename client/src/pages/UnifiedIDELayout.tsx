@@ -693,7 +693,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'preview':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Preview..." /></div>}><MobilePreviewPanel projectId={projectId} /></Suspense>;
       case 'agent':
-        return <AgentPanelErrorBoundary><ReplitAgentPanelV3 projectId={projectId} mode="mobile" agentToolsSettings={agentToolsSettings} onAgentToolsSettingsChange={setAgentToolsSettings} hideInput={true} onExternalInput={setMobileAgentHandlers} /></AgentPanelErrorBoundary>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Agent..." /></div>}><AgentPanelErrorBoundary><ReplitAgentPanelV3 projectId={projectId} mode="mobile" agentToolsSettings={agentToolsSettings} onAgentToolsSettingsChange={setAgentToolsSettings} hideInput={true} onExternalInput={setMobileAgentHandlers} /></AgentPanelErrorBoundary></Suspense>;
       case 'deploy':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Deploy..." /></div>}><ReplitDeploymentPanel projectId={projectId} /></Suspense>;
       case 'git':
@@ -707,7 +707,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'terminal':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTerminalPanel projectId={projectId} /></Suspense>;
       case 'files':
-        return <ReplitFileExplorer projectId={projectId} files={filesRaw || []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} />;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}><ReplitFileExplorer projectId={projectId} files={filesRaw || []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} /></Suspense>;
       case 'history':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} files={historyFiles} onClose={handleHistoryClose} onFileRestored={handleFileRestored} initialFile={activeFileName || null} /></Suspense>;
       case 'settings':
@@ -787,6 +787,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SecurityScannerPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'more':
         return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading..." /></div>}>
           <MobileMoreMenu
             projectId={projectId}
             isOpen={false}
@@ -825,6 +826,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             onOpenSecurityScanner={() => handleAddOpenTab('security-scanner')}
             onOpenBackup={() => handleAddOpenTab('backup')}
           />
+          </Suspense>
         );
       default:
         return null;
