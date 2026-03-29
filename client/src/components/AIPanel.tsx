@@ -1,6 +1,14 @@
-import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useRef, useEffect, useCallback, Suspense, lazy } from "react";
 import type { ExternalInputHandlers } from "./ai/ReplitAgentPanelV3";
 import { Button } from "@/components/ui/button";
+
+// CRITICAL: TaskBoard must be lazy-loaded at MODULE level (static), NOT inline.
+// An inline React.lazy(() => import("./TaskBoard")) creates a NEW lazy component
+// on every render. The module might not be loaded, so it ALWAYS suspends on first
+// encounter. If that first encounter happens during a synchronous re-render
+// (triggered by react-query's useSyncExternalStore), React 19 throws Error #310.
+// A static lazy() call caches the component after the first load.
+const LazyTaskBoard = lazy(() => import("./TaskBoard"));
 import {
   Send, Bot, User, Copy, Check, X, Sparkles, Trash2,
   FileCode, FilePlus, FileEdit, ChevronDown, ChevronRight, Zap, MessageSquare,
@@ -3582,10 +3590,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       {topMode === "plan" && showTaskBoard && projectId && (
         <div className="flex-1 overflow-hidden">
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" /></div>}>
-            {React.createElement(
-              React.lazy(() => import("./TaskBoard")),
-              { projectId, onClose: () => setShowTaskBoard(false) }
-            )}
+            <LazyTaskBoard projectId={projectId} onClose={() => setShowTaskBoard(false)} />
           </Suspense>
         </div>
       )}

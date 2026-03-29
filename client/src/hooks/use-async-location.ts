@@ -1,10 +1,44 @@
 import { useState, useEffect, useCallback } from 'react';
 
+// All browser events that wouter dispatches on navigation.
+// wouter monkey-patches history.pushState/replaceState to fire custom events.
+const NAV_EVENTS = ['popstate', 'pushState', 'replaceState', 'hashchange'] as const;
+
 /**
  * Extract the current browser location (pathname + search + hash).
  */
 function currentLocation(): string {
   return window.location.pathname + window.location.search + window.location.hash;
+}
+
+/**
+ * Async search hook for wouter — replaces the default useSearch which uses
+ * useSyncExternalStore (and causes React 19 Error #310).
+ *
+ * Wouter's Router picks this up automatically via `props.hook?.searchHook`
+ * (see wouter/src/index.js line 165).
+ */
+function useAsyncSearch(
+  _opts: { ssrSearch?: string } = {}
+): string {
+  const [search, setSearch] = useState(() => window.location.search);
+
+  useEffect(() => {
+    const handler = () => {
+      setSearch(window.location.search);
+    };
+
+    for (const event of NAV_EVENTS) {
+      window.addEventListener(event, handler);
+    }
+    return () => {
+      for (const event of NAV_EVENTS) {
+        window.removeEventListener(event, handler);
+      }
+    };
+  }, []);
+
+  return search;
 }
 
 /**
@@ -17,11 +51,15 @@ function currentLocation(): string {
  * during a synchronous render, React throws Error #310:
  * "A component suspended while responding to synchronous input."
  *
- * This hook subscribes to the same events wouter dispatches (wouter
- * monkey-patches history.pushState/replaceState to dispatch custom events),
- * but updates location via regular setState. Regular setState is async
- * and compatible with Suspense boundaries — React can pause the render
- * and show fallbacks instead of crashing.
+ * This hook subscribes to the same events wouter dispatches, but updates
+ * location via regular setState. Regular setState is async and compatible
+ * with Suspense boundaries — React can pause the render and show fallbacks
+ * instead of crashing.
+ *
+ * IMPORTANT: This function also exposes a `searchHook` property. Wouter's
+ * Router automatically inherits it (line 165 of wouter/src/index.js):
+ *   props.searchHook = props.searchHook ?? props.hook?.searchHook
+ * This ensures BOTH location AND search tracking avoid useSyncExternalStore.
  *
  * Usage in App.tsx:
  *   import { Router } from "wouter";
@@ -52,17 +90,13 @@ export function useAsyncBrowserLocation(
       }
     };
 
-    // wouter monkey-patches history.pushState/replaceState to dispatch
-    // custom "pushState" and "replaceState" events on the window.
-    // We subscribe to those same events plus the native "popstate".
-    window.addEventListener('popstate', handler);
-    window.addEventListener('pushState', handler);
-    window.addEventListener('replaceState', handler);
-
+    for (const event of NAV_EVENTS) {
+      window.addEventListener(event, handler);
+    }
     return () => {
-      window.removeEventListener('popstate', handler);
-      window.removeEventListener('pushState', handler);
-      window.removeEventListener('replaceState', handler);
+      for (const event of NAV_EVENTS) {
+        window.removeEventListener(event, handler);
+      }
     };
   }, [base]);
 
@@ -77,3 +111,9 @@ export function useAsyncBrowserLocation(
 
   return [location, navigate];
 }
+
+// Attach the async search hook so wouter's Router inherits it automatically.
+// This is the critical piece that was MISSING in the previous fix attempt —
+// without this, wouter falls back to its default useSearch which uses
+// useSyncExternalStore, causing synchronous re-renders that trigger Error #310.
+(useAsyncBrowserLocation as any).searchHook = useAsyncSearch;
