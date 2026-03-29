@@ -435,7 +435,7 @@ export function useIDEWorkspace(projectId: string) {
         setDirtyFiles(prev => { const n = new Set(prev); n.delete(activeFileId!); return n; });
       }
       const code = activeFileId ? (fileContents[activeFileId] ?? '') : '';
-      const activeFile = filesQuery.data?.find(f => f.id === activeFileId);
+      const activeFile = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => f.id === activeFileId) : undefined;
       const fileName = activeFile?.filename;
       const ext = fileName?.split('.').pop()?.toLowerCase();
       const langMap: Record<string, string> = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', html: 'javascript', css: 'javascript' };
@@ -894,7 +894,7 @@ export function useIDEWorkspace(projectId: string) {
     queryKey: ['/api/projects', projectId, 'git/blame', activeFileId],
     queryFn: async () => {
       if (!activeFileId) return null;
-      const file = filesQuery.data?.find(f => String(f.id) === activeFileId);
+      const file = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === activeFileId) : undefined;
       if (!file) return null;
       const res = await fetch(`/api/projects/${projectId}/git/blame?file=${encodeURIComponent(file.filename)}`, { credentials: 'include' });
       if (!res.ok) return null;
@@ -962,7 +962,7 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   const activeFileName = useMemo(() => {
     if (!activeFileId) return null;
-    const file = filesQuery.data?.find(f => String(f.id) === activeFileId);
+    const file = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === activeFileId) : undefined;
     return file?.filename || null;
   }, [activeFileId, filesQuery.data]);
 
@@ -1057,7 +1057,7 @@ export function useIDEWorkspace(projectId: string) {
     if (!openTabs.includes(fileId)) {
       setOpenTabs(prev => [...prev, fileId]);
     }
-    const existing = filesQuery.data?.find(f => String(f.id) === String(file.id));
+    const existing = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === String(file.id)) : undefined;
     if (existing && fileContents[fileId] === undefined) {
       setFileContents(prev => ({ ...prev, [fileId]: existing.content }));
     }
@@ -1093,7 +1093,7 @@ export function useIDEWorkspace(projectId: string) {
 
   const handleTabDuplicate = useCallback((tabId: string) => {
     const realId = tabId.startsWith('file:') ? tabId.slice(5) : tabId;
-    const file = filesQuery.data?.find(f => String(f.id) === realId);
+    const file = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === realId) : undefined;
     if (file) {
       const dupId = `dup:${Date.now()}:${realId}`;
       setOpenTabs(prev => [...prev, dupId]);
