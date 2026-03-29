@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useParams } from "wouter";
+import { Switch, Route, Redirect, useParams, Router } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,7 +20,7 @@ import Privacy from "@/pages/Privacy";
 import VerifyEmail from "@/pages/VerifyEmail";
 import AcceptInvite from "@/pages/AcceptInvite";
 import { useAuth } from "@/hooks/use-auth";
-import { Component, lazy, Suspense, startTransition, type ReactNode } from "react";
+import { Component, lazy, Suspense, startTransition, useState, useEffect, type ReactNode } from "react";
 import Project from "@/pages/Project";
 import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
 import Frameworks from "@/pages/Frameworks";
@@ -156,7 +156,25 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) {
+  // Use startTransition to decouple react-query's useSyncExternalStore from
+  // rendering the component tree. Without this, when the auth query resolves,
+  // react-query triggers a synchronous re-render via useSyncExternalStore,
+  // and any lazy component in the tree would cause React 19 Error #310.
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && !ready) {
+      startTransition(() => {
+        setReady(true);
+      });
+    }
+    // Reset if user logs out
+    if (!isAuthenticated && ready) {
+      setReady(false);
+    }
+  }, [isLoading, isAuthenticated, ready]);
+
+  if (isLoading || (isAuthenticated && !ready)) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]">
         <div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" />
@@ -188,6 +206,7 @@ function App() {
           <TooltipProvider>
             <a href="#main-content" className="skip-to-main">Skip to main content</a>
             <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="Vibe Companion IDE">
+              <Router aroundNav={(navigate, to, opts) => startTransition(() => navigate(to, opts))}>
               <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[var(--ide-bg)]"><div className="w-8 h-8 border-2 border-[var(--ide-border)] border-t-[#0079F2] rounded-full animate-spin" /></div>}>
               <Switch>
                 <Route path="/" component={Landing} />
@@ -290,6 +309,7 @@ function App() {
                 <Route component={NotFound} />
               </Switch>
               </Suspense>
+              </Router>
             </div>
             <GlobalShortcuts />
             <CookieConsent />
