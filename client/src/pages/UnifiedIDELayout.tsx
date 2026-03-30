@@ -1013,7 +1013,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           className="flex-1 overflow-hidden min-h-0"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
         >
-          <div key={mobileActiveTab} className="h-full overflow-auto animate-fade-in">
+          <div key={mobileActiveTab} className="h-full overflow-auto animate-fade-in pb-20">
             {renderMobileContent()}
           </div>
         </div>
