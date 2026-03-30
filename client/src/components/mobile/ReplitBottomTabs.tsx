@@ -1,25 +1,19 @@
-/**
- * ReplitBottomTabs - High-Performance Mobile Navigation
- * 
- * Premium glassmorphic bottom navigation with:
- * - CSS animations for instant performance
- * - E-Code orange (#F26207) accent with gradient glow
- * - IBM Plex Sans typography at 11px
- * - 72px height with proper touch targets (min 48px)
- * - Reduced motion support via CSS media query
- */
-
 import { memo, useCallback, type ElementType } from 'react';
-import { Rocket, Monitor, MoreHorizontal, Sparkles, FolderOpen, GitBranch, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import {
+  Rocket, Monitor, MoreHorizontal, Sparkles, FolderOpen,
+  GitBranch, AlertCircle, Wifi, WifiOff, Terminal, Database,
+  Lock, Settings, History, Layers, Package, Bug, Shield,
+  Users, Search, Workflow, Puzzle, X, Globe, MessageSquare,
+  Server, Network, BookOpen, Key, Cpu, TestTube, Archive,
+  Wrench, Inbox, Github, Plug, Bot, Merge, Activity,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-type MobileTab = 'agent' | 'files' | 'deploy' | 'preview' | 'more';
-
-interface Tab {
-  id: MobileTab;
-  icon: ElementType;
-  label: string;
+interface OpenTab {
+  id: string;
+  name: string;
+  icon: string;
 }
 
 interface BadgeCounts {
@@ -30,21 +24,39 @@ interface BadgeCounts {
 interface ReplitBottomTabsProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  openTabs?: OpenTab[];
+  onCloseTab?: (tabId: string) => void;
   badgeCounts?: BadgeCounts;
   isConnected?: boolean;
 }
 
-const tabs: Tab[] = [
-  { id: 'files', icon: FolderOpen, label: 'Files' },
-  { id: 'preview', icon: Monitor, label: 'Preview' },
-  { id: 'agent', icon: Sparkles, label: 'Agent' },
-  { id: 'deploy', icon: Rocket, label: 'Deploy' },
-  { id: 'more', icon: MoreHorizontal, label: 'Tools' },
-];
+const CORE_TAB_IDS = new Set(['files', 'preview', 'agent', 'deploy', 'more']);
 
-export const ReplitBottomTabs = memo(function ReplitBottomTabs({ 
+const iconMap: Record<string, ElementType> = {
+  files: FolderOpen, preview: Monitor, agent: Sparkles, deploy: Rocket,
+  more: MoreHorizontal, terminal: Terminal, database: Database,
+  secrets: Lock, settings: Settings, history: History, checkpoints: Layers,
+  packages: Package, debug: Bug, security: Shield, collaboration: Users,
+  search: Search, workflows: Workflow, extensions: Puzzle, git: GitBranch,
+  console: Terminal, shell: Terminal, auth: Key, themes: Wrench,
+  'visual-editor': Globe, slides: Layers, video: Layers, animation: Layers,
+  design: Layers, storage: Database, testing: TestTube, tests: TestTube,
+  automations: Bot, config: Settings, feedback: Inbox, github: Github,
+  integrations: Plug, mcp: Cpu, 'merge-conflicts': Merge, monitoring: Activity,
+  networking: Network, publishing: Globe, skills: BookOpen, ssh: Server,
+  threads: MessageSquare, 'test-runner': TestTube, 'security-scanner': Shield,
+  backup: Archive, tasks: Layers,
+};
+
+function getIcon(id: string): ElementType {
+  return iconMap[id] || Layers;
+}
+
+export const ReplitBottomTabs = memo(function ReplitBottomTabs({
   activeTab,
   onTabChange,
+  openTabs,
+  onCloseTab,
   badgeCounts = {},
   isConnected = true,
 }: ReplitBottomTabsProps) {
@@ -56,28 +68,53 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
       navigator.vibrate([8, 50, 4]);
     }
   }, [onTabChange]);
-  
+
   if (!isMobile) {
     return null;
   }
 
-  const getBadgeForTab = (tabId: MobileTab): number | undefined => {
-    if (tabId === 'more') {
-      const gitCount = badgeCounts.git || 0;
-      const errorsCount = badgeCounts.errors || 0;
-      return gitCount + errorsCount > 0 ? gitCount + errorsCount : undefined;
+  const displayTabs: { id: string; label: string; icon: ElementType; closable: boolean }[] = [];
+
+  if (openTabs && openTabs.length > 0) {
+    for (const t of openTabs) {
+      displayTabs.push({
+        id: t.id,
+        label: t.name,
+        icon: getIcon(t.icon || t.id),
+        closable: !CORE_TAB_IDS.has(t.id),
+      });
     }
+    if (!displayTabs.find(t => t.id === 'more')) {
+      displayTabs.push({ id: 'more', label: 'Tools', icon: MoreHorizontal, closable: false });
+    }
+  } else {
+    displayTabs.push(
+      { id: 'files', label: 'Files', icon: FolderOpen, closable: false },
+      { id: 'preview', label: 'Preview', icon: Monitor, closable: false },
+      { id: 'agent', label: 'Agent', icon: Sparkles, closable: false },
+      { id: 'deploy', label: 'Deploy', icon: Rocket, closable: false },
+      { id: 'more', label: 'Tools', icon: MoreHorizontal, closable: false },
+    );
+  }
+
+  const getBadge = (tabId: string): number | undefined => {
+    if (tabId === 'more') {
+      const total = (badgeCounts.git || 0) + (badgeCounts.errors || 0);
+      return total > 0 ? total : undefined;
+    }
+    if (tabId === 'git') return badgeCounts.git;
     return undefined;
   };
 
+  const needsScroll = displayTabs.length > 5;
+
   return (
-    <div 
-      className="fixed bottom-0 left-0 right-0 z-[60]" 
+    <div
+      className="fixed bottom-0 left-0 right-0 z-[60]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       data-testid="mobile-bottom-navigation"
     >
-      {/* Solid Navigation Container */}
-      <div 
+      <div
         className="absolute inset-x-3 bottom-2 rounded-[var(--mobile-nav-radius)]"
         style={{
           background: 'var(--mobile-nav-gradient)',
@@ -86,39 +123,28 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
           borderTop: '1px solid var(--mobile-nav-border-top)',
         }}
       >
-        {/* Subtle top highlight line */}
-        <div 
+        <div
           className="absolute top-0 left-4 right-4 h-px"
-          style={{
-            background: 'var(--mobile-nav-border-top)',
-          }}
+          style={{ background: 'var(--mobile-nav-border-top)' }}
         />
       </div>
-      
-      {/* Status Indicators Row */}
+
       <div className="absolute -top-8 left-0 right-0 px-4 flex items-center justify-between pointer-events-none">
-        {/* Connection Status Pill - compact but accessible for mobile */}
         <div
           className="flex items-center gap-1 px-2 py-0.5 rounded-full pointer-events-auto animate-fade-in"
           style={{
             background: '#1C2333',
             border: `1px solid ${isConnected ? '#22c55e' : '#ef4444'}`,
-            boxShadow: isConnected 
-              ? '0 2px 8px -2px #22c55e'
-              : '0 2px 8px -2px #ef4444',
+            boxShadow: isConnected ? '0 2px 8px -2px #22c55e' : '0 2px 8px -2px #ef4444',
           }}
           data-testid="indicator-connection-status"
         >
           <div className={isConnected ? 'animate-pulse-slow' : ''}>
-            {isConnected ? (
-              <Wifi className="h-3 w-3 text-green-500" />
-            ) : (
-              <WifiOff className="h-3 w-3 text-red-500" />
-            )}
+            {isConnected ? <Wifi className="h-3 w-3 text-green-500" /> : <WifiOff className="h-3 w-3 text-red-500" />}
           </div>
-          <span 
+          <span
             className="text-[11px] font-semibold uppercase tracking-wider"
-            style={{ 
+            style={{
               color: isConnected ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
               fontFamily: 'var(--ecode-font-sans)',
             }}
@@ -126,17 +152,12 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
             {isConnected ? 'Live' : 'Offline'}
           </span>
         </div>
-        
-        {/* Status Badges */}
+
         <div className="flex items-center gap-2 pointer-events-auto">
           {badgeCounts.errors && badgeCounts.errors > 0 && (
-            <div 
+            <div
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-full animate-scale-in"
-              style={{
-                background: '#1C2333',
-                border: '1px solid #ef4444',
-                boxShadow: '0 2px 8px -2px #ef4444',
-              }}
+              style={{ background: '#1C2333', border: '1px solid #ef4444', boxShadow: '0 2px 8px -2px #ef4444' }}
               data-testid="indicator-errors"
             >
               <AlertCircle className="h-3 w-3 text-red-500" />
@@ -145,15 +166,10 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
               </span>
             </div>
           )}
-          
           {badgeCounts.git && badgeCounts.git > 0 && (
-            <div 
+            <div
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-full animate-scale-in"
-              style={{
-                background: '#1C2333',
-                border: '1px solid #3D4455',
-                boxShadow: '0 2px 6px -2px #0E1525',
-              }}
+              style={{ background: '#1C2333', border: '1px solid #3D4455', boxShadow: '0 2px 6px -2px #0E1525' }}
               data-testid="indicator-git-changes"
             >
               <GitBranch className="h-3 w-3 text-[var(--ecode-text-muted)]" />
@@ -164,24 +180,31 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
           )}
         </div>
       </div>
-      
-      {/* Navigation Items */}
-      <nav 
-        className="relative flex items-center justify-around px-4 mx-3 mb-2"
+
+      <nav
+        className={cn(
+          "relative flex items-center px-4 mx-3 mb-2",
+          needsScroll ? "overflow-x-auto gap-0.5 scrollbar-none" : "justify-around"
+        )}
         style={{ height: 'var(--mobile-nav-height)' }}
       >
-        {tabs.map((tab) => {
+        {displayTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
-          const badge = getBadgeForTab(tab.id);
+          const badge = getBadge(tab.id);
 
           return (
-            <button
+            <div
               key={tab.id}
+              role="tab"
+              tabIndex={0}
+              aria-selected={isActive}
               onClick={() => handleTabClick(tab.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTabClick(tab.id); } }}
               className={cn(
-                "relative flex flex-col items-center justify-center flex-1",
-                "min-w-[52px] max-w-[72px] min-h-[52px]",
+                "relative flex flex-col items-center justify-center cursor-pointer",
+                needsScroll ? "min-w-[56px] px-1.5" : "flex-1",
+                "min-w-[48px] max-w-[72px] min-h-[52px]",
                 "rounded-[var(--mobile-nav-item-radius)]",
                 "touch-manipulation select-none",
                 "transition-transform duration-100",
@@ -190,25 +213,20 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
               )}
               data-testid={`tab-${tab.id}`}
             >
-              {/* Active Background Pill */}
               {isActive && (
                 <div
                   className="absolute inset-1 rounded-[calc(var(--mobile-nav-item-radius)-4px)] animate-scale-in"
                   style={{
                     background: 'var(--mobile-nav-active-bg)',
                     border: '1px solid var(--mobile-nav-active-border)',
-                    boxShadow: `0 0 20px -4px var(--mobile-nav-glow), inset 0 1px 0 0 #3D4455`,
+                    boxShadow: '0 0 20px -4px var(--mobile-nav-glow), inset 0 1px 0 0 #3D4455',
                   }}
                 />
               )}
 
-              {/* Icon Container */}
               <div className="relative z-10">
-                <div className={cn(
-                  "transition-transform duration-150",
-                  isActive && "transform -translate-y-0.5 scale-110"
-                )}>
-                  <Icon 
+                <div className={cn("transition-transform duration-150", isActive && "transform -translate-y-0.5 scale-110")}>
+                  <Icon
                     className="transition-colors duration-150"
                     style={{
                       width: 'var(--mobile-nav-icon-size)',
@@ -219,34 +237,36 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
                     }}
                   />
                 </div>
-                
-                {/* Badge */}
+
                 {badge !== undefined && badge > 0 && (
-                  <span 
+                  <span
                     className="absolute -top-2 -right-2.5 flex items-center justify-center animate-scale-in"
                     style={{
-                      minWidth: '18px',
-                      height: '18px',
-                      padding: '0 5px',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      fontFamily: 'var(--ecode-font-sans)',
-                      color: 'white',
-                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                      borderRadius: '9px',
-                      border: '2px solid var(--ecode-surface)',
+                      minWidth: '18px', height: '18px', padding: '0 5px',
+                      fontSize: '10px', fontWeight: 700, fontFamily: 'var(--ecode-font-sans)',
+                      color: 'white', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      borderRadius: '9px', border: '2px solid var(--ecode-surface)',
                       boxShadow: '0 2px 6px -1px #ef4444',
                     }}
                   >
                     {badge > 99 ? '99+' : badge}
                   </span>
                 )}
+
+                {tab.closable && onCloseTab && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-[var(--ecode-surface)] border border-[var(--ide-border)] hover:bg-red-600 hover:border-red-600 transition-colors"
+                    data-testid={`close-tab-${tab.id}`}
+                  >
+                    <X className="w-2.5 h-2.5 text-[var(--ecode-text-muted)]" />
+                  </button>
+                )}
               </div>
-              
-              {/* Label - compact but accessible font size for mobile inline tabs */}
-              <span 
+
+              <span
                 className={cn(
-                  "relative z-10 mt-0.5 font-medium leading-none transition-transform duration-150",
+                  "relative z-10 mt-0.5 font-medium leading-none transition-transform duration-150 truncate max-w-[56px]",
                   isActive && "transform -translate-y-px scale-[1.02]"
                 )}
                 style={{
@@ -259,8 +279,7 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
               >
                 {tab.label}
               </span>
-              
-              {/* Active Indicator Line */}
+
               {isActive && (
                 <div
                   className="absolute -bottom-0.5 rounded-full animate-width-expand"
@@ -271,7 +290,7 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
                   }}
                 />
               )}
-            </button>
+            </div>
           );
         })}
       </nav>

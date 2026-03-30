@@ -603,11 +603,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     setOpenTabs(prev => {
       const newTabs = prev.filter(t => t.id !== tabId);
       if (activeOpenTabId === tabId && newTabs.length > 0) {
-        setActiveOpenTabId(newTabs[newTabs.length - 1].id);
+        const nextTab = newTabs[newTabs.length - 1].id;
+        setActiveOpenTabId(nextTab);
+        setMobileActiveTab(nextTab as MobileTab);
       }
       return newTabs;
     });
-  }, [activeOpenTabId]);
+  }, [activeOpenTabId, setMobileActiveTab]);
 
   const handleSelectOpenTab = useCallback((tabId: string) => {
     setActiveOpenTabId(tabId);
@@ -1076,9 +1078,11 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             if (tab === 'more') {
               setShowMobileMoreMenu(true);
             } else {
-              setMobileActiveTab(tab as MobileTab);
+              handleSelectOpenTab(tab);
             }
           }}
+          openTabs={openTabs}
+          onCloseTab={handleCloseOpenTab}
           badgeCounts={{
             git: gitChangesCount > 0 ? gitChangesCount : undefined,
             errors: errorsCount > 0 ? errorsCount : undefined,
@@ -1248,9 +1252,11 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             if (tab === 'more') {
               setShowMobileMoreMenu(true);
             } else {
-              setMobileActiveTab(tab as MobileTab);
+              handleSelectOpenTab(tab);
             }
           }}
+          openTabs={openTabs}
+          onCloseTab={handleCloseOpenTab}
           badgeCounts={{
             git: gitChangesCount > 0 ? gitChangesCount : undefined,
             errors: errorsCount > 0 ? errorsCount : undefined,
