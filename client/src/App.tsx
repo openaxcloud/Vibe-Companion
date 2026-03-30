@@ -217,9 +217,41 @@ function ProjectRoute() {
   return <Project />;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function UnifiedProjectRoute() {
   const params = useParams<{ id: string }>();
-  return <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>}><UnifiedIDELayout projectId={params.id || ''} /></Suspense>;
+  const rawId = params.id || '';
+  const isUUID = UUID_RE.test(rawId);
+  const [resolvedId, setResolvedId] = useState<string | null>(isUUID ? rawId : null);
+  const [noProjects, setNoProjects] = useState(false);
+
+  useEffect(() => {
+    if (isUUID) { setResolvedId(rawId); return; }
+    let cancelled = false;
+    fetch('/api/projects', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((projects: any[]) => {
+        if (cancelled) return;
+        if (projects.length > 0) {
+          const target = projects[0].id;
+          setResolvedId(target);
+          window.history.replaceState(null, '', `/project/${target}`);
+        } else {
+          setNoProjects(true);
+        }
+      })
+      .catch(() => { if (!cancelled) setNoProjects(true); });
+    return () => { cancelled = true; };
+  }, [rawId, isUUID]);
+
+  if (noProjects) {
+    return <Redirect to="/dashboard" />;
+  }
+  if (!resolvedId) {
+    return <div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
+  }
+  return <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>}><UnifiedIDELayout projectId={resolvedId} /></Suspense>;
 }
 
 function App() {
