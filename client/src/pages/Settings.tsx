@@ -44,7 +44,9 @@ import {
   Monitor,
   Moon,
   Sun,
+  RotateCcw,
 } from 'lucide-react';
+import { TOUR_STORAGE_KEY } from '@/components/ide/IDEGuidedTour';
 import { useToast } from '@/hooks/use-toast';
 import { TABLET_GRID_CLASSES } from '@shared/responsive-config';
 
@@ -418,7 +420,7 @@ export default function Settings() {
               </Card>
             )}
 
-            {activeTab === 'appearance' && (
+            {activeTab === 'appearance' && (<>
               <Card className={cardClassName} data-testid="card-appearance-settings">
                 <CardHeader>
                   <CardTitle className="text-foreground">Appearance</CardTitle>
@@ -496,7 +498,37 @@ export default function Settings() {
                   </Button>
                 </CardContent>
               </Card>
-            )}
+
+              <Card className={cardClassName} data-testid="card-guided-tour">
+                <CardHeader>
+                  <CardTitle className="text-foreground">Guided Tour</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Replay the IDE guided tour to rediscover all workspace features
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-border bg-card text-foreground hover:bg-muted hover:border-primary/30 transition-all duration-200"
+                    onClick={() => {
+                      localStorage.removeItem(TOUR_STORAGE_KEY);
+                      toast({
+                        title: 'Tour reset',
+                        description: 'Open any project in the IDE to replay the guided tour now.',
+                      });
+                      navigate('/dashboard');
+                    }}
+                    data-testid="button-replay-tour"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Replay IDE Tour
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Resets the tour and navigates you to your projects. Open any project to start the tour.
+                  </p>
+                </CardContent>
+              </Card>
+            </>)}
 
             {activeTab === 'editor' && (
               <Card className={cardClassName} data-testid="card-editor-settings">

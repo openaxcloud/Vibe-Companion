@@ -37,6 +37,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 **Storage and Database**: Each project receives its own PostgreSQL schema for data isolation. A Database Panel provides a table browser, SQL Runner, and masked credentials display. An App Storage v2 system offers bucket-based object storage with folder organization, access management, and quota enforcement.
 
 **Key Features**:
+- **Onboarding & Guided Tour**: Pre-login IDE feature showcase on the landing page (`IDEFeatureShowcase` component) lets visitors explore each IDE panel interactively before signing up. A post-login guided tour (`IDEGuidedTour` component with `useIDETour` hook) highlights 7 key IDE panels (File Explorer, Code Editor, Terminal, Preview, AI Agent, Deploy) using a spotlight overlay. Tour state is persisted in `localStorage` (`e-code-ide-tour-completed`). Users can replay the tour from Settings > Appearance > "Replay IDE Tour".
 - **Workflows**: Multi-step build/run pipelines with configurable triggers and execution modes.
 - **Monitoring**: Metrics collection (CPU, memory, load, requests) for deployed projects with configurable alerts.
 - **Threads**: Code discussion threads with line number references.

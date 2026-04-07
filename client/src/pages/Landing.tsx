@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
+import { IDEFeatureShowcase } from '@/components/landing/IDEFeatureShowcase';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Spinner } from '@/components/ui/spinner';
@@ -530,6 +531,9 @@ export default function Landing() {
           <ChevronRight className="h-8 w-8 text-gray-400 rotate-90" />
         </LazyMotionDiv>
       </LazyMotionDiv>
+
+      {/* IDE Feature Showcase - Pre-login value demonstration */}
+      <IDEFeatureShowcase />
 
       {/* Stats Section */}
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-background)] to-[var(--ecode-surface-tertiary)]" data-testid="section-stats">

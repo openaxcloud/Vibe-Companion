@@ -109,6 +109,7 @@ const ResourcesPanel = instrumentedLazy(() => import('@/components/ide/Resources
 const LogsViewerPanel = instrumentedLazy(() => import('@/components/ide/LogsViewerPanel').then(mod => ({ default: mod.LogsViewerPanel })), 'LogsViewerPanel');
 
 import { ShortcutHint, ShortcutTester } from '@/components/utilities';
+import { IDEGuidedTour, useIDETour } from '@/components/ide/IDEGuidedTour';
 import { useAutonomousBuildStore } from '@/stores/autonomousBuildStore';
 import { AgentEventBus } from '@/lib/agentEvents';
 import { useElectronMenuEvents } from '@/hooks/useElectron';
@@ -438,6 +439,7 @@ function UnifiedIDELayout({
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [enableShortcutHint, setEnableShortcutHint] = useState(false);
   const [enableShortcutTester, setEnableShortcutTester] = useState(false);
+  const { showTour, completeTour } = useIDETour();
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
   const [showTabSwitcher, setShowTabSwitcher] = useState(false);
   
@@ -1120,9 +1122,11 @@ function UnifiedIDELayout({
         return <AppNotReadyPlaceholder tabName="Preview" projectId={projectId} />;
       }
       return (
-        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
-          <ResponsiveWebPreview projectId={projectId} />
-        </Suspense>
+        <div className="h-full" data-panel="preview">
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+            <ResponsiveWebPreview projectId={projectId} />
+          </Suspense>
+        </div>
       );
     }
 
@@ -1138,9 +1142,11 @@ function UnifiedIDELayout({
     // Shell - Interactive PTY terminal with multi-session support
     if (currentTab.id === 'shell') {
       return (
-        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Shell..." /></div>}>
-          <ShellPanel projectId={projectId} />
-        </Suspense>
+        <div className="h-full" data-panel="terminal">
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Shell..." /></div>}>
+            <ShellPanel projectId={projectId} />
+          </Suspense>
+        </div>
       );
     }
 
@@ -1910,7 +1916,7 @@ function UnifiedIDELayout({
                     </TabsTrigger>
                   </TabsList>
                   
-                  <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount>
+                  <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount data-panel="agent">
                     <ReplitAgentPanelV3
                       key={`agent-${projectId}`}
                       projectId={projectId}
@@ -1949,7 +1955,7 @@ function UnifiedIDELayout({
                     </OptimizedErrorBoundary>
                   </TabsContent>
                   
-                  <TabsContent value="deployment" className="flex-1 mt-0 overflow-hidden">
+                  <TabsContent value="deployment" className="flex-1 mt-0 overflow-hidden" data-panel="deploy">
                     <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Deploy..." /></div>}>
                       <ReplitDeploymentPanel
                         projectId={projectId}
@@ -1965,7 +1971,7 @@ function UnifiedIDELayout({
           {!isSidebarCollapsed && <ResizableHandle withHandle />}
           
           <ResizablePanel defaultSize={isSidebarCollapsed ? (showFileExplorer ? 82 : 100) : (showFileExplorer ? 52 : 70)} minSize={30} data-testid="desktop-main-panel">
-            <div className="h-full flex flex-col">
+            <div className="h-full flex flex-col" data-panel="editor">
               <div 
                 className={cn(
                   "h-full w-full transition-opacity duration-100 ease-in-out",
@@ -1985,7 +1991,7 @@ function UnifiedIDELayout({
               <ResizableHandle withHandle />
               
               <ResizablePanel defaultSize={18} minSize={15} maxSize={30} data-testid="desktop-right-panel">
-                <div className="h-full flex flex-col border-l border-[var(--ecode-border)]">
+                <div className="h-full flex flex-col border-l border-[var(--ecode-border)]" data-panel="file-explorer">
                   <div className="h-9 border-b border-[var(--ecode-border)] flex items-center justify-between px-2.5">
                     <h3 className="font-medium text-xs text-[var(--ecode-text-muted)]">Files</h3>
                     <Button
@@ -2352,6 +2358,34 @@ function UnifiedIDELayout({
 
       {enableShortcutHint && <ShortcutHint />}
       {enableShortcutTester && <ShortcutTester />}
+      {showTour && !bootstrapToken && deviceType === 'desktop' && (
+        <IDEGuidedTour
+          onComplete={completeTour}
+          onActivatePanel={(panelId: string) => {
+            switch (panelId) {
+              case 'file-explorer':
+                setShowFileExplorer(true);
+                break;
+              case 'code-editor':
+                break;
+              case 'terminal':
+                handleAddTool('terminal');
+                break;
+              case 'preview':
+                handleAddTool('preview');
+                break;
+              case 'ai-agent':
+                setIsSidebarCollapsed(false);
+                setLeftPanelTab('agent');
+                break;
+              case 'deploy':
+                setIsSidebarCollapsed(false);
+                setLeftPanelTab('deployment');
+                break;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
