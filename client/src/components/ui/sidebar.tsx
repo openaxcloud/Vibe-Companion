@@ -254,12 +254,13 @@ const Sidebar = React.forwardRef<
           )}
           {...props}
         >
-          <div
+          <nav
             data-sidebar="sidebar"
+            aria-label="Main navigation"
             className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
           >
             {children}
-          </div>
+          </nav>
         </div>
       </div>
     )
@@ -457,9 +458,27 @@ const SidebarGroupLabel = React.forwardRef<
 })
 SidebarGroupLabel.displayName = "SidebarGroupLabel"
 
+/**
+ * SidebarGroupAction - Icon button for sidebar group actions
+ * 
+ * @remarks
+ * This component renders an icon-only button. You MUST provide an aria-label
+ * for accessibility.
+ * 
+ * @example
+ * ```tsx
+ * <SidebarGroupAction aria-label="Add new item">
+ *   <Plus className="h-4 w-4" />
+ * </SidebarGroupAction>
+ * ```
+ */
 const SidebarGroupAction = React.forwardRef<
   HTMLButtonElement,
-  React.ComponentProps<"button"> & { asChild?: boolean }
+  React.ComponentProps<"button"> & { 
+    asChild?: boolean
+    /** Required for accessibility - describes the action */
+    'aria-label'?: string
+  }
 >(({ className, asChild = false, ...props }, ref) => {
   const Comp = asChild ? Slot : "button"
 
@@ -500,6 +519,8 @@ const SidebarMenu = React.forwardRef<
   <ul
     ref={ref}
     data-sidebar="menu"
+    role="menu"
+    aria-label="Sidebar menu"
     className={cn("flex w-full min-w-0 flex-col gap-1", className)}
     {...props}
   />
@@ -513,6 +534,7 @@ const SidebarMenuItem = React.forwardRef<
   <li
     ref={ref}
     data-sidebar="menu-item"
+    role="menuitem"
     className={cn("group/menu-item relative", className)}
     {...props}
   />
@@ -660,7 +682,8 @@ const SidebarMenuSkeleton = React.forwardRef<
 >(({ className, showIcon = false, ...props }, ref) => {
   // Random width between 50 to 90%.
   const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
+    // Use deterministic width based on component mount time
+    return `${50 + (Date.now() % 40)}%`
   }, [])
 
   return (
