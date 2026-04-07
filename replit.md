@@ -41,6 +41,7 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 - **Post-merge script**: NEVER use `drizzle-kit push --force` — it renames tables destructively
 
 ## Recent Changes
+- 2026-04-07: Full stub page audit — replaced 5 stubs with real pages (Import→GitHubImport, CLI→Account, SharedProject→SharedSnippet, TeamsOverview→Teams, Demo→redirect). Rebuilt 4 stubs as real functional pages (AcceptInvite, McpDirectory, McpInstallLink, OpenInReplit). Restored 8 pages to their biggest clean historical versions (Docs 1287L, Deployments 869L, AIDocumentation 1453L, Bounties 580L, Cycles 459L, BoltImport 263L, Forum 254L). Languages page confirmed at max (664L). All 87 routes pass.
 - 2026-04-07: Fixed Shell/Terminal WebSocket — central upgrade dispatcher was never initialized; now properly routes `/shell` and `/socket.io/terminal`
 - 2026-04-07: Added child_process fallback for Socket.IO terminal (node-pty can't compile without Python/node-gyp)
 - 2026-04-07: Fixed Express 4 catch-all in vite.ts (`{*path}` → `*`) — pages were returning 404

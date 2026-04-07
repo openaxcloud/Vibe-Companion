@@ -8,8 +8,7 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import Settings from "@/pages/Settings";
-import DemoProject from "@/pages/DemoProject";
-import SharedProject from "@/pages/SharedProject";
+import SharedSnippet from "@/pages/SharedSnippet";
 import Pricing from "@/pages/Pricing";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
@@ -22,11 +21,10 @@ import AcceptInvite from "@/pages/AcceptInvite";
 import { useAuth } from "@/hooks/use-auth";
 import { useAsyncBrowserLocation } from "@/hooks/use-async-location";
 import { Component, lazy, Suspense, startTransition, useState, useEffect, type ReactNode } from "react";
-import Project from "@/pages/Project";
 import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
 import Themes from "@/pages/Themes";
-import Import from "@/pages/Import";
-import AccountCLI from "@/pages/AccountCLI";
+import GitHubImport from "@/pages/GitHubImport";
+import Account from "@/pages/Account";
 import Desktop from "@/pages/Desktop";
 import McpDirectory from "@/pages/McpDirectory";
 import McpInstallLink from "@/pages/McpInstallLink";
@@ -218,10 +216,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
-function ProjectRoute() {
-  return <Project />;
-}
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function UnifiedProjectRoute() {
@@ -285,8 +279,8 @@ function App() {
                 <Route path="/themes">{() => <ProtectedRoute component={Themes} />}</Route>
                 <Route path="/themes/editor">{() => <ProtectedRoute component={Themes} />}</Route>
                 <Route path="/themes/editor/:id">{() => <ProtectedRoute component={Themes} />}</Route>
-                <Route path="/import">{() => <ProtectedRoute component={Import} />}</Route>
-                <Route path="/cli">{() => <ProtectedRoute component={AccountCLI} />}</Route>
+                <Route path="/import">{() => <ProtectedRoute component={GitHubImport} />}</Route>
+                <Route path="/cli">{() => <ProtectedRoute component={Account} />}</Route>
                 <Route path="/mcp-directory" component={McpDirectory} />
                 <Route path="/mcp-install-link">{() => <ProtectedRoute component={McpInstallLink} />}</Route>
                 <Route path="/open" component={OpenInReplit} />
@@ -295,8 +289,8 @@ function App() {
                 <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
                 <Route path="/help">{() => <LazyPage component={HelpCenterPage} />}</Route>
                 <Route path="/pricing" component={Pricing} />
-                <Route path="/demo" component={DemoProject} />
-                <Route path="/shared/:id" component={SharedProject} />
+                <Route path="/demo">{() => <Redirect to="/dashboard" />}</Route>
+                <Route path="/shared/:id" component={SharedSnippet} />
                 <Route path="/invite/:token" component={AcceptInvite} />
                 <Route path="/forgot-password" component={ForgotPassword} />
                 <Route path="/reset-password" component={ResetPassword} />
