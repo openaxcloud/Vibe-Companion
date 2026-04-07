@@ -1,6 +1,0 @@
-{
-  "name": "nodemon",
-  "version": "1.0.0",
-  "description": "Nodemon configuration to watch TypeScript source files in the backend src directory, ignoring dist and node_modules, and executing ts-node on server entry for a smooth dev experience.",
-  "config": {}
-}

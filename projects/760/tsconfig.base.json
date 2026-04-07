@@ -1,4 +1,0 @@
-{
-  "description": "Shared TypeScript configuration base for both client and server with strict type checking, path aliases, and target settings compatible with Node 20 and modern browsers.",
-  "todo": "Configure based on outline"
-}

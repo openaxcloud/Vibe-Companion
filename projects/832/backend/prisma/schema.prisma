@@ -1,3 +1,0 @@
-Prisma schema defining the PostgreSQL datasource using env(DATABASE_URL) and generator client. Models include User (with email, passwordHash, role), Product (name, description, price, stock, category, images), Order (user, status, totalAmount, paymentIntentId), and OrderItem (order, product, quantity, unitPrice). Includes timestamps and relevant indexes.
-
-Content generated as fallback. Please implement specific functionality as needed.

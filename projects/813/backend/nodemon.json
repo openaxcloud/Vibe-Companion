@@ -1,6 +1,0 @@
-{
-  "name": "nodemon",
-  "version": "1.0.0",
-  "description": "Nodemon configuration specifying the TypeScript entry file, file extensions to watch, and the command using ts-node to restart the Express server upon source changes during development.",
-  "config": {}
-}

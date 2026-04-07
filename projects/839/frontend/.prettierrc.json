@@ -1,6 +1,0 @@
-{
-  "name": ".prettierrc",
-  "version": "1.0.0",
-  "description": "Prettier configuration to keep code style consistent with backend.",
-  "config": {}
-}

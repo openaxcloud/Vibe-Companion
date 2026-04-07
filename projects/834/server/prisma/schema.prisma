@@ -1,3 +1,0 @@
-Prisma schema with PostgreSQL datasource using DATABASE_URL and generator for client. Models: User (email, name, passwordHash, role), Product (title, description, price, images, inventory, category), Category, Order (user, status, total, paymentIntentId), OrderItem (product, qty, unitPrice), Cart (user), CartItem. Includes indexes and relations.
-
-Content generated as fallback. Please implement specific functionality as needed.

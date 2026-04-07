@@ -1,3 +1,0 @@
-Prisma schema defining models: User (id, email unique, passwordHash, name, role), Product (id, title, description, price, imageUrl, category, stock, createdAt), Order (id, userId, total, status, paymentIntentId, createdAt), OrderItem (id, orderId, productId, quantity, unitPrice), CartItem (id, userId, productId, quantity). Add relations and indexes.
-
-Content generated as fallback. Please implement specific functionality as needed.

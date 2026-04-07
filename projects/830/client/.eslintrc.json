@@ -1,6 +1,0 @@
-{
-  "name": ".eslintrc",
-  "version": "1.0.0",
-  "description": "ESLint config extending eslint:recommended, plugin:react/recommended, plugin:@typescript-eslint/recommended, and prettier.",
-  "config": {}
-}

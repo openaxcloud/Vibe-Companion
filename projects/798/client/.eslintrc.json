@@ -1,6 +1,0 @@
-{
-  "name": ".eslintrc",
-  "version": "1.0.0",
-  "description": "ESLint config for React + TypeScript with recommended, hooks, and import plugins.",
-  "config": {}
-}

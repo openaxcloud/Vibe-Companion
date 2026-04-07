@@ -1,8 +1,0 @@
-# Add Docker Compose for local PostgreSQL development
-
-version: '1.0'
-
-settings:
-  enabled: true
-  
-# Add configuration here

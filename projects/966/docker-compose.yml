@@ -1,8 +1,0 @@
-# Docker Compose configuration for easy local development with PostgreSQL database and application services
-
-version: '1.0'
-
-settings:
-  enabled: true
-  
-# Add configuration here

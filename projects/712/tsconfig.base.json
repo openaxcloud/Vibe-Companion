@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript configuration shared between frontend and backend, including common compilerOptions such as strict type checking, module resolution, and path aliases, which is then extended by app-specific tsconfig files.",
-  "todo": "Configure based on outline"
-}

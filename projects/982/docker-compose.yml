@@ -1,8 +1,0 @@
-# Docker Compose configuration for PostgreSQL database and optional Redis for sessions
-
-version: '1.0'
-
-settings:
-  enabled: true
-  
-# Add configuration here

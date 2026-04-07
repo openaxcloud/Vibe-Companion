@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript config shared by client and server including path aliases, strict mode, module resolution, and JSX handling for React set in extending configs.",
-  "todo": "Configure based on outline"
-}

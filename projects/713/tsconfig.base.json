@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript configuration shared by backend and frontend, specifying common compilerOptions such as strict mode, module resolution, path aliases, and JSX settings. This file is extended by tsconfig files in client and server folders.",
-  "todo": "Configure based on outline"
-}
