@@ -42,6 +42,13 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 
 ## Recent Changes
 - 2026-04-07: Full stub page audit — replaced 5 stubs with real pages (Import→GitHubImport, CLI→Account, SharedProject→SharedSnippet, TeamsOverview→Teams, Demo→redirect). Rebuilt 4 stubs as real functional pages (AcceptInvite, McpDirectory, McpInstallLink, OpenInReplit). Restored 8 pages to their biggest clean historical versions (Docs 1287L, Deployments 869L, AIDocumentation 1453L, Bounties 580L, Cycles 459L, BoltImport 263L, Forum 254L). Languages page confirmed at max (664L). All 87 routes pass.
+- 2026-04-07: Design System Pro & All AI Models Working (Task #127)
+  - Created shared DESIGN_SYSTEM_PROMPT constant (server/ai/prompts/design-system.ts) with Tailwind CSS CDN, Inter font, color palette, glassmorphism, animations
+  - Updated agent-system-prompt.ts, real-code-generator.ts, enhanced-autonomous-agent.ts to use shared design system
+  - Rewrote all hardcoded HTML templates (portfolio, blog, dashboard, basic web app) in autonomous-builder.ts to use Tailwind CSS
+  - Fixed /api/models and /api/agent/models endpoints to return ALL models from AI_MODELS catalog with per-provider availability flags
+  - Updated provider initialization to check AI_INTEGRATIONS_* env vars for all providers (Anthropic, Gemini, xAI, Moonshot, Groq)
+  - Updated frontend ModelSelector.tsx, AIModelSelector.tsx, AllModelsSelector.tsx to support all providers and show availability
 - 2026-04-07: Fixed Shell/Terminal WebSocket — central upgrade dispatcher was never initialized; now properly routes `/shell` and `/socket.io/terminal`
 - 2026-04-07: Added child_process fallback for Socket.IO terminal (node-pty can't compile without Python/node-gyp)
 - 2026-04-07: Fixed Express 4 catch-all in vite.ts (`{*path}` → `*`) — pages were returning 404

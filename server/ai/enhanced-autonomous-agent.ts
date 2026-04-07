@@ -477,24 +477,23 @@ export class EnhancedAutonomousAgent {
   
   private planStyling(analysis: any): any {
     return {
-      framework: analysis.uiStyle === 'minimal' ? 'tailwind' : 'styled-components',
+      framework: 'tailwind',
       theme: {
-        primary: this.getThemeColor(analysis.uiStyle),
-        style: analysis.uiStyle
-      }
+        primary: '#667eea',
+        secondary: '#764ba2',
+        accent: '#06b6d4',
+        dark: '#0f172a',
+        light: '#f8fafc',
+        style: analysis.uiStyle || 'modern'
+      },
+      cdn: 'https://cdn.tailwindcss.com',
+      font: 'Inter',
+      designSystem: 'mandatory-tailwind-design-system'
     };
   }
   
   private getThemeColor(style: string): string {
-    const colors: Record<string, string> = {
-      modern: '#0079F2',
-      minimal: '#000000',
-      colorful: '#FF6B6B',
-      professional: '#2563EB',
-      playful: '#F59E0B'
-    };
-    
-    return colors[style] || '#0079F2';
+    return '#667eea';
   }
   
   private planFunctionality(analysis: any): string[] {
@@ -524,12 +523,8 @@ export class EnhancedAutonomousAgent {
       packages.push('react', 'react-dom', 'vite', '@vitejs/plugin-react');
     }
     
-    // UI framework
-    if (analysis.uiStyle === 'minimal') {
-      packages.push('tailwindcss', 'autoprefixer', 'postcss');
-    } else {
-      packages.push('styled-components');
-    }
+    // UI framework - always use Tailwind
+    packages.push('tailwindcss', 'autoprefixer', 'postcss');
     
     // Feature-specific packages
     if (analysis.features.includes('database')) {

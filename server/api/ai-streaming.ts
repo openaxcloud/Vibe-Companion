@@ -18,6 +18,7 @@ import { db } from '../db';
 import { agentSessions, aiConversations } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import * as path from 'path';
+import { DESIGN_SYSTEM_PROMPT } from '../ai/prompts/design-system';
 
 // Create logger instance
 const logger = winston.createLogger({
@@ -467,17 +468,28 @@ Focus on planning, design, and collaboration - not implementation.`
     const rawMessages = [
       {
         role: 'system',
-        content: systemPrompt || `You are an expert AI coding assistant integrated into the E-Code Platform IDE. 
-        You help users build, debug, and improve their applications with detailed explanations and high-quality code.
-        You have access to the project context and can execute actions like creating files, running commands, and modifying code.
-        
-        ${modeSystemPrompt}
-        
-        ${contextPrompt}
-        
-        ${memoryBankContext}
-        
-        ${ragContextPrompt}`
+        content: systemPrompt || `You are an expert AI coding assistant integrated into the E-Code Platform IDE.
+You help users build, debug, and improve their applications with detailed explanations and high-quality code.
+You have access to the project context and can execute actions like creating files, running commands, and modifying code.
+
+CRITICAL: When the user asks you to build, create, or generate an application,
+you MUST use the create_file tool to create complete, working files.
+
+${DESIGN_SYSTEM_PROMPT}
+
+NEVER generate plain HTML without Tailwind CSS.
+NEVER use default browser styling.
+NEVER create ugly or basic-looking apps.
+ALWAYS produce a modern, polished, startup-level design.
+ALWAYS make the app look like it was designed by a professional UI designer.
+
+${modeSystemPrompt}
+
+${contextPrompt}
+
+${memoryBankContext}
+
+${ragContextPrompt}`
       },
       ...context,
       { role: 'user', content: message }
@@ -1489,42 +1501,26 @@ router.post('/agent/chat/stop', ensureAuthenticated, (req, res) => {
 
 /**
  * Get available AI models endpoint
- * Returns models with availability based on configured API keys
+ * Returns ALL models from centralized catalog with availability based on configured API keys
  */
 router.get('/agent/models', ensureAuthenticated, (req, res) => {
-  const hasOpenAI = !!process.env.OPENAI_API_KEY || !!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  const models = [
-    { provider: 'openai', model: 'gpt-4.1', name: 'GPT-4.1', context: 1000000, available: hasOpenAI },
-    { provider: 'openai', model: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', context: 1000000, available: hasOpenAI },
-    { provider: 'openai', model: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', context: 1000000, available: hasOpenAI },
-    { provider: 'openai', model: 'gpt-4o', name: 'GPT-4o', context: 128000, available: hasOpenAI },
-    { provider: 'openai', model: 'gpt-4o-mini', name: 'GPT-4o Mini', context: 128000, available: hasOpenAI },
-    { provider: 'openai', model: 'o4-mini', name: 'o4-mini (Reasoning)', context: 200000, available: hasOpenAI },
-    { provider: 'openai', model: 'o3', name: 'o3 (Advanced Reasoning)', context: 200000, available: hasOpenAI },
-    { provider: 'openai', model: 'o3-mini', name: 'o3-mini (Reasoning)', context: 200000, available: hasOpenAI },
-    
-    // Anthropic Models (newest first)
-    { provider: 'anthropic', model: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', context: 200000, available: !!process.env.ANTHROPIC_API_KEY },
-    { provider: 'anthropic', model: 'claude-opus-4-20250514', name: 'Claude Opus 4', context: 200000, available: !!process.env.ANTHROPIC_API_KEY },
-    { provider: 'anthropic', model: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', context: 200000, available: !!process.env.ANTHROPIC_API_KEY },
-    { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', context: 200000, available: !!process.env.ANTHROPIC_API_KEY },
-    { provider: 'anthropic', model: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', context: 200000, available: !!process.env.ANTHROPIC_API_KEY },
-    
-    // Google Gemini Models (newest first)
-    { provider: 'gemini', model: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', context: 2000000, available: !!process.env.GEMINI_API_KEY },
-    { provider: 'gemini', model: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', context: 1000000, available: !!process.env.GEMINI_API_KEY },
-    { provider: 'gemini', model: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', context: 1000000, available: !!process.env.GEMINI_API_KEY },
-    
-    // xAI Grok Models
-    { provider: 'xai', model: 'grok-3', name: 'Grok 3', context: 131072, available: !!process.env.XAI_API_KEY },
-    { provider: 'xai', model: 'grok-3-mini', name: 'Grok 3 Mini', context: 131072, available: !!process.env.XAI_API_KEY },
-    { provider: 'xai', model: 'grok-3-fast', name: 'Grok 3 Fast', context: 131072, available: !!process.env.XAI_API_KEY },
-    
-    // Moonshot AI (Kimi) Models
-    { provider: 'moonshot', model: 'kimi-k2', name: 'Kimi K2', context: 131072, available: !!process.env.MOONSHOT_API_KEY },
-    { provider: 'moonshot', model: 'moonshot-v1-128k', name: 'Moonshot v1 128K', context: 131072, available: !!process.env.MOONSHOT_API_KEY },
-  ];
-  
+  const { AI_MODELS } = require('../ai/models-catalog');
+  const providerAvailability: Record<string, boolean> = {
+    openai: !!process.env.OPENAI_API_KEY || !!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    anthropic: !!process.env.ANTHROPIC_API_KEY || !!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+    gemini: !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_AI_API_KEY || !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+    xai: !!process.env.XAI_API_KEY || !!process.env.AI_INTEGRATIONS_XAI_API_KEY,
+    moonshot: !!process.env.MOONSHOT_API_KEY || !!process.env.AI_INTEGRATIONS_MOONSHOT_API_KEY,
+    groq: !!process.env.GROQ_API_KEY || !!process.env.AI_INTEGRATIONS_GROQ_API_KEY,
+  };
+  const models = AI_MODELS.map((m: any) => ({
+    provider: m.provider,
+    model: m.id,
+    name: m.name,
+    description: m.description,
+    context: m.maxTokens,
+    available: providerAvailability[m.provider] || false,
+  }));
   res.json(models);
 });
 

@@ -1,5 +1,6 @@
 // Autonomous Builder - Helps non-coders build complete applications
 // This module provides AI-powered app building capabilities with comprehensive templates
+import { TAILWIND_CDN_HEAD } from './prompts/design-system';
 
 export interface BuildAction {
   type: 'create_file' | 'create_folder' | 'install_package' | 'deploy' | 'run_command';
@@ -62,9 +63,9 @@ export class AutonomousBuilder {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Todo App</title>
-  <link rel="stylesheet" href="style.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
@@ -104,7 +105,6 @@ export class AutonomousBuilder {
           data: {
             name: 'App.tsx',
             content: `import React, { useState } from 'react';
-import './App.css';
 
 interface Todo {
   id: number;
@@ -115,190 +115,68 @@ interface Todo {
   dueDate?: string;
 }
 
+const priorityColors: Record<string, string> = {
+  high: 'border-l-red-500',
+  medium: 'border-l-amber-400',
+  low: 'border-l-emerald-500'
+};
+
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
   const [category, setCategory] = useState('personal');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [priority, setPriority] = useState<Todo['priority']>('medium');
 
   const addTodo = () => {
     if (input.trim()) {
-      setTodos([...todos, {
-        id: Date.now(),
-        text: input,
-        completed: false,
-        category,
-        priority
-      }]);
+      setTodos([...todos, { id: Date.now(), text: input, completed: false, category, priority }]);
       setInput('');
     }
   };
 
   const toggleTodo = (id: number) => {
-    setTodos(todos.map(todo =>
-      todo.id === id ? { ...todo, completed: !todo.completed } : todo
-    ));
+    setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
   const deleteTodo = (id: number) => {
-    setTodos(todos.filter(todo => todo.id !== id));
+    setTodos(todos.filter(t => t.id !== id));
   };
 
   return (
-    <div className="app">
-      <h1>✨ My Todo List</h1>
-      
-      <div className="add-todo">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && addTodo()}
-          placeholder="What needs to be done?"
-        />
-        
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+    <div className="max-w-2xl mx-auto py-12 px-4">
+      <div className="bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-2xl p-8 mb-8 text-center">
+        <h1 className="text-3xl font-bold text-white">My Todo List</h1>
+        <p className="text-white/80 mt-1">Stay organized, stay productive</p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 mb-8">
+        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addTodo()} placeholder="What needs to be done?" className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl text-base focus:border-[#667eea] focus:outline-none transition" />
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-4 py-3 border-2 border-slate-200 rounded-xl bg-white">
           <option value="personal">Personal</option>
           <option value="work">Work</option>
           <option value="shopping">Shopping</option>
         </select>
-        
-        <select value={priority} onChange={(e) => setPriority(e.target.value as any)}>
-          <option value="low">Low Priority</option>
-          <option value="medium">Medium Priority</option>
-          <option value="high">High Priority</option>
+        <select value={priority} onChange={(e) => setPriority(e.target.value as Todo['priority'])} className="px-4 py-3 border-2 border-slate-200 rounded-xl bg-white">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
         </select>
-        
-        <button onClick={addTodo}>Add Task</button>
+        <button onClick={addTodo} className="px-6 py-3 bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-xl font-semibold hover:opacity-90 transition">Add</button>
       </div>
 
-      <div className="todo-list">
+      <div className="space-y-3">
+        {todos.length === 0 && <p className="text-center text-slate-400 py-12">No tasks yet. Add one above!</p>}
         {todos.map(todo => (
-          <div key={todo.id} className={\`todo-item \${todo.completed ? 'completed' : ''} priority-\${todo.priority}\`}>
-            <input
-              type="checkbox"
-              checked={todo.completed}
-              onChange={() => toggleTodo(todo.id)}
-            />
-            <span className="todo-text">{todo.text}</span>
-            <span className="category">{todo.category}</span>
-            <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+          <div key={todo.id} className={\`flex items-center gap-3 p-4 bg-white rounded-xl shadow-sm border-l-4 \${priorityColors[todo.priority]} \${todo.completed ? 'opacity-60' : ''} transition hover:shadow-md\`}>
+            <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo.id)} className="w-5 h-5 rounded accent-[#667eea]" />
+            <span className={\`flex-1 text-base \${todo.completed ? 'line-through text-slate-400' : 'text-slate-800'}\`}>{todo.text}</span>
+            <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-sm">{todo.category}</span>
+            <button onClick={() => deleteTodo(todo.id)} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition">Delete</button>
           </div>
         ))}
       </div>
     </div>
   );
-}`
-          }
-        },
-        {
-          type: 'create_file',
-          data: {
-            path: 'src/App.css',
-            content: `.app {
-  max-width: 600px;
-  margin: 50px auto;
-  padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-h1 {
-  text-align: center;
-  color: #333;
-  margin-bottom: 30px;
-}
-
-.add-todo {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 30px;
-}
-
-.add-todo input {
-  flex: 1;
-  padding: 12px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-}
-
-.add-todo select {
-  padding: 12px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  background: white;
-}
-
-.add-todo button {
-  padding: 12px 24px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.add-todo button:hover {
-  background: #0056b3;
-}
-
-.todo-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  border-left: 4px solid transparent;
-}
-
-.todo-item.priority-high {
-  border-left-color: #dc3545;
-}
-
-.todo-item.priority-medium {
-  border-left-color: #ffc107;
-}
-
-.todo-item.priority-low {
-  border-left-color: #28a745;
-}
-
-.todo-item.completed {
-  opacity: 0.6;
-}
-
-.todo-item.completed .todo-text {
-  text-decoration: line-through;
-}
-
-.todo-text {
-  flex: 1;
-  font-size: 16px;
-}
-
-.category {
-  background: #e9ecef;
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 14px;
-  color: #666;
-}
-
-.todo-item button {
-  padding: 6px 12px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.todo-item button:hover {
-  background: #c82333;
 }`
           }
         },
@@ -340,383 +218,108 @@ h1 {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Portfolio</title>
-  <link rel="stylesheet" href="style.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
-  <nav class="navbar">
-    <div class="nav-container">
-      <h1 class="logo">Your Name</h1>
-      <ul class="nav-menu">
-        <li><a href="#home">Home</a></li>
-        <li><a href="#about">About</a></li>
-        <li><a href="#projects">Projects</a></li>
-        <li><a href="#contact">Contact</a></li>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
+  <nav class="fixed w-full top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 shadow-sm">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <h1 class="text-xl font-bold bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">Your Name</h1>
+      <ul class="flex gap-6 list-none">
+        <li><a href="#home" class="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">Home</a></li>
+        <li><a href="#about" class="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">About</a></li>
+        <li><a href="#projects" class="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">Projects</a></li>
+        <li><a href="#contact" class="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">Contact</a></li>
       </ul>
     </div>
   </nav>
 
-  <section id="home" class="hero">
-    <div class="hero-content">
-      <h1 class="hero-title">Hi, I'm Your Name</h1>
-      <p class="hero-subtitle">Web Developer & Designer</p>
-      <a href="#projects" class="cta-button">View My Work</a>
+  <section id="home" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white text-center">
+    <div class="animate-[fadeIn_1s_ease]">
+      <h1 class="text-5xl md:text-6xl font-bold mb-4">Hi, I'm Your Name</h1>
+      <p class="text-xl md:text-2xl mb-8 opacity-90">Web Developer & Designer</p>
+      <a href="#projects" class="inline-block px-8 py-3 bg-white text-[#667eea] rounded-full font-bold hover:-translate-y-1 transition-transform">View My Work</a>
     </div>
   </section>
 
-  <section id="about" class="about">
-    <div class="container">
-      <h2>About Me</h2>
-      <div class="about-content">
-        <div class="about-text">
-          <p>I'm a passionate web developer with experience in creating beautiful and functional websites. I love turning ideas into reality using code.</p>
-          <p>My skills include HTML, CSS, JavaScript, React, and more. I'm always eager to learn new technologies and take on challenging projects.</p>
+  <section id="about" class="py-20 bg-slate-100 dark:bg-slate-800">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-4xl font-bold text-center mb-12 text-slate-800 dark:text-white">About Me</h2>
+      <div class="grid md:grid-cols-2 gap-12">
+        <div>
+          <p class="text-lg text-slate-600 dark:text-slate-300 mb-4">I'm a passionate web developer with experience in creating beautiful and functional websites. I love turning ideas into reality using code.</p>
+          <p class="text-lg text-slate-600 dark:text-slate-300">My skills include HTML, CSS, JavaScript, React, and more. I'm always eager to learn new technologies and take on challenging projects.</p>
         </div>
-        <div class="skills">
-          <h3>My Skills</h3>
-          <div class="skill-list">
-            <span class="skill">HTML/CSS</span>
-            <span class="skill">JavaScript</span>
-            <span class="skill">React</span>
-            <span class="skill">Node.js</span>
-            <span class="skill">Design</span>
+        <div>
+          <h3 class="text-xl font-semibold mb-4 text-slate-800 dark:text-white">My Skills</h3>
+          <div class="flex flex-wrap gap-3">
+            <span class="bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-4 py-2 rounded-full text-sm font-medium">HTML/CSS</span>
+            <span class="bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-4 py-2 rounded-full text-sm font-medium">JavaScript</span>
+            <span class="bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-4 py-2 rounded-full text-sm font-medium">React</span>
+            <span class="bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-4 py-2 rounded-full text-sm font-medium">Node.js</span>
+            <span class="bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-4 py-2 rounded-full text-sm font-medium">Design</span>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="projects" class="projects">
-    <div class="container">
-      <h2>My Projects</h2>
-      <div class="project-grid">
-        <div class="project-card">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
-            <rect width="300" height="200" fill="#1e293b"/>
-            <rect x="20" y="20" width="260" height="40" rx="4" fill="#334155"/>
-            <rect x="20" y="80" width="180" height="100" rx="4" fill="#475569"/>
-            <rect x="220" y="80" width="60" height="100" rx="4" fill="#64748b"/>
-            <circle cx="40" cy="40" r="8" fill="#10b981"/>
-            <circle cx="60" cy="40" r="8" fill="#f59e0b"/>
-            <circle cx="80" cy="40" r="8" fill="#ef4444"/>
-          </svg>
-          <h3>Project One</h3>
-          <p>A brief description of your first project and the technologies used.</p>
-          <a href="#" class="project-link">View Project</a>
+  <section id="projects" class="py-20">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-4xl font-bold text-center mb-12 text-slate-800 dark:text-white">My Projects</h2>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-lg hover:-translate-y-2 transition-transform">
+          <div class="h-48 bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
+            <svg class="w-16 h-16 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          </div>
+          <div class="p-6">
+            <h3 class="text-xl font-bold mb-2">Project One</h3>
+            <p class="text-slate-600 dark:text-slate-400 mb-4">A brief description of your first project and the technologies used.</p>
+            <a href="#" class="text-[#667eea] font-semibold hover:underline">View Project &rarr;</a>
+          </div>
         </div>
-        <div class="project-card">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
-            <rect width="300" height="200" fill="#0ea5e9"/>
-            <rect x="100" y="40" width="100" height="120" rx="12" fill="#ffffff"/>
-            <rect x="110" y="50" width="80" height="20" rx="2" fill="#e5e7eb"/>
-            <rect x="110" y="80" width="80" height="10" rx="2" fill="#e5e7eb"/>
-            <rect x="110" y="100" width="60" height="10" rx="2" fill="#e5e7eb"/>
-            <rect x="110" y="120" width="80" height="30" rx="4" fill="#3b82f6"/>
-          </svg>
-          <h3>Project Two</h3>
-          <p>A brief description of your second project and what makes it special.</p>
-          <a href="#" class="project-link">View Project</a>
+        <div class="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-lg hover:-translate-y-2 transition-transform">
+          <div class="h-48 bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center">
+            <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          </div>
+          <div class="p-6">
+            <h3 class="text-xl font-bold mb-2">Project Two</h3>
+            <p class="text-slate-600 dark:text-slate-400 mb-4">A brief description of your second project and what makes it special.</p>
+            <a href="#" class="text-[#667eea] font-semibold hover:underline">View Project &rarr;</a>
+          </div>
         </div>
-        <div class="project-card">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
-            <rect width="300" height="200" fill="#7c3aed"/>
-            <rect x="40" y="40" width="220" height="120" rx="8" fill="#ffffff"/>
-            <rect x="50" y="50" width="200" height="30" rx="4" fill="#e5e7eb"/>
-            <rect x="50" y="90" width="150" height="20" rx="2" fill="#f3f4f6"/>
-            <rect x="50" y="120" width="180" height="20" rx="2" fill="#f3f4f6"/>
-            <circle cx="225" cy="100" r="20" fill="#7c3aed"/>
-            <path d="M 215 100 L 235 100 M 225 90 L 225 110" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-          <h3>Project Three</h3>
-          <p>A brief description of your third project and its key features.</p>
-          <a href="#" class="project-link">View Project</a>
+        <div class="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-lg hover:-translate-y-2 transition-transform">
+          <div class="h-48 bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center">
+            <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+          </div>
+          <div class="p-6">
+            <h3 class="text-xl font-bold mb-2">Project Three</h3>
+            <p class="text-slate-600 dark:text-slate-400 mb-4">A brief description of your third project and its key features.</p>
+            <a href="#" class="text-[#667eea] font-semibold hover:underline">View Project &rarr;</a>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="contact" class="contact">
-    <div class="container">
-      <h2>Get In Touch</h2>
-      <form class="contact-form">
-        <input type="text" placeholder="Your Name" required>
-        <input type="email" placeholder="Your Email" required>
-        <textarea placeholder="Your Message" rows="5" required></textarea>
-        <button type="submit">Send Message</button>
+  <section id="contact" class="py-20 bg-slate-100 dark:bg-slate-800">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-4xl font-bold text-center mb-12 text-slate-800 dark:text-white">Get In Touch</h2>
+      <form class="max-w-xl mx-auto flex flex-col gap-4">
+        <input type="text" placeholder="Your Name" required class="px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:border-[#667eea] focus:outline-none transition">
+        <input type="email" placeholder="Your Email" required class="px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:border-[#667eea] focus:outline-none transition">
+        <textarea placeholder="Your Message" rows="5" required class="px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:border-[#667eea] focus:outline-none transition resize-none"></textarea>
+        <button type="submit" class="px-6 py-3 bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white rounded-xl font-semibold hover:opacity-90 transition text-lg">Send Message</button>
       </form>
     </div>
   </section>
 
-  <footer class="footer">
-    <p>&copy; 2024 Your Name. All rights reserved.</p>
+  <footer class="bg-slate-900 text-white text-center py-8">
+    <p class="text-slate-400">&copy; 2024 Your Name. All rights reserved.</p>
   </footer>
 
   <script src="script.js"></script>
 </body>
 </html>`
-          }
-        },
-        {
-          type: 'create_file',
-          data: {
-            path: 'style.css',
-            content: `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.6;
-  color: #333;
-}
-
-/* Navigation */
-.navbar {
-  background: #fff;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  position: fixed;
-  width: 100%;
-  top: 0;
-  z-index: 1000;
-}
-
-.nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #007bff;
-}
-
-.nav-menu {
-  display: flex;
-  list-style: none;
-  gap: 2rem;
-}
-
-.nav-menu a {
-  text-decoration: none;
-  color: #333;
-  font-weight: 500;
-  transition: color 0.3s;
-}
-
-.nav-menu a:hover {
-  color: #007bff;
-}
-
-/* Hero Section */
-.hero {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  text-align: center;
-}
-
-.hero-title {
-  font-size: 3.5rem;
-  margin-bottom: 1rem;
-  animation: fadeInUp 1s ease;
-}
-
-.hero-subtitle {
-  font-size: 1.5rem;
-  margin-bottom: 2rem;
-  opacity: 0.9;
-  animation: fadeInUp 1s ease 0.2s both;
-}
-
-.cta-button {
-  display: inline-block;
-  padding: 12px 30px;
-  background: white;
-  color: #667eea;
-  text-decoration: none;
-  border-radius: 30px;
-  font-weight: bold;
-  transition: transform 0.3s;
-  animation: fadeInUp 1s ease 0.4s both;
-}
-
-.cta-button:hover {
-  transform: translateY(-2px);
-}
-
-/* Sections */
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 2rem;
-}
-
-section {
-  padding: 5rem 0;
-}
-
-h2 {
-  font-size: 2.5rem;
-  text-align: center;
-  margin-bottom: 3rem;
-  color: #333;
-}
-
-/* About Section */
-.about {
-  background: #f8f9fa;
-}
-
-.about-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3rem;
-  align-items: start;
-}
-
-.about-text p {
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-  color: #666;
-}
-
-.skill-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.skill {
-  background: #007bff;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.9rem;
-}
-
-/* Projects Section */
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.project-card {
-  background: white;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-  transition: transform 0.3s;
-}
-
-.project-card:hover {
-  transform: translateY(-5px);
-}
-
-.project-card img {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-}
-
-.project-card h3 {
-  padding: 1rem;
-  font-size: 1.3rem;
-}
-
-.project-card p {
-  padding: 0 1rem;
-  color: #666;
-}
-
-.project-link {
-  display: inline-block;
-  margin: 1rem;
-  color: #007bff;
-  text-decoration: none;
-  font-weight: bold;
-}
-
-/* Contact Section */
-.contact {
-  background: #f8f9fa;
-}
-
-.contact-form {
-  max-width: 600px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.contact-form input,
-.contact-form textarea {
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  font-size: 1rem;
-}
-
-.contact-form button {
-  padding: 1rem;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.contact-form button:hover {
-  background: #0056b3;
-}
-
-/* Footer */
-.footer {
-  background: #333;
-  color: white;
-  text-align: center;
-  padding: 2rem;
-}
-
-/* Animations */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .hero-title {
-    font-size: 2.5rem;
-  }
-  
-  .about-content {
-    grid-template-columns: 1fr;
-  }
-  
-  .nav-menu {
-    gap: 1rem;
-  }
-}`
           }
         }
       ]
@@ -771,32 +374,31 @@ h2 {
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ArticlePage from './pages/ArticlePage';
-import './App.css';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="app">
-        <header className="header">
-          <div className="container">
-            <h1 className="logo">My Blog</h1>
-            <nav>
-              <a href="/">Home</a>
-              <a href="/about">About</a>
-              <a href="/contact">Contact</a>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
+        <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 shadow-sm">
+          <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">My Blog</h1>
+            <nav className="flex gap-6">
+              <a href="/" className="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">Home</a>
+              <a href="/about" className="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">About</a>
+              <a href="/contact" className="text-slate-600 dark:text-slate-300 hover:text-[#667eea] font-medium transition">Contact</a>
             </nav>
           </div>
         </header>
         
-        <main>
+        <main className="max-w-5xl mx-auto px-6 py-12">
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/article/:id" element={<ArticlePage />} />
           </Routes>
         </main>
         
-        <footer className="footer">
-          <p>&copy; 2024 My Blog. All rights reserved.</p>
+        <footer className="bg-slate-900 text-center py-8">
+          <p className="text-slate-400">&copy; 2024 My Blog. All rights reserved.</p>
         </footer>
       </div>
     </BrowserRouter>
@@ -851,9 +453,9 @@ export default function App() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Online Store</title>
-  <link rel="stylesheet" href="/src/App.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
@@ -1700,14 +1302,39 @@ export default defineConfig({
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${description}</title>
-  <link rel="stylesheet" href="style.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
-  <div class="container">
-    <h1>Welcome to Your App</h1>
-    <p>This is your new ${description} application.</p>
-    <div id="app"></div>
-  </div>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
+  <nav class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <h1 class="text-xl font-bold bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">${description}</h1>
+    </div>
+  </nav>
+
+  <main>
+    <section class="min-h-[60vh] flex items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white">
+      <div class="max-w-4xl mx-auto px-4 text-center animate-fade-in">
+        <h2 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4">Welcome to Your App</h2>
+        <p class="text-lg sm:text-xl text-white/80 mb-8 max-w-2xl mx-auto">This is your new ${description} application.</p>
+        <button class="bg-white text-[#667eea] px-8 py-4 rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200" onclick="document.getElementById('app').scrollIntoView({behavior:'smooth'})">Get Started</button>
+      </div>
+    </section>
+
+    <section class="py-16 sm:py-24">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div id="app" class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-200 animate-fade-in-delay-1">
+          <p class="text-base leading-relaxed text-slate-600 dark:text-slate-300">Your app is ready to be customized!</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-slate-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p class="text-slate-400 text-sm">&copy; 2024 ${description}. All rights reserved.</p>
+    </div>
+  </footer>
+
   <script src="script.js"></script>
 </body>
 </html>`
@@ -1717,50 +1344,19 @@ export default defineConfig({
         type: 'create_file',
         data: {
           path: 'style.css',
-          content: `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  line-height: 1.6;
-  color: #333;
-  background: #f4f4f4;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-h1 {
-  color: #007bff;
-  margin-bottom: 1rem;
-}
-
-#app {
-  background: white;
-  padding: 2rem;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin-top: 2rem;
-}`
+          content: `/* Tailwind CSS is loaded via CDN - this file is for additional custom styles only */`
         }
       },
       {
         type: 'create_file',
         data: {
           path: 'script.js',
-          content: `// Your application logic goes here
-console.log('App is running!');
-
-// Example: Add some interactivity
+          content: `console.log('App is running!');
 document.addEventListener('DOMContentLoaded', () => {
   const app = document.getElementById('app');
-  app.innerHTML = '<p>Your app is ready to be customized!</p>';
+  if (app) {
+    app.innerHTML = '<p class="text-base leading-relaxed text-slate-600 dark:text-slate-300">Your app is ready to be customized!</p>';
+  }
 });`
         }
       }
@@ -1875,28 +1471,25 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'portfolio':
         actions = [
           { type: 'create_file', data: { path: 'index.html', content: this.generatePortfolioHTML() }},
-          { type: 'create_file', data: { path: 'style.css', content: this.generatePortfolioCSS() }},
           { type: 'create_file', data: { path: 'script.js', content: this.generatePortfolioJS() }}
         ];
-        response = "I'm creating a professional portfolio website for you! It will showcase your work with a modern, responsive design.";
+        response = "I'm creating a professional portfolio website for you! It will showcase your work with a modern, responsive design using Tailwind CSS.";
         break;
         
       case 'blog':
         actions = [
           { type: 'create_file', data: { path: 'index.html', content: this.generateBlogHTML() }},
-          { type: 'create_file', data: { path: 'style.css', content: this.generateBlogCSS() }},
           { type: 'create_file', data: { path: 'script.js', content: this.generateBlogJS() }}
         ];
-        response = "I'm building a blog for you! It will have article management, categories, and a clean reading experience.";
+        response = "I'm building a blog for you! It will have article management, categories, and a clean reading experience with Tailwind CSS.";
         break;
         
       case 'dashboard':
         actions = [
           { type: 'create_file', data: { path: 'index.html', content: this.generateDashboardHTML() }},
-          { type: 'create_file', data: { path: 'style.css', content: this.generateDashboardCSS() }},
           { type: 'create_file', data: { path: 'script.js', content: this.generateDashboardJS() }}
         ];
-        response = "I'm creating an analytics dashboard for you! It will display data visualizations, metrics, and interactive charts.";
+        response = "I'm creating an analytics dashboard for you! It will display data visualizations, metrics, and interactive charts with Tailwind CSS.";
         break;
         
       default:
@@ -1907,7 +1500,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return { actions, response };
   }
 
-  // Generate portfolio HTML
   private generatePortfolioHTML(): string {
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1915,156 +1507,91 @@ document.addEventListener('DOMContentLoaded', () => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Portfolio</title>
-  <link rel="stylesheet" href="style.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
-  <header>
-    <nav>
-      <h1>Your Name</h1>
-      <ul>
-        <li><a href="#about">About</a></li>
-        <li><a href="#projects">Projects</a></li>
-        <li><a href="#contact">Contact</a></li>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
+  <nav class="fixed top-0 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <h1 class="text-xl font-bold bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">Your Name</h1>
+      <ul class="flex gap-6">
+        <li><a href="#about" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#667eea] transition-colors duration-200">About</a></li>
+        <li><a href="#projects" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#667eea] transition-colors duration-200">Projects</a></li>
+        <li><a href="#contact" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#667eea] transition-colors duration-200">Contact</a></li>
       </ul>
-    </nav>
-  </header>
-  
-  <main>
-    <section id="hero">
-      <h2>Hello, I'm a Creative Developer</h2>
-      <p>I build amazing digital experiences</p>
-      <button>View My Work</button>
+    </div>
+  </nav>
+
+  <main class="pt-16">
+    <section id="hero" class="min-h-[70vh] flex items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white">
+      <div class="max-w-4xl mx-auto px-4 text-center animate-fade-in">
+        <h2 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4">Hello, I'm a Creative Developer</h2>
+        <p class="text-lg sm:text-xl text-white/80 mb-8 max-w-2xl mx-auto">I build amazing digital experiences with modern technologies</p>
+        <a href="#projects" class="inline-block bg-white text-[#667eea] px-8 py-4 rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200">View My Work</a>
+      </div>
     </section>
-    
-    <section id="about">
-      <h2>About Me</h2>
-      <p>I'm passionate about creating innovative solutions and beautiful user experiences.</p>
-    </section>
-    
-    <section id="projects">
-      <h2>My Projects</h2>
-      <div class="project-grid">
-        <div class="project-card">
-          <h3>Project 1</h3>
-          <p>Description of your awesome project</p>
-        </div>
-        <div class="project-card">
-          <h3>Project 2</h3>
-          <p>Description of another great project</p>
+
+    <section id="about" class="py-16 sm:py-24">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-3xl sm:text-4xl font-bold text-center mb-8 animate-fade-in">About Me</h2>
+        <div class="max-w-3xl mx-auto bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-200 animate-fade-in-delay-1">
+          <p class="text-base leading-relaxed text-slate-600 dark:text-slate-300">I'm passionate about creating innovative solutions and beautiful user experiences. With expertise in modern web technologies, I craft digital products that delight users and drive results.</p>
         </div>
       </div>
     </section>
-    
-    <section id="contact">
-      <h2>Get In Touch</h2>
-      <p>Let's work together on something amazing!</p>
-      <button>Contact Me</button>
+
+    <section id="projects" class="py-16 sm:py-24 bg-slate-100 dark:bg-slate-800/50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-3xl sm:text-4xl font-bold text-center mb-12 animate-fade-in">My Projects</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-1">
+            <div class="h-40 bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-xl mb-4"></div>
+            <h3 class="text-xl font-semibold mb-2">Project 1</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Description of your awesome project</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-2">
+            <div class="h-40 bg-gradient-to-br from-[#06b6d4] to-[#667eea] rounded-xl mb-4"></div>
+            <h3 class="text-xl font-semibold mb-2">Project 2</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Description of another great project</p>
+          </div>
+          <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-3">
+            <div class="h-40 bg-gradient-to-br from-[#764ba2] to-[#f59e0b] rounded-xl mb-4"></div>
+            <h3 class="text-xl font-semibold mb-2">Project 3</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Yet another incredible project</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="py-16 sm:py-24">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-3xl sm:text-4xl font-bold mb-4 animate-fade-in">Get In Touch</h2>
+        <p class="text-slate-600 dark:text-slate-300 mb-8 animate-fade-in-delay-1">Let's work together on something amazing!</p>
+        <a href="mailto:hello@example.com" class="inline-block bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition-all duration-200 animate-fade-in-delay-2">Contact Me</a>
+      </div>
     </section>
   </main>
-  
+
+  <footer class="bg-slate-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p class="text-slate-400 text-sm">&copy; 2024 Your Name. All rights reserved.</p>
+    </div>
+  </footer>
+
   <script src="script.js"></script>
 </body>
 </html>`;
   }
 
-  // Generate portfolio CSS
   private generatePortfolioCSS(): string {
-    return `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  line-height: 1.6;
-  color: #333;
-}
-
-header {
-  background: #fff;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  position: fixed;
-  width: 100%;
-  top: 0;
-  z-index: 1000;
-}
-
-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 5%;
-}
-
-nav ul {
-  display: flex;
-  list-style: none;
-  gap: 2rem;
-}
-
-nav a {
-  text-decoration: none;
-  color: #333;
-  font-weight: 500;
-}
-
-main {
-  margin-top: 80px;
-}
-
-#hero {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  text-align: center;
-  padding: 8rem 5%;
-}
-
-#hero h2 {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-#hero button {
-  background: white;
-  color: #667eea;
-  border: none;
-  padding: 1rem 2rem;
-  border-radius: 50px;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 2rem;
-}
-
-section {
-  padding: 4rem 5%;
-}
-
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin-top: 2rem;
-}
-
-.project-card {
-  background: white;
-  padding: 2rem;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}`;
+    return `/* Tailwind CSS is loaded via CDN - this file is for additional custom styles only */`;
   }
 
-  // Generate portfolio JS
   private generatePortfolioJS(): string {
-    return `// Smooth scrolling for navigation links
-document.querySelectorAll('nav a[href^="#"]').forEach(anchor => {
+    return `document.querySelectorAll('nav a[href^="#"]').forEach(anchor => {
   anchor.addEventListener('click', function (e) {
     e.preventDefault();
     const target = document.querySelector(this.getAttribute('href'));
-    target.scrollIntoView({
-      behavior: 'smooth'
-    });
+    target.scrollIntoView({ behavior: 'smooth' });
   });
 });
 
@@ -2089,147 +1616,78 @@ window.addEventListener('scroll', () => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Blog</title>
-  <link rel="stylesheet" href="style.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
-  <header>
-    <h1>My Blog</h1>
-    <nav>
-      <a href="#home">Home</a>
-      <a href="#about">About</a>
-      <a href="#categories">Categories</a>
-    </nav>
-  </header>
-  
-  <main>
-    <section class="hero">
-      <h2>Welcome to My Blog</h2>
-      <p>Sharing thoughts, ideas, and experiences</p>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen">
+  <nav class="fixed top-0 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <h1 class="text-xl font-bold bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">My Blog</h1>
+      <div class="flex gap-6">
+        <a href="#home" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#667eea] transition-colors duration-200">Home</a>
+        <a href="#about" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#667eea] transition-colors duration-200">About</a>
+        <a href="#categories" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#667eea] transition-colors duration-200">Categories</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="pt-16">
+    <section class="min-h-[50vh] flex items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white">
+      <div class="max-w-4xl mx-auto px-4 text-center animate-fade-in">
+        <h2 class="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">Welcome to My Blog</h2>
+        <p class="text-lg text-white/80 max-w-2xl mx-auto">Sharing thoughts, ideas, and experiences</p>
+      </div>
     </section>
-    
-    <section class="posts">
-      <h2>Latest Posts</h2>
-      <div class="post-grid">
-        <article class="post-card">
-          <h3>My First Blog Post</h3>
-          <p class="meta">Published on January 1, 2024</p>
-          <p>This is where your blog post content would go. Write about anything you're passionate about!</p>
-          <a href="#" class="read-more">Read More</a>
-        </article>
-        
-        <article class="post-card">
-          <h3>Another Interesting Article</h3>
-          <p class="meta">Published on January 5, 2024</p>
-          <p>Share your knowledge, experiences, and insights with your readers through engaging content.</p>
-          <a href="#" class="read-more">Read More</a>
-        </article>
+
+    <section class="py-16 sm:py-24">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-3xl sm:text-4xl font-bold text-center mb-12 animate-fade-in">Latest Posts</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <article class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-1">
+            <div class="h-48 bg-gradient-to-br from-[#667eea] to-[#06b6d4]"></div>
+            <div class="p-6">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#667eea]/10 text-[#667eea]">Technology</span>
+                <span class="text-xs text-slate-500">January 1, 2024 &bull; 3 min read</span>
+              </div>
+              <h3 class="text-xl font-semibold mb-2">My First Blog Post</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">This is where your blog post content would go. Write about anything you're passionate about!</p>
+              <a href="#" class="text-sm font-semibold text-[#667eea] hover:text-[#764ba2] transition-colors duration-200">Read More &rarr;</a>
+            </div>
+          </article>
+          <article class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-2">
+            <div class="h-48 bg-gradient-to-br from-[#764ba2] to-[#f59e0b]"></div>
+            <div class="p-6">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#764ba2]/10 text-[#764ba2]">Design</span>
+                <span class="text-xs text-slate-500">January 5, 2024 &bull; 5 min read</span>
+              </div>
+              <h3 class="text-xl font-semibold mb-2">Another Interesting Article</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Share your knowledge, experiences, and insights with your readers through engaging content.</p>
+              <a href="#" class="text-sm font-semibold text-[#667eea] hover:text-[#764ba2] transition-colors duration-200">Read More &rarr;</a>
+            </div>
+          </article>
+        </div>
       </div>
     </section>
   </main>
-  
+
+  <footer class="bg-slate-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p class="text-slate-400 text-sm">&copy; 2024 My Blog. All rights reserved.</p>
+    </div>
+  </footer>
+
   <script src="script.js"></script>
 </body>
 </html>`;
   }
 
-  // Generate blog CSS
   private generateBlogCSS(): string {
-    return `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: Georgia, serif;
-  line-height: 1.6;
-  color: #333;
-  background: #f9f9f9;
-}
-
-header {
-  background: #2c3e50;
-  color: white;
-  padding: 2rem 5%;
-  text-align: center;
-}
-
-header h1 {
-  margin-bottom: 1rem;
-}
-
-nav a {
-  color: white;
-  text-decoration: none;
-  margin: 0 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  transition: background 0.3s;
-}
-
-nav a:hover {
-  background: rgba(255,255,255,0.2);
-}
-
-.hero {
-  background: linear-gradient(135deg, #3498db, #2980b9);
-  color: white;
-  text-align: center;
-  padding: 4rem 5%;
-}
-
-.posts {
-  padding: 4rem 5%;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.post-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 2rem;
-  margin-top: 2rem;
-}
-
-.post-card {
-  background: white;
-  padding: 2rem;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.post-card h3 {
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
-}
-
-.meta {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.read-more {
-  color: #3498db;
-  text-decoration: none;
-  font-weight: bold;
-}`;
+    return `/* Tailwind CSS is loaded via CDN - this file is for additional custom styles only */`;
   }
 
-  // Generate blog JS
   private generateBlogJS(): string {
-    return `// Add reading time calculator
-document.querySelectorAll('.post-card').forEach(post => {
-  const content = post.querySelector('p:not(.meta)').textContent;
-  const words = content.split(' ').length;
-  const readingTime = Math.ceil(words / 200); // 200 words per minute
-  
-  const meta = post.querySelector('.meta');
-  meta.textContent += \` • \${readingTime} min read\`;
-});
-
-// Add smooth scroll for navigation
-document.querySelectorAll('nav a').forEach(link => {
+    return `document.querySelectorAll('nav a[href^="#"]').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
     const href = link.getAttribute('href');
@@ -2243,7 +1701,6 @@ document.querySelectorAll('nav a').forEach(link => {
 });`;
   }
 
-  // Generate dashboard HTML
   private generateDashboardHTML(): string {
     return `<!DOCTYPE html>
 <html lang="en">
@@ -2251,311 +1708,125 @@ document.querySelectorAll('nav a').forEach(link => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Analytics Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  ${TAILWIND_CDN_HEAD}
 </head>
-<body>
-  <div class="dashboard">
-    <aside class="sidebar">
-      <h2>Dashboard</h2>
-      <nav>
-        <a href="#overview" class="active">Overview</a>
-        <a href="#analytics">Analytics</a>
-        <a href="#reports">Reports</a>
-        <a href="#settings">Settings</a>
-      </nav>
-    </aside>
-    
-    <main class="main-content">
-      <header class="dashboard-header">
-        <h1>Analytics Overview</h1>
-        <div class="date-range">
-          <select>
-            <option>Last 7 days</option>
-            <option>Last 30 days</option>
-            <option>Last 90 days</option>
-          </select>
-        </div>
-      </header>
-      
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <h3>Total Users</h3>
-          <div class="metric-value">12,345</div>
-          <div class="metric-change positive">+12.5%</div>
-        </div>
-        
-        <div class="metric-card">
-          <h3>Revenue</h3>
-          <div class="metric-value">$45,678</div>
-          <div class="metric-change positive">+8.2%</div>
-        </div>
-        
-        <div class="metric-card">
-          <h3>Conversion Rate</h3>
-          <div class="metric-value">3.45%</div>
-          <div class="metric-change negative">-2.1%</div>
-        </div>
-        
-        <div class="metric-card">
-          <h3>Bounce Rate</h3>
-          <div class="metric-value">65.2%</div>
-          <div class="metric-change positive">-5.3%</div>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen flex">
+  <aside class="w-64 bg-slate-900 text-white min-h-screen p-6 hidden md:block">
+    <h2 class="text-xl font-bold mb-8 bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">Dashboard</h2>
+    <nav class="space-y-2">
+      <a href="#overview" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-medium transition-all duration-200 hover:bg-white/20">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+        Overview
+      </a>
+      <a href="#analytics" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 font-medium transition-all duration-200 hover:bg-white/10 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        Analytics
+      </a>
+      <a href="#reports" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 font-medium transition-all duration-200 hover:bg-white/10 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        Reports
+      </a>
+      <a href="#settings" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 font-medium transition-all duration-200 hover:bg-white/10 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        Settings
+      </a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
+      <h1 class="text-2xl sm:text-3xl font-bold animate-fade-in">Analytics Overview</h1>
+      <select class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#667eea] focus:border-transparent outline-none transition-all duration-200" aria-label="Date range">
+        <option>Last 7 days</option>
+        <option>Last 30 days</option>
+        <option>Last 90 days</option>
+      </select>
+    </header>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in">
+        <h3 class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Users</h3>
+        <div class="text-3xl font-extrabold mb-1">12,345</div>
+        <span class="inline-flex items-center text-sm font-medium text-emerald-500">+12.5%</span>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-1">
+        <h3 class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Revenue</h3>
+        <div class="text-3xl font-extrabold mb-1">$45,678</div>
+        <span class="inline-flex items-center text-sm font-medium text-emerald-500">+8.2%</span>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-2">
+        <h3 class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Conversion Rate</h3>
+        <div class="text-3xl font-extrabold mb-1">3.45%</div>
+        <span class="inline-flex items-center text-sm font-medium text-red-500">-2.1%</span>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-200 animate-fade-in-delay-3">
+        <h3 class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Bounce Rate</h3>
+        <div class="text-3xl font-extrabold mb-1">65.2%</div>
+        <span class="inline-flex items-center text-sm font-medium text-emerald-500">-5.3%</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-200">
+        <h3 class="text-lg font-semibold mb-4">Traffic Overview</h3>
+        <div class="h-64 bg-gradient-to-br from-[#667eea]/5 to-[#764ba2]/5 rounded-xl flex items-center justify-center border border-slate-100 dark:border-slate-700">
+          <p class="text-slate-400 text-sm">Interactive chart area</p>
         </div>
       </div>
-      
-      <div class="charts-section">
-        <div class="chart-container">
-          <h3>Traffic Overview</h3>
-          <div class="chart-placeholder" id="traffic-chart">
-            <p>Interactive chart would go here</p>
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-200">
+        <h3 class="text-lg font-semibold mb-4">Top Pages</h3>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-600 dark:text-slate-300">/home</span>
+            <div class="flex items-center gap-2">
+              <div class="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-[#667eea] rounded-full" style="width:45%"></div></div>
+              <span class="text-sm font-medium">45%</span>
+            </div>
           </div>
-        </div>
-        
-        <div class="chart-container">
-          <h3>Top Pages</h3>
-          <div class="chart-placeholder" id="pages-chart">
-            <div class="page-item">
-              <span>/home</span>
-              <span>45%</span>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-600 dark:text-slate-300">/products</span>
+            <div class="flex items-center gap-2">
+              <div class="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-[#764ba2] rounded-full" style="width:23%"></div></div>
+              <span class="text-sm font-medium">23%</span>
             </div>
-            <div class="page-item">
-              <span>/products</span>
-              <span>23%</span>
-            </div>
-            <div class="page-item">
-              <span>/about</span>
-              <span>15%</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-600 dark:text-slate-300">/about</span>
+            <div class="flex items-center gap-2">
+              <div class="w-24 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div class="h-full bg-[#06b6d4] rounded-full" style="width:15%"></div></div>
+              <span class="text-sm font-medium">15%</span>
             </div>
           </div>
         </div>
       </div>
-    </main>
-  </div>
-  
+    </div>
+  </main>
+
   <script src="script.js"></script>
 </body>
 </html>`;
   }
 
-  // Generate dashboard CSS
   private generateDashboardCSS(): string {
-    return `* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f5f7fa;
-  color: #333;
-}
-
-.dashboard {
-  display: flex;
-  min-height: 100vh;
-}
-
-.sidebar {
-  width: 250px;
-  background: #2c3e50;
-  color: white;
-  padding: 2rem 1rem;
-}
-
-.sidebar h2 {
-  margin-bottom: 2rem;
-}
-
-.sidebar nav a {
-  display: block;
-  color: white;
-  text-decoration: none;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-  border-radius: 5px;
-  transition: background 0.3s;
-}
-
-.sidebar nav a:hover,
-.sidebar nav a.active {
-  background: #34495e;
-}
-
-.main-content {
-  flex: 1;
-  padding: 2rem;
-}
-
-.dashboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.date-range select {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  background: white;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.metric-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.metric-card h3 {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-}
-
-.metric-value {
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-}
-
-.metric-change {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.positive {
-  color: #27ae60;
-}
-
-.negative {
-  color: #e74c3c;
-}
-
-.charts-section {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 2rem;
-}
-
-.chart-container {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.chart-placeholder {
-  height: 300px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f8f9fa;
-  border-radius: 5px;
-  margin-top: 1rem;
-}
-
-.page-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
-}`;
+    return `/* Tailwind CSS is loaded via CDN - this file is for additional custom styles only */`;
   }
 
-  // Generate dashboard JS
   private generateDashboardJS(): string {
-    return `// Real-time data updates using WebSocket
-const ws = new WebSocket('ws://localhost:5000/ws/metrics');
-
-ws.onmessage = function(event) {
-  const data = JSON.parse(event.data);
-  updateMetrics(data);
-};
-
-function updateMetrics(data) {
-  Object.keys(data).forEach(key => {
-    const element = document.getElementById(key);
-    if (element) {
-      const oldValue = parseInt(element.textContent) || 0;
-      const newValue = data[key];
-      animateValue(element, oldValue, newValue, 500);
-    }
-  });
-}
-
-function animateValue(element, start, end, duration) {
-  const range = end - start;
-  const startTime = performance.now();
-  
-  function update(currentTime) {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const value = Math.floor(start + range * progress);
-    element.textContent = value.toLocaleString();
-    
-    if (progress < 1) {
-      requestAnimationFrame(update);
-    }
-  }
-  
-  requestAnimationFrame(update);
-}
-
-// Add interactivity to sidebar navigation
-document.querySelectorAll('.sidebar nav a').forEach(link => {
+    return `document.querySelectorAll('aside nav a').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
-    
-    // Remove active class from all links
-    document.querySelectorAll('.sidebar nav a').forEach(l => l.classList.remove('active'));
-    
-    // Add active class to clicked link
-    link.classList.add('active');
-    
-    // Update main content based on selection
+    document.querySelectorAll('aside nav a').forEach(l => {
+      l.classList.remove('bg-white/10', 'text-white');
+      l.classList.add('text-slate-400');
+    });
+    link.classList.add('bg-white/10', 'text-white');
+    link.classList.remove('text-slate-400');
     const section = link.getAttribute('href').substring(1);
-    updateMainContent(section);
+    const header = document.querySelector('main h1');
+    const titles = { overview: 'Analytics Overview', analytics: 'Detailed Analytics', reports: 'Reports', settings: 'Settings' };
+    if (header) header.textContent = titles[section] || section;
   });
-});
-
-function updateMainContent(section) {
-  const header = document.querySelector('.dashboard-header h1');
-  
-  switch(section) {
-    case 'overview':
-      header.textContent = 'Analytics Overview';
-      break;
-    case 'analytics':
-      header.textContent = 'Detailed Analytics';
-      break;
-    case 'reports':
-      header.textContent = 'Reports';
-      break;
-    case 'settings':
-      header.textContent = 'Settings';
-      break;
-  }
-}
-
-// Initialize chart data loading
-window.addEventListener('load', () => {
-  const chartPlaceholder = document.getElementById('traffic-chart');
-  if (chartPlaceholder) {
-    chartPlaceholder.innerHTML = '<p>📈 Traffic chart loaded successfully!</p>';
-  }
-});
-
-// Update metrics every 30 seconds
-setInterval(updateMetrics, 30000);`;
+});`;
   }
 }
 

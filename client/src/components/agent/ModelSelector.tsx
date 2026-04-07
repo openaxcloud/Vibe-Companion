@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-type ModelCategory = 'openai' | 'anthropic' | 'google' | 'xai' | 'moonshot';
+type ModelCategory = 'openai' | 'anthropic' | 'google' | 'gemini' | 'xai' | 'moonshot' | 'groq';
 
 interface Model {
   id: string;
@@ -25,6 +25,7 @@ interface Model {
   description: string;
   category: ModelCategory;
   tier: 'standard' | 'high-power';
+  available?: boolean;
   capabilities: {
     extendedThinking: boolean;
     codeGeneration: boolean;
@@ -40,7 +41,7 @@ interface ModelSelectorProps {
   className?: string;
 }
 
-const PROVIDER_CONFIG: Record<ModelCategory, {
+const PROVIDER_CONFIG: Record<string, {
   label: string;
   icon: React.ElementType;
   color: string;
@@ -48,11 +49,13 @@ const PROVIDER_CONFIG: Record<ModelCategory, {
   openai:    { label: 'OpenAI',       icon: Sparkles, color: 'text-green-500'  },
   anthropic: { label: 'Anthropic',    icon: Brain,    color: 'text-orange-500' },
   google:    { label: 'Google Gemini',icon: Zap,      color: 'text-blue-500'   },
+  gemini:    { label: 'Google Gemini',icon: Zap,      color: 'text-blue-500'   },
   xai:       { label: 'xAI / Grok',  icon: Cpu,      color: 'text-purple-500' },
   moonshot:  { label: 'Moonshot / Kimi', icon: Zap,  color: 'text-cyan-500'   },
+  groq:      { label: 'Groq',        icon: Zap,      color: 'text-red-500'    },
 };
 
-const PROVIDER_ORDER: ModelCategory[] = ['openai', 'anthropic', 'google', 'xai', 'moonshot'];
+const PROVIDER_ORDER: ModelCategory[] = ['openai', 'anthropic', 'google', 'gemini', 'xai', 'moonshot', 'groq'];
 
 export function ModelSelector({ selectedModel, onModelChange, className }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
@@ -96,24 +99,29 @@ export function ModelSelector({ selectedModel, onModelChange, className }: Model
           <CommandEmpty>No models found.</CommandEmpty>
 
           {PROVIDER_ORDER.map(category => {
-            const categoryModels = models.filter(m => m.category === category);
+            const categoryModels = models.filter((m: Model) => m.category === category);
             if (categoryModels.length === 0) return null;
 
-            const config = PROVIDER_CONFIG[category];
+            const config = PROVIDER_CONFIG[category] || { label: category, icon: Cpu, color: 'text-gray-500' };
             const CategoryIcon = config.icon;
 
             return (
               <CommandGroup key={category} heading={config.label}>
-                {categoryModels.map((model) => (
+                {categoryModels.map((model: Model) => {
+                  const isAvailable = model.available !== false;
+                  return (
                   <CommandItem
                     key={model.id}
                     value={model.id}
                     onSelect={() => {
-                      onModelChange(model.id);
-                      setOpen(false);
+                      if (isAvailable) {
+                        onModelChange(model.id);
+                        setOpen(false);
+                      }
                     }}
-                    className="flex flex-col items-start gap-1 p-3"
+                    className={`flex flex-col items-start gap-1 p-3 ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid={`model-option-${model.id}`}
+                    disabled={!isAvailable}
                   >
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
@@ -161,7 +169,8 @@ export function ModelSelector({ selectedModel, onModelChange, className }: Model
                       <span>Cost: {model.capabilities.cost}</span>
                     </div>
                   </CommandItem>
-                ))}
+                  );
+                })}
               </CommandGroup>
             );
           })}

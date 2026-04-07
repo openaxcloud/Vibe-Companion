@@ -73,7 +73,8 @@ const getProviderColor = (provider: string) => {
     anthropic: 'bg-orange-500',
     gemini: 'bg-blue-500',
     xai: 'bg-purple-500',
-    moonshot: 'bg-cyan-500',  // Kimi-K2 (Moonshot AI) - Cyan for cost savings theme
+    moonshot: 'bg-cyan-500',
+    groq: 'bg-red-500',
     default: 'bg-gray-500'
   };
   return colors[provider] || colors.default;

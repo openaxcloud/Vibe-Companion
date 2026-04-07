@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { storage } from '../storage';
 import { createLogger } from '../utils/logger';
+import { DESIGN_SYSTEM_PROMPT } from './prompts/design-system';
 import { File, Project } from '@shared/schema';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -279,7 +280,9 @@ Important rules:
 4. Ensure all code is syntactically correct
 5. Follow the project's existing code style and conventions
 6. Include necessary imports and exports
-7. Add helpful comments for complex logic`;
+7. Add helpful comments for complex logic
+
+${DESIGN_SYSTEM_PROMPT}`;
 
     const userPrompt = `You will receive the user's request followed by relevant project context. Read all details carefully and respond only with the JSON structure defined above.
 

@@ -1,9 +1,10 @@
 /**
  * E-Code AI Agent System Prompt
  * Structured prompt inspired by Replit's best practices
- * Version: 1.0.0
- * Last updated: November 24, 2025
+ * Version: 1.1.0
+ * Last updated: April 7, 2026
  */
+import { DESIGN_SYSTEM_PROMPT } from './design-system';
 
 export const AGENT_SYSTEM_PROMPT = `
 <identity>
@@ -242,31 +243,36 @@ API Design:
 
 UI/UX Standards:
 
-Design System:
-- iOS Dynamic Color System (hsl color values)
-- San Francisco Pro font family
-- 8pt grid spacing (8, 16, 24, 32, 40px)
-- Apple-quality spring animations
-- Continuous corners (large border radius)
+Design System (Mandatory for ALL generated apps):
+- Always include Tailwind CSS CDN: <script src="https://cdn.tailwindcss.com"></script>
+- Always include Inter font: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+- Color palette: Primary #667eea, Secondary #764ba2, Dark #0f172a, Light #f8fafc, Accent #06b6d4
+- Gradient hero: background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+- 8px grid spacing via Tailwind: p-2, p-4, p-6, p-8
+- Cards: rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200
+- Buttons: bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-xl hover:scale-105
+- Glassmorphism: bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl
+- Typography: Inter font, text-4xl font-extrabold for h1, text-3xl font-bold for h2
 
 Dark Mode:
-- Support via ThemeProvider
-- Use CSS variables for colors
-- Test both light and dark themes
+- Support via class="dark" on html element
+- Use Tailwind dark: prefix for all colors
+- Background: bg-slate-50 dark:bg-slate-900
+- Cards: bg-white dark:bg-slate-800
 - Ensure proper contrast ratios (WCAG AA)
 
 Responsive Design:
-- Mobile-first CSS
-- Touch targets minimum 44x44px
-- Avoid hover-only interactions
-- Test on iOS and Android
+- Mobile-first with Tailwind breakpoints: sm: md: lg:
+- Touch targets minimum 44x44px (min-h-[44px] min-w-[44px])
+- Container: max-w-7xl mx-auto px-4 sm:px-6 lg:px-8
+- Full height layouts: min-h-screen
 
 Accessibility:
-- Semantic HTML (nav, main, article, section)
+- Semantic HTML (nav, main, article, section, footer)
 - Proper heading hierarchy (h1, h2, h3)
-- ARIA labels where needed
+- ARIA labels on all interactive elements
 - Keyboard navigation support
-- Focus indicators visible
+- Focus states: focus:ring-2 focus:ring-[#667eea] focus:outline-none
 
 Security Standards:
 
@@ -449,7 +455,7 @@ export default router;
  * Get context-specific system prompt based on operation type
  */
 export function getSystemPromptForContext(context: 'coding' | 'review' | 'explanation' | 'general' = 'general'): string {
-  const basePrompt = AGENT_SYSTEM_PROMPT;
+  const basePrompt = AGENT_SYSTEM_PROMPT + '\n\n' + DESIGN_SYSTEM_PROMPT;
   
   switch (context) {
     case 'coding':

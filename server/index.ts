@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { AI_MODELS, type AIModel as AIModelType } from "./ai/models-catalog.js";
 
 const conversationMessages = new Map<string, Array<{id: number, conversationId: number, role: string, content: string, timestamp: string}>>();
 
@@ -1390,34 +1391,60 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     app.get("/api/models", (_req, res) => {
-      const models: Array<{id: string; name: string; provider: string; description: string; maxTokens: number; supportsStreaming: boolean; costPer1kTokens: number; available: boolean}> = [];
-      if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) {
-        models.push(
-          { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic", description: "Latest Claude Sonnet — fast, intelligent, great for coding", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.003, available: true },
-          { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: "anthropic", description: "Fast and affordable for quick tasks", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.001, available: true },
-        );
-      }
-      if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) {
-        models.push(
-          { id: "gpt-4o", name: "GPT-4o", provider: "openai", description: "OpenAI's most capable model", maxTokens: 4096, supportsStreaming: true, costPer1kTokens: 0.005, available: true },
-          { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "openai", description: "Fast and affordable GPT-4 class model", maxTokens: 4096, supportsStreaming: true, costPer1kTokens: 0.00015, available: true },
-        );
-      }
-      if (process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY) {
-        models.push(
-          { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini", description: "Google's fast multimodal model", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.00025, available: true },
-          { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "gemini", description: "Google's most capable model", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.00125, available: true },
-        );
-      }
+      const aiModels = AI_MODELS;
+      const providerAvailability: Record<string, boolean> = {};
+      const checkProvider = (provider: string): boolean => {
+        if (providerAvailability[provider] !== undefined) return providerAvailability[provider];
+        let available = false;
+        switch (provider) {
+          case 'openai':
+            available = !!(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY);
+            break;
+          case 'anthropic':
+            available = !!(process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY);
+            break;
+          case 'gemini':
+            available = !!(process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
+            break;
+          case 'xai':
+            available = !!(process.env.AI_INTEGRATIONS_XAI_API_KEY || process.env.XAI_API_KEY);
+            break;
+          case 'moonshot':
+            available = !!(process.env.AI_INTEGRATIONS_MOONSHOT_API_KEY || process.env.MOONSHOT_API_KEY);
+            break;
+          case 'groq':
+            available = !!(process.env.AI_INTEGRATIONS_GROQ_API_KEY || process.env.GROQ_API_KEY);
+            break;
+          default:
+            available = !!process.env[`${provider.toUpperCase()}_API_KEY`];
+        }
+        providerAvailability[provider] = available;
+        return available;
+      };
+      const models = aiModels.map((m: AIModelType) => ({
+        ...m,
+        available: checkProvider(m.provider)
+      }));
       res.json({ models });
     });
 
     app.get("/api/models/preferred", async (req, res) => {
+      const aiModels = AI_MODELS;
       const user = await getSessionUser(req);
+      const availableCount = aiModels.filter((m: AIModelType) => {
+        const p = m.provider;
+        if (p === 'openai') return !!(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY);
+        if (p === 'anthropic') return !!(process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY);
+        if (p === 'gemini') return !!(process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
+        if (p === 'xai') return !!(process.env.AI_INTEGRATIONS_XAI_API_KEY || process.env.XAI_API_KEY);
+        if (p === 'moonshot') return !!(process.env.AI_INTEGRATIONS_MOONSHOT_API_KEY || process.env.MOONSHOT_API_KEY);
+        if (p === 'groq') return !!(process.env.AI_INTEGRATIONS_GROQ_API_KEY || process.env.GROQ_API_KEY);
+        return false;
+      }).length;
       res.json({
         preferredModel: "claude-sonnet-4-20250514",
         preferredProvider: "anthropic",
-        availableModels: 6,
+        availableModels: availableCount,
         userId: user?.id || null,
       });
     });
@@ -1427,12 +1454,33 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     app.get("/api/agent/models", (_req, res) => {
+      const aiModels = AI_MODELS;
       const providers: string[] = [];
+      if (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) providers.push("openai");
       if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) providers.push("anthropic");
-      if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) providers.push("openai");
       if (process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY) providers.push("gemini");
+      if (process.env.AI_INTEGRATIONS_XAI_API_KEY || process.env.XAI_API_KEY) providers.push("xai");
+      if (process.env.AI_INTEGRATIONS_MOONSHOT_API_KEY || process.env.MOONSHOT_API_KEY) providers.push("moonshot");
+      if (process.env.AI_INTEGRATIONS_GROQ_API_KEY || process.env.GROQ_API_KEY) providers.push("groq");
+      const models = aiModels.map((m: AIModelType) => {
+        const isAvailable = providers.includes(m.provider);
+        return {
+          ...m,
+          available: isAvailable,
+          category: m.provider === 'gemini' ? 'google' : m.provider,
+          tier: (m.costPer1kTokens || 0) >= 0.01 ? 'high-power' : 'standard',
+          capabilities: {
+            extendedThinking: m.id.includes('o1') || m.id.includes('o3') || m.id.includes('o4') || m.id.includes('3-7-sonnet') || m.id.includes('opus'),
+            codeGeneration: true,
+            maxTokens: m.maxTokens,
+            speed: (m.costPer1kTokens || 0) <= 0.001 ? 'fast' : (m.costPer1kTokens || 0) <= 0.005 ? 'medium' : 'slow',
+            cost: (m.costPer1kTokens || 0) <= 0.001 ? 'low' : (m.costPer1kTokens || 0) <= 0.005 ? 'medium' : 'high'
+          }
+        };
+      });
       res.json({
         providers,
+        models,
         defaultModel: "claude-sonnet-4-20250514",
         defaultProvider: providers.includes("anthropic") ? "anthropic" : providers[0] || "none",
       });
