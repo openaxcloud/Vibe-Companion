@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" style="margin:0; padding:0; width:100%; background-color:#f4f4f4;">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Order Confirmation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style type="text/css">
+      @media only screen and (max-width: 600px) {
+        .container {
+          width: 100% !important;
+          padding: 0 10px !important;
+        }
+        .content {
+          padding: 16px !important;
+        }
+        .order-summary-title {
+          font-size: 18px !important;
+        }
+        .header-title {
+          font-size: 22px !important;
+        }
+        .btn-primary {
+          width: 100% !important;
+          display: block !important;
+        }
+        .stack-column {
+          display: block !important;
+          width: 100% !important;
+        }
+        .stack-column td {
+          display: block !important;
+          width: 100% !important;
+        }
+      }
+      @media only screen and (max-width: 400px) {
+        .order-item-name {
+          font-size: 14px !important;
+        }
+        .order-item-meta {
+          font-size: 12px !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+    <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; margin:0; padding:0; width:100%; background-color:#f4f4f4;">
+      <tr>
+        <td align="center" style="padding:24px 16px;">
+          <table class="container" width="600" border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; width:600px; max-width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(15,23,42,0.08);">
+            <tr>
+              <td align="center" style="background-color:#0f172a; padding:24px 24px 20px 24px;">
+                <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
+                  <tr>
+                    <td align="left" style="color:#e5e7eb; font-size:14px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase;">
+                      <span style="display:inline-block;">{{companyName}}</span>
+                    </td>
+                    <td align="right" style="color:#9ca3af; font-size:12px;">
+                      <span style="display:inline-block;">Order Confirmation</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-top:16px;">
+                      <div class="header-title" style="color:#f9fafb; font-size:24px; line-height:1.3; font-weight:600;">
+                        Thank you for your order, {{customerName}}!
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-top:8px;">
+                      <div style="color:#9ca3af; font-size:13px; line-height:1.5;">
+                        We've received your order and it's now being processed. A summary of your purchase is below.
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-top:16px;">
+                      <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; width:100%; font-size:12px; color:#d1d5db;">
+                        <tr>
+                          <td style="padding:4px 0; width:33%; white-space:nowrap;">
+                            <strong style="color:#e5e7eb;">Order #:</strong>
+                            <span style="color:#d1d5db;">{{orderNumber}}</span>
+                          </td>
+                          <td style="padding:4px 0; width:33%; white-space:nowrap; text-align:center;">
+                            <strong style="color:#e5e7eb;">Order Date:</strong>
+                            <span style="color:#d1d5db;">{{orderDate}}</span>
+                          </td>
+                          <td style="padding:4px 0; width:33%; white-space:nowrap; text-align:right;">
+                            <strong style="color:#e5e7eb;">Status:</strong>
+                            <span style="color:#22c55e;">{{orderStatus}}</span>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="content" style="padding:24px 24px 8px 24px;">
+                <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding-bottom:16px; font-size:14px; color:#111827; line-height:1.5;">
+                      <p style="margin:0 0 8px 0;">Hi {{customerFirstName}},</p>
+                      <p style="margin:0;">
+                        This email confirms that we've received your order
+                        <strong>#{{orderNumber}}</strong>. You will receive another email when your items have shipped.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+                <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; margin-top:16px;">
+                  <tr>
+                    <td colspan="2" class="order-summary-title" style="padding-bottom:8px; font-size:16px; font-weight:600; color:#111827;">
+                      Order Summary
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding:0; border:1px solid #e5e7eb; border-radius:6px;">
+                      <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
+                        <tr style="background-color:#f9fafb;">
+                          <th align="left" style="padding:10px 12px; font-size:12px; font-weight:600; color:#6b7280; border-bottom:1px solid #e5e7eb;">
+                            Item
+                          </th>
+                          <th align="center" style="padding:10px 8px; font-size:12px; font-weight:600; color:#6b7280; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            Qty
+                          </th>
+                          <th align="right" style="padding:10px 12px; font-size:12px; font-weight:600; color:#6b7280; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            Price
+                          </th>
+                        </tr>
+
+                        {{#each items}}
+                        <tr>
+                          <td valign="top" style="padding:10px 12px; border-bottom:1px solid #e5e7eb;">
+                            <div class="order-item-name" style="font-size:14px; color:#111827; font-weight:500; margin-bottom:2px;">
+                              {{this.name}}
+                            </div>
+                            <div class="order-item-meta" style="font-size:12px; color:#6b7280;">
+                              {{#if this.options}}
+                                {{this.options}}
+                              {{/if}}
+                              {{#if this.sku}}
+                                <span style="color:#9ca3af;">&nbsp;•&nbsp;SKU: {{this.sku}}</span>
+                              {{/if}}
+                            </div>
+                          </td>
+                          <td valign="top" align="center" style="padding:10px 8px; border-bottom:1px solid #e5e7eb; font-size:13px; color:#111827; white-space:nowrap;">
+                            {{this.quantity}}
+                          </td>
+                          <td valign="top" align="right" style="padding:10px 12px; border-bottom:1px solid #e5e7eb; font-size:13px; color:#111827; white-space:nowrap;">
+                            {{this.total}}
+                          </td>
+                        </tr>
+                        {{/each}}
+
+                        <tr>
+                          <td colspan="3" style="padding:10px 12px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
+                            <table width="100%" border="0" cellpadding="

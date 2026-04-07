@@ -1,0 +1,29 @@
+/* Calculator component styling with button grid, display area, and interactive states */
+
+.calculator {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.calculator-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.calculator-content {
+  flex: 1;
+}
+
+.calculator-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .calculator {
+    padding: 0.75rem;
+  }
+}

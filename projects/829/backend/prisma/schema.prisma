@@ -1,0 +1,3 @@
+Prisma schema for PostgreSQL with models: User, Product, Category, ProductCategory (join), Cart, CartItem, Order, OrderItem, and indexes/relations. Includes timestamps and enums for order status.
+
+Content generated as fallback. Please implement specific functionality as needed.

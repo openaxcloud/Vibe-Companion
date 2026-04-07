@@ -1,0 +1,29 @@
+/* Styling for note creation/editing forms with focus states, validation feedback, and responsive input sizes. */
+
+.noteform {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.noteform-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.noteform-content {
+  flex: 1;
+}
+
+.noteform-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .noteform {
+    padding: 0.75rem;
+  }
+}

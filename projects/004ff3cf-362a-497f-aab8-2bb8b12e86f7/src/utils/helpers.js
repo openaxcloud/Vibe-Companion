@@ -1,0 +1,1 @@
+export const format = (d) => d.toFixed(2);

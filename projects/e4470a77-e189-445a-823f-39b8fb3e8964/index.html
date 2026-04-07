@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Messaging Platform</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Chat App</h1>
+            <div id="status">Online</div>
+        </header>
+        <div class="chat">
+            <div id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." />
+                <button id="sendMessage">Send</button>
+            </div>
+        </div>
+        <div class="channels">
+            <h2>Channels</h2>
+            <ul id="channelList"></ul>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{
+  "description": "Nodemon watches src, restarts on ts changes, runs ts-node/register with dotenv config.",
+  "todo": "Configure based on outline"
+}

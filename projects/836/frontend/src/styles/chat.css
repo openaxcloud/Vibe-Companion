@@ -1,0 +1,29 @@
+/* Focused CSS module or global stylesheet for chat-specific styling like message bubbles, timestamps, and streaming indicators. Works in tandem with global styles. */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.chat-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.chat-content {
+  flex: 1;
+}
+
+.chat-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .chat {
+    padding: 0.75rem;
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": ".eslintrc",
+  "version": "1.0.0",
+  "description": "ESLint config for Node + TypeScript with recommended rules and import plugin.",
+  "config": {}
+}

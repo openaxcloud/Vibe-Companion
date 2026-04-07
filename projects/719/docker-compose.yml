@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: app-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+      POSTGRES_DB: app_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: node:22-alpine
+    container_name: app-backend
+    restart: unless-stopped
+    working_dir: /usr/src/app
+    command: sh -c "npm install && npm run start"
+    volumes:
+      - ./:/usr/src/app
+      - app_node_modules:/usr/src/app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_USER: app_user
+      DATABASE_PASSWORD: app_password
+      DATABASE_NAME: app_db
+      # Mail configuration (used when MAILHOG is enabled)
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_SECURE: "false"
+      MAIL_FROM: "no-reply@example.local"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: app-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+
+volumes:
+  db_data:
+  app_node_modules:

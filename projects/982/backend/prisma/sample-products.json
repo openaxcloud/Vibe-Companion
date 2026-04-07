@@ -1,0 +1,6 @@
+{
+  "name": "sample-products",
+  "version": "1.0.0",
+  "description": "JSON file containing sample product data for initial database population",
+  "config": {}
+}

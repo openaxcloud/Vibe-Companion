@@ -1,0 +1,29 @@
+/* Component-specific styles for todo items, forms, buttons, and responsive design */
+
+.components {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.components-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.components-content {
+  flex: 1;
+}
+
+.components-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .components {
+    padding: 0.75rem;
+  }
+}

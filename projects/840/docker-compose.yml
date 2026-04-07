@@ -1,0 +1,8 @@
+# Compose file to run PostgreSQL, server, and client for development; maps ports and sets environment variables.
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

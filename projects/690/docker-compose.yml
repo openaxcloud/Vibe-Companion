@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: undefined
+      POSTGRES_PASSWORD: undefined
+      POSTGRES_DB: undefined
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "undefined:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U undefined -d undefined"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: node:22-alpine
+    container_name: api
+    restart: unless-stopped
+    working_dir: /usr/src/app
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: undefined
+      PORT: undefined
+      DATABASE_URL: "postgres://undefined:undefined@postgres:5432/undefined"
+    ports:
+      - "undefined:undefined"
+    volumes:
+      - ./api:/usr/src/app
+      - api_node_modules:/usr/src/app/node_modules
+    command: sh -c "npm install && npm run start"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: node:22-alpine
+    container_name: web
+    restart: unless-stopped
+    working_dir: /usr/src/app
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: undefined
+      PORT: undefined
+      API_URL: undefined}
+    ports:
+      - "undefined:undefined"
+    volumes:
+      - ./web:/usr/src/app
+      - web_node_modules:/usr/src/app/node_modules
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  api_node_modules:
+  web_node_modules:

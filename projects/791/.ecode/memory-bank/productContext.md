@@ -1,0 +1,24 @@
+# Memory Bank — Product & UX Context
+
+- **Problem Statement:**
+  - Need a marketplace where multiple vendors can sell products, with a smooth shopping experience and reliable payments.
+- **Target Users:**
+  - Shoppers: browse, search, filter, purchase products, track orders.
+  - Sellers: manage product listings, inventory, and orders.
+  - Admins: oversee catalog, users, orders, and Stripe payouts.
+- **Key UX Goals (to remember):
+  - Fast, intuitive product discovery (search + filters + sort).
+  - Minimal-friction checkout with clear steps and error handling.
+  - Transparent order status and history for buyers and sellers.
+  - Mobile-friendly, keyboard-accessible flows.
+- **Primary User Flows to Preserve in Memory Bank:**
+  - Shopper: sign up / log in → browse / search → product detail → add to cart → checkout → Stripe payment → confirmation → view orders.
+  - Seller: sign up (possibly KYC later) → create / edit products → set price and stock → view incoming orders → update status.
+  - Admin: view metrics dashboard → manage users and products → handle refunds / disputes (manual at first).
+- **Constraints / Assumptions:**
+  - Start with single currency and single region to simplify Stripe and tax logic.
+  - Guest checkout optional in later versions; MVP can require account.
+  - Digital vs physical products: MVP focuses on physical goods with shipping as a simple flat-rate or manual field.
+- **Memory Bank Focus:**
+  - Track UX tradeoffs (e.g., steps in checkout, search behavior) and rationale.
+  - Document changes to flows as requirements evolve.

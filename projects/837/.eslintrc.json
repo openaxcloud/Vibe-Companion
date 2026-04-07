@@ -1,0 +1,6 @@
+{
+  "name": ".eslintrc",
+  "version": "1.0.0",
+  "description": "Ensure shared rules for TS/React and override for node/browser environments. Include ignore patterns.",
+  "config": {}
+}

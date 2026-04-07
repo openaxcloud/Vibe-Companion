@@ -1,0 +1,8 @@
+# Workspace configuration listing packages under server and client directories for monorepo package management. Helps link local packages and streamline installs.
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

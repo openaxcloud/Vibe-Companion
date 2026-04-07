@@ -1,65 +1,6 @@
 node_modules
+dist
 .DS_Store
 server/public
 vite.config.ts.*
 *.tar.gz
-
-# SECURITY: Environment files - NEVER commit secrets
-.env
-.env.*
-!.env.example
-!.env.*.example
-dev.db
-*.log
-
-# Docker
-.dockerignore
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-Thumbs.db
-
-# SECURITY: Mobile Credentials - NEVER commit keystore passwords
-mobile/credentials.json
-mobile/android/keystores/*.keystore
-mobile/google-services.json
-mobile/ios/*.mobileprovision
-
-# SECURITY: Desktop Certificates
-desktop/*.p12
-desktop/*.pfx
-
-# Large files - exclude from git and deployment scan
-.git/
-.checkpoints/
-backups/
-desktop/dist/
-dokploy/
-
-# dist/ is intentionally committed (pre-built) so deployment build cmd can be a no-op
-# Build cmd: echo "ready" (no npm install needed - server fully bundled in dist/index.js)
-client/dist/
-
-# SECURITY: Credential files - NEVER commit
-Prive*
-cookies.txt
-cookies2.txt
-cookies3.txt
-cookie_store
-cookie_store/
-.executions/
-previews/
-
-# User project files (should be in object storage, not Git)
-projects/
-
-# Replit key-value DB (local dev only)
-.replitdb/
-
-# Shell artifacts
-sed*
-backups/*.sql
-

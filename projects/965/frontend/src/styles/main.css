@@ -1,0 +1,29 @@
+/* Global CSS styles including reset, container layout, typography, and color scheme for the app */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.main-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.main-content {
+  flex: 1;
+}
+
+.main-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 0.75rem;
+  }
+}

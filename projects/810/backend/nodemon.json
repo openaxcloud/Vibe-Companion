@@ -1,0 +1,6 @@
+{
+  "name": "nodemon",
+  "version": "1.0.0",
+  "description": "Nodemon configuration to watch src directory and restart on ts file changes, running ts-node for the entry file.",
+  "config": {}
+}

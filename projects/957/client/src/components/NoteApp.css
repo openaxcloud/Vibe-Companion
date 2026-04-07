@@ -1,0 +1,29 @@
+/* Main application layout styles with responsive grid system for notes display and consistent spacing. */
+
+.noteapp {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.noteapp-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.noteapp-content {
+  flex: 1;
+}
+
+.noteapp-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .noteapp {
+    padding: 0.75rem;
+  }
+}

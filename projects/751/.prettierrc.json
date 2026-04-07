@@ -1,0 +1,4 @@
+{
+  "description": "Prettier configuration for consistent code style including semi, singleQuote, trailingComma, and printWidth settings.",
+  "todo": "Configure based on outline"
+}

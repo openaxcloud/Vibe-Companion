@@ -1,0 +1,3 @@
+Defines PostgreSQL datasource and Prisma models: User, Product, Category, ProductCategory, Inventory, CartItem, Order, OrderItem, Payment, and AuditLog with relations and indexes.
+
+Content generated as fallback. Please implement specific functionality as needed.

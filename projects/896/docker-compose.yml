@@ -1,0 +1,8 @@
+# Docker Compose configuration for PostgreSQL database and application services with volume mapping and networking.
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here
