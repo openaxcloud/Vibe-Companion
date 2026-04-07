@@ -277,6 +277,20 @@ export async function registerRoutes(
   const mainRouter = new MainRouter(storage);
   await mainRouter.registerRoutes(app);
 
+  try {
+    const { centralUpgradeDispatcher } = await import('./websocket/central-upgrade-dispatcher');
+    centralUpgradeDispatcher.initialize(httpServer);
+  } catch (err: any) {
+    console.error('[catch] Central Upgrade Dispatcher init failed:', err?.message || err);
+  }
+
+  try {
+    const { socketIOTerminalService } = await import('./terminal/socket-io-terminal');
+    socketIOTerminalService.initialize(httpServer);
+  } catch (err: any) {
+    console.error('[catch] Socket.IO Terminal init failed:', err?.message || err);
+  }
+
   const mainWss = new WebSocketServer({ noServer: true });
   mainWss.on("connection", (ws: WebSocket, req: any) => {
     const projectId = req.__projectId;
@@ -372,10 +386,10 @@ export async function registerRoutes(
   });
 
   // Simple preview route for HTML/CSS/JS projects
-  app.get('/preview/:projectId/{*filepath}', async (req, res) => {
+  app.get('/preview/:projectId/*', async (req, res) => {
     try {
-      const projectId = parseInt(req.params.projectId);
-      const filepath = (req.params as any).filepath || 'index.html';
+      const projectId = parseInt(req.params.projectId, 10);
+      const filepath = req.params[0] || 'index.html';
       
       // Get all project files
       const files = await storage.getFilesByProject(projectId);

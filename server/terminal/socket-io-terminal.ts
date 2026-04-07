@@ -3,7 +3,9 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import type { IncomingMessage } from 'http';
 import type { Duplex } from 'stream';
-import { winstonLogger as logger } from '../utils/logger';
+import { spawn, ChildProcess } from 'child_process';
+import { createLogger } from '../utils/logger';
+const logger = createLogger('socket-io-terminal');
 import { centralUpgradeDispatcher } from '../websocket/central-upgrade-dispatcher';
 import cookieParser from 'cookie';
 import * as signature from 'cookie-signature';
@@ -15,7 +17,7 @@ import { storage } from '../storage';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const IS_REPLIT_VM = !!(process.env.REPL_ID || process.env.REPLIT_DEPLOYMENT);
 const ALLOW_INSECURE_LOCAL_PTY = IS_REPLIT_VM || process.env.ALLOW_INSECURE_LOCAL_PTY === 'true';
-const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 
 interface PTYSession {
   ptyProcess: any;
@@ -28,6 +30,7 @@ interface PTYSession {
   rows: number;
   createdAt: number;
   lastActivity: number;
+  isNativePty: boolean;
 }
 
 class CircularBuffer {
@@ -51,20 +54,84 @@ class CircularBuffer {
 }
 
 let ptyModule: any = null;
+let ptyAvailable: boolean | null = null;
 
-async function getPty() {
-  if (!ptyModule) {
-    try {
-      ptyModule = await import('node-pty');
-    } catch (error) {
-      logger.error('[SocketIO Terminal] Failed to load node-pty:', error);
-      throw new Error('node-pty not available');
-    }
+async function getPty(): Promise<any | null> {
+  if (ptyAvailable === false) return null;
+  if (ptyModule) return ptyModule;
+  try {
+    ptyModule = await import('node-pty');
+    ptyAvailable = true;
+    logger.info('[SocketIO Terminal] node-pty loaded successfully');
+    return ptyModule;
+  } catch (error) {
+    ptyAvailable = false;
+    logger.info('[SocketIO Terminal] node-pty not available — using child_process fallback');
+    return null;
   }
-  return ptyModule;
 }
 
-const PROJECT_SYNC_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+class ChildProcessPtyWrapper {
+  private proc: ChildProcess;
+  private _onDataCallbacks: Array<(data: string) => void> = [];
+  private _onExitCallbacks: Array<(info: { exitCode: number; signal: number }) => void> = [];
+
+  constructor(shell: string, args: string[], options: { cwd: string; env: Record<string, string>; cols?: number; rows?: number }) {
+    this.proc = spawn(shell, args, {
+      cwd: options.cwd,
+      env: { ...options.env, COLUMNS: String(options.cols || 80), LINES: String(options.rows || 24) },
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    this.proc.stdout?.on('data', (data: Buffer) => {
+      const str = data.toString();
+      this._onDataCallbacks.forEach(cb => cb(str));
+    });
+
+    this.proc.stderr?.on('data', (data: Buffer) => {
+      const str = data.toString();
+      this._onDataCallbacks.forEach(cb => cb(str));
+    });
+
+    this.proc.on('exit', (code, signal) => {
+      this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 0, signal: signal ? 1 : 0 }));
+    });
+
+    this.proc.on('error', (err) => {
+      logger.error('[SocketIO Terminal] Child process error:', err);
+      this._onExitCallbacks.forEach(cb => cb({ exitCode: 1, signal: 0 }));
+    });
+  }
+
+  write(data: string) {
+    try {
+      this.proc.stdin?.write(data);
+    } catch {}
+  }
+
+  resize(_cols: number, _rows: number) {
+  }
+
+  onData(callback: (data: string) => void) {
+    this._onDataCallbacks.push(callback);
+  }
+
+  onExit(callback: (info: { exitCode: number; signal: number }) => void) {
+    this._onExitCallbacks.push(callback);
+  }
+
+  kill() {
+    try {
+      this.proc.kill('SIGTERM');
+      setTimeout(() => {
+        try { this.proc.kill('SIGKILL'); } catch {}
+      }, 3000);
+    } catch {}
+  }
+}
+
+const PROJECT_SYNC_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export class SocketIOTerminalService {
   private io: SocketIOServer | null = null;
@@ -75,11 +142,9 @@ export class SocketIOTerminalService {
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   initialize(httpServer: HTTPServer) {
-    // In development, allow all origins for easier testing
-    // In production, use ALLOWED_ORIGINS or restrictive list
     const corsOrigin = IS_PRODUCTION 
       ? (process.env.ALLOWED_ORIGINS?.split(',') || ['https://e-code.ai'])
-      : true; // Allow all origins in development
+      : true;
 
     this.io = new SocketIOServer(httpServer, {
       path: '/socket.io/terminal',
@@ -88,7 +153,7 @@ export class SocketIOTerminalService {
         methods: ['GET', 'POST'],
         credentials: true
       },
-      transports: ['polling', 'websocket'], // Polling first for proxy compatibility
+      transports: ['polling', 'websocket'],
       pingTimeout: 60000,
       pingInterval: 25000,
       connectTimeout: 45000,
@@ -108,7 +173,6 @@ export class SocketIOTerminalService {
       { pathMatch: 'prefix', priority: 25 }
     );
 
-    // Start idle session cleanup
     this.cleanupInterval = setInterval(() => {
       this.cleanupIdleSessions();
     }, 60000);
@@ -132,22 +196,18 @@ export class SocketIOTerminalService {
 
     logger.info(`[SocketIO Terminal] New connection for project ${projectId}`);
 
-    // Session-based authentication via cookies
     let userId: string | null = null;
     const cookieHeader = socket.handshake.headers.cookie;
     
     if (cookieHeader) {
-      // Parse session from cookies
       const cookies = cookieParser.parse(cookieHeader);
       const sessionCookie = cookies['ecode.sid'] || cookies['connect.sid'];
       
       if (sessionCookie) {
-        // Extract session ID from signed cookie
         try {
           const sessionSecret = process.env.SESSION_SECRET || 'development-secret';
           let sessionId: string | null = null;
           
-          // Handle signed cookies (format: s:sessionId.signature)
           if (sessionCookie.startsWith('s:')) {
             const unsigned = signature.unsign(sessionCookie.slice(2), sessionSecret);
             if (unsigned !== false) {
@@ -158,7 +218,6 @@ export class SocketIOTerminalService {
           }
           
           if (sessionId) {
-            // Use global session store to look up user
             const sessionStore = (global as any).sessionStore;
             if (sessionStore) {
               await new Promise<void>((resolve) => {
@@ -178,7 +237,6 @@ export class SocketIOTerminalService {
       }
     }
 
-    // Require authentication in production
     if (IS_PRODUCTION && !userId) {
       socket.emit('error', { message: 'Authentication required. Please log in.' });
       socket.disconnect();
@@ -199,7 +257,6 @@ export class SocketIOTerminalService {
 
     socket.emit('connected', { message: 'Connected to terminal' });
 
-    // Session key scoped by project AND user to ensure isolation
     const sessionKey = `${projectId}:${userId}`;
     let session = this.sessions.get(sessionKey);
     
@@ -210,7 +267,7 @@ export class SocketIOTerminalService {
         return;
       }
 
-      logger.info(`[SocketIO Terminal] Creating new PTY session for ${sessionKey}`);
+      logger.info(`[SocketIO Terminal] Creating new session for ${sessionKey}`);
       const newSession = await this.createSession(projectId, userId!, sessionKey);
       if (!newSession) {
         socket.emit('error', { message: 'Failed to create terminal session' });
@@ -219,7 +276,7 @@ export class SocketIOTerminalService {
       }
       session = newSession;
       this.sessions.set(sessionKey, session);
-      logger.info(`[SocketIO Terminal] Session created for ${sessionKey}`);
+      logger.info(`[SocketIO Terminal] Session created for ${sessionKey} (native-pty: ${session.isNativePty})`);
     }
 
     session.clients.add(socket);
@@ -249,7 +306,6 @@ export class SocketIOTerminalService {
           session.cols = data.cols;
           session.rows = data.rows;
         } catch (error) {
-          console.error('[SocketIO Terminal] Resize error:', error);
         }
       }
     });
@@ -258,18 +314,15 @@ export class SocketIOTerminalService {
       logger.info(`[SocketIO Terminal] Client disconnected from ${sessionKey}`);
       if (session) {
         session.clients.delete(socket);
-        // Note: cleanup is now handled by the idle session cleanup interval
       }
     });
   }
 
   private async createSession(projectId: string, userId: string, sessionKey: string): Promise<PTYSession | null> {
     try {
-      const pty = await getPty();
-
       const workDir = await this.setupProjectDirectory(projectId);
 
-      logger.info(`[SocketIO Terminal] Spawning PTY for project ${projectId} in ${workDir}`);
+      logger.info(`[SocketIO Terminal] Spawning shell for project ${projectId} in ${workDir}`);
 
       const bashPath = process.platform !== 'win32' && fs.existsSync('/bin/bash') ? '/bin/bash' :
                        process.env.SHELL || '/bin/bash';
@@ -289,20 +342,40 @@ export class SocketIOTerminalService {
         PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       };
 
-      const resourceLimitedShell = process.platform === 'win32'
-        ? 'powershell.exe'
-        : bashPath;
-      const shellArgs = process.platform === 'win32'
-        ? []
-        : ['-c', `ulimit -v 524288 -n 256 -u 64 -t 3600 2>/dev/null; exec ${bashPath} -i`];
+      let ptyProcess: any;
+      let isNativePty = false;
 
-      const ptyProcess = pty.spawn(resourceLimitedShell, shellArgs, {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        cwd: workDir,
-        env: sandboxedEnv,
-      });
+      const pty = await getPty();
+      if (pty) {
+        const shellArgs = process.platform === 'win32'
+          ? []
+          : ['-c', `ulimit -v 524288 -n 256 -u 64 -t 3600 2>/dev/null; exec ${bashPath} -i`];
+
+        ptyProcess = pty.spawn(
+          process.platform === 'win32' ? 'powershell.exe' : bashPath,
+          shellArgs,
+          {
+            name: 'xterm-256color',
+            cols: 80,
+            rows: 24,
+            cwd: workDir,
+            env: sandboxedEnv,
+          }
+        );
+        isNativePty = true;
+      } else {
+        ptyProcess = new ChildProcessPtyWrapper(
+          bashPath,
+          ['--login', '-i'],
+          {
+            cwd: workDir,
+            env: sandboxedEnv,
+            cols: 80,
+            rows: 24,
+          }
+        );
+        isNativePty = false;
+      }
 
       const buffer = new CircularBuffer(10000);
       this.outputBuffers.set(sessionKey, buffer);
@@ -317,7 +390,8 @@ export class SocketIOTerminalService {
         cols: 80,
         rows: 24,
         createdAt: Date.now(),
-        lastActivity: Date.now()
+        lastActivity: Date.now(),
+        isNativePty,
       };
 
       ptyProcess.onData((data: string) => {
@@ -328,7 +402,7 @@ export class SocketIOTerminalService {
       });
 
       ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal: number }) => {
-        logger.info(`[SocketIO Terminal] PTY exited for ${sessionKey}: code=${exitCode}, signal=${signal}`);
+        logger.info(`[SocketIO Terminal] Shell exited for ${sessionKey}: code=${exitCode}, signal=${signal}`);
         for (const client of session.clients) {
           client.emit('exit', { code: exitCode, signal });
         }
@@ -348,7 +422,7 @@ export class SocketIOTerminalService {
       try {
         session.ptyProcess?.kill();
       } catch (e) {
-        logger.error('[SocketIO Terminal] Error killing PTY:', e);
+        logger.error('[SocketIO Terminal] Error killing shell:', e);
       }
       for (const client of session.clients) {
         client.disconnect();

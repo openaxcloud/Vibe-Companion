@@ -270,6 +270,8 @@ class CentralUpgradeDispatcher {
     const selfAuthPaths = [
       '/api/runtime/logs/ws',  // RuntimeLogsService handles its own session auth
       '/api/server/logs/ws',   // ServerLogsService handles its own session auth
+      '/shell',                // ShellRouter handles its own session auth
+      '/socket.io/terminal',   // SocketIOTerminalService handles its own cookie auth
     ];
     const publicPaths = [
       '/health', '/api/health',
@@ -279,7 +281,8 @@ class CentralUpgradeDispatcher {
     
     // Only validate auth for non-public paths with registered handlers
     // NOTE: Socket is already marked as handled above, so auth failures must explicitly destroy
-    if (!publicPaths.includes(effectivePath)) {
+    const isPublic = publicPaths.some(p => effectivePath === p || effectivePath.startsWith(p + '/'));
+    if (!isPublic) {
       const isAuthenticated = await this.validateWebSocketConnection(request);
       if (!isAuthenticated) {
         logger.warn('[Central Dispatcher] Unauthorized WebSocket connection attempt', {

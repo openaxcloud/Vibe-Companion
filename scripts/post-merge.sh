@@ -4,7 +4,8 @@ set -e
 npm install --legacy-peer-deps
 
 node -e "
-const { Pool } = require('pg');
+const pg = require('pg');
+const Pool = pg.Pool;
 const p = new Pool({connectionString: process.env.DATABASE_URL});
 (async () => {
   await p.query(\`

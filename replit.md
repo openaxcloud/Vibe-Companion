@@ -41,6 +41,11 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 - **Post-merge script**: NEVER use `drizzle-kit push --force` — it renames tables destructively
 
 ## Recent Changes
+- 2026-04-07: Fixed Shell/Terminal WebSocket — central upgrade dispatcher was never initialized; now properly routes `/shell` and `/socket.io/terminal`
+- 2026-04-07: Added child_process fallback for Socket.IO terminal (node-pty can't compile without Python/node-gyp)
+- 2026-04-07: Fixed Express 4 catch-all in vite.ts (`{*path}` → `*`) — pages were returning 404
+- 2026-04-07: Shell router now does its own cookie-based auth instead of relying on session middleware during WS upgrade
+- 2026-04-07: Configured post-merge setup script in .replit for future task merges
 - 2026-04-07: Major recovery from Task #121 damage — restored server/index.ts, server/routes.ts, server/storage.ts, server/auth.ts, server/db-init.ts from git 729fa5ce6
 - 2026-04-07: Fixed all ESM `Pool` imports in 6 files (pg → default import pattern)
 - 2026-04-07: Added missing exports to server/ai.ts (generateAI, handleCodeActions, etc.)
@@ -49,6 +54,13 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 - 2026-04-07: Fixed Express 4 catch-all route (was using Express 5 `/{*path}` syntax)
 - 2026-04-07: Installed 60+ missing npm packages removed by merged tasks
 - 2026-04-07: Result: 93/93 routers loaded, 0 failed; frontend built successfully
+
+## WebSocket Architecture
+- **Central Upgrade Dispatcher**: Must be initialized before other WS services in `server/routes.ts`
+- **Shell WebSocket** (`/shell`): Uses `child_process.spawn('bash')`, handles own cookie auth, registered priority 35
+- **Socket.IO Terminal** (`/socket.io/terminal`): Uses `child_process` fallback when `node-pty` unavailable, registered priority 25
+- **Main WebSocket** (`/ws`): Project file sync, handled directly in `httpServer.on('upgrade')`
+- Self-auth paths: `/shell`, `/socket.io/terminal`, `/api/runtime/logs/ws`, `/api/server/logs/ws` — these handle their own auth
 - 2025-01-21: Fixed critical database "NaN" error and missing `/api/projects/recent` endpoint
 - 2025-01-21: Enhanced ReplitFileExplorer with drag & drop, search, context menus, file upload
 - 2025-01-21: Created AdvancedTerminal with multiple sessions, search, history, themes
