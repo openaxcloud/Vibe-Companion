@@ -968,6 +968,14 @@ app.get("/api/git/status", (_req: Request, res: Response) => {
   res.json({ branch: "main", clean: true, files: [] });
 });
 
+app.get("/api/git/:projectId/status", (_req: Request, res: Response) => {
+  res.json({ branch: "main", clean: true, files: [], ahead: 0, behind: 0 });
+});
+
+app.get("/api/projects/:id/git/status", (_req: Request, res: Response) => {
+  res.json({ branch: "main", clean: true, files: [], ahead: 0, behind: 0 });
+});
+
 app.get("/api/autonomy/sessions", (_req: Request, res: Response) => {
   res.json({ sessions: [] });
 });
@@ -1152,6 +1160,17 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     app.put("/api/projects/:id/files/:fileId", async (req, res) => {
       try {
         const file = await storage.updateFile(req.params.fileId, req.body);
+        if (req.body.content !== undefined && file) {
+          const filePath = (file as any).path || (file as any).filename;
+          if (filePath) {
+            const projDir = path.join(process.cwd(), "projects", req.params.id);
+            const diskPath = path.resolve(projDir, filePath);
+            if (diskPath.startsWith(projDir)) {
+              fs.mkdirSync(path.dirname(diskPath), { recursive: true });
+              fs.writeFileSync(diskPath, req.body.content, "utf-8");
+            }
+          }
+        }
         res.json(file);
       } catch (e: any) {
         res.status(500).json({ message: e.message });
@@ -1162,6 +1181,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const body = req.body;
         const filename = body.filename || body.name || (body.path ? body.path.split("/").pop() : null);
+        const filePath = body.path || filename;
         if (!filename) return res.status(400).json({ message: "filename, name, or path is required" });
         const file = await storage.createFile({
           projectId: req.params.id,
@@ -1171,6 +1191,12 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           mimeType: body.mimeType ?? null,
           artifactId: body.artifactId ?? null,
         });
+        const projDir = path.join(process.cwd(), "projects", req.params.id);
+        const diskPath = path.resolve(projDir, filePath);
+        if (diskPath.startsWith(projDir)) {
+          fs.mkdirSync(path.dirname(diskPath), { recursive: true });
+          fs.writeFileSync(diskPath, body.content ?? "", "utf-8");
+        }
         res.json(file);
       } catch (e: any) {
         res.status(500).json({ message: e.message });
@@ -3109,6 +3135,26 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       res.json(deployment);
     });
 
+    app.post("/api/projects/:id/deploy", async (req, res) => {
+      const projectId = req.params.id;
+      const projDir = path.join(process.cwd(), "projects", projectId);
+      const hasFiles = fs.existsSync(projDir) && fs.readdirSync(projDir).length > 0;
+      if (!hasFiles) {
+        return res.status(400).json({ success: false, message: "No files to deploy. Generate code first." });
+      }
+      const deployId = crypto.randomUUID();
+      const host = req.headers.host || "localhost:5000";
+      const protocol = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+      const deployUrl = `${protocol}://${host}/api/preview/render/${projectId}`;
+      const deployment = {
+        id: deployId, projectId, url: deployUrl, previewUrl: `/api/preview/render/${projectId}`,
+        status: "deployed", deployedAt: new Date().toISOString(), environment: req.body.environment || "production",
+        version: `v1.${Date.now() % 1000}`, success: true,
+      };
+      deploymentStore.set(projectId, deployment);
+      res.json(deployment);
+    });
+
     app.post("/api/projects/:id/republish", async (req, res) => {
       const projectId = req.params.id;
       const host = req.headers.host || "localhost:5000";
@@ -3888,9 +3934,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         return res.status(400).json({ success: false, message: "projectId and prompt are required" });
       }
       try {
-        const protocol = req.protocol;
-        const host = req.headers.host;
-        const internalUrl = `${protocol}://${host}/api/agent/chat/stream`;
+        const internalUrl = `http://127.0.0.1:${process.env.PORT || 5000}/api/agent/chat/stream`;
         const response = await fetch(internalUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", cookie: req.headers.cookie || "" },
