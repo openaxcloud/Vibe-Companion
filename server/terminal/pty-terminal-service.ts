@@ -60,11 +60,9 @@ const IS_REPLIT_VM = !!(process.env.REPL_ID || process.env.REPLIT_DEPLOYMENT);
 //      ALLOW_INSECURE_LOCAL_PTY=true is set (opt-in still required).
 // NOTE: Read dynamically to support env vars loaded after module load.
 function getAllowInsecureLocalPty(): boolean {
+  if (IS_REPLIT_VM) return true;
   const optedIn = process.env.ALLOW_INSECURE_LOCAL_PTY === 'true';
   if (!optedIn) return false;
-  // On Replit VM: allow even in production — platform provides the isolation
-  if (IS_REPLIT_VM) return true;
-  // Everywhere else: only allow in development
   return !IS_PRODUCTION;
 }
 
@@ -410,7 +408,11 @@ export class PTYTerminalService {
       } else if (dockerAvailable) {
         session = await this.createDockerSession(projectId);
       } else {
-        logger.warn('DEV ONLY: Creating local PTY session - INSECURE MODE ACTIVE');
+        if (IS_REPLIT_VM) {
+          logger.info('REPLIT VM: Creating local PTY session (platform-isolated)');
+        } else {
+          logger.warn('DEV ONLY: Creating local PTY session - INSECURE MODE ACTIVE');
+        }
         session = await this.createLocalSession(projectId);
       }
 

@@ -128,7 +128,10 @@ export function ReplitMonacoEditor({
 
   const { toast } = useToast();
 
-  const { data: file, isLoading: fileLoading, error: fileError } = useQuery<EditorFile>({
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { data: file, isLoading: fileLoading, error: fileError, refetch: refetchFile } = useQuery<EditorFile>({
     queryKey: [`/api/projects/${projectId}/files/${fileId}`],
     enabled: !!fileId && !!projectId,
     retry: 2,
@@ -228,6 +231,54 @@ export function ReplitMonacoEditor({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave, onRunCode, onStopCode]);
+
+  useEffect(() => {
+    if (fileLoading && fileId) {
+      setLoadingTimedOut(false);
+      loadingTimeoutRef.current = setTimeout(() => {
+        setLoadingTimedOut(true);
+      }, 10000);
+    } else {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    };
+  }, [fileLoading, fileId]);
+
+  if (!fileId || !projectId) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[var(--ecode-editor-bg)]" data-testid="editor-no-file">
+        <div className="text-center">
+          <FileText className="h-12 w-12 mx-auto mb-3 text-[var(--ecode-text-secondary)] opacity-40" />
+          <p className="text-[var(--ecode-text-secondary)] text-[13px]">Select a file to edit</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fileLoading && loadingTimedOut) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[var(--ecode-editor-bg)]" data-testid="editor-load-timeout">
+        <div className="text-center">
+          <p className="text-[var(--ecode-text-secondary)] mb-3">Could not load editor</p>
+          <button
+            onClick={() => { setLoadingTimedOut(false); refetchFile(); }}
+            className="px-4 py-2 rounded-md bg-[var(--ecode-accent)] text-white text-[13px] hover:opacity-90"
+            data-testid="button-retry-editor"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (fileLoading) {
     return (

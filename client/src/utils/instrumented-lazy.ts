@@ -34,22 +34,23 @@ export function instrumentedLazy<T extends ComponentType<any>>(
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         const module = await factory();
+        if (!module || !module.default) {
+          throw new Error(`Module loaded but has no default export: ${path}`);
+        }
         if (attempt > 1) {
           console.log(`[LAZY] Successfully loaded module on attempt ${attempt}: ${path}`);
         }
-        // Clear reload flag on success
         sessionStorage.removeItem(RELOAD_KEY);
         return module;
       } catch (error) {
         lastError = error;
         
-        // Log the attempt failure
         if (attempt < MAX_RETRIES) {
+          const isEmptyError = error != null && typeof error === 'object' && !(error instanceof Error) && Object.keys(error).length === 0;
           console.warn(`[LAZY] Attempt ${attempt}/${MAX_RETRIES} failed for module: ${path}`, {
             errorMessage: error instanceof Error ? error.message : String(error),
-            isEmptyObject: typeof error === 'object' && Object.keys(error || {}).length === 0
+            isEmptyObject: isEmptyError
           });
-          // Exponential backoff: 200ms, 400ms, 600ms (faster than old 1s, 2s, 3s)
           await sleep(RETRY_DELAY * attempt);
         }
       }

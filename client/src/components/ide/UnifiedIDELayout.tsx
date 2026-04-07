@@ -1930,19 +1930,23 @@ function UnifiedIDELayout({
                   </TabsContent>
                   
                   <TabsContent value="actions" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Actions..." /></div>}>
-                      <AgentActionsPanel projectId={projectId} />
-                    </Suspense>
+                    <OptimizedErrorBoundary level="component">
+                      <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Actions..." /></div>}>
+                        <AgentActionsPanel projectId={projectId} />
+                      </Suspense>
+                    </OptimizedErrorBoundary>
                   </TabsContent>
                   
                   <TabsContent value="tools" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Tools..." /></div>}>
-                      <ToolsPanel
-                        availableTools={availableTools}
-                        onSelectTool={handleAddTool}
-                        activeTabs={tabs.map(t => t.id)}
-                      />
-                    </Suspense>
+                    <OptimizedErrorBoundary level="component">
+                      <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Tools..." /></div>}>
+                        <ToolsPanel
+                          availableTools={availableTools}
+                          onSelectTool={handleAddTool}
+                          activeTabs={tabs.map(t => t.id)}
+                        />
+                      </Suspense>
+                    </OptimizedErrorBoundary>
                   </TabsContent>
                   
                   <TabsContent value="deployment" className="flex-1 mt-0 overflow-hidden">

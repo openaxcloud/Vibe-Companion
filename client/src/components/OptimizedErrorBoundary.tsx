@@ -83,7 +83,10 @@ function classifyError(error: Error): ErrorClassification {
   if (
     message.includes('loading chunk') ||
     message.includes('dynamically imported module') ||
-    message.includes('failed to load')
+    message.includes('failed to load') ||
+    message.includes('loading module') ||
+    message.includes('empty error thrown while loading') ||
+    message.includes('module load failed')
   ) {
     return {
       category: 'chunk',
@@ -219,7 +222,8 @@ export class OptimizedErrorBoundary extends Component<Props, State> {
         break;
       case 'chunk':
         actions.push(
-          { label: 'Refresh Page', icon: RefreshCw, action: this.handleRefresh, testId: 'button-refresh' }
+          { label: 'Retry', icon: RefreshCw, action: this.handleReset, testId: 'button-retry' },
+          { label: 'Refresh Page', icon: RefreshCw, action: this.handleRefresh, variant: 'outline', testId: 'button-refresh' }
         );
         break;
       case 'render':

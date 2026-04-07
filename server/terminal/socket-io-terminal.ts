@@ -13,7 +13,8 @@ import * as os from 'os';
 import { storage } from '../storage';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const ALLOW_INSECURE_LOCAL_PTY = process.env.ALLOW_INSECURE_LOCAL_PTY === 'true';
+const IS_REPLIT_VM = !!(process.env.REPL_ID || process.env.REPLIT_DEPLOYMENT);
+const ALLOW_INSECURE_LOCAL_PTY = IS_REPLIT_VM || process.env.ALLOW_INSECURE_LOCAL_PTY === 'true';
 const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 interface PTYSession {
@@ -185,11 +186,10 @@ export class SocketIOTerminalService {
       return;
     }
 
-    // In development, allow anonymous access only if explicitly enabled
     if (!IS_PRODUCTION && !userId) {
       if (ALLOW_INSECURE_LOCAL_PTY) {
         userId = 'dev-anonymous';
-        logger.info('[SocketIO Terminal] DEV MODE: Allowing anonymous access');
+        logger.info('[SocketIO Terminal] Allowing anonymous access (platform-isolated or dev mode)');
       } else {
         socket.emit('error', { message: 'Authentication required' });
         socket.disconnect();

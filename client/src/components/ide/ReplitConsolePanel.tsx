@@ -108,6 +108,8 @@ export function ReplitConsolePanel({
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [connectingTooLong, setConnectingTooLong] = useState(false);
+  const connectingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: customWorkflows } = useQuery<Workflow[]>({
     queryKey: ['/api/workflows', projectId],
@@ -315,6 +317,27 @@ export function ReplitConsolePanel({
   }, [connectPreviewLogs]);
 
   useEffect(() => {
+    if (isRunning && !isConnected) {
+      setConnectingTooLong(false);
+      connectingTimerRef.current = setTimeout(() => {
+        setConnectingTooLong(true);
+      }, 10000);
+    } else {
+      setConnectingTooLong(false);
+      if (connectingTimerRef.current) {
+        clearTimeout(connectingTimerRef.current);
+        connectingTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (connectingTimerRef.current) {
+        clearTimeout(connectingTimerRef.current);
+        connectingTimerRef.current = null;
+      }
+    };
+  }, [isRunning, isConnected]);
+
+  useEffect(() => {
     if (isRunning && executionId) {
       setLatestRunStartIndex(logs.length);
       connect(executionId);
@@ -425,17 +448,24 @@ export function ReplitConsolePanel({
             </Badge>
           )}
           
-          {isRunning && !isConnected && (
+          {isRunning && !isConnected && !connectingTooLong && (
             <Badge variant="outline" className="h-5 text-[10px] gap-1 border-yellow-500/50 bg-yellow-500/10 text-yellow-600">
               <div className="w-1.5 h-1.5 rounded-full animate-pulse bg-yellow-500" />
               Runtime Connecting...
             </Badge>
           )}
           
-          {!isServerLogsConnected && userId && !isRunning && (
-            <Badge variant="outline" className="h-5 text-[10px] gap-1 border-yellow-500/50 bg-yellow-500/10 text-yellow-600">
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse bg-yellow-500" />
-              Connecting...
+          {isRunning && !isConnected && connectingTooLong && (
+            <Badge variant="outline" className="h-5 text-[10px] gap-1 border-muted-foreground/30 bg-muted/50 text-muted-foreground" data-testid="console-no-runtime-badge">
+              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
+              No process running
+            </Badge>
+          )}
+          
+          {!isServerLogsConnected && !isRunning && (
+            <Badge variant="outline" className="h-5 text-[10px] gap-1 border-muted-foreground/30 bg-muted/50 text-muted-foreground" data-testid="console-idle-badge">
+              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
+              Idle
             </Badge>
           )}
           
@@ -600,8 +630,11 @@ export function ReplitConsolePanel({
               ) : (
                 <>
                   <Terminal className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                  <p className="text-muted-foreground text-[13px] text-center mb-6">
-                    Results of your code will appear here when you run
+                  <p className="text-muted-foreground text-[13px] text-center mb-1" data-testid="console-no-process">
+                    No process running
+                  </p>
+                  <p className="text-muted-foreground/70 text-[11px] text-center mb-6">
+                    Click Run on a workflow below to start
                   </p>
                   
                   <div className="w-full max-w-sm space-y-4">
