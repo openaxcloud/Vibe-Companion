@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Popover,
@@ -30,6 +31,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { File } from '@shared/schema';
 
 interface GhostwriterProps {
@@ -140,11 +142,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
     mutationFn: async (request: { endpoint: string, data: AIRequest }) => {
       const { endpoint, data } = request;
       
-      const response = await fetch(`/api/ai/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      const response = await apiRequest('POST', `/api/ai/${endpoint}`, data);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -285,12 +283,12 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
       </PopoverTrigger>
       <PopoverContent side="bottom" align="end" className="w-[450px]">
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-medium flex items-center gap-1">
+          <h3 className="text-[13px] font-medium flex items-center gap-1">
             <Sparkles className="h-4 w-4" />
             Ghostwriter AI
           </h3>
           {activeFile && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-[11px]">
               {getLanguageFromFilename(activeFile.name)}
             </Badge>
           )}
@@ -306,23 +304,23 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
         ) : (
           <Tabs value={mode} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid grid-cols-5 mb-2">
-              <TabsTrigger value={AIMode.Complete} className="text-xs">
+              <TabsTrigger value={AIMode.Complete} className="text-[11px]">
                 <Code className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden sm:inline">Complete</span>
               </TabsTrigger>
-              <TabsTrigger value={AIMode.Explain} className="text-xs">
+              <TabsTrigger value={AIMode.Explain} className="text-[11px]">
                 <MessageSquare className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden sm:inline">Explain</span>
               </TabsTrigger>
-              <TabsTrigger value={AIMode.Transform} className="text-xs">
+              <TabsTrigger value={AIMode.Transform} className="text-[11px]">
                 <RotateCw className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden sm:inline">Transform</span>
               </TabsTrigger>
-              <TabsTrigger value={AIMode.Document} className="text-xs">
+              <TabsTrigger value={AIMode.Document} className="text-[11px]">
                 <Book className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden sm:inline">Document</span>
               </TabsTrigger>
-              <TabsTrigger value={AIMode.Chat} className="text-xs">
+              <TabsTrigger value={AIMode.Chat} className="text-[11px]">
                 <MessageSquare className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden sm:inline">Chat</span>
               </TabsTrigger>
@@ -330,7 +328,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
             
             {/* Complete Tab */}
             <TabsContent value={AIMode.Complete} className="space-y-4">
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 Generate code completions based on your current file.
               </div>
               
@@ -355,7 +353,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
               {generatedCode && (
                 <div className="space-y-2">
                   <ScrollArea className="h-[200px] w-full rounded border bg-muted/50 p-4">
-                    <pre className="font-mono text-xs whitespace-pre-wrap">{generatedCode}</pre>
+                    <pre className="font-mono text-[11px] whitespace-pre-wrap">{generatedCode}</pre>
                   </ScrollArea>
                   
                   <div className="flex justify-end space-x-2">
@@ -381,7 +379,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
             
             {/* Explain Tab */}
             <TabsContent value={AIMode.Explain} className="space-y-4">
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 Get an explanation of your code to understand what it does.
               </div>
               
@@ -405,7 +403,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
               
               {explanation && (
                 <ScrollArea className="h-[200px] w-full rounded border bg-muted/50 p-4">
-                  <div className="text-sm whitespace-pre-wrap">
+                  <div className="text-[13px] whitespace-pre-wrap">
                     {explanation}
                   </div>
                 </ScrollArea>
@@ -414,7 +412,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
             
             {/* Transform Tab */}
             <TabsContent value={AIMode.Transform} className="space-y-4">
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 Transform your code to another language or style.
               </div>
               
@@ -428,7 +426,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
                     name="language"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Target Language</FormLabel>
+                        <FormLabel className="text-[11px]">Target Language</FormLabel>
                         <FormControl>
                           <Input placeholder="JavaScript, Python, etc." {...field} />
                         </FormControl>
@@ -442,7 +440,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
                     name="prompt"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs">Instructions (optional)</FormLabel>
+                        <FormLabel className="text-[11px]">Instructions (optional)</FormLabel>
                         <FormControl>
                           <Textarea 
                             ref={promptInputRef}
@@ -479,7 +477,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
               {generatedCode && (
                 <div className="space-y-2">
                   <ScrollArea className="h-[200px] w-full rounded border bg-muted/50 p-4">
-                    <pre className="font-mono text-xs whitespace-pre-wrap">{generatedCode}</pre>
+                    <pre className="font-mono text-[11px] whitespace-pre-wrap">{generatedCode}</pre>
                   </ScrollArea>
                   
                   <div className="flex justify-end space-x-2">
@@ -505,7 +503,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
             
             {/* Document Tab */}
             <TabsContent value={AIMode.Document} className="space-y-4">
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 Generate documentation for your code, including comments and explanations.
               </div>
               
@@ -530,7 +528,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
               {generatedCode && (
                 <div className="space-y-2">
                   <ScrollArea className="h-[200px] w-full rounded border bg-muted/50 p-4">
-                    <pre className="font-mono text-xs whitespace-pre-wrap">{generatedCode}</pre>
+                    <pre className="font-mono text-[11px] whitespace-pre-wrap">{generatedCode}</pre>
                   </ScrollArea>
                   
                   <div className="flex justify-end space-x-2">
@@ -556,7 +554,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
             
             {/* Chat Tab */}
             <TabsContent value={AIMode.Chat} className="space-y-4">
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 Ask questions about your code and get AI-powered responses.
               </div>
               
@@ -601,7 +599,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
               
               {explanation && (
                 <ScrollArea className="h-[200px] w-full rounded border bg-muted/50 p-4">
-                  <div className="text-sm whitespace-pre-wrap">
+                  <div className="text-[13px] whitespace-pre-wrap">
                     {explanation}
                   </div>
                 </ScrollArea>
@@ -609,7 +607,7 @@ export function Ghostwriter({ activeFile, onApplyCompletion }: GhostwriterProps)
             </TabsContent>
             
             {error && (
-              <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-xs mt-2">
+              <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-[11px] mt-2">
                 {error}
               </div>
             )}

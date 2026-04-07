@@ -72,7 +72,7 @@ export const ContextMenu = ({
       {mode === 'menu' && (
         <div className="py-1">
           <button
-            className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-[13px] hover:bg-surface-hover-solid flex items-center gap-2"
             onClick={() => setMode('newFile')}
           >
             <File className="h-4 w-4" />
@@ -80,7 +80,7 @@ export const ContextMenu = ({
           </button>
           
           <button
-            className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-[13px] hover:bg-surface-hover-solid flex items-center gap-2"
             onClick={() => setMode('newFolder')}
           >
             <Folder className="h-4 w-4" />
@@ -92,7 +92,7 @@ export const ContextMenu = ({
               <div className="h-px bg-border my-1" />
               
               <button
-                className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center gap-2 text-red-500"
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-surface-hover-solid flex items-center gap-2 text-red-500"
                 onClick={onDelete}
               >
                 <Trash2 className="h-4 w-4" />
@@ -105,7 +105,7 @@ export const ContextMenu = ({
       
       {mode === 'newFile' && (
         <div className="p-3">
-          <h3 className="text-sm font-medium mb-2">New File</h3>
+          <h3 className="text-[13px] font-medium mb-2">New File</h3>
           <div className="flex flex-col gap-2">
             <Input
               placeholder="Filename"
@@ -139,7 +139,7 @@ export const ContextMenu = ({
       
       {mode === 'newFolder' && (
         <div className="p-3">
-          <h3 className="text-sm font-medium mb-2">New Folder</h3>
+          <h3 className="text-[13px] font-medium mb-2">New Folder</h3>
           <div className="flex flex-col gap-2">
             <Input
               placeholder="Folder name"

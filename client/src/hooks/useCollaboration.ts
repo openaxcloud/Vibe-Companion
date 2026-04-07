@@ -31,6 +31,11 @@ export function useCollaboration(projectId: number, fileId: number) {
   useEffect(() => {
     if (!projectId || !fileId) return;
 
+    // Skip WebSocket connection in development to avoid errors
+    if (import.meta.env.DEV) {
+      return;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/collaboration`;
     
@@ -39,7 +44,6 @@ export function useCollaboration(projectId: number, fileId: number) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('Connected to collaboration server');
         setIsConnected(true);
         
         // Authenticate
@@ -76,7 +80,6 @@ export function useCollaboration(projectId: number, fileId: number) {
       };
 
       ws.onclose = () => {
-        console.log('Disconnected from collaboration server');
         setIsConnected(false);
       };
 

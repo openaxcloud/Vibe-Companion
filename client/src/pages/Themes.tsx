@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,102 +11,102 @@ import {
   Star, Download, Upload, Code, Sparkles,
   Brush, Eye, Settings, ChevronRight
 } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+
+interface Theme {
+  id: string;
+  name: string;
+  description?: string;
+  preview: {
+    bg: string;
+    fg: string;
+    accent: string;
+  };
+  category?: string;
+  rating?: number;
+  downloads?: number;
+}
+
+interface ThemeSettings {
+  activeEditorTheme: string;
+  systemTheme: string;
+  editor?: any;
+  ui?: any;
+  includes?: string[];
+  customSettings?: {
+    fontSize: string;
+    lineHeight: string;
+    tabSize: string;
+    wordWrap: string;
+  };
+}
+
+interface ThemesResponse {
+  editor: Theme[];
+  ui: Theme[];
+  includes: string[];
+}
 
 export default function Themes() {
   const { toast } = useToast();
   const [selectedTheme, setSelectedTheme] = useState('dark-pro');
   const [systemTheme, setSystemTheme] = useState('dark');
+  const [themeSettings, setThemeSettings] = useState<ThemeSettings | null>(null);
 
-  const themes = {
-    editor: [
-      {
-        id: 'dark-pro',
-        name: 'Dark Pro',
-        description: 'Professional dark theme with high contrast',
-        preview: { bg: '#1e1e1e', fg: '#d4d4d4', accent: '#007acc' },
-        downloads: 124500,
-        rating: 4.9,
-        author: 'E-Code Team',
-        official: true
-      },
-      {
-        id: 'light-minimal',
-        name: 'Light Minimal',
-        description: 'Clean and minimal light theme',
-        preview: { bg: '#ffffff', fg: '#333333', accent: '#0066cc' },
-        downloads: 89230,
-        rating: 4.7,
-        author: 'E-Code Team',
-        official: true
-      },
-      {
-        id: 'monokai',
-        name: 'Monokai',
-        description: 'Classic Monokai color scheme',
-        preview: { bg: '#272822', fg: '#f8f8f2', accent: '#66d9ef' },
-        downloads: 67890,
-        rating: 4.8,
-        author: 'Community',
-        official: false
-      },
-      {
-        id: 'dracula',
-        name: 'Dracula',
-        description: 'Dark theme with vibrant colors',
-        preview: { bg: '#282a36', fg: '#f8f8f2', accent: '#bd93f9' },
-        downloads: 56789,
-        rating: 4.9,
-        author: 'Community',
-        official: false
-      },
-      {
-        id: 'solarized-dark',
-        name: 'Solarized Dark',
-        description: 'Precision colors for machines and people',
-        preview: { bg: '#002b36', fg: '#839496', accent: '#268bd2' },
-        downloads: 45678,
-        rating: 4.6,
-        author: 'Community',
-        official: false
-      },
-      {
-        id: 'nord',
-        name: 'Nord',
-        description: 'Arctic, north-bluish color palette',
-        preview: { bg: '#2e3440', fg: '#d8dee9', accent: '#88c0d0' },
-        downloads: 34567,
-        rating: 4.7,
-        author: 'Community',
-        official: false
-      }
-    ],
-    ui: [
-      {
-        id: 'default',
-        name: 'Default',
-        description: 'E-Code default UI theme',
-        preview: { primary: '#0079f2', bg: '#0e1525', surface: '#1c2333' }
-      },
-      {
-        id: 'midnight',
-        name: 'Midnight',
-        description: 'Deep dark theme for night owls',
-        preview: { primary: '#6366f1', bg: '#0f0f23', surface: '#1a1a2e' }
-      },
-      {
-        id: 'forest',
-        name: 'Forest',
-        description: 'Nature-inspired green theme',
-        preview: { primary: '#10b981', bg: '#064e3b', surface: '#065f46' }
-      },
-      {
-        id: 'sunset',
-        name: 'Sunset',
-        description: 'Warm orange and purple tones',
-        preview: { primary: '#f59e0b', bg: '#451a03', surface: '#78350f' }
-      }
-    ]
-  };
+  // Fetch available themes
+  const { data: themes, isLoading: themesLoading } = useQuery<ThemesResponse>({
+    queryKey: ['/api/themes']
+  });
+  
+  // Fetch user theme settings
+  const { data: userSettings } = useQuery<ThemeSettings>({
+    queryKey: ['/api/themes/settings']
+  });
+  
+  // Fetch installed themes
+  const { data: installedThemes } = useQuery<Theme[]>({
+    queryKey: ['/api/themes/installed']
+  });
+  
+  // Update theme settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (settings: ThemeSettings) => {
+      const response = await apiRequest('PUT', '/api/themes/settings', settings);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/themes/settings'] });
+      toast({
+        title: "Settings saved",
+        description: "Your theme settings have been updated"
+      });
+    }
+  });
+  
+  // Install theme mutation
+  const installThemeMutation = useMutation({
+    mutationFn: async (themeId: string) => {
+      const response = await apiRequest('POST', '/api/themes/install', { themeId });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/themes/installed'] });
+      toast({
+        title: "Theme installed",
+        description: "The theme has been added to your collection"
+      });
+    }
+  });
+  
+  // Initialize theme settings from user data
+  useEffect(() => {
+    if (userSettings) {
+      setSelectedTheme(userSettings.activeEditorTheme || 'dark-pro');
+      setSystemTheme(userSettings.systemTheme || 'dark');
+      setThemeSettings(userSettings);
+    }
+  }, [userSettings]);
 
   const customThemeSettings = [
     { id: 'font-size', label: 'Font Size', value: '14px' },
@@ -115,53 +115,159 @@ export default function Themes() {
     { id: 'word-wrap', label: 'Word Wrap', value: 'on' }
   ];
 
-  const handleThemeChange = (themeId: string) => {
+  const handleThemeChange = async (themeId: string) => {
     setSelectedTheme(themeId);
+    
+    // Update theme settings on the server
+    const updatedSettings: ThemeSettings = {
+      ...(themeSettings || {}),
+      activeEditorTheme: themeId,
+      systemTheme: themeSettings?.systemTheme || systemTheme || 'dark'
+    };
+    
+    updateSettingsMutation.mutate(updatedSettings);
+    
+    const themeName = themes?.editor?.find((t: any) => t.id === themeId)?.name || themeId;
     toast({
       title: "Theme applied",
-      description: `Successfully switched to ${themes.editor.find(t => t.id === themeId)?.name} theme`
+      description: `Successfully switched to ${themeName} theme`
     });
   };
 
-  const handleCreateTheme = () => {
-    toast({
-      title: "Theme editor opened",
-      description: "Customize your theme in the editor panel"
-    });
+  const handleCreateTheme = async () => {
+    // Create custom theme API call
+    const customTheme = {
+      name: 'My Custom Theme',
+      description: 'A personalized theme',
+      preview: { bg: '#1e1e1e', fg: '#d4d4d4', accent: '#007acc' }
+    };
+    
+    try {
+      const response = await apiRequest('POST', '/api/themes/create', customTheme);
+      await response.json();
+      
+      toast({
+        title: "Theme created",
+        description: "Your custom theme has been created"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create theme",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleExportTheme = () => {
-    toast({
-      title: "Theme exported",
-      description: "Your theme settings have been downloaded"
-    });
+  const handleExportTheme = async () => {
+    try {
+      const response = await fetch('/api/themes/export', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ecode-theme-settings.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        toast({
+          title: "Theme exported",
+          description: "Your theme settings have been downloaded"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export theme",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleImportTheme = () => {
-    toast({
-      title: "Import theme",
-      description: "Select a theme file to import"
-    });
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const settings = JSON.parse(event.target?.result as string);
+            const response = await apiRequest('POST', '/api/themes/import', { settings });
+            await response.json();
+            
+            queryClient.invalidateQueries({ queryKey: ['/api/themes/settings'] });
+            
+            toast({
+              title: "Theme imported",
+              description: "Your theme settings have been imported successfully"
+            });
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: "Failed to import theme file",
+              variant: "destructive"
+            });
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
   };
+  
+  const handleSaveSettings = () => {
+    const settingsToSave: ThemeSettings = {
+      ...(themeSettings || {}),
+      activeEditorTheme: themeSettings?.activeEditorTheme || selectedTheme || 'dark-pro',
+      systemTheme: systemTheme,
+      customSettings: {
+        fontSize: (document.getElementById('font-size') as HTMLInputElement)?.value || '14px',
+        lineHeight: (document.getElementById('line-height') as HTMLInputElement)?.value || '1.5',
+        tabSize: (document.getElementById('tab-size') as HTMLInputElement)?.value || '2',
+        wordWrap: (document.getElementById('word-wrap') as HTMLInputElement)?.value || 'on'
+      }
+    };
+    updateSettingsMutation.mutate(settingsToSave);
+  };
+  
+  if (themesLoading) {
+    return (
+      <div className="container mx-auto max-w-6xl py-8 px-6">
+        <div className="text-center">Loading themes...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto max-w-6xl py-8 px-4">
+    <div className="container mx-auto max-w-6xl py-8 px-6" data-testid="page-themes">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Palette className="h-8 w-8 text-primary" />
+        <h1 className="text-3xl font-semibold flex items-center gap-3 text-[var(--ecode-text)]" data-testid="heading-themes">
+          <Palette className="h-8 w-8 text-purple-500" />
           Themes
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-[var(--ecode-text-secondary)] mt-2 text-base">
           Customize your coding environment with beautiful themes
         </p>
       </div>
 
-      <Tabs defaultValue="browse" className="space-y-4">
+      <Tabs defaultValue="browse" className="space-y-4" data-testid="tabs-themes">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="browse">Browse Themes</TabsTrigger>
-          <TabsTrigger value="installed">Installed</TabsTrigger>
-          <TabsTrigger value="create">Create Theme</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="browse" data-testid="tab-browse">Browse Themes</TabsTrigger>
+          <TabsTrigger value="installed" data-testid="tab-installed">Installed</TabsTrigger>
+          <TabsTrigger value="create" data-testid="tab-create">Create Theme</TabsTrigger>
+          <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
         </TabsList>
 
         {/* Browse Themes Tab */}
@@ -176,13 +282,14 @@ export default function Themes() {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
-                {themes.editor.map((theme) => (
+                {themes?.editor?.map((theme: any) => (
                   <Card 
                     key={theme.id} 
                     className={`cursor-pointer transition-all ${
                       selectedTheme === theme.id ? 'ring-2 ring-primary' : ''
                     }`}
                     onClick={() => handleThemeChange(theme.id)}
+                    data-testid={`card-theme-${theme.id}`}
                   >
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between mb-3">
@@ -196,7 +303,7 @@ export default function Themes() {
                               </Badge>
                             )}
                           </h3>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-[13px] text-muted-foreground">
                             by {theme.author}
                           </p>
                         </div>
@@ -207,7 +314,7 @@ export default function Themes() {
                       
                       {/* Theme Preview */}
                       <div 
-                        className="rounded-md p-3 mb-3 font-mono text-xs"
+                        className="rounded-md p-3 mb-3 font-mono text-[11px]"
                         style={{ 
                           backgroundColor: theme.preview.bg,
                           color: theme.preview.fg 
@@ -218,11 +325,11 @@ export default function Themes() {
                         <div>{'}'}</div>
                       </div>
                       
-                      <p className="text-sm text-muted-foreground mb-3">
+                      <p className="text-[13px] text-muted-foreground mb-3">
                         {theme.description}
                       </p>
                       
-                      <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center justify-between text-[13px]">
                         <div className="flex items-center gap-3 text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Download className="h-3 w-3" />
@@ -233,9 +340,25 @@ export default function Themes() {
                             {theme.rating}
                           </span>
                         </div>
-                        <Button size="sm" variant="outline">
-                          Preview
-                        </Button>
+                        <div className="flex gap-2">
+                          {!installedThemes?.includes(theme.id) && (
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                installThemeMutation.mutate(theme.id);
+                              }}
+                              disabled={installThemeMutation.isPending}
+                              data-testid={`button-install-theme-${theme.id}`}
+                            >
+                              Install
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" data-testid={`button-preview-theme-${theme.id}`}>
+                            Preview
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -254,11 +377,11 @@ export default function Themes() {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
-                {themes.ui.map((theme) => (
+                {themes?.ui?.map((theme: any) => (
                   <Card key={theme.id} className="cursor-pointer">
                     <CardContent className="pt-6">
                       <h3 className="font-semibold mb-2">{theme.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-3">
+                      <p className="text-[13px] text-muted-foreground mb-3">
                         {theme.description}
                       </p>
                       
@@ -278,7 +401,7 @@ export default function Themes() {
                         />
                       </div>
                       
-                      <Button size="sm" className="w-full">
+                      <Button size="sm" className="w-full" data-testid={`button-apply-ui-theme-${theme.id}`}>
                         Apply Theme
                       </Button>
                     </CardContent>
@@ -300,7 +423,7 @@ export default function Themes() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {themes.editor.filter(t => ['dark-pro', 'light-minimal'].includes(t.id)).map((theme) => (
+                {themes?.editor?.filter((t: any) => installedThemes?.includes(t.id)).map((theme: any) => (
                   <div key={theme.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-4">
                       <div className="flex gap-1">
@@ -320,7 +443,7 @@ export default function Themes() {
                             <Badge variant="secondary">Active</Badge>
                           )}
                         </p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-[13px] text-muted-foreground">
                           {theme.description}
                         </p>
                       </div>
@@ -344,11 +467,11 @@ export default function Themes() {
               </div>
               
               <div className="flex gap-2 mt-6">
-                <Button variant="outline" onClick={handleImportTheme}>
+                <Button variant="outline" onClick={handleImportTheme} data-testid="button-import-theme">
                   <Upload className="mr-2 h-4 w-4" />
                   Import Theme
                 </Button>
-                <Button variant="outline" onClick={handleExportTheme}>
+                <Button variant="outline" onClick={handleExportTheme} data-testid="button-export-theme">
                   <Download className="mr-2 h-4 w-4" />
                   Export Current
                 </Button>
@@ -369,12 +492,12 @@ export default function Themes() {
             <CardContent>
               <div className="text-center py-12">
                 <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Theme Creator</h3>
-                <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                <h3 className="text-[15px] font-semibold mb-2">Theme Creator</h3>
+                <p className="text-[13px] text-muted-foreground mb-6 max-w-md mx-auto">
                   Create beautiful, personalized themes with our visual theme editor. 
                   Customize colors, fonts, and more.
                 </p>
-                <Button onClick={handleCreateTheme}>
+                <Button onClick={handleCreateTheme} data-testid="button-create-theme">
                   <Brush className="mr-2 h-4 w-4" />
                   Open Theme Creator
                 </Button>
@@ -402,7 +525,7 @@ export default function Themes() {
                         {template.icon}
                         <span className="font-medium">{template.name}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[11px] text-muted-foreground">
                         {template.description}
                       </p>
                     </div>
@@ -426,23 +549,23 @@ export default function Themes() {
               {/* System Theme */}
               <div className="space-y-3">
                 <Label>System Theme</Label>
-                <RadioGroup value={systemTheme} onValueChange={setSystemTheme}>
+                <RadioGroup value={systemTheme} onValueChange={setSystemTheme} data-testid="radiogroup-system-theme">
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="light" id="light" />
+                    <RadioGroupItem value="light" id="light" data-testid="radio-light" />
                     <Label htmlFor="light" className="flex items-center gap-2 cursor-pointer">
                       <Sun className="h-4 w-4" />
                       Light
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="dark" id="dark" />
+                    <RadioGroupItem value="dark" id="dark" data-testid="radio-dark" />
                     <Label htmlFor="dark" className="flex items-center gap-2 cursor-pointer">
                       <Moon className="h-4 w-4" />
                       Dark
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="auto" id="auto" />
+                    <RadioGroupItem value="auto" id="auto" data-testid="radio-auto" />
                     <Label htmlFor="auto" className="flex items-center gap-2 cursor-pointer">
                       <Monitor className="h-4 w-4" />
                       Auto (follow system)
@@ -462,7 +585,7 @@ export default function Themes() {
                         id={setting.id}
                         type="text"
                         defaultValue={setting.value}
-                        className="w-24 px-2 py-1 text-sm rounded border bg-background"
+                        className="w-24 px-2 py-1 text-[13px] rounded border bg-background"
                       />
                     </div>
                   ))}
@@ -475,20 +598,20 @@ export default function Themes() {
                 <div className="space-y-2">
                   <label className="flex items-center gap-2">
                     <input type="checkbox" className="rounded" defaultChecked />
-                    <span className="text-sm">Sync theme across devices</span>
+                    <span className="text-[13px]">Sync theme across devices</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input type="checkbox" className="rounded" defaultChecked />
-                    <span className="text-sm">Enable theme animations</span>
+                    <span className="text-[13px]">Enable theme animations</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input type="checkbox" className="rounded" />
-                    <span className="text-sm">Use high contrast mode</span>
+                    <span className="text-[13px]">Use high contrast mode</span>
                   </label>
                 </div>
               </div>
 
-              <Button className="w-full">
+              <Button className="w-full" onClick={handleSaveSettings}>
                 Save Settings
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>

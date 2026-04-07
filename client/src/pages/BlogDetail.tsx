@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ECodeLoading } from "@/components/ECodeLoading";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ReplitLayout } from "@/components/layout/ReplitLayout";
+import { ReplitLayout, ReplitLayoutLoading } from "@/components/layout/ReplitLayout";
 
 export default function BlogDetail() {
   const params = useParams() as { slug: string };
@@ -26,13 +26,7 @@ export default function BlogDetail() {
   });
 
   if (isLoading) {
-    return (
-      <ReplitLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <ECodeLoading size="lg" />
-        </div>
-      </ReplitLayout>
-    );
+    return <ReplitLayoutLoading text="Loading post..." size="lg" />;
   }
 
   if (error || !post) {
@@ -54,14 +48,15 @@ export default function BlogDetail() {
 
   return (
     <ReplitLayout>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background" data-testid="page-blog-detail">
         {/* Header */}
         <div className="border-b">
           <div className="container max-w-4xl mx-auto px-4 py-4">
             <Button
               variant="ghost"
               onClick={() => setLocation("/blog")}
-              className="mb-4"
+              className="mb-4 min-h-[44px]"
+              data-testid="button-blog-back"
             >
               <ChevronLeft className="h-4 w-4 mr-2" />
               Back to Blog
@@ -85,17 +80,17 @@ export default function BlogDetail() {
           {/* Title and Meta */}
           <div className="mb-8">
             <Badge variant="secondary" className="mb-4">
-              {post.category.charAt(0).toUpperCase() + post.category.slice(1)}
+              {(post.category || "Post").charAt(0).toUpperCase() + (post.category || "Post").slice(1)}
             </Badge>
             
             <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
             
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 text-[13px] text-muted-foreground">
               <div className="flex items-center gap-1">
                 <User className="h-4 w-4" />
                 <span>{post.author}</span>
                 {post.authorRole && (
-                  <span className="text-xs">• {post.authorRole}</span>
+                  <span className="text-[11px]">• {post.authorRole}</span>
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -145,14 +140,14 @@ export default function BlogDetail() {
           <Card className="p-6 mb-8">
             <div className="flex items-start gap-4">
               <div className="h-16 w-16 rounded-full bg-gradient-to-br from-ecode-orange to-orange-600 flex items-center justify-center text-white font-bold text-xl">
-                {post.author.charAt(0)}
+                {(post.author || "A").charAt(0)}
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg">{post.author}</h3>
+                <h3 className="font-semibold text-[15px]">{post.author}</h3>
                 {post.authorRole && (
-                  <p className="text-sm text-muted-foreground mb-2">{post.authorRole}</p>
+                  <p className="text-[13px] text-muted-foreground mb-2">{post.authorRole}</p>
                 )}
-                <p className="text-sm text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   Passionate about building great developer experiences and sharing knowledge with the community.
                 </p>
               </div>
@@ -179,10 +174,10 @@ export default function BlogDetail() {
                     )}
                     <div className="p-4">
                       <h3 className="font-semibold mb-2 line-clamp-2">{relatedPost.title}</h3>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
+                      <p className="text-[13px] text-muted-foreground line-clamp-2">
                         {relatedPost.excerpt}
                       </p>
-                      <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2 mt-3 text-[11px] text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         <span>{relatedPost.readTime} min</span>
                       </div>

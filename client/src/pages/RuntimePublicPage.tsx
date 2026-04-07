@@ -65,7 +65,7 @@ export default function RuntimePublicPage() {
   return (
     <div className="container py-6">
       <h1 className="text-3xl font-bold mb-4">Language Runtime Support</h1>
-      <p className="text-lg text-muted-foreground mb-6">
+      <p className="text-[15px] text-muted-foreground mb-6">
         Test and explore available runtime environments and configurations
       </p>
       
@@ -142,8 +142,8 @@ export default function RuntimePublicPage() {
                   {selectedLanguage && (
                     <div className="space-y-4">
                       <div>
-                        <h3 className="text-sm font-medium">Runtime Setup</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <h3 className="text-[13px] font-medium">Runtime Setup</h3>
+                        <p className="text-[13px] text-muted-foreground mt-1">
                           {dockerAvailable ? 
                             `Using Docker with official ${selectedLanguage} images` : 
                             nixAvailable ? 
@@ -154,8 +154,8 @@ export default function RuntimePublicPage() {
                       </div>
                       
                       <div>
-                        <h3 className="text-sm font-medium">Environment Info</h3>
-                        <table className="w-full text-sm mt-1">
+                        <h3 className="text-[13px] font-medium">Environment Info</h3>
+                        <table className="w-full text-[13px] mt-1">
                           <tbody>
                             <tr>
                               <td className="py-1 font-medium">Default File</td>
@@ -165,7 +165,7 @@ export default function RuntimePublicPage() {
                             </tr>
                             <tr>
                               <td className="py-1 font-medium">Run Command</td>
-                              <td className="py-1 text-muted-foreground font-mono text-xs">
+                              <td className="py-1 text-muted-foreground font-mono text-[11px]">
                                 {languageConfigs[selectedLanguage]?.runCommand || 'node index.js'}
                               </td>
                             </tr>
@@ -178,7 +178,7 @@ export default function RuntimePublicPage() {
                             {languageConfigs[selectedLanguage]?.installCommand && (
                               <tr>
                                 <td className="py-1 font-medium">Install Command</td>
-                                <td className="py-1 text-muted-foreground font-mono text-xs">
+                                <td className="py-1 text-muted-foreground font-mono text-[11px]">
                                   {languageConfigs[selectedLanguage]?.installCommand}
                                 </td>
                               </tr>
@@ -188,8 +188,8 @@ export default function RuntimePublicPage() {
                       </div>
                       
                       <div>
-                        <h3 className="text-sm font-medium">Packages & Dependencies</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <h3 className="text-[13px] font-medium">Packages & Dependencies</h3>
+                        <p className="text-[13px] text-muted-foreground mt-1">
                           {selectedLanguage === 'nodejs' || selectedLanguage === 'typescript' ? 
                             'Manages dependencies via package.json and npm' : 
                             selectedLanguage === 'python' ? 
@@ -218,24 +218,24 @@ export default function RuntimePublicPage() {
                 <CardContent className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="flex flex-col space-y-2">
-                      <span className="text-sm font-medium">Docker Status</span>
+                      <span className="text-[13px] font-medium">Docker Status</span>
                       <div className="flex items-center gap-2">
                         <span className={`h-3 w-3 rounded-full ${dockerAvailable ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className="text-sm text-muted-foreground">{dockerAvailable ? 'Available' : 'Not Available'}</span>
+                        <span className="text-[13px] text-muted-foreground">{dockerAvailable ? 'Available' : 'Not Available'}</span>
                       </div>
                     </div>
                     
                     <div className="flex flex-col space-y-2">
-                      <span className="text-sm font-medium">Nix Status</span>
+                      <span className="text-[13px] font-medium">Nix Status</span>
                       <div className="flex items-center gap-2">
                         <span className={`h-3 w-3 rounded-full ${nixAvailable ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className="text-sm text-muted-foreground">{nixAvailable ? 'Available' : 'Not Available'}</span>
+                        <span className="text-[13px] text-muted-foreground">{nixAvailable ? 'Available' : 'Not Available'}</span>
                       </div>
                     </div>
                   </div>
                   
                   <div className="space-y-2">
-                    <span className="text-sm font-medium">Runtime Support</span>
+                    <span className="text-[13px] font-medium">Runtime Support</span>
                     <div className="rounded-md border p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -246,12 +246,12 @@ export default function RuntimePublicPage() {
                           {deps.languages && deps.languages[selectedLanguage] ? (
                             <div className="flex items-center gap-2">
                               <span className="h-3 w-3 rounded-full bg-green-500"></span>
-                              <span className="text-sm text-green-600">Ready</span>
+                              <span className="text-[13px] text-green-600">Ready</span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
                               <span className="h-3 w-3 rounded-full bg-amber-500"></span>
-                              <span className="text-sm text-amber-600">Not Initialized</span>
+                              <span className="text-[13px] text-amber-600">Not Initialized</span>
                             </div>
                           )}
                         </div>
@@ -260,7 +260,7 @@ export default function RuntimePublicPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <span className="text-sm font-medium">Actions</span>
+                    <span className="text-[13px] font-medium">Actions</span>
                     <div className="flex gap-2">
                       <Button disabled={!dockerAvailable && !nixAvailable} size="sm">
                         <Server className="h-4 w-4 mr-2" />
@@ -286,7 +286,7 @@ export default function RuntimePublicPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-md bg-muted p-4">
-                    <pre className="text-xs overflow-auto max-h-[60vh]">
+                    <pre className="text-[11px] overflow-auto max-h-[60vh]">
                       {isLoadingDependencies ? 'Loading...' : rawDependenciesData || 'No data available'}
                     </pre>
                   </div>

@@ -9,7 +9,6 @@ import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { AI_MODELS, type AIModel as AIModelType } from "./ai/models-catalog.js";
-import { registerRoutes } from "./routes.js";
 
 const conversationMessages = new Map<string, Array<{id: number, conversationId: number, role: string, content: string, timestamp: string}>>();
 
@@ -195,7 +194,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production" || !!process.env.REPL_ID,
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: process.env.NODE_ENV === "production" || !!process.env.REPL_ID ? "none" as const : "lax" as const,
     },
   })
@@ -229,11 +228,11 @@ app.get("/api/ready", async (_req, res) => {
 });
 
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook" || req.path.startsWith("/deployed/") || req.path === "/api/files/upload") {
+  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook" || req.path.startsWith("/deployed/")) {
     return next();
   }
   express.json({
-    limit: "5mb",
+    limit: "50mb",
     verify: (r: any, _res, buf) => {
       r.rawBody = buf;
     },
@@ -1015,7 +1014,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
 (async () => {
   try {
-    await registerRoutes(app);
+    await registerRoutes(httpServer, app);
     log("Full routes loaded successfully");
   } catch (err: any) {
     log(`Full routes failed to load: ${err.message}. Loading minimal routes...`, "warn");
@@ -2509,7 +2508,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       }
     });
 
-    app.post("/api/files/upload", express.json({ limit: "50mb" }), (req, res) => {
+    app.post("/api/files/upload", (req, res) => {
       res.json({ success: true, file: { id: crypto.randomUUID(), name: "uploaded", size: 0 } });
     });
 

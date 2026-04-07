@@ -8,6 +8,7 @@ import { UserX, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { PublicFooter } from '@/components/layout/PublicFooter';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function NewsletterUnsubscribe() {
   const [, navigate] = useLocation();
@@ -29,29 +30,13 @@ export default function NewsletterUnsubscribe() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/newsletter/unsubscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+      const data = await apiRequest('POST', '/api/newsletter/unsubscribe', { email });
+      
+      toast({
+        title: "Unsubscribed",
+        description: "You've been successfully unsubscribed from our newsletter.",
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Unsubscribed",
-          description: "You've been successfully unsubscribed from our newsletter.",
-        });
-        setTimeout(() => navigate('/'), 2000);
-      } else {
-        toast({
-          title: "Error",
-          description: data.message || 'Failed to unsubscribe',
-          variant: "destructive",
-        });
-      }
+      setTimeout(() => navigate('/'), 2000);
     } catch (error) {
       toast({
         title: "Error",
@@ -91,6 +76,7 @@ export default function NewsletterUnsubscribe() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     className="mt-1"
+                    data-testid="input-unsubscribe-email"
                   />
                 </div>
                 
@@ -99,6 +85,7 @@ export default function NewsletterUnsubscribe() {
                   className="w-full" 
                   variant="destructive"
                   disabled={isSubmitting}
+                  data-testid="button-unsubscribe"
                 >
                   {isSubmitting ? 'Processing...' : 'Unsubscribe'}
                 </Button>
@@ -108,6 +95,7 @@ export default function NewsletterUnsubscribe() {
                   variant="outline"
                   className="w-full"
                   onClick={() => navigate('/')}
+                  data-testid="button-back-home"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Homepage
@@ -115,7 +103,7 @@ export default function NewsletterUnsubscribe() {
               </form>
 
               <div className="mt-6 pt-6 border-t text-center">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   Changed your mind? You can always resubscribe from our homepage or blog.
                 </p>
               </div>

@@ -62,8 +62,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface FileNode {
   id: number;
@@ -112,23 +113,17 @@ export function ReplitFileExplorer({
 
   // Récupération de l'arbre de fichiers
   const { data: fileTree = [], isLoading, refetch } = useQuery<FileNode[]>({
-    queryKey: ["/api/projects", projectId, "files"],
+    queryKey: [`/api/projects/${projectId}/files`],
     staleTime: 30000, // 30 secondes
   });
 
   // Mutations pour les opérations sur les fichiers
   const createFileMutation = useMutation({
     mutationFn: async ({ path, type, name }: { path: string; type: "file" | "folder"; name: string }) => {
-      const response = await fetch(`/api/projects/${projectId}/files`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: `${path}/${name}`, type }),
-      });
-      if (!response.ok) throw new Error("Failed to create file/folder");
-      return response.json();
+      return apiRequest('POST', `/api/files/${projectId}`, { path: `${path}/${name}`, type });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
       setCreateDialogOpen(false);
       setNewItemName("");
       toast({
@@ -147,14 +142,10 @@ export function ReplitFileExplorer({
 
   const deleteFileMutation = useMutation({
     mutationFn: async (file: FileNode) => {
-      const response = await fetch(`/api/projects/${projectId}/files/${file.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete file/folder");
-      return response.json();
+      return apiRequest('DELETE', `/api/files/${projectId}/${file.id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
       toast({
         title: "Deleted successfully",
         description: "File/folder deleted successfully.",
@@ -171,16 +162,10 @@ export function ReplitFileExplorer({
 
   const renameFileMutation = useMutation({
     mutationFn: async ({ file, newName }: { file: FileNode; newName: string }) => {
-      const response = await fetch(`/api/projects/${projectId}/files/${file.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName }),
-      });
-      if (!response.ok) throw new Error("Failed to rename file/folder");
-      return response.json();
+      return apiRequest('PATCH', `/api/files/${projectId}/${file.id}`, { name: newName });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
       toast({
         title: "Renamed successfully",
         description: "File/folder renamed successfully.",
@@ -329,8 +314,8 @@ export function ReplitFileExplorer({
               onDrop={(e) => {
                 e.preventDefault();
                 if (draggedItem && file.type === "folder" && draggedItem.id !== file.id) {
-                  // Logique de déplacement de fichier
-                  console.log("Move", draggedItem.name, "to", file.path);
+                  // File move operation requires backend API integration
+                  // Drag/drop UI ready - API endpoint: PATCH /api/files/:fileId with new path
                 }
               }}
             >
@@ -351,7 +336,7 @@ export function ReplitFileExplorer({
               </div>
 
               {/* Nom du fichier */}
-              <span className="truncate flex-1 text-sm">{file.name}</span>
+              <span className="truncate flex-1 text-[13px]">{file.name}</span>
 
               {/* Indicateurs d'état */}
               <div className="flex items-center space-x-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -399,7 +384,7 @@ export function ReplitFileExplorer({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
                     <DropdownMenuItem
-                      className="text-[var(--ecode-danger)] hover:bg-[var(--ecode-danger)]/10"
+                      className="text-[var(--ecode-danger)] hover:bg-surface-hover-solid"
                       onClick={() => deleteFileMutation.mutate(file)}
                     >
                       <Trash2 className="mr-2 h-3 w-3" />
@@ -436,7 +421,7 @@ export function ReplitFileExplorer({
                 Rename
               </ContextMenuItem>
               <ContextMenuSeparator className="bg-[var(--ecode-border)]" />
-              <ContextMenuItem className="text-[var(--ecode-danger)] hover:bg-[var(--ecode-danger)]/10">
+              <ContextMenuItem className="text-[var(--ecode-danger)] hover:bg-surface-hover-solid">
                 <Trash2 className="mr-2 h-3 w-3" />
                 Delete
               </ContextMenuItem>
@@ -485,60 +470,70 @@ export function ReplitFileExplorer({
 
   return (
     <TooltipProvider>
-      <div className={`flex flex-col ${className}`}>
-        {/* Header avec recherche et actions */}
-        <div className="p-3 border-b border-[var(--ecode-border)]">
-          <div className="flex items-center space-x-2 mb-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-[var(--ecode-text-secondary)]" />
-              <Input
-                type="text"
-                placeholder="Search files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-7 h-7 text-xs bg-[var(--ecode-surface-secondary)] border-[var(--ecode-border)] text-[var(--ecode-text)] placeholder:text-[var(--ecode-text-secondary)]"
-              />
-            </div>
-            
+      <div className={cn("flex flex-col bg-[var(--ecode-surface)]", className)}>
+        <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Folder className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
+            <span className="text-xs font-medium text-[var(--ecode-text)]">Files</span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            {!readonly && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
+                      onClick={() => handleCreateNew("file")}
+                    >
+                      <FileMinus className="w-3.5 h-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>New File</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
+                      onClick={() => handleCreateNew("folder")}
+                    >
+                      <Folder className="w-3.5 h-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>New Folder</TooltipContent>
+                </Tooltip>
+              </>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
+                  className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                   onClick={() => refetch()}
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className="w-3.5 h-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Refresh</TooltipContent>
             </Tooltip>
           </div>
+        </div>
 
-          {/* Actions de création */}
-          {!readonly && (
-            <div className="flex items-center space-x-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                onClick={() => handleCreateNew("file")}
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                File
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                onClick={() => handleCreateNew("folder")}
-              >
-                <Folder className="h-3 w-3 mr-1" />
-                Folder
-              </Button>
-            </div>
-          )}
+        <div className="px-2.5 py-1.5 shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-[var(--ecode-text-muted)]" />
+            <Input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-7 h-7 text-xs bg-[var(--ecode-sidebar-hover)] border-[var(--ecode-border)] text-[var(--ecode-text)] placeholder:text-[var(--ecode-text-muted)]"
+            />
+          </div>
         </div>
 
         {/* Arbre de fichiers */}
@@ -549,12 +544,12 @@ export function ReplitFileExplorer({
             ) : (
               <div className="text-center py-8 text-[var(--ecode-text-secondary)]">
                 <FileMinus className="h-8 w-8 mx-auto mb-2" />
-                <p className="text-sm">No files found</p>
+                <p className="text-[13px]">No files found</p>
                 {!readonly && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mt-2 text-xs"
+                    className="mt-2 text-[11px]"
                     onClick={() => handleCreateNew("file")}
                   >
                     Create your first file

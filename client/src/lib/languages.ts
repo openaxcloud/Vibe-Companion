@@ -276,9 +276,6 @@ class Program {
 </head>
 <body>
   <h1>Hello, world!</h1>
-  <script>
-    console.log('Hello from JavaScript!');
-  </script>
 </body>
 </html>`,
     runCommand: 'npx serve',

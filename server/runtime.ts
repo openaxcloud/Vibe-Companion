@@ -157,7 +157,6 @@ export async function startProject(projectId: number): Promise<{
   }
 }
 
-// Stop a running project
 /**
  * Stop a project's runtime
  */
@@ -290,7 +289,7 @@ export async function checkRuntimeDependencies(): Promise<{
     version?: string;
     error?: string;
   };
-  nix?: {
+  nix: {
     available: boolean;
     version?: string;
     error?: string;
@@ -302,6 +301,7 @@ export async function checkRuntimeDependencies(): Promise<{
   }>;
 }> {
   try {
+    // Use the more detailed system dependencies directly
     try {
       const runtimeHealth = await import('./runtimes/runtime-health');
       const systemDeps = await runtimeHealth.checkSystemDependencies();
@@ -312,7 +312,11 @@ export async function checkRuntimeDependencies(): Promise<{
         languages: systemDeps.languages
       };
     } catch (error) {
+      // If runtime-health module is not available, fall back to basic check
+      // First check using the runtime manager
       const runtimeDeps = await runtimeManager.checkRuntimeDependencies();
+      
+      // Direct pass-through of the runtime dependencies
       return runtimeDeps;
     }
   } catch (error) {

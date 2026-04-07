@@ -154,9 +154,9 @@ export function ExecutionConsole({
       <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-300">Console</span>
+          <span className="text-[13px] font-medium text-gray-300">Console</span>
           {isRunning && (
-            <span className="flex items-center gap-1 text-xs text-green-400">
+            <span className="flex items-center gap-1 text-[11px] text-green-400">
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
               Running
             </span>
@@ -240,7 +240,7 @@ export function ExecutionConsole({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search output..."
-            className="w-full px-3 py-1 text-sm bg-gray-900 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
+            className="w-full px-3 py-1 text-[13px] bg-gray-900 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setShowSearch(false);
@@ -254,7 +254,7 @@ export function ExecutionConsole({
       {/* Console Output */}
       <div 
         ref={consoleRef}
-        className="flex-1 overflow-y-auto p-4 font-mono text-sm"
+        className="flex-1 overflow-y-auto p-4 font-mono text-[13px]"
       >
         {filteredOutput.length === 0 ? (
           <div className="text-gray-500 text-center py-8">

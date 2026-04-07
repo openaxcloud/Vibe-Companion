@@ -3,18 +3,18 @@ import { PublicFooter } from '@/components/layout/PublicFooter';
 
 export default function Terms() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col" data-testid="page-terms">
       <PublicNavbar />
       
       <main className="flex-1">
         <div className="container-responsive py-responsive">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl font-bold mb-8">Terms of Service</h1>
+            <h1 className="text-4xl font-bold mb-8" data-testid="heading-terms">Terms of Service</h1>
             
             <div className="prose prose-gray dark:prose-invert max-w-none space-y-8">
               <section>
-                <p className="text-lg text-muted-foreground">
-                  Last updated: {new Date().toLocaleDateString()}
+                <p className="text-[15px] text-muted-foreground">
+                  Last updated: January 24, 2024
                 </p>
               </section>
 
@@ -97,9 +97,9 @@ export default function Terms() {
                   If you have any questions about these Terms, please contact us at:
                 </p>
                 <div className="mt-4 p-4 bg-muted rounded-lg">
-                  <p>E-Code Inc.</p>
-                  <p>Email: legal@replit.com</p>
-                  <p>Address: 548 Market St #16093, San Francisco, CA 94104</p>
+                  <p>E-Code.AI (Snatch Group Limited)</p>
+                  <p>Email: privacy@e-code.ai</p>
+                  <p>Address: Abba Eban 8 Blvd, 46120 Herzliya Pituach, Israel</p>
                 </div>
               </section>
             </div>

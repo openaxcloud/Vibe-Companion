@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import * as monaco from "monaco-editor";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { EditorView } from "@codemirror/view";
+import { CM6Editor } from "./CM6Editor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -18,24 +18,18 @@ import {
 import {
   Play,
   Square,
-  RotateCcw,
   Save,
-  Search,
-  Replace,
   Settings,
   Maximize2,
   Minimize2,
   Users,
-  MessageSquare,
-  Zap,
   ChevronDown,
   FileText,
   Clock,
-  GitBranch,
-  Palette,
+  Zap,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface EditorFile {
@@ -56,17 +50,61 @@ interface EditorUser {
     line: number;
     column: number;
   };
-  selection?: monaco.Range;
 }
 
 interface ReplitMonacoEditorProps {
-  projectId: number;
+  projectId: string | number;
   fileId?: number;
   onRunCode?: () => void;
   onStopCode?: () => void;
   isRunning?: boolean;
   showCollaborators?: boolean;
   theme?: "dark" | "light";
+  enableCollaboration?: boolean;
+  onEditorMount?: (editor: EditorView) => void;
+}
+
+function getLanguageFromFilename(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const languageMap: Record<string, string> = {
+    'js': 'javascript',
+    'jsx': 'jsx',
+    'ts': 'typescript',
+    'tsx': 'tsx',
+    'py': 'python',
+    'rb': 'ruby',
+    'go': 'go',
+    'rs': 'rust',
+    'java': 'java',
+    'c': 'c',
+    'cpp': 'cpp',
+    'h': 'c',
+    'hpp': 'cpp',
+    'cs': 'csharp',
+    'php': 'php',
+    'swift': 'swift',
+    'kt': 'kotlin',
+    'scala': 'scala',
+    'html': 'html',
+    'htm': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'sass': 'sass',
+    'less': 'less',
+    'json': 'json',
+    'xml': 'xml',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'md': 'markdown',
+    'sql': 'sql',
+    'sh': 'shell',
+    'bash': 'shell',
+    'zsh': 'shell',
+    'dockerfile': 'dockerfile',
+    'vue': 'vue',
+    'svelte': 'svelte',
+  };
+  return languageMap[ext] || 'plaintext';
 }
 
 export function ReplitMonacoEditor({
@@ -76,36 +114,50 @@ export function ReplitMonacoEditor({
   onStopCode,
   isRunning = false,
   showCollaborators = true,
-  theme = "dark"
+  theme = "dark",
+  enableCollaboration = true,
+  onEditorMount
 }: ReplitMonacoEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const editorInstanceRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorViewRef = useRef<EditorView | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentFile, setCurrentFile] = useState<EditorFile | null>(null);
-  const [collaborators, setCollaborators] = useState<EditorUser[]>([]);
+  const [collaborators] = useState<EditorUser[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [editorContent, setEditorContent] = useState("");
 
   const { toast } = useToast();
 
-  // Récupération du fichier actuel
-  const { data: file, isLoading: fileLoading } = useQuery<EditorFile>({
-    queryKey: ["/api/files", fileId],
-    enabled: !!fileId,
+  const { data: file, isLoading: fileLoading, error: fileError } = useQuery<EditorFile>({
+    queryKey: [`/api/projects/${projectId}/files/${fileId}`],
+    enabled: !!fileId && !!projectId,
+    retry: 2,
+    retryDelay: 500,
   });
 
-  // Mutation pour sauvegarder le fichier
+  useEffect(() => {
+    if (!file && fileError && !currentFile && fileId) {
+      setCurrentFile({
+        id: fileId as number,
+        path: 'untitled',
+        name: 'untitled',
+        content: '',
+        language: 'typescript',
+        lastModified: new Date(),
+      } as EditorFile);
+    }
+  }, [file, fileError, currentFile, fileId]);
+
+  useEffect(() => {
+    if (file) {
+      setCurrentFile(file);
+      setEditorContent(file.content);
+    }
+  }, [file]);
+
   const saveFileMutation = useMutation({
     mutationFn: async (content: string) => {
-      const response = await fetch(`/api/files/${fileId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content }),
-      });
-      if (!response.ok) throw new Error("Failed to save file");
-      return response.json();
+      return apiRequest('PUT', `/api/files/${fileId}`, { content });
     },
     onSuccess: () => {
       setHasUnsavedChanges(false);
@@ -114,7 +166,7 @@ export function ReplitMonacoEditor({
         title: "File saved",
         description: "Your changes have been saved successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/files", fileId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
     },
     onError: (error: Error) => {
       toast({
@@ -125,169 +177,20 @@ export function ReplitMonacoEditor({
     },
   });
 
-  // Configuration Monaco Editor
-  useEffect(() => {
-    if (!editorRef.current || !file) return;
+  const handleEditorMount = useCallback((view: EditorView) => {
+    editorViewRef.current = view;
+    onEditorMount?.(view);
+  }, [onEditorMount]);
 
-    // Configuration du thème E-Code
-    monaco.editor.defineTheme("replit-dark", {
-      base: "vs-dark",
-      inherit: true,
-      rules: [
-        { token: "comment", foreground: "7d8590", fontStyle: "italic" },
-        { token: "keyword", foreground: "ff7b72" },
-        { token: "string", foreground: "a5d6ff" },
-        { token: "number", foreground: "79c0ff" },
-        { token: "type", foreground: "ffa657" },
-        { token: "function", foreground: "d2a8ff" },
-        { token: "variable", foreground: "f85149" },
-      ],
-      colors: {
-        "editor.background": "#0d1117",
-        "editor.foreground": "#e6edf3",
-        "editor.lineHighlightBackground": "#2f3349",
-        "editor.selectionBackground": "#264f78",
-        "editor.inactiveSelectionBackground": "#264f7850",
-        "editorLineNumber.foreground": "#7d8590",
-        "editorLineNumber.activeForeground": "#e6edf3",
-        "editorIndentGuide.background": "#21262d",
-        "editorIndentGuide.activeBackground": "#30363d",
-        "editorBracketMatch.background": "#3fb95040",
-        "editorBracketMatch.border": "#3fb950",
-      },
-    });
+  const handleChange = useCallback((value: string) => {
+    setEditorContent(value);
+    setHasUnsavedChanges(true);
+  }, []);
 
-    monaco.editor.defineTheme("replit-light", {
-      base: "vs",
-      inherit: true,
-      rules: [
-        { token: "comment", foreground: "656d76", fontStyle: "italic" },
-        { token: "keyword", foreground: "cf222e" },
-        { token: "string", foreground: "0a3069" },
-        { token: "number", foreground: "0550ae" },
-        { token: "type", foreground: "953800" },
-        { token: "function", foreground: "8250df" },
-        { token: "variable", foreground: "cf222e" },
-      ],
-      colors: {
-        "editor.background": "#ffffff",
-        "editor.foreground": "#24292f",
-        "editor.lineHighlightBackground": "#f6f8fa",
-        "editor.selectionBackground": "#b6d7ff",
-        "editorLineNumber.foreground": "#656d76",
-        "editorLineNumber.activeForeground": "#24292f",
-      },
-    });
-
-    // Création de l'éditeur
-    const editor = monaco.editor.create(editorRef.current, {
-      value: file.content,
-      language: file.language,
-      theme: theme === "dark" ? "replit-dark" : "replit-light",
-      fontSize: 14,
-      fontFamily: "Monaco, Menlo, 'Ubuntu Mono', monospace",
-      lineNumbers: "on",
-      minimap: {
-        enabled: true,
-        scale: 1,
-      },
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-      wordWrap: "on",
-      renderWhitespace: "selection",
-      bracketPairColorization: {
-        enabled: true,
-      },
-      cursorBlinking: "smooth",
-      cursorSmoothCaretAnimation: "on",
-      smoothScrolling: true,
-      mouseWheelZoom: true,
-      folding: true,
-      foldingStrategy: "indentation",
-      showFoldingControls: "always",
-      unfoldOnClickAfterEndOfLine: false,
-      renderLineHighlight: "all",
-      selectionHighlight: true,
-      occurrencesHighlight: true,
-      formatOnType: true,
-      formatOnPaste: true,
-      suggest: {
-        showKeywords: true,
-        showSnippets: true,
-        showClasses: true,
-        showFunctions: true,
-        showVariables: true,
-        showModules: true,
-        showProperties: true,
-        showEvents: true,
-        showOperators: true,
-        showUnits: true,
-        showValues: true,
-        showConstants: true,
-        showEnums: true,
-        showEnumMembers: true,
-        showText: true,
-        showColors: true,
-        showFiles: true,
-        showReferences: true,
-        showFolders: true,
-        showTypeParameters: true,
-        showUsers: true,
-        showIssues: true,
-      },
-    });
-
-    editorInstanceRef.current = editor;
-
-    // Gestion des changements
-    const onContentChange = editor.onDidChangeModelContent(() => {
-      setHasUnsavedChanges(true);
-    });
-
-    // Gestion des raccourcis clavier
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSave();
-    });
-
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      onRunCode?.();
-    });
-
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
-      onStopCode?.();
-    });
-
-    return () => {
-      onContentChange.dispose();
-      editor.dispose();
-      editorInstanceRef.current = null;
-    };
-  }, [file, theme]);
-
-  const handleSave = () => {
-    if (!editorInstanceRef.current || !fileId) return;
-    
-    const content = editorInstanceRef.current.getValue();
-    saveFileMutation.mutate(content);
-  };
-
-  const handleFormat = () => {
-    if (!editorInstanceRef.current) return;
-    
-    editorInstanceRef.current.trigger("keyboard", "editor.action.formatDocument", {});
-  };
-
-  const handleFind = () => {
-    if (!editorInstanceRef.current) return;
-    
-    editorInstanceRef.current.trigger("keyboard", "actions.find", {});
-  };
-
-  const handleReplace = () => {
-    if (!editorInstanceRef.current) return;
-    
-    editorInstanceRef.current.trigger("keyboard", "editor.action.startFindReplaceAction", {});
-  };
+  const handleSave = useCallback(() => {
+    if (!fileId) return;
+    saveFileMutation.mutate(editorContent);
+  }, [fileId, editorContent, saveFileMutation]);
 
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
@@ -306,7 +209,27 @@ export function ReplitMonacoEditor({
     return `${hours}h ago`;
   };
 
-  if (fileLoading || !file) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        onRunCode?.();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
+        e.preventDefault();
+        onStopCode?.();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave, onRunCode, onStopCode]);
+
+  if (fileLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[var(--ecode-editor-bg)]">
         <div className="text-center">
@@ -317,25 +240,40 @@ export function ReplitMonacoEditor({
     );
   }
 
+  if (!file && !currentFile) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[var(--ecode-editor-bg)]">
+        <div className="text-center">
+          <p className="text-[var(--ecode-text-secondary)]">No file selected</p>
+        </div>
+      </div>
+    );
+  }
+
+  const activeFile = file || currentFile;
+  
+  if (!activeFile) {
+    return null;
+  }
+
+  const language = activeFile.language || getLanguageFromFilename(activeFile.name);
+
   return (
     <TooltipProvider>
-      <div className={`flex flex-col bg-[var(--ecode-editor-bg)] ${isFullscreen ? 'fixed inset-0 z-50' : 'flex-1'}`}>
-        {/* Barre d'outils de l'éditeur */}
-        <div className="h-12 bg-[var(--ecode-surface)] border-b border-[var(--ecode-border)] flex items-center justify-between px-4">
+      <div className={`flex flex-col bg-[var(--ecode-editor-bg)] ${isFullscreen ? 'fixed inset-0 z-50' : 'flex-1'}`} data-testid="monaco-editor-container">
+        <div className="h-12 bg-[var(--ecode-surface)] border-b border-[var(--ecode-border)] flex items-center justify-between px-4" data-testid="editor-toolbar">
           <div className="flex items-center space-x-3">
-            {/* Infos du fichier */}
             <div className="flex items-center space-x-2">
               <FileText className="h-4 w-4 text-[var(--ecode-text-secondary)]" />
-              <span className="text-sm font-medium text-[var(--ecode-text)]">{file.name}</span>
+              <span className="text-[13px] font-medium text-[var(--ecode-text)]" data-testid="text-filename">{activeFile.name}</span>
               {hasUnsavedChanges && (
-                <div className="h-2 w-2 bg-[var(--ecode-warning)] rounded-full"></div>
+                <div className="h-2 w-2 bg-[var(--ecode-warning)] rounded-full" data-testid="indicator-unsaved"></div>
               )}
-              <Badge variant="outline" className="text-xs">
-                {file.language}
+              <Badge variant="outline" className="text-[11px]" data-testid="badge-language">
+                {language}
               </Badge>
             </div>
 
-            {/* Actions principales */}
             <div className="flex items-center space-x-1">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -345,6 +283,7 @@ export function ReplitMonacoEditor({
                     onClick={handleSave}
                     disabled={saveFileMutation.isPending || !hasUnsavedChanges}
                     className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
+                    data-testid="button-save-file"
                   >
                     <Save className="h-4 w-4" />
                   </Button>
@@ -357,9 +296,9 @@ export function ReplitMonacoEditor({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={onRunCode}
-                    disabled={isRunning}
+                    onClick={isRunning ? onStopCode : onRunCode}
                     className="text-[var(--ecode-green)] hover:bg-[var(--ecode-green)]/10"
+                    data-testid="button-run-code"
                   >
                     {isRunning ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </Button>
@@ -370,13 +309,11 @@ export function ReplitMonacoEditor({
           </div>
 
           <div className="flex items-center space-x-3">
-            {/* Status de sauvegarde */}
-            <div className="flex items-center space-x-1 text-xs text-[var(--ecode-text-secondary)]">
+            <div className="flex items-center space-x-1 text-[11px] text-[var(--ecode-text-secondary)]">
               <Clock className="h-3 w-3" />
               <span>Saved {formatLastSaved(lastSaved)}</span>
             </div>
 
-            {/* Collaborateurs */}
             {showCollaborators && collaborators.length > 0 && (
               <div className="flex items-center space-x-1">
                 <Users className="h-4 w-4 text-[var(--ecode-text-secondary)]" />
@@ -385,7 +322,7 @@ export function ReplitMonacoEditor({
                     <Tooltip key={user.id}>
                       <TooltipTrigger asChild>
                         <div
-                          className="h-6 w-6 rounded-full border-2 border-[var(--ecode-surface)] flex items-center justify-center text-xs font-medium text-white"
+                          className="h-6 w-6 rounded-full border-2 border-[var(--ecode-surface)] flex items-center justify-center text-[11px] font-medium text-white"
                           style={{ backgroundColor: user.color }}
                         >
                           {user.username.charAt(0).toUpperCase()}
@@ -395,7 +332,7 @@ export function ReplitMonacoEditor({
                     </Tooltip>
                   ))}
                   {collaborators.length > 3 && (
-                    <div className="h-6 w-6 rounded-full bg-[var(--ecode-text-secondary)] border-2 border-[var(--ecode-surface)] flex items-center justify-center text-xs font-medium text-white">
+                    <div className="h-6 w-6 rounded-full bg-[var(--ecode-text-secondary)] border-2 border-[var(--ecode-surface)] flex items-center justify-center text-[11px] font-medium text-white">
                       +{collaborators.length - 3}
                     </div>
                   )}
@@ -403,33 +340,20 @@ export function ReplitMonacoEditor({
               </div>
             )}
 
-            {/* Outils */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
+                  data-testid="button-editor-settings"
                 >
                   <Settings className="h-4 w-4" />
                   <ChevronDown className="h-3 w-3 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-48 bg-[var(--ecode-surface)] border-[var(--ecode-border)]">
-                <DropdownMenuItem onClick={handleFind} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
-                  <Search className="mr-2 h-4 w-4" />
-                  Find (Ctrl+F)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleReplace} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
-                  <Replace className="mr-2 h-4 w-4" />
-                  Replace (Ctrl+H)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleFormat} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
-                  <Palette className="mr-2 h-4 w-4" />
-                  Format Document
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
-                <DropdownMenuItem onClick={toggleFullscreen} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
+                <DropdownMenuItem onClick={toggleFullscreen} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]" data-testid="button-toggle-fullscreen">
                   {isFullscreen ? (
                     <>
                       <Minimize2 className="mr-2 h-4 w-4" />
@@ -447,13 +371,22 @@ export function ReplitMonacoEditor({
           </div>
         </div>
 
-        {/* Zone de l'éditeur */}
-        <div className="flex-1 relative overflow-hidden">
-          <div ref={editorRef} className="h-full w-full replit-scrollbar" />
+        <div className="flex-1 relative overflow-hidden" data-testid="editor-content">
+          <CM6Editor
+            value={editorContent}
+            language={language}
+            onChange={handleChange}
+            onMount={handleEditorMount}
+            readOnly={activeFile.isReadOnly}
+            theme={theme}
+            height="100%"
+            className="h-full"
+            lineWrapping={true}
+            autoFocus={true}
+          />
           
-          {/* Overlay de status */}
           {isRunning && (
-            <div className="absolute top-2 right-2 flex items-center space-x-2 bg-[var(--ecode-green)] text-white px-3 py-1 rounded-md text-sm">
+            <div className="absolute top-2 right-2 flex items-center space-x-2 bg-[var(--ecode-green)] text-white px-3 py-1 rounded-md text-[13px]" data-testid="indicator-running">
               <Zap className="h-3 w-3 animate-pulse" />
               <span>Running</span>
             </div>
@@ -462,4 +395,8 @@ export function ReplitMonacoEditor({
       </div>
     </TooltipProvider>
   );
+}
+
+export function CollaborativeReplitMonacoEditor(props: ReplitMonacoEditorProps) {
+  return <ReplitMonacoEditor {...props} />;
 }

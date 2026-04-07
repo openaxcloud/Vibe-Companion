@@ -1,344 +1,574 @@
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { PublicNavbar } from '@/components/layout/PublicNavbar';
 import { PublicFooter } from '@/components/layout/PublicFooter';
-import { GraduationCap, Shield, FileText, CheckCircle, Users, Lock, AlertCircle, Download } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  GraduationCap, 
+  Shield, 
+  FileText,
+  CheckCircle,
+  Lock,
+  Users,
+  Building,
+  Globe,
+  BookOpen,
+  Info,
+  Download,
+  Mail,
+  Calendar,
+  ShieldCheck,
+  UserCheck,
+  Database,
+  Eye,
+  AlertCircle,
+  ScrollText
+} from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function StudentDPA() {
+  const effectiveDate = new Date('2025-01-01');
+  const lastUpdated = new Date('2025-07-01');
+
+  const protections = [
+    {
+      icon: Lock,
+      title: 'Data Minimization',
+      description: 'We only collect data necessary for educational purposes'
+    },
+    {
+      icon: UserCheck,
+      title: 'Age-Appropriate Consent',
+      description: 'Special consent mechanisms for users under 18'
+    },
+    {
+      icon: Eye,
+      title: 'Parental Access Rights',
+      description: 'Parents can access, review, and delete student data'
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Enhanced Security',
+      description: 'Additional security measures for student accounts'
+    },
+    {
+      icon: Database,
+      title: 'Data Retention Limits',
+      description: 'Automatic deletion of data after educational use ends'
+    },
+    {
+      icon: AlertCircle,
+      title: 'Breach Notification',
+      description: 'Immediate notification to schools of any data incidents'
+    }
+  ];
+
+  const dataCategories = [
+    {
+      category: 'Account Information',
+      data: ['Student name', 'Email address', 'Username', 'Grade level'],
+      purpose: 'Account creation and management'
+    },
+    {
+      category: 'Educational Records',
+      data: ['Projects created', 'Code submissions', 'Assignment completion', 'Progress tracking'],
+      purpose: 'Educational assessment and progress monitoring'
+    },
+    {
+      category: 'Technical Data',
+      data: ['Login times', 'Session duration', 'Feature usage', 'Error logs'],
+      purpose: 'Platform improvement and technical support'
+    },
+    {
+      category: 'Communication Data',
+      data: ['Messages with instructors', 'Forum posts', 'Support requests'],
+      purpose: 'Educational collaboration and support'
+    }
+  ];
+
+  const obligations = [
+    'Process student data only for educational purposes',
+    'Implement appropriate security measures to protect student data',
+    'Ensure compliance with FERPA, COPPA, and applicable state laws',
+    'Provide data portability and deletion upon request',
+    'Prohibit sale or commercial use of student data',
+    'Limit data retention to active educational use period',
+    'Maintain confidentiality of all student information',
+    'Cooperate with school audits and compliance reviews'
+  ];
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" data-testid="page-student-dpa">
       <PublicNavbar />
 
       {/* Hero Section */}
-      <section className="py-responsive bg-gradient-subtle">
-        <div className="container-responsive">
-          <div className="flex items-center gap-2 mb-4">
-            <GraduationCap className="h-5 w-5 text-primary" />
-            <Badge variant="secondary">FERPA Compliant</Badge>
-          </div>
-          
-          <h1 className="text-responsive-2xl font-bold tracking-tight mb-4">
-            US Student Data Privacy Agreement
-          </h1>
-          
-          <p className="text-responsive-base text-muted-foreground max-w-3xl">
-            E-Code is committed to protecting student privacy and ensuring compliance with the Family 
-            Educational Rights and Privacy Act (FERPA) and state student privacy laws. This agreement 
-            outlines our commitments to educational institutions.
-          </p>
-          
-          <div className="mt-6 flex flex-col sm:flex-row gap-4">
-            <Button asChild size="lg">
-              <a href="/assets/ecode-student-dpa.pdf" download>
-                <Download className="mr-2 h-4 w-4" />
-                Download Student DPA
-              </a>
-            </Button>
-            <Button variant="outline" asChild size="lg">
-              <Link href="/contact-sales">Request Signed Agreement</Link>
-            </Button>
+      <section className="border-b bg-gradient-to-b from-muted/30 to-background">
+        <div className="container-responsive py-20">
+          <div className="text-center max-w-4xl mx-auto">
+            <Badge variant="default" className="mb-4">
+              <GraduationCap className="h-4 w-4 mr-1" />
+              EDUCATION PRIVACY
+            </Badge>
+            
+            <h1 className="text-4xl md:text-6xl font-bold mb-6" data-testid="heading-student-dpa">
+              Student Data Processing Agreement
+            </h1>
+            
+            <p className="text-xl text-muted-foreground mb-8">
+              Our commitment to protecting student privacy in educational settings. 
+              This agreement governs how E-Code processes student data for schools and educational institutions.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" className="min-h-[44px]" asChild data-testid="button-student-dpa-download">
+                <a href="#download">
+                  <Download className="mr-2 h-5 w-5" />
+                  Download Full Agreement
+                </a>
+              </Button>
+              <Button size="lg" variant="outline" className="min-h-[44px]" asChild data-testid="button-student-dpa-contact">
+                <a href="mailto:education@e-code.ai">
+                  <Mail className="mr-2 h-5 w-5" />
+                  Contact Education Team
+                </a>
+              </Button>
+            </div>
+
+            <p className="text-[13px] text-muted-foreground mt-6">
+              Effective Date: {effectiveDate.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })} • Last Updated: {lastUpdated.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </p>
           </div>
         </div>
       </section>
 
-      {/* Key Commitments */}
-      <section className="py-responsive border-b">
+      {/* Key Points Alert */}
+      <section className="py-8">
         <div className="container-responsive">
-          <h2 className="text-2xl font-semibold mb-6">Our Commitments to Educational Institutions</h2>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <Shield className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-lg">FERPA Compliance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  We act as a "School Official" under FERPA, handling education records only 
-                  as directed by the educational institution.
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <Lock className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-lg">Data Security</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Industry-standard encryption, secure data centers, and comprehensive security 
-                  measures protect student information.
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <Users className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-lg">Limited Access</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Student data is accessed only by authorized personnel on a need-to-know basis 
-                  for providing educational services.
-                </p>
-              </CardContent>
-            </Card>
+          <Alert className="max-w-4xl mx-auto">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Important:</strong> This Student DPA supplements our standard Terms of Service and Privacy Policy 
+              with additional protections specific to student data. Schools must execute this agreement before 
+              using E-Code for classroom instruction.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </section>
+
+      {/* Student Privacy Protections */}
+      <section className="py-20">
+        <div className="container-responsive">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Enhanced Student Privacy Protections
+            </h2>
+            <p className="text-[15px] text-muted-foreground max-w-2xl mx-auto">
+              We implement special safeguards for student data beyond our standard privacy practices
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {protections.map((protection) => {
+              const Icon = protection.icon;
+              return (
+                <Card key={protection.title}>
+                  <CardHeader>
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
+                      <Icon className="h-6 w-6 text-primary" />
+                    </div>
+                    <CardTitle className="text-[15px]">{protection.title}</CardTitle>
+                    <CardDescription>{protection.description}</CardDescription>
+                  </CardHeader>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Agreement Overview */}
-      <section className="py-responsive">
+      {/* Data Collection and Use */}
+      <section className="py-20 bg-muted/30">
         <div className="container-responsive">
-          <div className="grid lg:grid-cols-2 gap-12">
-            <div>
-              <h2 className="text-2xl font-semibold mb-6">Agreement Overview</h2>
-              
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-medium mb-2">Purpose and Scope</h3>
-                  <p className="text-sm text-muted-foreground">
-                    This Student Data Privacy Agreement ("DPA") governs the use of E-Code's services 
-                    by educational institutions and ensures compliance with applicable student privacy laws.
-                  </p>
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Student Data Collection and Use
+              </h2>
+              <p className="text-[15px] text-muted-foreground">
+                Transparent disclosure of what we collect and why
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              {dataCategories.map((category) => (
+                <Card key={category.category}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-primary" />
+                      {category.category}
+                    </CardTitle>
+                    <CardDescription>Purpose: {category.purpose}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {category.data.map((item) => (
+                        <Badge key={item} variant="secondary">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Alert className="mt-8">
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                <strong>No Commercial Use:</strong> Student data is never sold, used for advertising, 
+                or shared with third parties for commercial purposes. Data is used solely for 
+                educational purposes and platform improvement.
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </section>
+
+      {/* Legal Compliance */}
+      <section className="py-20">
+        <div className="container-responsive">
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <ScrollText className="h-6 w-6 text-primary" />
+                  <CardTitle className="text-2xl">Legal Compliance</CardTitle>
                 </div>
-                
+              </CardHeader>
+              <CardContent className="space-y-6">
                 <div>
-                  <h3 className="font-medium mb-2">Data Ownership</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Educational institutions retain full ownership and control of student data. 
-                    E-Code processes this data solely to provide the requested services.
-                  </p>
+                  <h3 className="font-semibold mb-3">E-Code complies with:</h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                        <div>
+                          <div className="font-medium">FERPA</div>
+                          <div className="text-[13px] text-muted-foreground">
+                            Family Educational Rights and Privacy Act
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                        <div>
+                          <div className="font-medium">COPPA</div>
+                          <div className="text-[13px] text-muted-foreground">
+                            Children's Online Privacy Protection Act
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                        <div>
+                          <div className="font-medium">GDPR</div>
+                          <div className="text-[13px] text-muted-foreground">
+                            General Data Protection Regulation (EU)
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                        <div>
+                          <div className="font-medium">State Privacy Laws</div>
+                          <div className="text-[13px] text-muted-foreground">
+                            California, New York, and other state laws
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                
-                <div>
-                  <h3 className="font-medium mb-2">Permitted Uses</h3>
-                  <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                    <li>Providing coding education platform services</li>
-                    <li>Maintaining and improving platform functionality</li>
-                    <li>Generating de-identified analytics for the institution</li>
-                    <li>Ensuring platform security and preventing abuse</li>
+
+                <div className="border-t pt-6">
+                  <h3 className="font-semibold mb-3">School as Data Controller</h3>
+                  <p className="text-muted-foreground mb-3">
+                    Under this agreement, the educational institution acts as the data controller, 
+                    and E-Code acts as the data processor. This means:
+                  </p>
+                  <ul className="space-y-2 text-[13px]">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      Schools determine what data is collected and for what purpose
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      E-Code processes data only according to school instructions
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      Schools maintain responsibility for consent and parental rights
+                    </li>
                   </ul>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Our Obligations */}
+      <section className="py-20 bg-muted/30">
+        <div className="container-responsive">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Our Obligations as Data Processor
+              </h2>
             </div>
-            
-            <div>
-              <h2 className="text-2xl font-semibold mb-6">Privacy Protections</h2>
-              
-              <div className="space-y-4">
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-sm">No Sale of Student Data</p>
-                        <p className="text-sm text-muted-foreground">
-                          We never sell, rent, or trade student information to third parties.
-                        </p>
-                      </div>
+
+            <Card>
+              <CardContent className="py-8">
+                <div className="space-y-3">
+                  {obligations.map((obligation, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>{obligation}</span>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-sm">No Behavioral Advertising</p>
-                        <p className="text-sm text-muted-foreground">
-                          Student data is never used for targeted advertising or marketing.
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-sm">Parental Rights</p>
-                        <p className="text-sm text-muted-foreground">
-                          We support parental access, correction, and deletion rights as required by law.
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-sm">Data Deletion</p>
-                        <p className="text-sm text-muted-foreground">
-                          Student data is deleted upon request or contract termination.
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Rights and Access */}
+      <section className="py-20">
+        <div className="container-responsive">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Rights and Access
+              </h2>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <Users className="h-8 w-8 text-primary mb-2" />
+                  <CardTitle>Student Rights</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-[13px]">
+                    <li>• Access their own data</li>
+                    <li>• Request corrections</li>
+                    <li>• Download their work</li>
+                    <li>• Delete their account</li>
+                    <li>• Opt-out of optional features</li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <UserCheck className="h-8 w-8 text-primary mb-2" />
+                  <CardTitle>Parent/Guardian Rights</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-[13px]">
+                    <li>• Review student data</li>
+                    <li>• Request data deletion</li>
+                    <li>• Withdraw consent</li>
+                    <li>• Access activity reports</li>
+                    <li>• Contact privacy team</li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <Building className="h-8 w-8 text-primary mb-2" />
+                  <CardTitle>School Rights</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-[13px]">
+                    <li>• Audit data practices</li>
+                    <li>• Export all student data</li>
+                    <li>• Terminate agreement</li>
+                    <li>• Request compliance reports</li>
+                    <li>• Manage user permissions</li>
+                  </ul>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
       </section>
 
-      {/* State-Specific Compliance */}
-      <section className="py-responsive bg-muted/30">
+      {/* Data Security */}
+      <section className="py-20 bg-muted/30">
         <div className="container-responsive">
-          <h2 className="text-2xl font-semibold mb-6">State Privacy Law Compliance</h2>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>We Comply with State Student Privacy Laws</CardTitle>
-              <CardDescription>
-                Including but not limited to the following state requirements
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">California (SOPIPA)</span>
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Shield className="h-6 w-6 text-primary" />
+                  <CardTitle className="text-2xl">Data Security Measures</CardTitle>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">New York (Ed Law 2-d)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">Connecticut (PA 16-189)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">Colorado (C.R.S. 22-16-101)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">Utah (SPPA)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">And many others</span>
-                </div>
-              </div>
-              
-              <Separator className="my-6" />
-              
-              <p className="text-sm text-muted-foreground">
-                Our standard Student DPA is designed to meet the requirements of all state student 
-                privacy laws. We also accommodate state-specific addenda when required.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3">Technical Safeguards</h4>
+                    <ul className="space-y-2 text-[13px]">
+                      <li className="flex items-start gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>256-bit encryption at rest and in transit</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Multi-factor authentication for educators</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Regular security audits and penetration testing</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Isolated education environment</span>
+                      </li>
+                    </ul>
+                  </div>
 
-      {/* Data Security Measures */}
-      <section className="py-responsive">
-        <div className="container-responsive">
-          <h2 className="text-2xl font-semibold mb-6">Data Security Measures</h2>
-          
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="font-medium mb-4">Technical Safeguards</h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">256-bit SSL encryption for data in transit</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">AES-256 encryption for data at rest</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">Regular security audits and penetration testing</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">24/7 security monitoring and intrusion detection</span>
-                </li>
-              </ul>
-            </div>
-            
-            <div>
-              <h3 className="font-medium mb-4">Administrative Safeguards</h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">Background checks for all employees</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">Annual privacy and security training</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">Strict access controls and audit logging</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                  <span className="text-sm">Incident response and breach notification procedures</span>
-                </li>
-              </ul>
-            </div>
+                  <div>
+                    <h4 className="font-semibold mb-3">Administrative Safeguards</h4>
+                    <ul className="space-y-2 text-[13px]">
+                      <li className="flex items-start gap-2">
+                        <UserCheck className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Background checks for staff with data access</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <UserCheck className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Regular privacy training for employees</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <UserCheck className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Strict access controls and logging</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <UserCheck className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>Incident response procedures</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
 
-      {/* Important Notice */}
-      <section className="py-responsive bg-yellow-50 dark:bg-yellow-950/20">
+      {/* Download Section */}
+      <section id="download" className="py-20">
         <div className="container-responsive">
-          <Card className="border-yellow-200 dark:border-yellow-800">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-yellow-600" />
-                <CardTitle>Important Notice for Educators</CardTitle>
+          <Card className="max-w-3xl mx-auto">
+            <CardContent className="py-12 text-center">
+              <FileText className="h-16 w-16 mx-auto mb-6 text-primary" />
+              <h2 className="text-2xl font-bold mb-4">
+                Download the Full Agreement
+              </h2>
+              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+                Get the complete Student Data Processing Agreement in PDF format. 
+                This document should be reviewed by your legal team and executed before deployment.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button size="lg" asChild>
+                  <a href="/docs/E-Code-Student-DPA.pdf" download>
+                    <Download className="mr-2 h-5 w-5" />
+                    Download PDF
+                  </a>
+                </Button>
+                <Button size="lg" variant="outline" asChild>
+                  <a href="/docs/E-Code-Student-DPA.docx" download>
+                    <Download className="mr-2 h-5 w-5" />
+                    Download Word
+                  </a>
+                </Button>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm">
-                This Student DPA applies only to institutional accounts created and managed by 
-                educational institutions. Individual student accounts created outside of an 
-                institutional agreement are governed by our standard Terms of Service and Privacy Policy.
-              </p>
-              
-              <p className="text-sm">
-                To ensure FERPA compliance and proper student data protection, educational institutions 
-                should contact our sales team to establish an institutional agreement before allowing 
-                student use of E-Code.
-              </p>
             </CardContent>
           </Card>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-responsive border-t">
-        <div className="container-responsive text-center">
-          <h2 className="text-2xl font-semibold mb-4">Ready to Bring E-Code to Your School?</h2>
-          <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-            Our education team is here to help you implement E-Code while ensuring full compliance 
-            with student privacy requirements. Get a signed Student DPA and institutional pricing.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg">
-              <Link href="/contact-sales">Contact Education Sales</Link>
-            </Button>
-            <Button variant="outline" asChild size="lg">
-              <Link href="/privacy">View Privacy Policy</Link>
-            </Button>
+      {/* Contact Section */}
+      <section className="py-20 bg-muted/30">
+        <div className="container-responsive">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Questions About Student Privacy?
+            </h2>
+            <p className="text-[15px] text-muted-foreground">
+              Our education team is here to help
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <Card className="text-center">
+              <CardContent className="py-8">
+                <Mail className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <h3 className="font-semibold mb-2">Email Us</h3>
+                <p className="text-[13px] text-muted-foreground mb-4">
+                  For DPA questions and execution
+                </p>
+                <Button variant="outline" asChild className="w-full">
+                  <a href="mailto:education@e-code.ai">
+                    education@e-code.ai
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardContent className="py-8">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <h3 className="font-semibold mb-2">Schedule a Call</h3>
+                <p className="text-[13px] text-muted-foreground mb-4">
+                  Discuss your school's needs
+                </p>
+                <Button variant="outline" asChild className="w-full">
+                  <Link href="/contact-sales">
+                    Book Meeting
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardContent className="py-8">
+                <BookOpen className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <h3 className="font-semibold mb-2">Resources</h3>
+                <p className="text-[13px] text-muted-foreground mb-4">
+                  Privacy guides and best practices
+                </p>
+                <Button variant="outline" asChild className="w-full">
+                  <Link href="/education">
+                    View Resources
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>

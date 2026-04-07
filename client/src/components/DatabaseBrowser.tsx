@@ -58,10 +58,10 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
 
   // Fetch database info
   const { data: dbInfo, refetch: refetchDbInfo } = useQuery<DatabaseInfo>({
-    queryKey: [`/api/projects/${projectId}/database/info`],
+    queryKey: [`/api/database/info`, projectId],
     enabled: !!projectId,
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}/database/info`);
+      const response = await fetch(`/api/database/${projectId}/info`);
       if (!response.ok) throw new Error('Failed to fetch database info');
       return response.json();
     }
@@ -69,10 +69,10 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
 
   // Fetch table data
   const { data: tableData, refetch: refetchTableData, isLoading: isLoadingTableData } = useQuery({
-    queryKey: [`/api/projects/${projectId}/database/tables/${selectedTable}`, currentPage, pageSize],
+    queryKey: [`/api/database/tables`, projectId, selectedTable, currentPage, pageSize],
     enabled: !!selectedTable,
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}/database/tables/${selectedTable}?page=${currentPage}&pageSize=${pageSize}`);
+      const response = await fetch(`/api/database/${projectId}/tables/${selectedTable}?page=${currentPage}&pageSize=${pageSize}`);
       if (!response.ok) throw new Error('Failed to fetch table data');
       return response.json();
     }
@@ -81,11 +81,7 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
   // Execute query mutation
   const executeQueryMutation = useMutation({
     mutationFn: async (query: string) => {
-      const response = await fetch(`/api/projects/${projectId}/database/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
+      const response = await apiRequest('POST', `/api/database/${projectId}/query`, { query });
       if (!response.ok) throw new Error('Failed to execute query');
       return response.json();
     },
@@ -113,7 +109,7 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
 
   const exportTable = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/database/export/${selectedTable}`);
+      const response = await fetch(`/api/database/${projectId}/export/${selectedTable}`);
       if (!response.ok) throw new Error('Failed to export table');
       const data = await response.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -144,7 +140,7 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-2">
             <Database className="h-5 w-5" />
             <div>
-              <CardTitle className="text-lg">Database Browser</CardTitle>
+              <CardTitle className="text-[15px]">Database Browser</CardTitle>
               <CardDescription>
                 {dbInfo ? `${dbInfo.name} (${dbInfo.size})` : 'PostgreSQL Database'}
               </CardDescription>
@@ -167,15 +163,15 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
 
       <div className="flex-1 flex">
         {/* Tables Sidebar */}
-        <div className="w-64 border-r bg-muted/10">
-          <div className="p-4 border-b">
+        <div className="w-64 border-r border-[var(--ecode-border)] bg-[var(--ecode-surface)]">
+          <div className="px-2.5 py-1.5 border-b border-[var(--ecode-border)] shrink-0">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--ecode-text-muted)]" />
               <Input
-                placeholder="Search tables..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9"
+                className="pl-7 h-7 text-xs bg-[var(--ecode-sidebar-hover)] border-[var(--ecode-border)]"
               />
             </div>
           </div>
@@ -197,9 +193,9 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <TableIcon className="h-4 w-4" />
-                        <span className="text-sm font-medium">{table.name}</span>
+                        <span className="text-[13px] font-medium">{table.name}</span>
                       </div>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-[11px]">
                         {table.rowCount} rows
                       </Badge>
                     </div>
@@ -224,16 +220,14 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
             <TabsContent value="data" className="m-0 flex-1 flex flex-col">
               {selectedTable ? (
                 <>
-                  <div className="p-4 border-b flex items-center justify-between">
-                    <h3 className="font-semibold">{selectedTable}</h3>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={exportTable}>
-                        <Download className="h-4 w-4 mr-1" />
-                        Export
+                  <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
+                    <span className="text-xs font-medium text-[var(--ecode-text)]">{selectedTable}</span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={exportTable} className="h-7 w-7 text-[var(--ecode-text-muted)]">
+                        <Download className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Insert Row
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-[hsl(142,72%,42%)]">
+                        <Plus className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </div>
@@ -259,11 +253,11 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
                           {tableData.rows.map((row: any, index: number) => (
                             <TableRow key={index}>
                               {Object.values(row).map((value: any, i: number) => (
-                                <TableCell key={i} className="font-mono text-sm">
+                                <TableCell key={i} className="font-mono text-[13px]">
                                   {value === null ? (
                                     <span className="text-muted-foreground">NULL</span>
                                   ) : typeof value === 'object' ? (
-                                    <span className="text-xs">{JSON.stringify(value)}</span>
+                                    <span className="text-[11px]">{JSON.stringify(value)}</span>
                                   ) : (
                                     String(value)
                                   )}
@@ -294,7 +288,7 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
                   {/* Pagination */}
                   {tableData && tableData.totalRows && tableData.totalRows > pageSize && (
                     <div className="p-4 border-t flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-[13px] text-muted-foreground">
                         Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, tableData.totalRows)} of {tableData.totalRows} rows
                       </p>
                       <div className="flex items-center gap-2">
@@ -306,7 +300,7 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <span className="text-sm">Page {currentPage}</span>
+                        <span className="text-[13px]">Page {currentPage}</span>
                         <Button
                           variant="outline"
                           size="sm"
@@ -347,9 +341,9 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
                         ?.columns.map((column) => (
                           <TableRow key={column.name}>
                             <TableCell className="font-mono">{column.name}</TableCell>
-                            <TableCell className="font-mono text-sm">{column.type}</TableCell>
+                            <TableCell className="font-mono text-[13px]">{column.type}</TableCell>
                             <TableCell>{column.nullable ? 'Yes' : 'No'}</TableCell>
-                            <TableCell className="font-mono text-sm">
+                            <TableCell className="font-mono text-[13px]">
                               {column.default || '-'}
                             </TableCell>
                             <TableCell>
@@ -375,11 +369,11 @@ export function DatabaseBrowser({ projectId }: { projectId: string }) {
                     value={queryInput}
                     onChange={(e) => setQueryInput(e.target.value)}
                     placeholder="Enter SQL query..."
-                    className="w-full h-full p-4 font-mono text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full h-full p-4 font-mono text-[13px] bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-[13px] text-muted-foreground">
                     Write custom SQL queries to interact with your database
                   </p>
                   <Button

@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Project, File } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, Settings, Share2, Play, Save, Database, BookMarked, Rocket, Package, Command, Users, Keyboard } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import {
+  Play,
+  Square,
+  MoreVertical,
+  ChevronDown,
+  Globe,
+  Terminal,
+  Search,
+  Bell,
+  Plus
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DeploymentManager } from "@/components/DeploymentManager";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +23,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { WorkspaceSettings } from "@/components/WorkspaceSettings";
 
 interface TopNavbarProps {
   project: Project | undefined;
@@ -24,272 +41,157 @@ interface TopNavbarProps {
   onKeyboardShortcutsOpen?: () => void;
   onDatabaseOpen?: () => void;
   onCollaborationOpen?: () => void;
+  onToggleFiles?: () => void;
+  onTogglePreview?: () => void;
+  onToggleConsole?: () => void;
+  filesOpen?: boolean;
+  previewOpen?: boolean;
+  consoleOpen?: boolean;
+  onSidebarMenuToggle?: () => void;
 }
 
-const TopNavbar = ({ 
-  project, 
-  activeFile, 
+const TopNavbar = ({
+  project,
+  activeFile,
   isLoading,
   onNixConfigOpen,
   onCommandPaletteOpen,
   onKeyboardShortcutsOpen,
   onDatabaseOpen,
-  onCollaborationOpen
+  onCollaborationOpen,
+  onToggleFiles,
+  onTogglePreview,
+  onToggleConsole,
+  filesOpen = true,
+  previewOpen = true,
+  consoleOpen = true,
+  onSidebarMenuToggle
 }: TopNavbarProps) => {
   const { user, logoutMutation } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
-  const [isDeploymentOpen, setIsDeploymentOpen] = useState(false);
-  
+  const [showSettings, setShowSettings] = useState(false);
+
   const handleRun = () => {
     setIsRunning(true);
-    
-    // Simulate a delay for running
+    window.dispatchEvent(new CustomEvent("run-project"));
     setTimeout(() => {
       setIsRunning(false);
     }, 2000);
   };
-  
-  const handleSave = () => {
-    // Save functionality would be implemented here
+
+  const handleStop = () => {
+    setIsRunning(false);
   };
-  
-  const handleOpenDeployment = () => {
-    setIsDeploymentOpen(true);
-  };
-  
-  const handleCloseDeployment = () => {
-    setIsDeploymentOpen(false);
-  };
-  
+
+  const projectTitle = isLoading ? "Loading..." : project?.name || "Untitled Project";
+
   return (
-    <>
-      {project && (
-        <DeploymentManager 
-          project={project} 
-          isOpen={isDeploymentOpen} 
-          onClose={handleCloseDeployment} 
-        />
-      )}
-      
-      <div className="h-14 border-b flex items-center justify-between px-4">
-        {/* Left section - Project/file info */}
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col">
-            <h1 className="font-semibold text-sm">
-              {isLoading ? "Loading..." : project?.name || "Untitled Project"}
-            </h1>
-            <span className="text-xs text-muted-foreground">
-              {activeFile?.name || "No file selected"}
-            </span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCommandPaletteOpen}
-            className="hidden sm:flex items-center h-8 gap-1 text-xs text-muted-foreground px-2"
-          >
-            <Command className="h-3.5 w-3.5" />
-            <span>Ctrl+K</span>
-          </Button>
-        </div>
-        
-        {/* Center section - Actions */}
-        <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRun}
-                  disabled={isRunning}
-                >
-                  <Play className={`h-4 w-4 ${isRunning ? "text-green-500" : ""}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Run</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleSave}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Save</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onDatabaseOpen}
-                  disabled={!project}
-                >
-                  <Database className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Database</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onNixConfigOpen}
-                  disabled={!project}
-                >
-                  <Package className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Nix Config</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onKeyboardShortcutsOpen}
-                >
-                  <Keyboard className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Keyboard Shortcuts</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        
-        {/* Right section - User */}
-        <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleOpenDeployment}
-                  disabled={!project}
-                >
-                  <Rocket className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Deploy</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onCollaborationOpen}
-                  disabled={!project}
-                >
-                  <Share2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Share</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => window.location.href = '/support'}
-                >
-                  <Bell className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Notifications</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Settings</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.avatarUrl || ""} alt={user?.username || ""} />
-                  <AvatarFallback>
-                    {user?.username?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user?.username}</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user?.email}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => logoutMutation.mutate()}
-                className="text-red-500"
-              >
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <div className="h-9 border-b border-border bg-background flex items-center justify-between px-2">
+      {/* Left Section - Just Project Name */}
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-medium text-foreground" aria-label={`Project: ${projectTitle}`}>
+          {projectTitle}
+        </span>
       </div>
-    </>
+
+      {/* Center Section - Empty */}
+      <div className="flex-1" />
+
+      {/* Right Section - Actions */}
+      <div className="flex items-center gap-1">
+        {/* Run Button */}
+        {isRunning ? (
+          <Button
+            size="sm"
+            onClick={handleStop}
+            className="h-7 px-3 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium rounded"
+          >
+            <Square className="h-3 w-3 mr-1" />
+            Stop
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={handleRun}
+            className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white text-[11px] font-medium rounded"
+          >
+            <Play className="h-3 w-3 mr-1" />
+            Run
+          </Button>
+        )}
+
+        {/* Invite Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-3 text-[11px] font-medium rounded border-border"
+        >
+          Invite
+        </Button>
+
+        {/* Share Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-3 text-[11px] font-medium rounded border-border"
+        >
+          Share
+        </Button>
+
+        {/* Three Dots Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+            >
+              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={onCommandPaletteOpen}>
+              Command Palette
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onKeyboardShortcutsOpen}>
+              Keyboard Shortcuts
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDatabaseOpen}>
+              Database
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onNixConfigOpen}>
+              Packages
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              Publishing
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              Git
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              Secrets
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setShowSettings(true)}>
+              Settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="max-w-2xl max-h-[80vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b border-border">
+            <DialogTitle className="text-base">User Settings</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <WorkspaceSettings />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 

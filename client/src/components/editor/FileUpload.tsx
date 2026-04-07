@@ -8,7 +8,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 interface FileUploadProps {
-  projectId: number;
+  projectId: string;
   parentId?: number;
   onClose?: () => void;
   className?: string;
@@ -27,11 +27,7 @@ export function FileUpload({ projectId, parentId, onClose, className }: FileUplo
         formData.append('parentId', parentId.toString());
       }
 
-      const res = await fetch(`/api/projects/${projectId}/upload`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
+      const res = await apiRequest('POST', `/api/files/upload`, formData);
 
       if (!res.ok) {
         throw new Error('Failed to upload files');
@@ -40,7 +36,7 @@ export function FileUpload({ projectId, parentId, onClose, className }: FileUplo
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/files/${projectId}`] });
       toast({
         title: 'Files uploaded',
         description: 'Your files have been uploaded successfully',
@@ -101,14 +97,14 @@ export function FileUpload({ projectId, parentId, onClose, className }: FileUplo
             <p className="text-[var(--ecode-text)] mb-2">
               Drag & drop files here, or click to select files
             </p>
-            <p className="text-sm text-[var(--ecode-text-muted)]">
+            <p className="text-[13px] text-[var(--ecode-text-muted)]">
               Upload multiple files to your project
             </p>
           </>
         )}
 
         {uploadMutation.isPending && (
-          <p className="mt-4 text-sm text-[var(--ecode-accent)]">
+          <p className="mt-4 text-[13px] text-[var(--ecode-accent)]">
             Uploading files...
           </p>
         )}

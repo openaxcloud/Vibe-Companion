@@ -2,16 +2,16 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { storage } from '../storage';
 
-export interface ECodeDBData {
+export interface ReplitDBData {
   projectId: number;
   data: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export class ECodeDB {
+export class ReplitDB {
   private dbPath: string;
-  private cache: Map<number, ECodeDBData> = new Map();
+  private cache: Map<number, ReplitDBData> = new Map();
 
   constructor() {
     this.dbPath = path.join(process.cwd(), '.replitdb');
@@ -22,7 +22,7 @@ export class ECodeDB {
     try {
       await fs.mkdir(this.dbPath, { recursive: true });
     } catch (error) {
-      console.error('Failed to initialize ECodeDB directory:', error);
+      console.error('Failed to initialize ReplitDB directory:', error);
     }
   }
 
@@ -127,7 +127,7 @@ export class ECodeDB {
     return results;
   }
 
-  private async getProjectDB(projectId: number): Promise<ECodeDBData> {
+  private async getProjectDB(projectId: number): Promise<ReplitDBData> {
     // Check cache first
     if (this.cache.has(projectId)) {
       return this.cache.get(projectId)!;
@@ -145,7 +145,7 @@ export class ECodeDB {
       return db;
     } catch (error) {
       // Create new DB if doesn't exist
-      const newDB: ECodeDBData = {
+      const newDB: ReplitDBData = {
         projectId,
         data: {},
         createdAt: new Date(),
@@ -158,7 +158,7 @@ export class ECodeDB {
     }
   }
 
-  private async saveProjectDB(projectId: number, db: ECodeDBData): Promise<void> {
+  private async saveProjectDB(projectId: number, db: ReplitDBData): Promise<void> {
     const dbFile = path.join(this.dbPath, `project-${projectId}.json`);
     await fs.writeFile(dbFile, JSON.stringify(db, null, 2));
     this.cache.set(projectId, db);
@@ -176,4 +176,4 @@ export class ECodeDB {
   }
 }
 
-export const replitDB = new ECodeDB();
+export const replitDB = new ReplitDB();

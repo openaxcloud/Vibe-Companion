@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Bot, Send, Sparkles, Code, FileText, HelpCircle,
   Lightbulb, Zap, RefreshCw, Copy, ThumbsUp, ThumbsDown,
   ChevronDown, ChevronUp, Terminal, History, Settings,
-  X, Minimize2, Maximize2, MessageSquare
+  X, Minimize2, Maximize2, MessageSquare, Wand2, BookTemplate
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
+import { CustomPromptsModal } from './CustomPromptsModal';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 interface AIAssistantProps {
   projectId: number;
@@ -66,16 +69,76 @@ export function AIAssistant({ projectId, selectedFile, selectedCode, className }
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [suggestions, setSuggestions] = useState<CodeSuggestion[]>([]);
-  const [activeTab, setActiveTab] = useState<'chat' | 'suggestions' | 'history'>('chat');
+  const [isTyping, setIsTyping] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
+  const [suggestions, setSuggestions] = useState<CodeSuggestion[]>([]);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
+  const [showCustomPrompts, setShowCustomPrompts] = useState(false);
+  const [activePromptRules, setActivePromptRules] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isUserNearBottomRef = useRef(true);
+  const lastScrollTimeRef = useRef(0);
   const { toast } = useToast();
 
+  // Fetch active AI rules for this project
+  const { data: projectRules = [] } = useQuery({
+    queryKey: [`/api/projects/${projectId}/ai-rules`, { activeOnly: true }],
+    enabled: !!projectId,
+  });
+
+  // Load active rules count
   useEffect(() => {
-    scrollToBottom();
+    if (projectRules && projectRules.length > 0) {
+      setActivePromptRules(projectRules.filter((rule: any) => rule.isActive));
+    }
+  }, [projectRules]);
+
+  // Smart scroll: Check if user is near bottom
+  const checkIfNearBottom = useCallback(() => {
+    const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollContainer) {
+      const container = messagesEndRef.current?.parentElement;
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        isUserNearBottomRef.current = distanceFromBottom < 150;
+      }
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    isUserNearBottomRef.current = distanceFromBottom < 150;
+  }, []);
+
+  // Smart scroll: Listen for scroll events
+  useEffect(() => {
+    const scrollContainer = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') || 
+                            messagesEndRef.current?.parentElement;
+    if (scrollContainer) {
+      const handleScroll = () => {
+        lastScrollTimeRef.current = Date.now();
+        checkIfNearBottom();
+      };
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, [checkIfNearBottom]);
+
+  // Smart auto-scroll to bottom only if user is near bottom
+  useEffect(() => {
+    const timeSinceLastScroll = Date.now() - lastScrollTimeRef.current;
+    if (timeSinceLastScroll < 100) return;
+    if (!isUserNearBottomRef.current) return;
+    
+    if (messagesEndRef.current) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
+    }
   }, [messages, streamingMessage]);
 
   useEffect(() => {
@@ -84,19 +147,24 @@ export function AIAssistant({ projectId, selectedFile, selectedCode, className }
   }, [projectId]);
 
   useEffect(() => {
-    // Generate suggestions based on selected code
-    if (selectedCode) {
-      generateSuggestions();
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
     }
-  }, [selectedCode]);
+  }, [input]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      isUserNearBottomRef.current = true;
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
+    }
+  }, []);
 
   const loadChatHistory = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/ai/history`);
+      const response = await fetch(`/api/ai/${projectId}/history`);
       if (response.ok) {
         const data = await response.json();
         setMessages(data.map((msg: any) => ({
@@ -113,20 +181,12 @@ export function AIAssistant({ projectId, selectedFile, selectedCode, className }
     if (!selectedCode) return;
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/ai/suggestions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: selectedCode,
-          file: selectedFile,
-          projectId
-        })
+      const data = await apiRequest<{ suggestions: CodeSuggestion[] }>('POST', `/api/ai/${projectId}/suggestions`, {
+        code: selectedCode,
+        file: selectedFile,
+        projectId
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.suggestions || []);
-      }
+      setSuggestions(data.suggestions || []);
     } catch (error) {
       console.error('Failed to generate suggestions:', error);
     }
@@ -151,109 +211,43 @@ export function AIAssistant({ projectId, selectedFile, selectedCode, className }
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/ai/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage.content,
-          context: {
-            projectId,
-            file: selectedFile,
-            code: selectedCode,
-            history: messages.slice(-5)
-          }
-        })
+      const data = await apiRequest<{ id?: string; content: string; timestamp?: string }>('POST', `/api/ai/${projectId}/chat`, {
+        message: userMessage.content,
+        context: {
+          projectId,
+          file: selectedFile,
+          code: selectedCode,
+          history: messages.slice(-20)
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to get AI response');
-
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+      const assistantMessage: Message = {
+        id: data.id || (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '',
-        timestamp: new Date(),
+        content: data.content || '',
+        timestamp: new Date(data.timestamp || Date.now()),
         type: quickAction?.id === 'explain' ? 'explanation' : 
                quickAction?.id === 'generate' ? 'code' : 'suggestion'
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-      setStreamingMessage('');
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          setStreamingMessage(prev => prev + chunk);
-          assistantMessage.content += chunk;
-        }
-      }
-
-      setMessages(prev => 
-        prev.map(msg => msg.id === assistantMessage.id 
-          ? { ...msg, content: assistantMessage.content }
-          : msg
-        )
-      );
-      setStreamingMessage('');
     } catch (error) {
       console.error('AI chat error:', error);
       
-      // Mock response for demonstration
-      const mockResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: getMockResponse(userMessage.content, quickAction),
-        timestamp: new Date(),
-        type: quickAction?.id === 'explain' ? 'explanation' : 
-               quickAction?.id === 'generate' ? 'code' : 'suggestion'
-      };
-      
-      setMessages(prev => [...prev, mockResponse]);
+      toast({
+        title: "AI service unavailable",
+        description: "Unable to connect to AI service. Please try again later.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getMockResponse = (query: string, action?: QuickAction): string => {
-    if (action?.id === 'explain') {
-      return `This code appears to be a React component that:\n\n1. **State Management**: Uses useState hooks to manage local state\n2. **Side Effects**: Uses useEffect for lifecycle management\n3. **API Integration**: Makes fetch calls to backend endpoints\n4. **Error Handling**: Includes try-catch blocks for error management\n\nThe component follows React best practices and appears to be well-structured.`;
-    } else if (action?.id === 'improve') {
-      return `Here are some suggestions to improve your code:\n\n1. **Add TypeScript types** for better type safety\n2. **Memoize expensive computations** using useMemo\n3. **Debounce API calls** to reduce server load\n4. **Extract custom hooks** for reusable logic\n5. **Add loading states** for better UX`;
-    } else if (action?.id === 'generate') {
-      return `\`\`\`typescript
-// Generated TypeScript interface based on your requirements
-interface UserData {
-  id: number;
-  name: string;
-  email: string;
-  createdAt: Date;
-}
 
-// Custom hook for user management
-export function useUser(userId: number) {
-  const [user, setUser] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchUser(userId)
-      .then(setUser)
-      .catch(setError)
-      .finally(() => setLoading(false));
-  }, [userId]);
 
-  return { user, loading, error };
-}
-\`\`\``;
-    }
-    
-    return "I'm here to help! I can explain code, suggest improvements, help debug issues, and generate new code. What would you like assistance with?";
-  };
+
 
   const handleQuickAction = (action: QuickAction) => {
     if (selectedCode) {
@@ -265,11 +259,7 @@ export function useUser(userId: number) {
 
   const handleFeedback = async (messageId: string, feedback: 'positive' | 'negative') => {
     try {
-      await fetch('/api/ai/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, feedback })
-      });
+      await apiRequest('POST', '/api/ai/feedback', { messageId, feedback });
       
       toast({
         title: "Feedback Recorded",
@@ -305,12 +295,12 @@ export function useUser(userId: number) {
             isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
           }`}>
             {message.metadata?.fileName && (
-              <div className="text-xs opacity-70 mb-1">
+              <div className="text-[11px] opacity-70 mb-1">
                 {message.metadata.fileName}
               </div>
             )}
             
-            <div className="text-sm whitespace-pre-wrap">
+            <div className="text-[13px] whitespace-pre-wrap">
               {message.content.split(codeBlockRegex).map((part, index) => {
                 if (index % 3 === 2) {
                   // This is code content
@@ -319,7 +309,7 @@ export function useUser(userId: number) {
                     <div key={index} className="relative my-2">
                       <div className="bg-background rounded p-3 border">
                         <div className="flex items-center justify-between mb-2">
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-[11px]">
                             {language}
                           </Badge>
                           <Button
@@ -331,7 +321,7 @@ export function useUser(userId: number) {
                             <Copy className="h-3 w-3" />
                           </Button>
                         </div>
-                        <pre className="text-xs overflow-x-auto">
+                        <pre className="text-[11px] overflow-x-auto">
                           <code>{part}</code>
                         </pre>
                       </div>
@@ -387,8 +377,22 @@ export function useUser(userId: number) {
           <CardTitle className="text-base flex items-center">
             <Bot className="h-4 w-4 mr-2" />
             AI Assistant
+            {activePromptRules.length > 0 && (
+              <Badge variant="secondary" className="ml-2 text-[11px]">
+                {activePromptRules.length} Rule{activePromptRules.length > 1 ? 's' : ''} Active
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center space-x-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowCustomPrompts(true)}
+              className="h-7 w-7"
+              title="Manage Custom Prompts"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+            </Button>
             <Button
               size="icon"
               variant="ghost"
@@ -412,9 +416,9 @@ export function useUser(userId: number) {
       <CardContent className="p-0">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-8">
-            <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
-            <TabsTrigger value="suggestions" className="text-xs">Suggestions</TabsTrigger>
-            <TabsTrigger value="history" className="text-xs">History</TabsTrigger>
+            <TabsTrigger value="chat" className="text-[11px]">Chat</TabsTrigger>
+            <TabsTrigger value="suggestions" className="text-[11px]">Suggestions</TabsTrigger>
+            <TabsTrigger value="history" className="text-[11px]">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="chat" className="mt-0">
@@ -439,12 +443,12 @@ export function useUser(userId: number) {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="h-96 px-3 py-3">
+            <ScrollArea ref={scrollRef} className="h-96 px-3 py-3">
               {messages.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
                   <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">Hi! I'm your AI assistant.</p>
-                  <p className="text-xs mt-1">Ask me anything about your code!</p>
+                  <p className="text-[13px]">Hi! I'm your AI assistant.</p>
+                  <p className="text-[11px] mt-1">Ask me anything about your code!</p>
                 </div>
               ) : (
                 <>
@@ -458,7 +462,7 @@ export function useUser(userId: number) {
                           </AvatarFallback>
                         </Avatar>
                         <div className="rounded-lg p-3 bg-muted">
-                          <div className="text-sm whitespace-pre-wrap">
+                          <div className="text-[13px] whitespace-pre-wrap">
                             {streamingMessage}
                             <span className="inline-block w-2 h-4 ml-1 bg-foreground/50 animate-pulse" />
                           </div>
@@ -504,26 +508,26 @@ export function useUser(userId: number) {
                 {suggestions.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     <Lightbulb className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">No suggestions yet</p>
-                    <p className="text-xs mt-1">Select some code to get AI suggestions</p>
+                    <p className="text-[13px]">No suggestions yet</p>
+                    <p className="text-[11px] mt-1">Select some code to get AI suggestions</p>
                   </div>
                 ) : (
                   suggestions.map(suggestion => (
                     <Card key={suggestion.id} className="p-3">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <h4 className="text-sm font-medium">{suggestion.title}</h4>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <h4 className="text-[13px] font-medium">{suggestion.title}</h4>
+                          <p className="text-[11px] text-muted-foreground mt-1">
                             {suggestion.description}
                           </p>
                         </div>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-[11px]">
                           {Math.round(suggestion.confidence * 100)}%
                         </Badge>
                       </div>
                       {suggestion.code && (
                         <div className="mt-2">
-                          <pre className="text-xs p-2 bg-muted rounded overflow-x-auto">
+                          <pre className="text-[11px] p-2 bg-muted rounded overflow-x-auto">
                             <code>{suggestion.code}</code>
                           </pre>
                           <Button
@@ -559,7 +563,7 @@ export function useUser(userId: number) {
                         onClick={() => setInput(msg.content)}
                       >
                         <History className="h-4 w-4 mr-2 flex-shrink-0" />
-                        <span className="truncate text-sm">{msg.content}</span>
+                        <span className="truncate text-[13px]">{msg.content}</span>
                       </Button>
                     ))}
                 </div>
@@ -568,6 +572,13 @@ export function useUser(userId: number) {
           </TabsContent>
         </Tabs>
       </CardContent>
+      
+      {/* Custom Prompts Modal */}
+      <CustomPromptsModal
+        projectId={String(projectId)}
+        isOpen={showCustomPrompts}
+        onClose={() => setShowCustomPrompts(false)}
+      />
     </Card>
   );
 }

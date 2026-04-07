@@ -645,7 +645,7 @@ export const sessionSecurity = {
     cookie: {
       secure: process.env.NODE_ENV === 'production' || !!process.env.REPL_ID,
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: (process.env.NODE_ENV === 'production' || !!process.env.REPL_ID) ? 'none' as const : 'lax' as const,
       path: '/',
     },

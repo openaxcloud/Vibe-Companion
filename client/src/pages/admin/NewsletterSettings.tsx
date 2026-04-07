@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Mail, CheckCircle, XCircle, AlertCircle, Send, Settings2 } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+import { ECodeLoading } from '@/components/ECodeLoading';
 
 export default function NewsletterSettings() {
   const { toast } = useToast();
@@ -18,8 +20,7 @@ export default function NewsletterSettings() {
 
   const checkGandiStatus = async () => {
     try {
-      const response = await fetch('/api/newsletter/test-gandi');
-      const data = await response.json();
+      const data = await apiRequest('GET', '/api/newsletter/test-gandi');
       setGandiStatus(data);
     } catch (error) {
       toast({
@@ -35,24 +36,11 @@ export default function NewsletterSettings() {
   const testEmailSending = async () => {
     setTesting(true);
     try {
-      const response = await fetch('/api/newsletter/test-send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'test@example.com' })
+      await apiRequest('POST', '/api/newsletter/test-send', { email: 'test@example.com' });
+      toast({
+        title: "Test Sent",
+        description: "Check console logs for email output",
       });
-      
-      if (response.ok) {
-        toast({
-          title: "Test Sent",
-          description: "Check console logs for email output",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to send test email",
-          variant: "destructive",
-        });
-      }
     } catch (error) {
       toast({
         title: "Error",
@@ -67,8 +55,8 @@ export default function NewsletterSettings() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="p-8">
-          <div className="text-center text-muted-foreground">Loading...</div>
+        <CardContent className="p-8 flex items-center justify-center">
+          <ECodeLoading size="md" text="Loading..." />
         </CardContent>
       </Card>
     );
@@ -89,7 +77,7 @@ export default function NewsletterSettings() {
         <CardContent className="space-y-6">
           {/* Gandi Email Status */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <h3 className="text-[15px] font-semibold flex items-center gap-2">
               Gandi Email Service
               {gandiStatus?.connected ? (
                 <Badge variant="success" className="ml-2">
@@ -106,7 +94,7 @@ export default function NewsletterSettings() {
 
             {gandiStatus && (
               <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-[13px]">
                   <div>
                     <span className="font-medium">SMTP Host:</span>
                     <span className="ml-2 text-muted-foreground">{gandiStatus.config.host}</span>
@@ -137,7 +125,7 @@ export default function NewsletterSettings() {
                   </div>
                 </div>
 
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-[13px] text-muted-foreground mt-2">
                   {gandiStatus.message}
                 </p>
               </div>
@@ -149,9 +137,9 @@ export default function NewsletterSettings() {
                 <AlertDescription>
                   To enable email sending via Gandi, set these environment variables:
                   <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li><code className="text-xs bg-muted px-1 py-0.5 rounded">GANDI_SMTP_USER</code> or <code className="text-xs bg-muted px-1 py-0.5 rounded">GANDI_EMAIL</code></li>
-                    <li><code className="text-xs bg-muted px-1 py-0.5 rounded">GANDI_SMTP_PASS</code> or <code className="text-xs bg-muted px-1 py-0.5 rounded">GANDI_PASSWORD</code></li>
-                    <li><code className="text-xs bg-muted px-1 py-0.5 rounded">FROM_EMAIL</code> (optional, defaults to noreply@e-code.dev)</li>
+                    <li><code className="text-[11px] bg-muted px-1 py-0.5 rounded">GANDI_SMTP_USER</code> or <code className="text-[11px] bg-muted px-1 py-0.5 rounded">GANDI_EMAIL</code></li>
+                    <li><code className="text-[11px] bg-muted px-1 py-0.5 rounded">GANDI_SMTP_PASS</code> or <code className="text-[11px] bg-muted px-1 py-0.5 rounded">GANDI_PASSWORD</code></li>
+                    <li><code className="text-[11px] bg-muted px-1 py-0.5 rounded">FROM_EMAIL</code> (optional, defaults to noreply@e-code.ai)</li>
                   </ul>
                 </AlertDescription>
               </Alert>
@@ -160,14 +148,14 @@ export default function NewsletterSettings() {
 
           {/* Email Features */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Email Features</h3>
+            <h3 className="text-[15px] font-semibold">Email Features</h3>
             <div className="grid gap-3">
               <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                 <div className="flex items-center gap-3">
                   <Settings2 className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">Enhanced Email Validation</p>
-                    <p className="text-sm text-muted-foreground">E-Code design standards with typo suggestions</p>
+                    <p className="text-[13px] text-muted-foreground">E-Code design standards with typo suggestions</p>
                   </div>
                 </div>
                 <Badge variant="success">Active</Badge>
@@ -178,7 +166,7 @@ export default function NewsletterSettings() {
                   <Send className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">Welcome Email with Confirmation</p>
-                    <p className="text-sm text-muted-foreground">Sent when users subscribe to newsletter</p>
+                    <p className="text-[13px] text-muted-foreground">Sent when users subscribe to newsletter</p>
                   </div>
                 </div>
                 <Badge variant={gandiStatus?.connected ? "success" : "secondary"}>
@@ -191,7 +179,7 @@ export default function NewsletterSettings() {
                   <CheckCircle className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">Confirmation Success Email</p>
-                    <p className="text-sm text-muted-foreground">Sent after email verification</p>
+                    <p className="text-[13px] text-muted-foreground">Sent after email verification</p>
                   </div>
                 </div>
                 <Badge variant={gandiStatus?.connected ? "success" : "secondary"}>
