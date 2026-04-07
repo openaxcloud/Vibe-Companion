@@ -1,7 +1,7 @@
 # Replit Clone Project
 
 ## Overview
-A comprehensive web-based IDE that clones Replit.com exactly, then adds unique features. The project focuses on pixel-perfect replication of Replit's interface and functionality, built with React, TypeScript, and advanced web technologies.
+This project is an advanced web-based IDE designed to replicate Replit.com's interface and functionality with pixel-perfect precision, and then extend it with unique features. Built with React, TypeScript, and a modern full-stack architecture, it aims to provide a comprehensive development environment. The vision is to first achieve an exact clone of Replit.com, then integrate personal, innovative features to enhance the developer experience. It includes a Multi-Artifact Architecture to support diverse output formats (web-app, mobile-app, 3D game, etc.) and specialized editors/AI tools for each.
 
 ## User Preferences
 - **Vision**: Create exact pixel-perfect clone of replit.com first, then add personal features
@@ -9,15 +9,22 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 - **Communication**: Direct, concise updates with clear progress indicators
 - **Architecture**: Modern full-stack with React frontend, Express backend, PostgreSQL database
 
-## Project Architecture
+## System Architecture
 
 ### Frontend
-- React 18 with TypeScript
-- Vite for build tooling
-- Tailwind CSS with custom Replit theme variables
-- Monaco Editor for advanced code editing
-- xterm.js for terminal integration
-- Radix UI components with shadcn/ui styling
+- **Framework**: React 18 with TypeScript
+- **Build Tooling**: Vite
+- **Styling**: Tailwind CSS with custom Replit theme variables, Radix UI components with shadcn/ui styling
+- **Core Components**:
+    - **ReplitLayout**: Main layout matching Replit's structure.
+    - **ReplitHeader, ReplitSidebar**: Navigation and project tools.
+    - **ReplitMonacoEditor**: Advanced code editor with Replit theming and features.
+    - **ReplitFileExplorer**: Interactive file system with drag/drop, search, context menus.
+    - **ReplitTerminal**: Full-featured terminal with xterm.js, WebSocket integration, multiple sessions, search, and history.
+    - **Key Replit Features**: RunButton, EnvironmentVariables, PackageManager, WebPreview, Shell components.
+    - **Advanced Features**: GlobalSearch, GitIntegration with UI, ReplitDB management, DeploymentManager, AIAssistant (code completion, explanations, chat), ImportExport, BillingSystem, ExtensionsMarketplace.
+    - **UI/UX**: Onboarding/Guided Tour, UserProfile and UserSettings pages, ProjectTemplates system.
+    - **Performance**: Code splitting and lazy loading for optimized performance.
 
 ### Backend
 - Express.js with TypeScript
@@ -202,41 +209,20 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 - **Replit Config System**: Full support for `.replit` and `replit.nix` configuration files.
 
 ## External Dependencies
-- **PostgreSQL**: Primary database for all application data.
-- **Nodemailer**: For sending emails (password resets, verification, invites).
-- **Stripe**: For billing, subscriptions, and payment processing.
-- **Anthropic Claude Sonnet, OpenAI GPT-4o, Google Gemini Flash**: AI model providers for chat, agent, and project generation.
-- **Tavily API**: Primary web search for AI agent.
-- **Brave Search API**: For web image search.
-- **ElevenLabs**: For Text-to-Speech functionality.
-- **DALL-E 3**: For AI image generation.
-- **NanoBanana (Stable Diffusion XL)**: Fallback AI image generation.
-- **GitHub API**: For Git integration (import, export, sync).
-- **Figma API**: For AI-powered React component generation from design contexts.
-- **Vercel, Bolt, Lovable**: Integrated import sources for projects.
-- **Slack (via @slack/bolt)**: For automation triggers.
-- **Telegram (via telegraf)**: For automation triggers.
-- **node-cron**: For cron job scheduling in automations.
-- **node-pty**: For real terminal emulation.
-- **ws**: WebSocket library for real-time communication.
-- **Yjs**: CRDT library for collaborative editing.
-- **Helmet.js**: For enhancing security headers.
-- **Acorn, Acorn-Walk**: For JavaScript AST analysis.
-- **esbuild**: For TypeScript transpilation.
-- **pdfkit, docx, exceljs, pptxgenjs**: For generating various document formats.
-- **@axe-core/playwright, @playwright/test**: For automated WCAG 2.1 AA accessibility testing.
-
-## Accessibility Testing
-Automated accessibility tests using axe-core run via Playwright against 5 key public pages (Landing, Login, Accessibility, Pricing, Features). Tests assert zero critical/serious WCAG 2.1 AA violations (color-contrast excluded as a known limitation of the brand color). Run with: `CHROMIUM_PATH=$(which chromium) npx playwright test e2e/accessibility.spec.ts`. Config: `playwright.config.ts`.
-
-## Next Steps
-1. Complete remaining Phase 4 tasks:
-   - Billing system UI integration (BillingSystem component created)
-   - Extensions marketplace UI integration (ExtensionsMarketplace component created)
-   - User profile and settings pages integration
-2. Phase 5: Polish, optimization, and deployment:
-   - Performance optimization and testing
-   - Mobile-responsive layouts refinement
-   - Advanced search interface improvements
-   - Project templates and community features
-   - Production deployment preparation
+- **Database**: PostgreSQL
+- **Email**: Nodemailer
+- **Payments**: Stripe
+- **AI Models**: Anthropic Claude Sonnet, OpenAI GPT-4o, Google Gemini Flash, DALL-E 3, NanoBanana (Stable Diffusion XL)
+- **AI Tools**: Tavily API (web search), Brave Search API (image search), ElevenLabs (Text-to-Speech)
+- **Version Control**: GitHub API
+- **Design Integration**: Figma API
+- **Import Sources**: Vercel, Bolt, Lovable
+- **Automation Triggers**: Slack (@slack/bolt), Telegram (telegraf), node-cron
+- **Terminal Emulation**: node-pty
+- **WebSockets**: ws
+- **Collaboration**: Yjs
+- **Security**: Helmet.js
+- **Code Analysis**: Acorn, Acorn-Walk
+- **Transpilation**: esbuild
+- **Document Generation**: pdfkit, docx, exceljs, pptxgenjs
+- **Accessibility Testing**: @axe-core/playwright, @playwright/test

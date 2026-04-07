@@ -61,6 +61,12 @@ async function extractAndSaveCodeBlocks(content: string, projectId: string | num
     try {
       fs.mkdirSync(projDir, { recursive: true });
       const filePath = filename.includes('/') ? path.join(projDir, ...filename.split('/')) : path.join(projDir, filename);
+      const resolvedPath = path.resolve(filePath);
+      const resolvedProjDir = path.resolve(projDir);
+      if (!resolvedPath.startsWith(resolvedProjDir + path.sep) && resolvedPath !== resolvedProjDir) {
+        console.error(`[File] Path traversal attempt blocked: ${filename}`);
+        continue;
+      }
       const fileDir = path.dirname(filePath);
       if (fileDir !== projDir) fs.mkdirSync(fileDir, { recursive: true });
       fs.writeFileSync(filePath, trimmedCode, 'utf-8');
@@ -895,12 +901,6 @@ app.get("/api/projects/:projectId/files/:fileIdOrName", async (req: Request, res
   }
 });
 
-app.post("/api/admin/write-file", (req: Request, res: Response) => {
-  const { path: filePath, content } = req.body;
-  if (!filePath || content === undefined) return res.status(400).json({ error: "missing path/content" });
-  fs.writeFileSync(filePath, content);
-  res.json({ ok: true });
-});
 
 const agentPreferencesStore = new Map<string, any>();
 
@@ -1014,7 +1014,6 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
 (async () => {
   try {
-    const { registerRoutes } = await import("./routes");
     await registerRoutes(httpServer, app);
     log("Full routes loaded successfully");
   } catch (err: any) {

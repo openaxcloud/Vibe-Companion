@@ -7,7 +7,7 @@ import { FileText, FileEdit, GitCommit, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface TaskSummariesPanelProps {
-  projectId: number;
+  projectId: string | number;
 }
 
 export function TaskSummariesPanel({ projectId }: TaskSummariesPanelProps) {
@@ -15,9 +15,9 @@ export function TaskSummariesPanel({ projectId }: TaskSummariesPanelProps) {
   const { data: summaries, isLoading } = useQuery({
     queryKey: ['/api/task-summaries', projectId],
     queryFn: async () => {
-      const res = await apiRequest('GET', `/api/task-summaries/${projectId}`);
-      if (!res.ok) throw new Error('Failed to fetch task summaries');
-      return res.json();
+      try {
+        return await apiRequest<any[]>('GET', `/api/task-summaries/${projectId}`);
+      } catch { return []; }
     }
   });
 

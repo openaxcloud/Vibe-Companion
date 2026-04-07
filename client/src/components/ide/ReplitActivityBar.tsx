@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  ClipboardList,
 } from 'lucide-react';
 
 export type ActivityItem = 
@@ -40,7 +41,8 @@ export type ActivityItem =
   | 'workflows'
   | 'extensions'
   | 'settings'
-  | 'history';
+  | 'history'
+  | 'tasks';
 
 interface ActivityBarItem {
   id: ActivityItem;
@@ -73,6 +75,7 @@ const defaultItems: ActivityBarItem[] = [
   { id: 'database', icon: Database, label: 'Database', separator: true },
   { id: 'preview', icon: Eye, label: 'Preview', shortcut: '⌘⇧P' },
   { id: 'workflows', icon: Zap, label: 'Workflows' },
+  { id: 'tasks', icon: ClipboardList, label: 'Tasks', shortcut: '⌘⇧T' },
 ];
 
 const bottomItems: ActivityBarItem[] = [

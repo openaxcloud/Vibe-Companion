@@ -41,6 +41,7 @@ import {
   BookMarked,
   Palette,
   Eye,
+  CheckSquare,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -464,6 +465,33 @@ export const TOOL_REGISTRY: Record<string, ToolMetadata> = {
     category: 'Development',
     description: 'Preview your running application',
     keywords: ['browser', 'view', 'web', 'live'],
+  },
+  'tasks': {
+    id: 'tasks',
+    label: 'Tasks',
+    icon: CheckSquare,
+    emoji: '✅',
+    category: 'Tools',
+    description: 'View task summaries and progress',
+    keywords: ['tasks', 'progress', 'summary', 'work'],
+  },
+  'task-board': {
+    id: 'task-board',
+    label: 'Task Board',
+    icon: CheckSquare,
+    emoji: '📋',
+    category: 'Tools',
+    description: 'Kanban board for managing project tasks',
+    keywords: ['tasks', 'board', 'kanban', 'plan', 'drafts', 'active'],
+  },
+  'task-detail': {
+    id: 'task-detail',
+    label: 'Task Detail',
+    icon: CheckSquare,
+    emoji: '📝',
+    category: 'Tools',
+    description: 'Detailed view of a project task',
+    keywords: ['task', 'detail', 'plan', 'review'],
   },
 };
 

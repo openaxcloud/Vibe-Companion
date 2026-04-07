@@ -198,6 +198,7 @@ export class MainRouter {
       statusMod,
       runnerMod,
       projectAuthMod,
+      projectTasksMod,
     ] = await Promise.all([
       safeImport("placeholder", () => import("./placeholder.router")),
       safeImport("logs", () => import("./logs.router")),
@@ -292,6 +293,7 @@ export class MainRouter {
       safeImport("status", () => import("./status.router")),
       safeImport("runner-workspaces", () => import("./runner-workspaces.router")),
       safeImport("project-auth", () => import("./project-auth.router")),
+      safeImport("project-tasks", () => import("./project-tasks.router")),
     ]);
 
     mount(app, '/api', def(placeholderMod));
@@ -427,6 +429,7 @@ export class MainRouter {
     mount(app, '/api/runner', tierRateLimiters.api, def(runnerMod));
     mount(app, '/api/workspaces', tierRateLimiters.api, def(workspacesMod));
     mount(app, '/api/project-auth', tierRateLimiters.api, def(projectAuthMod));
+    mount(app, '/api/projects', tierRateLimiters.api, def(projectTasksMod));
 
     setupPreviewRoutes(app);
 

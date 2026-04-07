@@ -181,6 +181,9 @@ export const availableTools: AvailableTool[] = [
   { id: 'multiplayers', label: 'Multiplayer', icon: '👥' },
   { id: 'deploy', label: 'Deploy', icon: '🚀' },
   { id: 'preview', label: 'Preview', icon: '👁️' },
+  { id: 'tasks', label: 'Tasks', icon: '✅' },
+  { id: 'task-board', label: 'Task Board', icon: '📋' },
+  { id: 'task-detail', label: 'Task Detail', icon: '📝' },
 ];
 
 export function useIDEWorkspace(projectId: string) {

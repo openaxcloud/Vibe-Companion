@@ -2683,8 +2683,44 @@ export const projectScreenshots = pgTable("project_screenshots", {
 
 export const taskSummaries = pgTable("task_summaries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  taskDescription: text("task_description"),
+  summary: text("summary"),
+  completed: boolean("completed").default(false),
+  filesChanged: integer("files_changed").default(0),
+  timeSpent: integer("time_spent").default(0),
+  linesAdded: integer("lines_added").default(0),
+  linesDeleted: integer("lines_deleted").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const projectTasks = pgTable("project_tasks", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  taskNumber: integer("task_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  planContent: text("plan_content"),
+  planWhatAndWhy: text("plan_what_and_why"),
+  planDoneLooksLike: text("plan_done_looks_like"),
+  priority: varchar("priority", { length: 10 }).default("medium"),
+  complexity: varchar("complexity", { length: 10 }).default("medium"),
+  filesModified: json("files_modified").$type<string[]>(),
+  checkpointCount: integer("checkpoint_count").default(0),
+  workDurationSeconds: integer("work_duration_seconds").default(0),
+  agentSessionId: varchar("agent_session_id", { length: 36 }),
+  reviewStatus: varchar("review_status", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export type ProjectTask = typeof projectTasks.$inferSelect;
+export type InsertProjectTask = Omit<typeof projectTasks.$inferInsert, 'id'>;
+
+export const insertProjectTaskSchema = createInsertSchema(projectTasks).omit({ id: true });
 
 export const usageTracking = pgTable("usage_tracking", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

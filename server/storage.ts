@@ -599,7 +599,7 @@ export interface IStorage {
   // Task summary operations
   createTaskSummary(summary: InsertTaskSummary): Promise<TaskSummary>;
   getProjectTaskSummaries(projectId: string | number): Promise<TaskSummary[]>;
-  updateTaskSummary(id: number, summary: Partial<InsertTaskSummary>): Promise<TaskSummary | undefined>;
+  updateTaskSummary(id: string, summary: Partial<InsertTaskSummary>): Promise<TaskSummary | undefined>;
 
   // Voice/Video Session operations
   createVoiceVideoSession(session: InsertVoiceVideoSession): Promise<VoiceVideoSession>;
@@ -2451,11 +2451,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProjectTaskSummaries(projectId: string | number): Promise<TaskSummary[] > {
-    return await this.db.select().from(taskSummaries).where(eq(taskSummaries.projectId, _num(projectId))).orderBy(desc(taskSummaries.createdAt));
+    return await this.db.select().from(taskSummaries).where(eq(taskSummaries.projectId, String(projectId))).orderBy(desc(taskSummaries.createdAt));
   }
 
-  async updateTaskSummary(id: number, summary: Partial<InsertTaskSummary>): Promise<TaskSummary | undefined> {
-    const [updated] = await this.db.update(taskSummaries).set(summary).where(eq(taskSummaries.id, _num(id))).returning();
+  async updateTaskSummary(id: string, summary: Partial<InsertTaskSummary>): Promise<TaskSummary | undefined> {
+    const [updated] = await this.db.update(taskSummaries).set(summary).where(eq(taskSummaries.id, String(id))).returning();
     return updated;
   }
 

@@ -107,6 +107,9 @@ const AppStoragePanel = instrumentedLazy(() => import('@/components/editor/AppSt
 const ReplitConsolePanel = instrumentedLazy(() => import('@/components/ide/ReplitConsolePanel').then(mod => ({ default: mod.ReplitConsolePanel })), 'ReplitConsolePanel');
 const ResourcesPanel = instrumentedLazy(() => import('@/components/ide/ResourcesPanel').then(mod => ({ default: mod.ResourcesPanel })), 'ResourcesPanel');
 const LogsViewerPanel = instrumentedLazy(() => import('@/components/ide/LogsViewerPanel').then(mod => ({ default: mod.LogsViewerPanel })), 'LogsViewerPanel');
+const TaskSummariesPanel = instrumentedLazy(() => import('@/components/TaskSummariesPanel').then(mod => ({ default: mod.TaskSummariesPanel })), 'TaskSummariesPanel');
+const TaskBoardPanel = instrumentedLazy(() => import('@/components/ide/TaskBoardPanel').then(mod => ({ default: mod.TaskBoardPanel })), 'TaskBoardPanel');
+const TaskDetailPanel = instrumentedLazy(() => import('@/components/ide/TaskDetailPanel').then(mod => ({ default: mod.TaskDetailPanel })), 'TaskDetailPanel');
 
 import { ShortcutHint, ShortcutTester } from '@/components/utilities';
 import { useAutonomousBuildStore } from '@/stores/autonomousBuildStore';
@@ -413,8 +416,10 @@ function UnifiedIDELayout({
         handleAddTool('extensions');
         break;
       case 'settings':
-        // Open settings as inline tab instead of overlay
         handleAddTool('settings');
+        break;
+      case 'tasks':
+        handleAddTool('tasks');
         break;
     }
   }, [setActiveActivityItem, setShowFileExplorer, setIsSidebarCollapsed, setLeftPanelTab, handleAddTool]);
@@ -440,6 +445,7 @@ function UnifiedIDELayout({
   const [enableShortcutTester, setEnableShortcutTester] = useState(false);
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
   const [showTabSwitcher, setShowTabSwitcher] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
   // Tab content transition animation state (Fortune 500 level)
   // displayedTab holds the tab ID whose content is currently rendered
@@ -945,6 +951,27 @@ function UnifiedIDELayout({
             <ReplitTestingPanel projectId={projectId} />
           </Suspense>
         );
+      case 'tasks':
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tasks..." /></div>}>
+            <TaskSummariesPanel projectId={projectId} />
+          </Suspense>
+        );
+      case 'task-board':
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tasks..." /></div>}>
+            <TaskBoardPanel projectId={projectId} onTaskSelect={(taskId) => {
+              setSelectedTaskId(taskId);
+              handleAddTool('task-detail');
+            }} />
+          </Suspense>
+        );
+      case 'task-detail':
+        return selectedTaskId ? (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Task..." /></div>}>
+            <TaskDetailPanel projectId={projectId} taskId={selectedTaskId} onBack={() => handleAddTool('task-board')} />
+          </Suspense>
+        ) : null;
       case 'security':
         return (
           <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Security..." /></div>}>
