@@ -1657,6 +1657,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
     const wss = new WebSocketServer({ noServer: true });
     const logWss = new WebSocketServer({ noServer: true });
+    const agentWss = new WebSocketServer({ noServer: true });
     httpServer.on("upgrade", (request, socket, head) => {
       const url = new URL(request.url || "", `http://${request.headers.host}`);
       if (url.pathname === "/api/terminal/ws" || url.pathname === "/shell") {
@@ -1667,7 +1668,61 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         logWss.handleUpgrade(request, socket, head, (ws) => {
           logWss.emit("connection", ws, request, url.pathname);
         });
+      } else if (url.pathname === "/ws/agent") {
+        agentWss.handleUpgrade(request, socket, head, (ws) => {
+          agentWss.emit("connection", ws, request);
+        });
       }
+    });
+
+    const agentWsClients = new Map<string, Set<import("ws").WebSocket>>();
+    agentWss.on("connection", (ws: import("ws").WebSocket, request: any) => {
+      const url = new URL(request.url || "", `http://${request.headers.host}`);
+      const projectId = url.searchParams.get("projectId") || "unknown";
+      const sessionId = url.searchParams.get("sessionId") || "unknown";
+      const deviceId = url.searchParams.get("deviceId") || "unknown";
+
+      if (!agentWsClients.has(projectId)) {
+        agentWsClients.set(projectId, new Set());
+      }
+      agentWsClients.get(projectId)!.add(ws);
+
+      ws.send(JSON.stringify({
+        type: "connected",
+        projectId,
+        sessionId,
+        deviceId,
+        connectedDevices: agentWsClients.get(projectId)!.size,
+        timestamp: Date.now(),
+      }));
+
+      ws.on("message", (msg) => {
+        try {
+          const data = JSON.parse(msg.toString());
+          if (data.type === "reconcile") {
+            ws.send(JSON.stringify({ type: "reconciled", timestamp: Date.now() }));
+          } else if (data.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+          }
+        } catch {}
+      });
+
+      ws.on("close", () => {
+        agentWsClients.get(projectId)?.delete(ws);
+        if (agentWsClients.get(projectId)?.size === 0) {
+          agentWsClients.delete(projectId);
+        }
+      });
+
+      const heartbeat = setInterval(() => {
+        if (ws.readyState === ws.OPEN) {
+          ws.send(JSON.stringify({ type: "heartbeat", timestamp: Date.now() }));
+        } else {
+          clearInterval(heartbeat);
+        }
+      }, 30000);
+
+      ws.on("close", () => clearInterval(heartbeat));
     });
 
     wss.on("connection", (ws) => {
