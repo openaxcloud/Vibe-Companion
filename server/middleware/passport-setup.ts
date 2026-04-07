@@ -6,47 +6,17 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Application } from "express";
-import session from "express-session";
 import { LRUCache } from "lru-cache";
-import { getStorage, sessionStore } from "../storage";
+import { getStorage } from "../storage";
 import { User } from "@shared/schema";
 import bcrypt from "../utils/bcrypt-compat";
-import { sessionSecretRotation } from "../auth/session-rotation";
 
-// ✅ P1-05 FIX: LRU cache for deserializeUser — prevents DB query on every authenticated request
-// Cache 1000 users, TTL 5 minutes. On logout/user update, cache auto-expires.
 const userCache = new LRUCache<string, User>({ max: 1000, ttl: 5 * 60 * 1000 });
 
 export function setupPassportAuth(app: Application) {
   const storage = getStorage();
-  
-  // Session configuration - Uses rotating secrets for enhanced security
-  // The sessionSecretRotation class manages multiple secrets for graceful rotation
-  // Express-session will use the first secret to sign new sessions and all secrets to verify
-  const secrets = sessionSecretRotation.getSecrets();
-  if (secrets.length === 0 || !secrets[0]) {
-    throw new Error('[SECURITY] Session secrets not properly initialized');
-  }
-  
-  // Start auto-rotation of session secrets (rotates every 24 hours by default)
-  sessionSecretRotation.startAutoRotation();
-  
-  app.use(session({
-    store: sessionStore,
-    secret: secrets,
-    resave: false,
-    saveUninitialized: false,
-    rolling: true,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production' || !!process.env.REPL_ID,
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: (process.env.NODE_ENV === 'production' || !!process.env.REPL_ID) ? 'none' as const : 'lax' as const
-    },
-    name: 'ecode.sid'
-  }));
-  
-  // Initialize passport
+
+
   app.use(passport.initialize());
   app.use(passport.session());
   

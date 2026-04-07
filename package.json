@@ -173,6 +173,7 @@
     "node-sql-parser": "^5.4.0",
     "nodemailer": "^8.0.2",
     "openai": "^6.25.0",
+    "otplib": "^13.4.0",
     "p-limit": "^7.3.0",
     "p-retry": "^7.1.1",
     "passport": "^0.7.0",

@@ -116,10 +116,6 @@ function validateEnvironment() {
     console.error("\n[FATAL] Missing required environment variables:\n" + missing.join("\n"));
     process.exit(1);
   }
-  if (!process.env.SESSION_SECRET) {
-    process.env.SESSION_SECRET = crypto.randomBytes(32).toString("hex");
-    console.warn("[WARN] SESSION_SECRET not set, using random value (sessions won't persist across restarts)");
-  }
   if (!process.env.ENCRYPTION_KEY) {
     process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
     console.warn("[WARN] ENCRYPTION_KEY not set, using random value");
@@ -163,35 +159,8 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "X-CSRF-Token", "Authorization"],
 }));
 
-import connectPgSimple from "connect-pg-simple";
-const PgSession = connectPgSimple(session);
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is required — sessions require PostgreSQL");
-}
-const sessionStore = new PgSession({
-  conString: process.env.DATABASE_URL,
-  tableName: "session",
-  createTableIfMissing: true,
-  pruneSessionInterval: 60 * 15,
-  errorLog: (err: Error) => console.error("[PgSessionStore]", err.message),
-});
-console.log("[Session Store] Using PostgreSQL (persistent)");
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET!,
-    resave: false,
-    saveUninitialized: false,
-    store: sessionStore,
-    name: "ecode.sid",
-    proxy: true,
-    cookie: {
-      secure: process.env.NODE_ENV === "production" || !!process.env.REPL_ID,
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: process.env.NODE_ENV === "production" || !!process.env.REPL_ID ? "none" as const : "lax" as const,
-    },
-  })
-);
+import { sessionMiddleware } from "./middleware/session-config";
+app.use(sessionMiddleware);
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
