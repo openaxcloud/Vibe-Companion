@@ -1093,7 +1093,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       if (!user) return res.json({ projects: [], pagination: { total: 0, limit: 20, offset: 0, hasMore: false } });
       try {
         const projects = await storage.getProjectsByUserId(user.id);
-        res.json(projects);
+        res.json({ projects, pagination: { total: projects.length, limit: 20, offset: 0, hasMore: false } });
       } catch (e: any) {
         res.json({ projects: [], pagination: { total: 0, limit: 20, offset: 0, hasMore: false } });
       }

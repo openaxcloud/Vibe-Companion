@@ -158,7 +158,7 @@ export class ProjectsRouter {
     }
     
     // Check if user is owner
-    if (project.ownerId === userId) {
+    if (project.userId === userId) {
       return next();
     }
     
@@ -266,7 +266,7 @@ export class ProjectsRouter {
         }
         
         const enrichedProjects = await Promise.all(projects.map(async (project) => {
-          const owner = await this.storage.getUser(String(project.ownerId));
+          const owner = await this.storage.getUser(String(project.userId));
           return { ...project, owner: sanitizeOwner(owner) };
         }));
         
@@ -348,7 +348,7 @@ export class ProjectsRouter {
         
         // Enrich with owner info and format for explore page
         const enrichedProjects = await Promise.all(paginatedProjects.map(async (project) => {
-          const owner = await this.storage.getUser(String(project.ownerId));
+          const owner = await this.storage.getUser(String(project.userId));
           return {
             id: project.id,
             name: project.name,
@@ -383,13 +383,7 @@ export class ProjectsRouter {
       try {
         const userId = (req.user as User).id;
         
-        // Add ownerId before validation (required by schema)
-        const requestWithOwner = {
-          ...req.body,
-          ownerId: userId,
-        };
-        
-        const validatedData = insertProjectSchema.parse(requestWithOwner);
+        const validatedData = insertProjectSchema.parse(req.body);
         
         // Generate slug if not provided (use name field from schema)
         const slug = validatedData.slug || this.generateSlug(validatedData.name);
@@ -404,6 +398,7 @@ export class ProjectsRouter {
         
         const project = await this.storage.createProject({
           ...validatedData,
+          userId,
           slug,
           visibility: validatedData.visibility || 'private',
           tenantId: validatedData.tenantId ?? userId,
@@ -549,7 +544,7 @@ export class ProjectsRouter {
           });
         }
         
-        const owner = await this.storage.getUser(String(project.ownerId));
+        const owner = await this.storage.getUser(String(project.userId));
         
         res.json({ ...project, owner: sanitizeOwner(owner) });
       } catch (error) {
@@ -569,6 +564,7 @@ export class ProjectsRouter {
         
         // Don't allow changing owner or id
         delete updates.ownerId;
+        delete updates.userId;
         delete updates.id;
         
         const project = await this.storage.updateProject(projectId, updates);
@@ -604,7 +600,7 @@ export class ProjectsRouter {
         }
         
         // Only owner can delete
-        if (project.ownerId !== (req.user as User).id) {
+        if (project.userId !== (req.user as User).id) {
           return res.status(403).json({
             message: "Only project owner can delete",
             code: "NOT_OWNER"
@@ -654,7 +650,7 @@ export class ProjectsRouter {
           return res.json({
             ...project,
             redirectTo: `/editor/${project.id}`,
-            owner: sanitizeOwner(await this.storage.getUser(String(project.ownerId)))
+            owner: sanitizeOwner(await this.storage.getUser(String(project.userId)))
           });
         }
         
@@ -668,7 +664,7 @@ export class ProjectsRouter {
             });
           }
           
-          if ((req.user as User).id !== project.ownerId) {
+          if ((req.user as User).id !== project.userId) {
             const isCollaborator = await this.storage.isProjectCollaborator(String(project.id), String((req.user as User).id));
             if (!isCollaborator) {
               return res.status(403).json({ 
@@ -679,7 +675,7 @@ export class ProjectsRouter {
           }
         }
         
-        const owner = await this.storage.getUser(String(project.ownerId));
+        const owner = await this.storage.getUser(String(project.userId));
         res.json({
           ...project,
           owner: sanitizeOwner(owner)
@@ -973,7 +969,7 @@ export class ProjectsRouter {
         }
 
         const project = await this.storage.getProject(projectId);
-        if (!project || project.ownerId !== userId) {
+        if (!project || project.userId !== userId) {
           return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
         }
 
@@ -1014,7 +1010,7 @@ export class ProjectsRouter {
 
       // Validate project exists and user has access
       const project = await this.storage.getProject(projectId);
-      if (!project || project.ownerId !== userId) {
+      if (!project || project.userId !== userId) {
         return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
       }
 
