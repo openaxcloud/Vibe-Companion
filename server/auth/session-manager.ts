@@ -150,8 +150,8 @@ export class SessionManager {
       Object.assign(session, data);
     }
     
-    // Set session timeout (30 minutes of inactivity)
-    session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000;
+    // Set session timeout (24 hours, with rolling refresh on activity)
+    session.cookie.maxAge = 24 * 60 * 60 * 1000;
     session.cookie.httpOnly = true;
     session.cookie.secure = process.env.NODE_ENV === 'production' || !!process.env.REPL_ID;
     session.cookie.sameSite = (process.env.NODE_ENV === 'production' || !!process.env.REPL_ID) ? 'none' : 'lax';

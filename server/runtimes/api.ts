@@ -41,10 +41,10 @@ export async function getRuntimeDependencies(req: Request, res: Response) {
       architecture: process.arch,
       nodeVersion: process.version,
       memory: {
-        total: Math.round(os.totalmem() / 1024 / 1024) + ' MB',
-        free: Math.round(os.freemem() / 1024 / 1024) + ' MB',
+        total: Math.round(require('os').totalmem() / 1024 / 1024) + ' MB',
+        free: Math.round(require('os').freemem() / 1024 / 1024) + ' MB',
       },
-      cpus: os.cpus().length
+      cpus: require('os').cpus().length
     };
     
     // Add recommended languages based on detected dependencies

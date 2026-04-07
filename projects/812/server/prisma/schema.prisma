@@ -1,3 +1,0 @@
-Prisma schema defining datasource sqlite using env DATABASE_URL and generator client. Contains model Todo with id (cuid), title (string), completed (boolean default false), createdAt (DateTime default now), updatedAt (DateTime updatedAt).
-
-Content generated as fallback. Please implement specific functionality as needed.

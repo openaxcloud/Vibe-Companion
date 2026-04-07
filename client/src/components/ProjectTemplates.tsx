@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState } from 'react';
 import { 
   Code, Zap, Package, Globe, Database, Shield, 
@@ -22,7 +21,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { getProjectUrl } from '@/lib/utils';
 import { useLocation } from 'wouter';
 
 interface Template {
@@ -65,6 +63,109 @@ const TEMPLATE_CATEGORIES = [
   { id: 'tools', name: 'Dev Tools', icon: Terminal },
 ];
 
+const MOCK_TEMPLATES: Template[] = [
+  {
+    id: 'nextjs-blog',
+    name: 'Next.js Blog Starter',
+    description: 'A modern blog with MDX support, dark mode, and SEO optimization',
+    icon: <FileCode className="h-8 w-8" />,
+    category: 'web',
+    tags: ['nextjs', 'react', 'blog', 'mdx'],
+    author: { name: 'E-Code Team', verified: true },
+    stats: { uses: 15420, stars: 892, forks: 234 },
+    language: 'TypeScript',
+    framework: 'Next.js',
+    difficulty: 'beginner',
+    estimatedTime: '5 mins',
+    features: ['MDX blog posts', 'Dark mode', 'SEO optimized', 'RSS feed'],
+    isFeatured: true,
+    isOfficial: true,
+    createdAt: '2024-01-15'
+  },
+  {
+    id: 'express-api',
+    name: 'Express REST API',
+    description: 'Production-ready REST API with authentication and PostgreSQL',
+    icon: <Server className="h-8 w-8" />,
+    category: 'api',
+    tags: ['express', 'nodejs', 'api', 'postgresql'],
+    author: { name: 'E-Code Team', verified: true },
+    stats: { uses: 23100, stars: 1243, forks: 567 },
+    language: 'JavaScript',
+    framework: 'Express.js',
+    difficulty: 'intermediate',
+    estimatedTime: '10 mins',
+    features: ['JWT auth', 'PostgreSQL', 'API docs', 'Rate limiting'],
+    isFeatured: true,
+    isOfficial: true,
+    createdAt: '2024-01-10'
+  },
+  {
+    id: 'react-dashboard',
+    name: 'React Admin Dashboard',
+    description: 'Beautiful admin dashboard with charts, tables, and real-time data',
+    icon: <BarChart className="h-8 w-8" />,
+    category: 'web',
+    tags: ['react', 'dashboard', 'admin', 'charts'],
+    author: { name: 'johndoe', avatar: 'https://github.com/johndoe.png' },
+    stats: { uses: 8920, stars: 456, forks: 123 },
+    language: 'TypeScript',
+    framework: 'React',
+    difficulty: 'intermediate',
+    estimatedTime: '15 mins',
+    features: ['Real-time charts', 'Data tables', 'User management', 'Dark mode'],
+    createdAt: '2024-01-20'
+  },
+  {
+    id: 'discord-bot',
+    name: 'Discord Bot Starter',
+    description: 'Feature-rich Discord bot with commands, events, and database',
+    icon: <Bot className="h-8 w-8" />,
+    category: 'bot',
+    tags: ['discord', 'bot', 'nodejs'],
+    author: { name: 'E-Code Team', verified: true },
+    stats: { uses: 12500, stars: 678, forks: 234 },
+    language: 'JavaScript',
+    framework: 'Discord.js',
+    difficulty: 'beginner',
+    estimatedTime: '5 mins',
+    features: ['Slash commands', 'Event handling', 'Database integration', 'Moderation tools'],
+    isOfficial: true,
+    createdAt: '2024-01-12'
+  },
+  {
+    id: 'python-ml',
+    name: 'Machine Learning Starter',
+    description: 'Get started with ML using scikit-learn and pandas',
+    icon: <BarChart className="h-8 w-8" />,
+    category: 'data',
+    tags: ['python', 'ml', 'scikit-learn', 'pandas'],
+    author: { name: 'dataexpert', avatar: 'https://github.com/dataexpert.png' },
+    stats: { uses: 5670, stars: 345, forks: 89 },
+    language: 'Python',
+    difficulty: 'intermediate',
+    estimatedTime: '20 mins',
+    features: ['Data preprocessing', 'Model training', 'Visualization', 'Jupyter notebooks'],
+    createdAt: '2024-01-18'
+  },
+  {
+    id: 'phaser-game',
+    name: 'Phaser Game Starter',
+    description: '2D game development with Phaser.js game engine',
+    icon: <Gamepad className="h-8 w-8" />,
+    category: 'game',
+    tags: ['phaser', 'game', 'javascript', '2d'],
+    author: { name: 'gamedev', avatar: 'https://github.com/gamedev.png' },
+    stats: { uses: 3420, stars: 234, forks: 67 },
+    language: 'JavaScript',
+    framework: 'Phaser.js',
+    difficulty: 'intermediate',
+    estimatedTime: '15 mins',
+    features: ['Physics engine', 'Sprite animations', 'Sound effects', 'Mobile support'],
+    createdAt: '2024-01-22'
+  }
+];
+
 interface ProjectTemplatesProps {
   onSelectTemplate?: (template: Template) => void;
   showCreateButton?: boolean;
@@ -96,7 +197,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
 
   // Fetch templates from API
   const { data: apiTemplates = [], isLoading } = useQuery<Template[]>({
-    queryKey: ['/api/marketplace/templates'],
+    queryKey: ['/api/templates'],
   });
 
   // Map API templates with icons
@@ -108,9 +209,12 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
   // Create project from template mutation
   const createProjectMutation = useMutation({
     mutationFn: async ({ template, name }: { template: Template; name: string }) => {
-      const response = await apiRequest('POST', '/api/projects/from-template', {
-        templateId: template.id,
-        name: name || `My ${template.name}`,
+      const response = await apiRequest('/api/projects/from-template', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: template.id,
+          name: name || `My ${template.name}`,
+        }),
       });
       if (!response.ok) {
         const error = await response.json();
@@ -123,9 +227,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
         title: 'Project created!',
         description: `"${project.name}" has been created successfully.`,
       });
-      // Navigate to the project with AI agent activated
-      const projectUrl = getProjectUrl(project, project.owner?.username || user?.username);
-      navigate(`${projectUrl}?agent=true&prompt=Enhance this ${project.name} template`);
+      navigate(`/editor/${project.id}`);
       setShowCreateDialog(false);
       setShowPreviewDialog(false);
       setProjectName('');
@@ -264,7 +366,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                     variant={selectedCategory === category.id ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSelectedCategory(category.id)}
-                    className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap h-8 sm:h-9 px-3 text-[11px] sm:text-[13px]"
+                    className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap h-8 sm:h-9 px-3 text-xs sm:text-sm"
                   >
                     <category.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">{category.name}</span>
@@ -297,14 +399,14 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2">
                       {template.isFeatured && (
-                        <Badge variant="secondary" className="text-[10px] sm:text-[11px]">
+                        <Badge variant="secondary" className="text-[10px] sm:text-xs">
                           <Star className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
                           <span className="hidden sm:inline">Featured</span>
                           <span className="sm:hidden">★</span>
                         </Badge>
                       )}
                       {template.isOfficial && (
-                        <Badge variant="secondary" className="text-[10px] sm:text-[11px]">
+                        <Badge variant="secondary" className="text-[10px] sm:text-xs">
                           <Shield className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
                           <span className="hidden sm:inline">Official</span>
                           <span className="sm:hidden">✓</span>
@@ -312,14 +414,14 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                       )}
                     </div>
                   </div>
-                  <CardTitle className="text-base sm:text-[15px] line-clamp-1">{template.name}</CardTitle>
-                  <CardDescription className="line-clamp-2 text-[11px] sm:text-[13px] mt-1">
+                  <CardTitle className="text-base sm:text-lg line-clamp-1">{template.name}</CardTitle>
+                  <CardDescription className="line-clamp-2 text-xs sm:text-sm mt-1">
                     {template.description}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6 -mt-2">
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[11px] sm:text-[13px] text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                       <span className="flex items-center">
                         <Code className="h-3 w-3 mr-1" />
                         {template.language}
@@ -338,12 +440,12 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                     
                     <div className="flex flex-wrap gap-1">
                       {template.tags.slice(0, 3).map(tag => (
-                        <Badge key={tag} variant="outline" className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0 sm:py-0.5">
+                        <Badge key={tag} variant="outline" className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5">
                           {tag}
                         </Badge>
                       ))}
                       {template.tags.length > 3 && (
-                        <Badge variant="outline" className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0 sm:py-0.5">
+                        <Badge variant="outline" className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5">
                           +{template.tags.length - 3}
                         </Badge>
                       )}
@@ -352,7 +454,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                     <Separator />
 
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-[13px] text-muted-foreground">
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                         <span className="flex items-center">
                           <Users className="h-3 w-3 mr-1" />
                           {template.stats.uses > 999 ? `${(template.stats.uses/1000).toFixed(1)}k` : template.stats.uses}
@@ -366,13 +468,13 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                         <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
                           <AvatarImage src={template.author.avatar} />
                           <AvatarFallback className="text-[8px] sm:text-[10px]">
-                            {(template.author?.name || '??').slice(0, 2).toUpperCase()}
+                            {template.author.name.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-[10px] sm:text-[11px] text-muted-foreground hidden sm:inline">
-                          {template.author?.name || 'Unknown'}
+                        <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:inline">
+                          {template.author.name}
                         </span>
-                        {template.author?.verified && (
+                        {template.author.verified && (
                           <Shield className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-primary" />
                         )}
                       </div>
@@ -382,10 +484,10 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                 {showCreateButton && (
                   <CardFooter className="p-4 sm:p-6 pt-0 sm:pt-0">
                     <Button 
-                      className="w-full h-8 sm:h-9 text-[11px] sm:text-[13px]"
+                      className="w-full h-8 sm:h-9 text-xs sm:text-sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        createProjectMutation.mutate({ template, name: `My ${template.name}` });
+                        createProjectMutation.mutate(template);
                       }}
                       disabled={createProjectMutation.isPending}
                     >
@@ -417,10 +519,10 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                             <Shield className="h-4 w-4 text-primary shrink-0" />
                           )}
                         </div>
-                        <p className="text-[13px] text-muted-foreground line-clamp-1">
+                        <p className="text-sm text-muted-foreground line-clamp-1">
                           {template.description}
                         </p>
-                        <div className="flex items-center gap-4 mt-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           <span>{template.language}</span>
                           <span className={getDifficultyColor(template.difficulty)}>
                             {template.difficulty}
@@ -454,7 +556,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
         {filteredTemplates.length === 0 && (
           <div className="text-center py-12">
             <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-[15px] font-semibold mb-2">No templates found</h3>
+            <h3 className="text-lg font-semibold mb-2">No templates found</h3>
             <p className="text-muted-foreground">
               Try adjusting your search or filters
             </p>
@@ -487,20 +589,20 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={selectedTemplate.author?.avatar} />
+                    <AvatarImage src={selectedTemplate.author.avatar} />
                     <AvatarFallback>
-                      {(selectedTemplate.author?.name || '??').slice(0, 2).toUpperCase()}
+                      {selectedTemplate.author.name.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-medium text-[13px]">{selectedTemplate.author?.name || 'Unknown'}</p>
-                    <p className="text-[11px] text-muted-foreground">Template author</p>
+                    <p className="font-medium text-sm">{selectedTemplate.author.name}</p>
+                    <p className="text-xs text-muted-foreground">Template author</p>
                   </div>
-                  {selectedTemplate.author?.verified && (
+                  {selectedTemplate.author.verified && (
                     <Shield className="h-4 w-4 text-primary" />
                   )}
                 </div>
-                <div className="flex items-center gap-4 text-[13px] text-muted-foreground">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center">
                     <Users className="h-4 w-4 mr-1" />
                     {selectedTemplate.stats.uses.toLocaleString()} uses
@@ -523,7 +625,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-semibold mb-2">Technical Details</h4>
-                    <div className="space-y-2 text-[13px]">
+                    <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Language</span>
                         <span>{selectedTemplate.language}</span>
@@ -551,7 +653,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                     <h4 className="font-semibold mb-2">Tags</h4>
                     <div className="flex flex-wrap gap-1">
                       {selectedTemplate.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-[11px]">
+                        <Badge key={tag} variant="secondary" className="text-xs">
                           {tag}
                         </Badge>
                       ))}
@@ -563,7 +665,7 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                   <h4 className="font-semibold mb-2">Features</h4>
                   <ul className="space-y-1">
                     {selectedTemplate.features.map((feature, index) => (
-                      <li key={index} className="flex items-start text-[13px]">
+                      <li key={index} className="flex items-start text-sm">
                         <CheckCircle className="h-4 w-4 mr-2 text-green-500 shrink-0 mt-0.5" />
                         <span>{feature}</span>
                       </li>
@@ -635,8 +737,8 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
                   {React.cloneElement(selectedTemplate.icon as React.ReactElement, { className: 'h-5 w-5' })}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium truncate">{selectedTemplate.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{selectedTemplate.language}</p>
+                  <p className="text-sm font-medium truncate">{selectedTemplate.name}</p>
+                  <p className="text-xs text-muted-foreground">{selectedTemplate.language}</p>
                 </div>
               </div>
             </div>
@@ -666,5 +768,5 @@ export function ProjectTemplates({ onSelectTemplate, showCreateButton = true }: 
 }
 
 // Export individual template categories for reuse
-export { TEMPLATE_CATEGORIES };
+export { TEMPLATE_CATEGORIES, MOCK_TEMPLATES };
 export type { Template };

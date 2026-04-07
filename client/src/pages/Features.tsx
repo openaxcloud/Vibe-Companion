@@ -19,7 +19,6 @@ interface Feature {
   description: string;
   details: string[];
   category: string;
-  id?: string;
 }
 
 export default function Features() {
@@ -27,22 +26,6 @@ export default function Features() {
   const { user } = useAuth();
 
   const features: Feature[] = [
-    // AI Agent
-    {
-      icon: <Zap className="h-6 w-6" />,
-      title: 'AI Agent - Your Personal Developer',
-      description: 'Build complete apps just by describing what you want in any language',
-      details: [
-        'Build entire apps from scratch automatically',
-        'No coding knowledge required at all',
-        'Creates all files and folders for you',
-        'Installs needed tools automatically',
-        'Works like having an expert helper',
-        'Updates code based on your feedback'
-      ],
-      category: 'AI-Powered',
-      id: 'ai-agent'
-    },
     // Development Environment
     {
       icon: <Code className="h-6 w-6" />,
@@ -114,8 +97,7 @@ export default function Features() {
         'Know who\'s online',
         'Share your screen easily'
       ],
-      category: 'Learning Together',
-      id: 'multiplayer'
+      category: 'Learning Together'
     },
     {
       icon: <GitBranch className="h-6 w-6" />,
@@ -159,8 +141,7 @@ export default function Features() {
         'Query performance insights',
         'Connection pooling'
       ],
-      category: 'Infrastructure',
-      id: 'database'
+      category: 'Infrastructure'
     },
     {
       icon: <Rocket className="h-6 w-6" />,
@@ -174,8 +155,7 @@ export default function Features() {
         'Deployment previews',
         'Rollback capabilities'
       ],
-      category: 'Infrastructure',
-      id: 'deployment'
+      category: 'Infrastructure'
     },
 
     // Security
@@ -191,8 +171,7 @@ export default function Features() {
         'SSO integration',
         'Audit logs'
       ],
-      category: 'Security',
-      id: 'security'
+      category: 'Security'
     },
     {
       icon: <Lock className="h-6 w-6" />,
@@ -236,34 +215,23 @@ export default function Features() {
       <section className="py-12 sm:py-16 md:py-20 px-4 bg-gradient-to-b from-primary/5 to-transparent">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-4 sm:space-y-6">
-            <Badge variant="secondary" className="mb-2 sm:mb-4 text-[11px] sm:text-[13px]">
+            <Badge variant="secondary" className="mb-2 sm:mb-4 text-xs sm:text-sm">
               <Zap className="h-3 w-3 mr-1" />
               Everything you need in one place
             </Badge>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold">
               Features that empower developers
             </h1>
-            <p className="text-base sm:text-[15px] md:text-xl text-muted-foreground max-w-3xl mx-auto px-4 sm:px-0">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto px-4 sm:px-0">
               From writing your first line of code to deploying at scale, 
               E-Code provides all the tools you need in a single platform.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
-              <Button 
-                size="lg" 
-                onClick={() => navigate(user ? '/dashboard' : '/login')}
-                className="min-h-[44px]"
-                data-testid="button-features-start-building"
-              >
+            <div className="flex gap-4 justify-center">
+              <Button size="lg" onClick={() => navigate(user ? '/dashboard' : '/auth')}>
                 Start building
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                onClick={() => navigate('/docs')}
-                className="min-h-[44px]"
-                data-testid="button-features-docs"
-              >
+              <Button size="lg" variant="outline" onClick={() => navigate('/docs')}>
                 View documentation
               </Button>
             </div>
@@ -272,46 +240,36 @@ export default function Features() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-12 sm:py-16 md:py-20 px-4">
+      <section className="py-20 px-4">
         <div className="container mx-auto max-w-7xl">
           <Tabs defaultValue="All" className="w-full">
-            <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 w-full max-w-3xl mx-auto gap-1 h-auto flex-wrap">
+            <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full max-w-3xl mx-auto">
               {categories.map(category => (
-                <TabsTrigger 
-                  key={category} 
-                  value={category}
-                  className="text-[11px] sm:text-[13px] min-h-[44px]"
-                  data-testid={`tab-features-${category.toLowerCase()}`}
-                >
+                <TabsTrigger key={category} value={category}>
                   {category}
                 </TabsTrigger>
               ))}
             </TabsList>
 
             {categories.map(category => (
-              <TabsContent key={category} value={category} className="mt-8 sm:mt-12">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+              <TabsContent key={category} value={category} className="mt-12">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {features
                     .filter(f => category === 'All' || f.category === category)
                     .map((feature, index) => (
-                      <Card 
-                        key={index} 
-                        id={feature.id} 
-                        className="hover:shadow-lg transition-shadow"
-                        data-testid={`card-feature-${feature.id || index}`}
-                      >
-                        <CardHeader className="p-4 sm:p-6">
-                          <div className="p-2 sm:p-3 bg-primary/10 rounded-lg w-fit mb-3 sm:mb-4">
+                      <Card key={index} className="hover:shadow-lg transition-shadow">
+                        <CardHeader>
+                          <div className="p-3 bg-primary/10 rounded-lg w-fit mb-4">
                             {feature.icon}
                           </div>
-                          <CardTitle className="text-base sm:text-[15px]">{feature.title}</CardTitle>
-                          <CardDescription className="text-[11px] sm:text-[13px]">{feature.description}</CardDescription>
+                          <CardTitle>{feature.title}</CardTitle>
+                          <CardDescription>{feature.description}</CardDescription>
                         </CardHeader>
-                        <CardContent className="p-4 sm:p-6 pt-0">
-                          <ul className="space-y-1.5 sm:space-y-2">
+                        <CardContent>
+                          <ul className="space-y-2">
                             {feature.details.map((detail, i) => (
-                              <li key={i} className="flex items-start gap-2 text-[11px] sm:text-[13px]">
-                                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                              <li key={i} className="flex items-start gap-2 text-sm">
+                                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                                 <span>{detail}</span>
                               </li>
                             ))}
@@ -338,7 +296,7 @@ export default function Features() {
               <h2 className="text-3xl font-bold mb-4">
                 Everything works together seamlessly
               </h2>
-              <p className="text-[15px] text-muted-foreground mb-6">
+              <p className="text-lg text-muted-foreground mb-6">
                 Our integrated platform means you spend less time configuring and more time building. 
                 Everything from development to deployment is designed to work together perfectly.
               </p>
@@ -348,8 +306,8 @@ export default function Features() {
                     <Cpu className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold" data-testid="text-feature-overview-environments">Instant Environments</h3>
-                    <p className="text-[13px] text-muted-foreground">
+                    <h3 className="font-semibold">Instant Environments</h3>
+                    <p className="text-sm text-muted-foreground">
                       Spin up development environments in seconds, not hours
                     </p>
                   </div>
@@ -359,8 +317,8 @@ export default function Features() {
                     <Network className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold" data-testid="text-feature-overview-ecosystem">Connected Ecosystem</h3>
-                    <p className="text-[13px] text-muted-foreground">
+                    <h3 className="font-semibold">Connected Ecosystem</h3>
+                    <p className="text-sm text-muted-foreground">
                       All tools and services work together out of the box
                     </p>
                   </div>
@@ -370,8 +328,8 @@ export default function Features() {
                     <Settings className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold" data-testid="text-feature-overview-config">Zero Configuration</h3>
-                    <p className="text-[13px] text-muted-foreground">
+                    <h3 className="font-semibold">Zero Configuration</h3>
+                    <p className="text-sm text-muted-foreground">
                       Focus on coding, we handle the infrastructure
                     </p>
                   </div>
@@ -387,21 +345,21 @@ export default function Features() {
                       <Code className="h-8 w-8 text-primary" />
                       <div>
                         <p className="font-semibold">Write Code</p>
-                        <p className="text-[13px] text-muted-foreground">In any language</p>
+                        <p className="text-sm text-muted-foreground">In any language</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
                       <Users className="h-8 w-8 text-primary" />
                       <div>
                         <p className="font-semibold">Collaborate</p>
-                        <p className="text-[13px] text-muted-foreground">In real-time</p>
+                        <p className="text-sm text-muted-foreground">In real-time</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
                       <Rocket className="h-8 w-8 text-primary" />
                       <div>
                         <p className="font-semibold">Deploy</p>
-                        <p className="text-[13px] text-muted-foreground">With one click</p>
+                        <p className="text-sm text-muted-foreground">With one click</p>
                       </div>
                     </div>
                   </div>
@@ -418,24 +376,15 @@ export default function Features() {
           <h2 className="text-3xl font-bold mb-4">
             Experience the future of development
           </h2>
-          <p className="text-[15px] text-muted-foreground mb-8">
-            Join developers worldwide who are building faster with E-Code
+          <p className="text-lg text-muted-foreground mb-8">
+            Join millions of developers who are building faster with E-Code
           </p>
           <div className="flex gap-4 justify-center">
-            <Button 
-              size="lg" 
-              onClick={() => navigate(user ? '/dashboard' : '/login')}
-              data-testid="button-features-get-started"
-            >
+            <Button size="lg" onClick={() => navigate(user ? '/dashboard' : '/auth')}>
               Get started free
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              onClick={() => navigate('/contact-sales')}
-              data-testid="button-features-contact-sales"
-            >
+            <Button size="lg" variant="outline" onClick={() => navigate('/contact-sales')}>
               Contact sales
             </Button>
           </div>

@@ -1,6 +1,7 @@
 /**
  * Runtime manager for PLOT
  * This module coordinates all runtime components including containers and Nix environments
+ * With fallback to direct execution when Docker is unavailable
  */
 
 import * as fs from 'fs';
@@ -24,6 +25,18 @@ const activeRuntimes: Map<number, {
   error?: string;
 }> = new Map();
 
+
+// Map to track active project runtimes
+const activeRuntimes: Map<number, {
+  projectId: number;
+  language: Language;
+  containerId?: string;
+  port?: number;
+  status: 'starting' | 'running' | 'stopped' | 'error';
+  logs: string[];
+  error?: string;
+}> = new Map();
+
 // Interface for starting a project
 export interface StartProjectOptions {
   environmentVariables?: Record<string, string>;
@@ -35,6 +48,14 @@ export interface StartProjectOptions {
     shellHook?: string;
     environmentVariables?: Record<string, string>;
   };
+  executionId?: string;
+}
+
+function streamLog(projectId: string, executionId: string | undefined, type: 'stdout' | 'stderr' | 'system', message: string): void {
+  const runtimeLogsService = getRuntimeLogsService();
+  if (runtimeLogsService && executionId) {
+    runtimeLogsService.streamOutput(projectId, executionId, type, message);
+  }
 }
 
 /**
@@ -49,6 +70,12 @@ export async function startProject(
   port?: number;
   containerId?: string;
   status: 'starting' | 'running' | 'error';
+  logs: string[];
+  error?: string;
+}> {
+  try {
+    const projectId = project.id;
+  status: 'starting' | 'running' | 'stopped' | 'error';
   logs: string[];
   error?: string;
 }> {
@@ -79,6 +106,8 @@ export async function startProject(
     
     // Create project directory
     const projectDir = await createProjectDir(project, files);
+    projectDir = await createProjectDir(project, files);
+    const projectDir = await createProjectDir(project, files);
     
     // Detect language from files
     const language = detectProjectLanguage(files);
@@ -86,6 +115,8 @@ export async function startProject(
     if (!language) {
       const error = 'Could not detect language for project';
       logger.error(error);
+      
+      log(error, 'runtime', 'error');
       
       return {
         success: false,
@@ -95,10 +126,419 @@ export async function startProject(
       };
     }
     
-    logger.info(`Starting project ${projectId} with language ${language}`);
+    log(`Starting project ${projectId} with language ${language}`, 'runtime');
     
     // Initialize runtime logs
     const logs: string[] = [`Starting ${languageConfigs[language].displayName} project...`];
+    
+    // Check if Docker is available
+    // NOTE: On Replit Cloud Run, Docker daemon is not exposed, so we always use direct execution mode.
+    // The Docker path below is kept for compatibility with other environments but is never executed on Replit.
+    // Real-time streaming is fully implemented for the direct execution path, which is the production path.
+    const useDocker = await isDockerAvailable();
+    
+    if (!useDocker) {
+      // Use direct execution mode (no Docker) - this is the primary path for Replit Cloud Run
+      logs.push('Using direct execution mode (Docker not available)');
+      
+      // Get language config for run command
+      const config = languageConfigs[language];
+      const executionIdForSetup = options.executionId;
+
+      // Resolve the actual run command based on files present in the project directory
+      // This handles mismatches (e.g., project has main.js but config expects index.js)
+      const resolveRunCommand = (baseRunCmd: string, dir: string): string => {
+        const parts = baseRunCmd.split(/\s+/);
+        const targetFile = parts.find(p => /\.[a-z0-9]+$/i.test(p) && !p.startsWith('-'));
+        if (!targetFile || !dir) return baseRunCmd;
+        const targetPath = path.join(dir, targetFile);
+        if (fs.existsSync(targetPath)) return baseRunCmd;
+        // Fallbacks: common alternative entry point names by extension
+        const ext = path.extname(targetFile);
+        const alternatives: Record<string, string[]> = {
+          '.js':  ['index.js', 'main.js', 'app.js', 'server.js'],
+          '.ts':  ['index.ts', 'main.ts', 'app.ts', 'server.ts'],
+          '.py':  ['main.py', 'app.py', 'index.py', 'run.py'],
+          '.sh':  ['script.sh', 'main.sh', 'run.sh', 'start.sh'],
+          '.php': ['index.php', 'main.php', 'app.php'],
+          '.rb':  ['main.rb', 'app.rb', 'index.rb'],
+          '.lua': ['main.lua', 'index.lua', 'app.lua'],
+          '.pl':  ['main.pl', 'script.pl', 'index.pl'],
+          '.R':   ['main.R', 'script.R', 'app.R'],
+          '.jl':  ['main.jl', 'index.jl'],
+          '.exs': ['main.exs', 'app.exs'],
+          '.ml':  ['main.ml', 'index.ml'],
+        };
+        const candidates = alternatives[ext] || [];
+        for (const alt of candidates) {
+          if (fs.existsSync(path.join(dir, alt))) {
+            const newCmd = baseRunCmd.replace(targetFile, alt);
+            logger.info(`[Runtime] Entry point adapted: ${targetFile} → ${alt} (cmd: ${newCmd})`);
+            return newCmd;
+          }
+        }
+        return baseRunCmd;
+      };
+
+      const runCommand = resolveRunCommand(config.runCommand, projectDir || '');
+      
+      // Stream initial setup messages
+      streamLog(projectId, executionIdForSetup, 'system', `Starting ${languageConfigs[language].displayName} project...`);
+      streamLog(projectId, executionIdForSetup, 'system', 'Using direct execution mode');
+      
+      // Set up runtime first
+      activeRuntimes.set(projectId, {
+        projectId,
+        language,
+        status: 'running',
+        logs,
+        directExecutionMode: true,
+        projectDir
+      });
+      
+      // Auto-execute the main file
+      logs.push(`Executing: ${runCommand}`);
+      streamLog(projectId, executionIdForSetup, 'system', `Executing: ${runCommand}`);
+      
+      try {
+        // Parse the run command
+        const parts = runCommand.split(/\s+/);
+        const baseCmd = parts[0];
+        const args = parts.slice(1);
+        
+        // Comprehensive command mapping for all supported languages
+        // Use full paths for Node.js tools from E-Code's node_modules
+        const nodeModulesBin = '/home/runner/workspace/node_modules/.bin';
+        const cmdMap: Record<string, string> = {
+          // JavaScript/TypeScript ecosystem
+          'node': 'node',
+          'tsx': `${nodeModulesBin}/tsx`,
+          'ts-node': `${nodeModulesBin}/tsx`,
+          'tsc': `${nodeModulesBin}/tsc`,
+          'npx': 'npx',
+          'npm': 'npm',
+          'serve': `${nodeModulesBin}/serve`,
+          
+          // Python
+          'python': 'python3',
+          'python3': 'python3',
+          'pip': 'pip3',
+          
+          // Go
+          'go': 'go',
+          
+          // Ruby
+          'ruby': 'ruby',
+          'bundle': 'bundle',
+          
+          // Rust
+          'rustc': 'rustc',
+          'cargo': 'cargo',
+          
+          // Java/Kotlin
+          'java': 'java',
+          'javac': 'javac',
+          'kotlinc': 'kotlinc',
+          
+          // C/C++
+          'gcc': 'gcc',
+          'g++': 'g++',
+          'clang': 'clang',
+          'clang++': 'clang++',
+          
+          // C#/.NET
+          'dotnet': 'dotnet',
+          'csc': 'csc',
+          
+          // Swift
+          'swift': 'swift',
+          'swiftc': 'swiftc',
+          
+          // Dart/Flutter
+          'dart': 'dart',
+          'flutter': 'flutter',
+          
+          // Deno
+          'deno': 'deno',
+          
+          // PHP
+          'php': 'php',
+          'composer': 'composer',
+          
+          // Shell/Bash
+          'bash': 'bash',
+          'sh': 'sh',
+          'zsh': 'zsh',
+          
+          // Nix
+          'nix-build': 'nix-build',
+          'nix-shell': 'nix-shell',
+          
+          // Additional scripting languages
+          'lua': 'lua',
+          'perl': 'perl',
+          'Rscript': 'Rscript',
+          
+          // Functional/Academic languages
+          'ghc': 'ghc',           // Haskell compiler
+          'runghc': 'runghc',     // Haskell interpreter
+          'scalac': 'scalac',     // Scala compiler
+          'scala': 'scala',       // Scala runner
+          'clojure': 'clojure',   // Clojure
+          'lein': 'lein',         // Leiningen (Clojure build tool)
+          'elixir': 'elixir',     // Elixir
+          'mix': 'mix',           // Elixir build tool
+          'julia': 'julia',       // Julia
+          'ocaml': 'ocaml',       // OCaml interpreter
+          'ocamlopt': 'ocamlopt', // OCaml native compiler
+          
+          // Systems languages
+          'gfortran': 'gfortran', // Fortran compiler
+          'zig': 'zig',           // Zig
+          
+          // Executable files (compiled binaries)
+          './main': './main',
+          './a.out': './a.out'
+        };
+        
+        const actualCmd = cmdMap[baseCmd] || baseCmd;
+        
+        // Commands that need shell for PATH resolution or complex arguments
+        const needsShell = [
+          // Node.js ecosystem
+          'tsx', 'ts-node', 'tsc', 'npx', 'npm', 'serve',
+          // .NET/Swift/Dart
+          'dotnet', 'deno', 'swift', 'dart', 'flutter',
+          // Nix
+          'nix-build', 'nix-shell',
+          // JVM languages
+          'kotlinc', 'scala', 'scalac', 'clojure', 'lein',
+          // Functional languages
+          'ghc', 'runghc', 'elixir', 'mix', 'julia', 'ocaml', 'ocamlopt',
+          // Systems languages
+          'zig'
+        ].includes(baseCmd);
+        
+        // Handle compilation for compiled languages with real-time streaming
+        const executionId = options.executionId;
+        
+        // Get language-specific timeout (or default)
+        const languageTimeout = RUNTIME_TIMEOUTS[language] || RUNTIME_TIMEOUTS['default'];
+        const compileTimeout = Math.min(languageTimeout, 120000); // Cap compile at 2 minutes
+        
+        if (config.compilerCommand) {
+          const compileParts = config.compilerCommand.split(/\s+/);
+          const compileCmd = cmdMap[compileParts[0]] || compileParts[0];
+          const compileArgs = compileParts.slice(1);
+          
+          logs.push(`Compiling: ${config.compilerCommand}`);
+          streamLog(projectId, executionId, 'system', `Compiling: ${config.compilerCommand}`);
+          
+          const compileResult = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+            let stdout = '';
+            let stderr = '';
+            
+            const proc = spawn(compileCmd, compileArgs, {
+              cwd: projectDir || undefined,
+              shell: needsShell  // Use shell for compilers that need PATH
+            });
+            
+            proc.stdout.on('data', (data) => { 
+              const line = data.toString();
+              stdout += line;
+              streamLog(projectId, executionId, 'stdout', line);
+            });
+            proc.stderr.on('data', (data) => { 
+              const line = data.toString();
+              stderr += line;
+              streamLog(projectId, executionId, 'stderr', line);
+            });
+            
+            const timeout = setTimeout(() => {
+              if (proc.pid) killProcessTree(proc.pid);
+              else proc.kill('SIGTERM');
+              const timeoutMsg = `Compilation timed out (${compileTimeout/1000}s limit)`;
+              streamLog(projectId, executionId, 'stderr', timeoutMsg);
+              resolve({ stdout, stderr: stderr + '\n' + timeoutMsg, exitCode: 124 });
+            }, compileTimeout);
+            
+            proc.on('close', (code) => {
+              clearTimeout(timeout);
+              resolve({ stdout, stderr, exitCode: code || 0 });
+            });
+            
+            proc.on('error', (err) => {
+              clearTimeout(timeout);
+              streamLog(projectId, executionId, 'stderr', err.message);
+              resolve({ stdout, stderr: err.message, exitCode: 1 });
+            });
+          });
+          
+          if (compileResult.exitCode !== 0) {
+            const friendlyError = getUserFriendlyError(compileResult.stderr, language);
+            logs.push(`Compilation error: ${friendlyError}`);
+            streamLog(projectId, executionId, 'stderr', `Compilation failed: ${friendlyError}`);
+            
+            // Notify exit for compilation failure
+            const runtimeLogsService = getRuntimeLogsService();
+            if (runtimeLogsService && executionId) {
+              runtimeLogsService.streamExit(projectId, executionId, compileResult.exitCode, 0);
+            }
+            
+            // CRITICAL FIX: Clean up on compilation failure to allow re-runs
+            activeRuntimes.delete(projectId);
+            
+            // Clean up project directory even on compile failure
+            try {
+              if (fs.existsSync(projectDir)) {
+                fs.rmSync(projectDir, { recursive: true, force: true });
+                logger.info(`Cleaned up project directory after compile error: ${projectDir}`);
+              }
+            } catch (cleanupErr) {
+              logger.warn(`Failed to cleanup project directory after compile error: ${projectDir}`);
+            }
+            
+            return {
+              success: false,
+              status: 'error',
+              logs,
+              error: compileResult.stderr
+            };
+          }
+          
+          logs.push('Compilation successful');
+          streamLog(projectId, executionId, 'system', 'Compilation successful');
+        }
+        
+        // Execute the main file with real-time streaming
+        const startTime = Date.now();
+        
+        streamLog(projectId, executionId, 'system', `Starting execution...`);
+        
+        const execResult = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+          let stdout = '';
+          let stderr = '';
+          
+          const proc = spawn(actualCmd, args, {
+            cwd: projectDir || undefined,
+            env: { ...process.env, SANDBOX_EXECUTION: 'true' },
+            shell: needsShell  // Use shell for tsx/ts-node/npm commands for PATH resolution
+          });
+          
+          // Store process in activeRuntimes for proper cleanup
+          const runtime = activeRuntimes.get(projectId);
+          if (runtime) {
+            runtime.process = proc;
+            runtime.pid = proc.pid;
+            runtime.startTime = startTime;
+          }
+          
+          proc.stdout.on('data', (data) => {
+            const line = data.toString();
+            stdout += line;
+            logs.push(line.trim());
+            streamLog(projectId, executionId, 'stdout', line);
+          });
+          
+          proc.stderr.on('data', (data) => {
+            const line = data.toString();
+            stderr += line;
+            logs.push(`[ERROR] ${line.trim()}`);
+            streamLog(projectId, executionId, 'stderr', line);
+          });
+          
+          // Use language-specific timeout
+          const timeout = setTimeout(() => {
+            if (proc.pid) killProcessTree(proc.pid);
+            else proc.kill('SIGTERM');
+            const timeoutMsg = `Execution timed out (${languageTimeout/1000}s limit)`;
+            streamLog(projectId, executionId, 'stderr', timeoutMsg);
+            resolve({ stdout, stderr: stderr + '\n' + timeoutMsg, exitCode: 124 });
+          }, languageTimeout);
+          
+          proc.on('close', (code) => {
+            clearTimeout(timeout);
+            const executionTime = Date.now() - startTime;
+            const runtimeLogsService = getRuntimeLogsService();
+            if (runtimeLogsService && executionId) {
+              runtimeLogsService.streamExit(projectId, executionId, code || 0, executionTime);
+            }
+            resolve({ stdout, stderr, exitCode: code || 0 });
+          });
+          
+          proc.on('error', (err) => {
+            clearTimeout(timeout);
+            const friendlyError = getUserFriendlyError(err.message, language);
+            streamLog(projectId, executionId, 'stderr', friendlyError);
+            resolve({ stdout, stderr: friendlyError, exitCode: 1 });
+          });
+        });
+        
+        if (execResult.exitCode === 0) {
+          logs.push(`\n--- Execution completed successfully ---`);
+        } else {
+          const friendlyError = getUserFriendlyError(execResult.stderr, language);
+          logs.push(`\n--- Execution failed (exit code: ${execResult.exitCode}) ---`);
+          if (friendlyError) {
+            logs.push(friendlyError);
+          }
+        }
+        
+        // CRITICAL FIX: Clear runtime after execution completes to allow re-runs
+        // For direct execution mode (single-shot scripts), we don't keep "running" state
+        // because the process has already finished. This allows subsequent Run clicks to work.
+        activeRuntimes.delete(projectId);
+        
+        // Clean up project directory after execution
+        try {
+          if (fs.existsSync(projectDir)) {
+            fs.rmSync(projectDir, { recursive: true, force: true });
+            logger.info(`Cleaned up project directory: ${projectDir}`);
+          }
+        } catch (cleanupErr) {
+          logger.warn(`Failed to cleanup project directory: ${projectDir}`);
+        }
+        
+        return {
+          success: execResult.exitCode === 0,
+          status: 'running', // Return running to indicate it just ran successfully
+          logs
+        };
+        
+      } catch (execError: any) {
+        const rawError = execError.message || 'Execution failed';
+        const friendlyError = getUserFriendlyError(rawError, language);
+        logs.push(`Execution error: ${friendlyError}`);
+        
+        // Stream the error to connected clients
+        streamLog(projectId, executionIdForSetup, 'stderr', `Execution error: ${friendlyError}`);
+        
+        // Notify exit with error
+        const runtimeLogsService = getRuntimeLogsService();
+        if (runtimeLogsService && executionIdForSetup) {
+          runtimeLogsService.streamExit(projectId, executionIdForSetup, 1, 0);
+        }
+        
+        // Clear runtime even on error to allow retries
+        activeRuntimes.delete(projectId);
+        
+        // Clean up project directory
+        try {
+          if (fs.existsSync(projectDir)) {
+            fs.rmSync(projectDir, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          // Ignore cleanup errors
+        }
+        
+        return {
+          success: false,
+          status: 'error',
+          logs,
+          error: friendlyError
+        };
+      }
+    }
     
     // Set up initial runtime entry
     activeRuntimes.set(projectId, {
@@ -122,6 +562,8 @@ export async function startProject(
         const error = 'Failed to generate Nix configuration';
         logs.push(`ERROR: ${error}`);
         logger.error(error);
+        
+        log(error, 'runtime', 'error');
         
         activeRuntimes.set(projectId, {
           projectId,
@@ -147,6 +589,8 @@ export async function startProject(
         const error = 'Failed to apply Nix environment';
         logs.push(`ERROR: ${error}`);
         logger.error(error);
+        
+        log(error, 'runtime', 'error');
         
         activeRuntimes.set(projectId, {
           projectId,
@@ -183,6 +627,8 @@ export async function startProject(
       logs.push(...containerResult.logs);
       logger.error(error);
       
+      log(error, 'runtime', 'error');
+      
       activeRuntimes.set(projectId, {
         projectId,
         language,
@@ -212,7 +658,7 @@ export async function startProject(
     
     if (!installResult) {
       logs.push('WARNING: Dependency installation may not have completed successfully');
-      logger.warn('Dependency installation may not have completed successfully');
+      log('Dependency installation may not have completed successfully', 'runtime', 'warn');
     } else {
       logs.push('Dependencies installed successfully');
     }
@@ -238,6 +684,8 @@ export async function startProject(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error(`Error starting project: ${errorMessage}`);
     
+    log(`Error starting project: ${errorMessage}`, 'runtime', 'error');
+    
     return {
       success: false,
       status: 'error',
@@ -249,6 +697,7 @@ export async function startProject(
 
 /**
  * Stop a project runtime
+ * Stop a project runtime with proper process cleanup
  */
 export async function stopProject(projectId: number): Promise<boolean> {
   try {
@@ -256,6 +705,14 @@ export async function stopProject(projectId: number): Promise<boolean> {
     
     if (!activeRuntimes.has(projectId)) {
       logger.warn(`Project ${projectId} is not running`);
+ * Stop a project runtime
+ */
+export async function stopProject(projectId: number): Promise<boolean> {
+  try {
+    log(`Stopping project ${projectId}`, 'runtime');
+    
+    if (!activeRuntimes.has(projectId)) {
+      log(`Project ${projectId} is not running`, 'runtime', 'warn');
       return false;
     }
     
@@ -265,25 +722,70 @@ export async function stopProject(projectId: number): Promise<boolean> {
       logger.warn(`Project ${projectId} does not have a container ID`);
       activeRuntimes.delete(projectId);
       return false;
+    // Handle direct execution mode cleanup
+    if (runtime.directExecutionMode || !runtime.containerId) {
+      logger.info(`Cleaning up direct execution mode for project ${projectId}`);
+      
+      // Kill the process tree if we have a PID
+      if (runtime.pid) {
+        try {
+          await killProcessTree(runtime.pid);
+          logger.info(`Killed process tree for PID ${runtime.pid}`);
+        } catch (killError) {
+          logger.warn(`Failed to kill process tree for PID ${runtime.pid}: ${killError}`);
+        }
+      }
+      
+      // Also try to kill via process reference
+      if (runtime.process && !runtime.process.killed) {
+        try {
+          runtime.process.kill('SIGTERM');
+          // Give it a moment then force kill if needed
+          setTimeout(() => {
+            if (runtime.process && !runtime.process.killed) {
+              runtime.process.kill('SIGKILL');
+            }
+          }, 1000);
+        } catch (e) {
+          // Process may already be dead
+        }
+      }
+      
+      // Clean up temp directory if it exists
+      if (runtime.projectDir) {
+        try {
+          fs.rmSync(runtime.projectDir, { recursive: true, force: true });
+          logger.info(`Cleaned up temp directory: ${runtime.projectDir}`);
+        } catch (cleanupError) {
+          logger.warn(`Failed to cleanup temp dir: ${runtime.projectDir}`);
+        }
+      }
+      
+      activeRuntimes.delete(projectId);
+      return true;
+    if (!runtime.containerId) {
+      log(`Project ${projectId} does not have a container ID`, 'runtime', 'warn');
+      activeRuntimes.delete(projectId);
+      return false;
     }
     
     // Stop the container
     const result = await containerManager.stopContainer(runtime.containerId);
     
     if (result) {
-      logger.info(`Project ${projectId} stopped successfully`);
-      // Just delete the runtime - no need to set status to 'stopped' as we'll remove it
+      log(`Project ${projectId} stopped successfully`, 'runtime');
+      runtime.status = 'stopped';
       activeRuntimes.delete(projectId);
       return true;
     } else {
-      logger.error(`Failed to stop project ${projectId}`);
+      log(`Failed to stop project ${projectId}`, 'runtime', 'error');
       runtime.status = 'error';
       runtime.error = 'Failed to stop container';
       return false;
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error(`Error stopping project: ${errorMessage}`);
+    log(`Error stopping project: ${errorMessage}`, 'runtime', 'error');
     return false;
   }
 }
@@ -292,11 +794,13 @@ export async function stopProject(projectId: number): Promise<boolean> {
  * Get the status of a project runtime
  */
 export function getProjectStatus(projectId: number): {
+export function getProjectStatus(projectId: string): {
+export function getProjectStatus(projectId: number): {
   isRunning: boolean;
   language?: Language;
   containerId?: string;
   port?: number;
-  status: 'starting' | 'running' | 'error' | 'unknown';
+  status: 'starting' | 'running' | 'stopped' | 'error' | 'unknown';
   logs: string[];
   error?: string;
 } {
@@ -325,15 +829,17 @@ export function getProjectStatus(projectId: number): {
  * Execute a command in a project runtime
  */
 export async function executeCommand(projectId: number, command: string): Promise<{
+export async function executeCommand(projectId: string, command: string): Promise<{
+export async function executeCommand(projectId: number, command: string): Promise<{
   success: boolean;
   output: string;
 }> {
   try {
-    logger.info(`Executing command in project ${projectId}: ${command}`);
+    log(`Executing command in project ${projectId}: ${command}`, 'runtime');
     
     if (!activeRuntimes.has(projectId)) {
       const errorMessage = `Project ${projectId} is not running`;
-      logger.error(errorMessage);
+      log(errorMessage, 'runtime', 'error');
       
       return {
         success: false,
@@ -343,9 +849,104 @@ export async function executeCommand(projectId: number, command: string): Promis
     
     const runtime = activeRuntimes.get(projectId)!;
     
+    // Use direct execution mode if Docker is not available
+    if (runtime.directExecutionMode) {
+      logger.info(`Using direct execution for project ${projectId}`);
+      
+      // Parse command into base command and args
+      const parts = command.trim().split(/\s+/);
+      const baseCommand = parts[0];
+      const args = parts.slice(1);
+      
+      // Validate command against strict whitelist of safe terminal commands
+      const SAFE_COMMANDS: Record<string, string> = {
+        'node': 'node',
+        'python3': 'python3',
+        'python': 'python3',
+        'go': 'go',
+        'npm': 'npm',
+        'npx': 'npx',
+        'ls': 'ls',
+        'cat': 'cat',
+        'pwd': 'pwd',
+        'echo': 'echo',
+        'mkdir': 'mkdir',
+        'touch': 'touch'
+      };
+      
+      const safeCmd = SAFE_COMMANDS[baseCommand];
+      if (!safeCmd) {
+        logger.warn(`Blocked unsafe command: ${baseCommand}`);
+        return {
+          success: false,
+          output: `Command '${baseCommand}' is not allowed. Allowed: ${Object.keys(SAFE_COMMANDS).join(', ')}`
+        };
+      }
+      
+      try {
+        // Use spawn directly for terminal commands (not code execution)
+        const result = await new Promise<{ success: boolean; output: string }>((resolve) => {
+          let stdout = '';
+          let stderr = '';
+          
+          const proc = spawn(safeCmd, args, {
+            cwd: runtime.projectDir || process.cwd(),
+            env: {
+              ...process.env,
+              SANDBOX_EXECUTION: 'true'
+            },
+            shell: false // CRITICAL: No shell interpretation
+          });
+          
+          proc.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+          
+          proc.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+          
+          // Timeout after 30 seconds
+          const timeout = setTimeout(() => {
+            proc.kill('SIGTERM');
+            resolve({
+              success: false,
+              output: 'Command timed out'
+            });
+          }, 30000);
+          
+          proc.on('close', (code) => {
+            clearTimeout(timeout);
+            resolve({
+              success: code === 0,
+              output: stdout + (stderr ? '\n' + stderr : '')
+            });
+          });
+          
+          proc.on('error', (err) => {
+            clearTimeout(timeout);
+            resolve({
+              success: false,
+              output: err.message
+            });
+          });
+        });
+        
+        return result;
+      } catch (execError: any) {
+        return {
+          success: false,
+          output: execError.message || 'Execution failed'
+        };
+      }
+    }
+    
     if (!runtime.containerId) {
       const errorMessage = `Project ${projectId} does not have a container ID`;
       logger.error(errorMessage);
+    if (!runtime.containerId) {
+      const errorMessage = `Project ${projectId} does not have a container ID`;
+      log(errorMessage, 'runtime', 'error');
       
       return {
         success: false,
@@ -362,7 +963,7 @@ export async function executeCommand(projectId: number, command: string): Promis
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error(`Error executing command: ${errorMessage}`);
+    log(`Error executing command: ${errorMessage}`, 'runtime', 'error');
     
     return {
       success: false,
@@ -375,10 +976,14 @@ export async function executeCommand(projectId: number, command: string): Promis
  * Stream project logs
  */
 export function streamProjectLogs(projectId: number, callback: (log: string) => void): () => void {
+export function streamProjectLogs(projectId: string, callback: (log: string) => void): () => void {
   if (!activeRuntimes.has(projectId)) {
     const errorMessage = `Project ${projectId} is not running`;
     logger.warn(errorMessage);
     callback(`ERROR: ${errorMessage}`);
+export function streamProjectLogs(projectId: number, callback: (log: string) => void): () => void {
+  if (!activeRuntimes.has(projectId)) {
+    callback(`ERROR: Project ${projectId} is not running`);
     return () => {};
   }
   
@@ -388,13 +993,10 @@ export function streamProjectLogs(projectId: number, callback: (log: string) => 
   runtime.logs.forEach(log => callback(log));
   
   if (!runtime.containerId) {
-    const errorMessage = `Project ${projectId} does not have a container ID`;
-    logger.warn(errorMessage);
-    callback(`ERROR: ${errorMessage}`);
+    callback(`ERROR: Project ${projectId} does not have a container ID`);
     return () => {};
   }
   
-  logger.info(`Streaming logs for project ${projectId}`);
   // Stream container logs
   return containerManager.streamContainerLogs(runtime.containerId, callback);
 }
@@ -589,6 +1191,16 @@ async function createProjectDir(project: Project, files: File[]): Promise<string
   
   // Write all files to the project directory
   let fileCount = 0;
+  const { bulkSyncProjectFiles } = await import('../utils/project-fs-sync');
+  return bulkSyncProjectFiles(String(project.id), files as any);
+  const projectDir = path.join(process.cwd(), 'projects', `project-${project.id}`);
+  
+  // Create project directory if it doesn't exist
+  if (!fs.existsSync(projectDir)) {
+    fs.mkdirSync(projectDir, { recursive: true });
+  }
+  
+  // Write all files to the project directory
   for (const file of files) {
     // Skip folders - we'll create them when writing files
     if (file.isFolder) continue;
@@ -629,6 +1241,16 @@ function detectProjectLanguage(files: File[]): Language | undefined {
   const mainFileChecks: [string, Language][] = [
     ['package.json', 'nodejs'],
     ['tsconfig.json', 'typescript'],
+  // Filter out folder entries
+  const nonFolderFiles = files.filter(file => !file.isFolder);
+  
+  // If no files, return undefined
+  if (nonFolderFiles.length === 0) return undefined;
+  
+  // Check for common main files
+  const mainFileChecks: [string, Language][] = [
+    ['package.json', 'nodejs'],
+    ['tsconfig.json', 'typescript'],
     ['requirements.txt', 'python'],
     ['Cargo.toml', 'rust'],
     ['pom.xml', 'java'],
@@ -646,6 +1268,14 @@ function detectProjectLanguage(files: File[]): Language | undefined {
   ];
   
   // First try to detect by main file
+    ['replit.nix', 'nix'],
+    ['package.json', 'nodejs']  // Moved to last - only match if no TypeScript detected above
+  ];
+  
+  // Try to detect by main file
+    ['replit.nix', 'nix']
+  ];
+  
   for (const [pattern, language] of mainFileChecks) {
     // Handle glob patterns
     if (pattern.includes('*')) {
@@ -653,7 +1283,6 @@ function detectProjectLanguage(files: File[]): Language | undefined {
       
       for (const file of nonFolderFiles) {
         if (regex.test(file.name)) {
-          logger.info(`Language detected as ${language} by main file pattern: ${pattern}`);
           return language;
         }
       }
@@ -661,7 +1290,6 @@ function detectProjectLanguage(files: File[]): Language | undefined {
       // Direct match
       for (const file of nonFolderFiles) {
         if (file.name === pattern) {
-          logger.info(`Language detected as ${language} by main file: ${pattern}`);
           return language;
         }
       }
@@ -690,12 +1318,6 @@ function detectProjectLanguage(files: File[]): Language | undefined {
     }
   }
   
-  if (detectedLanguage) {
-    logger.info(`Language detected as ${detectedLanguage} by file extension frequency`);
-  } else {
-    logger.warn('Could not detect language by file extensions');
-  }
-  
   return detectedLanguage;
 }
 
@@ -703,8 +1325,5 @@ function detectProjectLanguage(files: File[]): Language | undefined {
  * Create a new project with default files for a language
  */
 export function createDefaultProject(language: Language): { name: string, content: string, isFolder: boolean }[] {
-  logger.info(`Creating default project files for ${language}`);
-  const files = getDefaultFiles(language);
-  logger.info(`Generated ${files.length} default files for ${language}`);
-  return files;
+  return getDefaultFiles(language);
 }

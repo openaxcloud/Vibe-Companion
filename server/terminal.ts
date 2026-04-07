@@ -189,6 +189,128 @@ export function setupTerminalWebsocket(server: Server) {
       logger.error(`Error setting up terminal WebSocket: ${error}`);
       ws.close(1011, 'Internal error');
     }
+import { Server } from 'http';
+import { spawn, ChildProcess } from 'child_process';
+import { log } from './vite';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import { storage } from './storage';
+import { File } from '@shared/schema';
+
+// Map to store terminal processes by projectId
+const terminalProcesses = new Map<number, {
+  process: ChildProcess | null;
+  clients: Set<WebSocket>;
+}>();
+
+// Setup the terminal WebSocket server
+export function setupTerminalWebsocket(server: Server) {
+  const wss = new WebSocketServer({
+    server,
+    path: '/terminal'
+  });
+  
+  log('Setting up terminal WebSocket server', 'terminal');
+  
+  wss.on('connection', async (ws, req) => {
+    try {
+      // Get the project ID from query params
+      const url = new URL(req.url || '', `http://${req.headers.host}`);
+      const projectId = parseInt(url.searchParams.get('projectId') || '');
+      
+      if (isNaN(projectId)) {
+        ws.close(1008, 'Missing or invalid projectId');
+        return;
+      }
+      
+      log(`Terminal connection established for project ${projectId}`, 'terminal');
+      
+      // Create terminal info entry if it doesn't exist
+      if (!terminalProcesses.has(projectId)) {
+        terminalProcesses.set(projectId, {
+          process: null,
+          clients: new Set()
+        });
+      }
+      
+      const terminalInfo = terminalProcesses.get(projectId)!;
+      terminalInfo.clients.add(ws);
+      
+      // Start the process if it's not already running
+      if (!terminalInfo.process) {
+        startProcess(projectId, terminalInfo);
+      }
+      
+      // Handle messages from the client
+      ws.on('message', (message) => {
+        try {
+          if (!terminalInfo.process) {
+            // Try to restart the process if it's not running
+            startProcess(projectId, terminalInfo);
+            return;
+          }
+          
+          const data = JSON.parse(message.toString());
+          
+          if (data.type === 'input') {
+            // Send input to the terminal process
+            terminalInfo.process.stdin?.write(data.data);
+          } else if (data.type === 'resize') {
+            // Handle terminal resize
+            if (terminalInfo.process && terminalInfo.process.stdin) {
+              // Note: The actual resize handling would be implemented here
+              // For pty.js or node-pty, you would use something like:
+              // terminalInfo.process.resize(data.cols, data.rows);
+              // This requires a proper PTY implementation
+            }
+          }
+        } catch (error) {
+          log(`Error handling terminal message: ${error}`, 'terminal');
+        }
+      });
+      
+      // Handle client disconnect
+      ws.on('close', () => {
+        log(`Terminal client disconnected for project ${projectId}`, 'terminal');
+        
+        if (terminalInfo.clients) {
+          terminalInfo.clients.delete(ws);
+          
+          // If no clients left, terminate the process
+          if (terminalInfo.clients.size === 0) {
+            stopProcess(projectId, terminalInfo);
+          }
+        }
+      } catch (error) {
+        log(`Error processing terminal message: ${error}`, 'terminal');
+      }
+    });
+    
+    // Handle client disconnect
+    ws.on('close', () => {
+      if (terminalInfo) {
+        terminalInfo.clients.delete(ws);
+        
+        // If no clients left, stop the process
+        if (terminalInfo.clients.size === 0 && terminalInfo.process) {
+          stopProcess(projectId, terminalInfo);
+        }
+      }
+      log(`Terminal client disconnected for project ${projectId}`);
+    });
+      });
+      
+      // Send initial connection message
+      ws.send(JSON.stringify({
+        type: 'connected',
+        data: `Connected to terminal for project ${projectId}`
+      }));
+      
+    } catch (error) {
+      log(`Error setting up terminal WebSocket: ${error}`, 'terminal');
+      ws.close(1011, 'Internal error');
+    }
   });
   
   return wss;
@@ -203,6 +325,8 @@ async function startProcess(projectId: number, terminalInfo: {
   columns?: number,
   rows?: number
 }) {
+// Start a terminal process for a project
+async function startProcess(projectId: number, terminalInfo: { process: ChildProcess | null, clients: Set<WebSocket> }) {
   try {
     // Get project details
     const project = await storage.getProject(projectId);
@@ -232,30 +356,24 @@ async function startProcess(projectId: number, terminalInfo: {
       cwd: projectDir,
       env: { ...process.env, TERM: 'xterm-256color' },
       stdio: ['pipe', 'pipe', 'pipe']
+    const process = spawn(shell, args, {
+      cwd: projectDir,
+      env: { ...process.env, TERM: 'xterm-256color' },
+      stdio: ['pipe', 'pipe', 'pipe']
     });
     
     // Store the process
-    terminalInfo.process = termProcess;
-    
-    // Apply terminal dimensions if they were previously set
-    if (terminalInfo.columns && terminalInfo.rows && termProcess.stdin) {
-      try {
-        const sttyCommand = `stty cols ${terminalInfo.columns} rows ${terminalInfo.rows}\n`;
-        termProcess.stdin.write(sttyCommand);
-      } catch (err) {
-        logger.error(`Failed to apply terminal dimensions on start: ${err}`);
-      }
-    }
+    terminalInfo.process = process;
     
     // Handle process output
-    termProcess.stdout.on('data', (data: Buffer) => {
+    process.stdout.on('data', (data) => {
       broadcastToClients(terminalInfo.clients, {
         type: 'output',
         data: data.toString()
       });
     });
     
-    termProcess.stderr.on('data', (data: Buffer) => {
+    process.stderr.on('data', (data) => {
       broadcastToClients(terminalInfo.clients, {
         type: 'output',
         data: data.toString()
@@ -263,8 +381,8 @@ async function startProcess(projectId: number, terminalInfo: {
     });
     
     // Handle process exit
-    termProcess.on('exit', (code: number | null) => {
-      logger.info(`Terminal process exited with code ${code} for project ${projectId}`);
+    process.on('exit', (code) => {
+      log(`Terminal process exited with code ${code} for project ${projectId}`, 'terminal');
       
       broadcastToClients(terminalInfo.clients, {
         type: 'exit',
@@ -279,16 +397,7 @@ async function startProcess(projectId: number, terminalInfo: {
       type: 'started',
       data: `Terminal started in ${projectDir}`
     });
-    
-  } catch (error) {
-    logger.error(`Error starting terminal process: ${error}`);
-    
-    broadcastToClients(terminalInfo.clients, {
-      type: 'error',
-      data: `Failed to start terminal: ${error}`
-    });
-    
-    terminalInfo.process = null;
+    log(`Failed to start terminal process: ${error}`, 'terminal');
   }
 }
 
@@ -304,6 +413,23 @@ function stopProcess(projectId: number, terminalInfo: {
   if (terminalInfo.process) {
     logger.info(`Stopping terminal process for project ${projectId}`);
     
+  } catch (error) {
+    log(`Error starting terminal process: ${error}`, 'terminal');
+    
+    broadcastToClients(terminalInfo.clients, {
+      type: 'error',
+      data: `Failed to start terminal: ${error}`
+    });
+    
+    terminalInfo.process = null;
+  }
+}
+
+// Stop a terminal process
+function stopProcess(projectId: number, terminalInfo: { process: ChildProcess | null, clients: Set<WebSocket> }) {
+  if (terminalInfo.process) {
+    log(`Stopping terminal process for project ${projectId}`, 'terminal');
+    
     // Kill the process
     terminalInfo.process.kill();
     terminalInfo.process = null;
@@ -316,15 +442,8 @@ function stopProcess(projectId: number, terminalInfo: {
   }
 }
 
-// Message types
-interface TerminalMessage {
-  type: 'output' | 'connected' | 'error' | 'exit' | 'started' | 'stopped' | 'history' | 'autocomplete_suggestions';
-  data: string | string[];
-  index?: number;
-}
-
 // Broadcast a message to all connected clients
-function broadcastToClients(clients: Set<WebSocket>, message: TerminalMessage): void {
+function broadcastToClients(clients: Set<WebSocket>, message: any) {
   const messageStr = JSON.stringify(message);
   
   clients.forEach(client => {
@@ -358,6 +477,9 @@ async function createProjectDir(project: { id: number }, files: File[]): Promise
     return projectDir;
   } catch (error) {
     logger.error(`Error creating project directory: ${error}`);
+    throw error;
+  }
+    log(`Error creating project directory: ${error}`, 'terminal');
     throw error;
   }
 }

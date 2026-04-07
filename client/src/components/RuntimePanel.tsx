@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * RuntimePanel component
  * Provides UI for interacting with project runtimes, viewing logs, etc.
@@ -112,7 +111,7 @@ export function RuntimePanel({ projectId }: RuntimePanelProps) {
     <div className="flex flex-col h-full border rounded-md">
       <div className="flex items-center justify-between p-2 border-b">
         <div className="flex items-center gap-2">
-          <h3 className="text-[13px] font-medium">Runtime Environment</h3>
+          <h3 className="text-sm font-medium">Runtime Environment</h3>
           <Badge className={statusBadgeColor()}>
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </Badge>
@@ -177,7 +176,7 @@ export function RuntimePanel({ projectId }: RuntimePanelProps) {
         
         <TabsContent value="logs" className="flex-1 p-0 m-0">
           <ScrollArea className="h-[calc(100%-2rem)] p-2">
-            <div className="font-mono text-[11px] whitespace-pre-wrap">
+            <div className="font-mono text-xs whitespace-pre-wrap">
               {logs.length === 0 ? (
                 <div className="text-center text-muted-foreground py-4">
                   No logs available
@@ -198,7 +197,7 @@ export function RuntimePanel({ projectId }: RuntimePanelProps) {
         
         <TabsContent value="terminal" className="flex-1 p-0 m-0 flex flex-col">
           <ScrollArea className="flex-1 p-2">
-            <div className="font-mono text-[11px] whitespace-pre-wrap">
+            <div className="font-mono text-xs whitespace-pre-wrap">
               {commandOutput === null ? (
                 <div className="text-center text-muted-foreground py-4">
                   Execute a command to see output
@@ -221,7 +220,7 @@ export function RuntimePanel({ projectId }: RuntimePanelProps) {
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}
                 disabled={!isRunning || executeCommand.isPending}
-                className="font-mono text-[11px]"
+                className="font-mono text-xs"
               />
               <Button 
                 type="submit"

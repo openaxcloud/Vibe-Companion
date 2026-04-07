@@ -32,17 +32,7 @@ import { queryClient } from '@/lib/queryClient';
 import { useLocation } from 'wouter';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-// Notification interface
-interface Notification {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  actionUrl?: string;
-  read: boolean;
-  timestamp: string;
-  metadata?: Record<string, any>;
-}
+import type { Notification } from '@shared/schema';
 
 // Icon mapping for notification types
 const notificationIcons: Record<string, any> = {
@@ -82,23 +72,17 @@ export function NotificationCenter() {
   const { toast } = useToast();
 
   // Fetch notifications from API
-  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
+  const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['/api/notifications'],
     refetchInterval: 60000, // Refetch every minute
   });
 
-  const formatRelativeTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) {
-      return 'Just now';
-    }
-    return formatDistanceToNow(date, { addSuffix: true });
-  };
-
   // Mark notification as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: number) => {
-      await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
+      await apiRequest(`/api/notifications/${notificationId}/read`, {
+        method: 'POST',
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
@@ -108,7 +92,9 @@ export function NotificationCenter() {
   // Mark all notifications as read mutation
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest('PATCH', '/api/notifications/read-all');
+      await apiRequest('/api/notifications/read-all', {
+        method: 'POST',
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
@@ -122,7 +108,9 @@ export function NotificationCenter() {
   // Delete notification mutation
   const deleteNotificationMutation = useMutation({
     mutationFn: async (notificationId: number) => {
-      await apiRequest('DELETE', `/api/notifications/${notificationId}`);
+      await apiRequest(`/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
@@ -132,7 +120,9 @@ export function NotificationCenter() {
   // Clear all notifications mutation
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest('DELETE', '/api/notifications');
+      await apiRequest('/api/notifications', {
+        method: 'DELETE',
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
@@ -143,9 +133,7 @@ export function NotificationCenter() {
     },
   });
 
-  // Ensure notifications is always an array (API may return null on 401)
-  const safeNotifications = notifications ?? [];
-  const unreadNotifications = safeNotifications.filter((n: Notification) => !n.read);
+  const unreadNotifications = notifications.filter((n: Notification) => !n.read);
   const unreadCount = unreadNotifications.length;
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -155,9 +143,9 @@ export function NotificationCenter() {
     }
 
     // Navigate to link if provided
-    if (notification.actionUrl) {
+    if (notification.link) {
       setIsOpen(false);
-      navigate(notification.actionUrl);
+      navigate(notification.link);
     }
   };
 
@@ -175,15 +163,15 @@ export function NotificationCenter() {
   };
 
   const markAllAsRead = () => {
-    markAllAsReadMutation.mutate(undefined);
+    markAllAsReadMutation.mutate();
   };
 
   const clearAll = () => {
-    clearAllMutation.mutate(undefined);
+    clearAllMutation.mutate();
   };
 
-  // Use safe notifications array (handles null from 401 responses)
-  const allNotifications = safeNotifications;
+  // Mock notifications data removed, now using real data from API
+  const allNotifications = notifications;
 
 
   return (
@@ -194,7 +182,7 @@ export function NotificationCenter() {
           {unreadCount > 0 && (
             <Badge 
               variant="destructive" 
-              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[11px]"
+              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
             >
               {unreadCount}
             </Badge>
@@ -202,24 +190,22 @@ export function NotificationCenter() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0" align="end">
-        <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
-          <span className="text-xs font-medium text-[var(--ecode-text)]">Notifications</span>
-          <div className="flex items-center gap-0.5">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold">Notifications</h3>
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-[var(--ecode-text-muted)]"
               onClick={handleSettingsClick}
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-[var(--ecode-text-muted)]"
               onClick={() => setIsOpen(false)}
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -250,7 +236,7 @@ export function NotificationCenter() {
                       return (
                         <div
                           key={notification.id}
-                          className="p-4 hover:bg-surface-hover-solid cursor-pointer transition-colors"
+                          className="p-4 hover:bg-accent/50 cursor-pointer transition-colors"
                           onClick={() => handleNotificationClick(notification)}
                         >
                           <div className="flex gap-3">
@@ -258,14 +244,14 @@ export function NotificationCenter() {
                               <Icon className="h-5 w-5" />
                             </div>
                             <div className="flex-1 space-y-1">
-                              <p className="text-[13px] font-medium">
+                              <p className="text-sm font-medium">
                                 {notification.title}
                               </p>
-                              <p className="text-[13px] text-muted-foreground">
+                              <p className="text-sm text-muted-foreground">
                                 {notification.message}
                               </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {formatRelativeTime(notification.timestamp)}
+                              <p className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                               </p>
                             </div>
                             <div className="opacity-0 hover:opacity-100">
@@ -302,7 +288,7 @@ export function NotificationCenter() {
                   return (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-surface-hover-solid cursor-pointer transition-colors ${
+                      className={`p-4 hover:bg-accent/50 cursor-pointer transition-colors ${
                         notification.read ? 'opacity-60' : ''
                       }`}
                       onClick={() => handleNotificationClick(notification)}
@@ -312,14 +298,14 @@ export function NotificationCenter() {
                           <Icon className="h-5 w-5" />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <p className="text-[13px] font-medium">
+                          <p className="text-sm font-medium">
                             {notification.title}
                           </p>
-                          <p className="text-[13px] text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
                             {notification.message}
                           </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {formatRelativeTime(notification.timestamp)}
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                           </p>
                         </div>
                         {notification.read && (

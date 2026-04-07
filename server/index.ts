@@ -194,7 +194,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production" || !!process.env.REPL_ID,
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000,
       sameSite: process.env.NODE_ENV === "production" || !!process.env.REPL_ID ? "none" as const : "lax" as const,
     },
   })
@@ -228,11 +228,11 @@ app.get("/api/ready", async (_req, res) => {
 });
 
 app.use((req, res, next) => {
-  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook" || req.path.startsWith("/deployed/")) {
+  if (req.path.startsWith("/api/slack/events/") || req.path === "/api/stripe/webhook" || req.path.startsWith("/deployed/") || req.path === "/api/files/upload") {
     return next();
   }
   express.json({
-    limit: "50mb",
+    limit: "5mb",
     verify: (r: any, _res, buf) => {
       r.rawBody = buf;
     },
@@ -2508,7 +2508,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       }
     });
 
-    app.post("/api/files/upload", (req, res) => {
+    app.post("/api/files/upload", express.json({ limit: "50mb" }), (req, res) => {
       res.json({ success: true, file: { id: crypto.randomUUID(), name: "uploaded", size: 0 } });
     });
 

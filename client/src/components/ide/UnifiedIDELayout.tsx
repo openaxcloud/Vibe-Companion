@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { createPanHandlers, type PanInfo } from '@/lib/native-motion';
 import { useIDEWorkspace, availableTools } from '@/hooks';
-import { useDeviceType } from '@/hooks/use-media-query';
+import { useDeviceType } from '@/design-system/hooks/useDesignSystem';
 import { useConnectionStatus } from '@/hooks/use-connection-status';
 import { useProblemsCount } from '@/hooks/use-problems-count';
 import { useToast } from '@/hooks/use-toast';

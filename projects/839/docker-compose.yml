@@ -1,8 +1,0 @@
-# Docker Compose configuration to run a PostgreSQL service with persistent volume and healthcheck. Includes default credentials and exposes port 5432 for local development.
-
-version: '1.0'
-
-settings:
-  enabled: true
-  
-# Add configuration here

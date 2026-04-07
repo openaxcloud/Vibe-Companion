@@ -34,6 +34,9 @@ import Community from "@/pages/Community";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import GlobalShortcuts from "@/components/GlobalShortcuts";
 import CookieConsent from "@/components/CookieConsent";
+import { AuthProvider } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { ReplitLayout } from "@/components/layout/ReplitLayout";
 
 const Compare = lazy(() => import("@/pages/marketing/Compare"));
 const VsAwsCloud9 = lazy(() => import("@/pages/marketing/VsAwsCloud9"));

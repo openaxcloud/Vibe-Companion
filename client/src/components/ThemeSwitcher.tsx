@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useTheme } from '@/components/ThemeProvider';
+import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -51,21 +51,21 @@ export function ThemeSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 gap-2" data-testid="button-theme-toggle">
+        <Button variant="ghost" size="sm" className="h-8 gap-2">
           {getIcon()}
-          <span className="hidden sm:inline text-[11px]">{getLabel()}</span>
+          <span className="hidden sm:inline text-xs">{getLabel()}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem onClick={() => setTheme('light')} data-testid="button-theme-light">
+        <DropdownMenuItem onClick={() => setTheme('light')}>
           <Sun className="mr-2 h-4 w-4" />
           <span>Light</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('dark')} data-testid="button-theme-dark">
+        <DropdownMenuItem onClick={() => setTheme('dark')}>
           <Moon className="mr-2 h-4 w-4" />
           <span>Dark</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('system')} data-testid="button-theme-system">
+        <DropdownMenuItem onClick={() => setTheme('system')}>
           <Monitor className="mr-2 h-4 w-4" />
           <span>System</span>
         </DropdownMenuItem>

@@ -57,7 +57,7 @@ export default function Security() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col" data-testid="page-security">
+    <div className="min-h-screen flex flex-col">
       <PublicNavbar />
       
       <main className="flex-1">
@@ -66,11 +66,11 @@ export default function Security() {
           <div className="container-responsive">
             <div className="text-center max-w-3xl mx-auto">
               <Shield className="h-12 w-12 mx-auto mb-4 text-primary" />
-              <h1 className="text-4xl font-bold mb-4" data-testid="heading-security">Enterprise-Grade Security</h1>
-              <p className="text-[15px] text-muted-foreground mb-8">
+              <h1 className="text-4xl font-bold mb-4">Enterprise-Grade Security</h1>
+              <p className="text-lg text-muted-foreground mb-8">
                 Your code and data are protected by industry-leading security measures
               </p>
-              <Badge variant="secondary" className="text-[15px] px-4 py-2">
+              <Badge variant="secondary" className="text-lg px-4 py-2">
                 SOC 2 Type II Certified
               </Badge>
             </div>
@@ -90,7 +90,7 @@ export default function Security() {
                     <CardContent className="pt-6 text-center">
                       <Icon className="h-12 w-12 mx-auto mb-4 text-primary" />
                       <h3 className="font-semibold mb-2">{feature.title}</h3>
-                      <p className="text-[13px] text-muted-foreground">{feature.description}</p>
+                      <p className="text-sm text-muted-foreground">{feature.description}</p>
                     </CardContent>
                   </Card>
                 );
@@ -112,7 +112,7 @@ export default function Security() {
                     <CardContent className="flex items-center justify-between p-6">
                       <div>
                         <h3 className="font-semibold">{cert.name}</h3>
-                        <p className="text-[13px] text-muted-foreground">{cert.status}</p>
+                        <p className="text-sm text-muted-foreground">{cert.status}</p>
                       </div>
                       <Icon className={`h-6 w-6 ${cert.icon === CheckCircle ? 'text-green-600' : 'text-yellow-600'}`} />
                     </CardContent>
@@ -190,13 +190,12 @@ export default function Security() {
         <section className="py-responsive">
           <div className="container-responsive text-center">
             <h2 className="text-3xl font-bold mb-4">Visit Our Trust Center</h2>
-            <p className="text-[15px] text-muted-foreground mb-8 max-w-2xl mx-auto">
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
               Learn more about our security practices, compliance certifications, and commitment to protecting your data
             </p>
             <button 
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 min-h-[44px]"
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               onClick={() => window.location.href = '/trust-center'}
-              data-testid="button-security-trust-center"
             >
               Visit Trust Center
             </button>

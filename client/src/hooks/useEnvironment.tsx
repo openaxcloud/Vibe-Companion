@@ -4,19 +4,11 @@ import {
   useMutation,
   UseMutationResult,
 } from "@tanstack/react-query";
-// EnvironmentVariable type definition
+import { EnvironmentVariable as SelectEnvironmentVariable } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-export type EnvironmentVariable = {
-  id: number;
-  projectId: number;
-  key: string;
-  value: string;
-  isSecret: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
+export type EnvironmentVariable = SelectEnvironmentVariable;
 
 export type EnvironmentVariableInput = {
   key: string;
@@ -60,25 +52,22 @@ export function EnvironmentProvider({
     error,
     isLoading,
   } = useQuery<EnvironmentVariable[], Error>({
-    queryKey: [`/api/environment/${projectId}`],
-    queryFn: async () => {
-      // apiRequest already returns parsed JSON and throws on !ok
-      return await apiRequest('GET', `/api/environment/${projectId}`);
-    },
+    queryKey: [`/api/projects/${projectId}/environment`],
+    queryFn: getQueryFn(),
     enabled: !!projectId,
   });
 
   const createVariableMutation = useMutation({
     mutationFn: async ({ projectId, variable }: { projectId: number; variable: EnvironmentVariableInput }) => {
-      // apiRequest already returns parsed JSON
-      return await apiRequest(
+      const res = await apiRequest(
         "POST",
-        `/api/environment/${projectId}`,
+        `/api/projects/${projectId}/environment`,
         variable
       );
+      return await res.json();
     },
     onSuccess: (newVariable: EnvironmentVariable) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/environment/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/environment`] });
       toast({
         title: "Variable created",
         description: `Environment variable "${newVariable.key}" has been created.`,
@@ -103,15 +92,15 @@ export function EnvironmentProvider({
       projectId: number;
       variable: Partial<EnvironmentVariableInput>;
     }) => {
-      // apiRequest already returns parsed JSON
-      return await apiRequest(
+      const res = await apiRequest(
         "PATCH",
-        `/api/environment/${projectId}/${id}`,
+        `/api/projects/${projectId}/environment/${id}`,
         variable
       );
+      return await res.json();
     },
     onSuccess: (updatedVariable: EnvironmentVariable) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/environment/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/environment`] });
       toast({
         title: "Variable updated",
         description: `Environment variable "${updatedVariable.key}" has been updated.`,
@@ -130,11 +119,11 @@ export function EnvironmentProvider({
     mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
       await apiRequest(
         "DELETE",
-        `/api/environment/${projectId}/${id}`
+        `/api/projects/${projectId}/environment/${id}`
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/environment/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/environment`] });
       toast({
         title: "Variable deleted",
         description: "Environment variable has been deleted.",

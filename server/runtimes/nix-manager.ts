@@ -37,6 +37,8 @@ export async function generateNixConfig(
     
     // Also generate the .replit file with run command
     const replitConfig = generateReplitConfig(language);
+    const replitConfig = generateECodeConfig(language);
+    const replitConfig = generateReplitConfig(language);
     const replitFilePath = path.join(projectDir, '.replit');
     
     fs.writeFileSync(replitFilePath, replitConfig);
@@ -272,6 +274,8 @@ function getLanguageNixPackages(language: Language): string[] {
 /**
  * Generate .replit configuration
  */
+function generateReplitConfig(language: Language): string {
+function generateECodeConfig(language: Language): string {
 function generateReplitConfig(language: Language): string {
   const config = languageConfigs[language];
   

@@ -37,18 +37,18 @@ export function MobileHeader() {
         
         <div className="bg-muted rounded-md flex items-center px-2 py-1 w-[70vw]">
           <Search className="h-4 w-4 text-muted-foreground mr-2" />
-          <span className="text-[13px] text-muted-foreground">Search & run commands</span>
+          <span className="text-sm text-muted-foreground">Search & run commands</span>
         </div>
       </div>
       
       <div className="flex items-center">
-        <Button variant="ghost" size="icon" className="h-10 w-10 min-h-[44px] min-w-[44px]">
+        <Button variant="ghost" size="icon" className="h-8 w-8">
           <Bell className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-10 w-10 min-h-[44px] min-w-[44px]">
+        <Button variant="ghost" size="icon" className="h-8 w-8">
           <HelpCircle className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-10 w-10 min-h-[44px] min-w-[44px] relative">
+        <Button variant="ghost" size="icon" className="h-8 w-8 relative">
           {user?.avatarUrl ? (
             <img 
               src={user.avatarUrl} 
@@ -58,8 +58,8 @@ export function MobileHeader() {
           ) : (
             <User className="h-4 w-4" />
           )}
-          <span className="absolute -top-1 -right-1 bg-primary text-white text-[11px] rounded-full h-4 w-4 flex items-center justify-center">
-            {user?.username ? user.username.slice(0, 2).toUpperCase() : user?.email ? user.email.slice(0, 2).toUpperCase() : 'U'}
+          <span className="absolute -top-1 -right-1 bg-primary text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+            SE
           </span>
         </Button>
       </div>
@@ -70,7 +70,7 @@ export function MobileHeader() {
   const renderNavigationHeader = () => (
     <div className="flex items-center justify-between w-full">
       <div className="flex items-center">
-        <span className="font-medium text-[13px] mx-2">{user?.username || 'User'}</span>
+        <span className="font-medium text-sm mx-2">henri45</span>
         <Button variant="ghost" size="sm" className="h-6">
           <X className="h-4 w-4 mr-1" />
         </Button>
@@ -100,26 +100,26 @@ export function MobileHeader() {
   };
   
   return (
-    <header className="fixed top-0 left-0 right-0 h-14 bg-background border-b border-border z-50 md:hidden">
+    <header className="fixed top-0 left-0 right-0 h-14 bg-orange-400 border-b z-50 md:hidden">
       <div className="px-3 h-full flex items-center">
         {getHeaderContent()}
       </div>
       
       {/* Menu de navigation latéral */}
       {isMenuOpen && (
-        <div className="fixed inset-0 bg-background z-50" onClick={() => setIsMenuOpen(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setIsMenuOpen(false)}>
           <div 
             className="w-4/5 h-full bg-background overflow-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b">
               <div className="flex items-center">
-                <div className="h-8 w-8 rounded-full bg-surface-tertiary-solid flex items-center justify-center text-primary mr-2">
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary mr-2">
                   {user?.username?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div>
                   <div className="font-medium">{user?.username || 'User'}</div>
-                  <div className="text-[11px] text-muted-foreground">{user?.email || 'user@example.com'}</div>
+                  <div className="text-xs text-muted-foreground">{user?.email || 'user@example.com'}</div>
                 </div>
               </div>
             </div>

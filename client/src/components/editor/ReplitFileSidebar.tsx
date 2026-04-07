@@ -51,8 +51,7 @@ interface ReplitFileSidebarProps {
   onFileDelete: (fileId: number) => void;
   onFileRename?: (fileId: number, newName: string) => void;
   projectName?: string;
-  projectId?: string;
-  onClose?: () => void;
+  projectId?: number;
 }
 
 interface FileTreeItemProps {
@@ -74,28 +73,28 @@ function getFileIcon(fileName: string) {
     case 'jsx':
     case 'ts':
     case 'tsx':
-      return <Code className="h-3.5 w-3.5 text-status-warning" />;
+      return <Code className="h-4 w-4 text-yellow-500" />;
     case 'json':
     case 'jsonc':
-      return <FileJson className="h-3.5 w-3.5 text-status-warning" />;
+      return <FileJson className="h-4 w-4 text-orange-500" />;
     case 'html':
     case 'htm':
-      return <FileText className="h-3.5 w-3.5 text-status-critical" />;
+      return <FileText className="h-4 w-4 text-red-500" />;
     case 'css':
     case 'scss':
     case 'sass':
-      return <FileText className="h-3.5 w-3.5 text-status-info" />;
+      return <FileText className="h-4 w-4 text-blue-500" />;
     case 'png':
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'svg':
-      return <Image className="h-3.5 w-3.5 text-primary" />;
+      return <Image className="h-4 w-4 text-purple-500" />;
     case 'md':
     case 'mdx':
-      return <FileText className="h-3.5 w-3.5 text-muted-foreground" />;
+      return <FileText className="h-4 w-4 text-gray-500" />;
     default:
-      return <File className="h-3.5 w-3.5 text-muted-foreground" />;
+      return <File className="h-4 w-4 text-[var(--ecode-text-muted)]" />;
   }
 }
 
@@ -146,7 +145,7 @@ function FileTreeItem({
             if (e.key === 'Escape') setIsRenaming(false);
           }}
           onBlur={handleRename}
-          className="h-6 text-[11px]"
+          className="h-6 text-xs"
           autoFocus
         />
       </div>
@@ -157,19 +156,19 @@ function FileTreeItem({
     <>
       <div
         className={cn(
-          "group flex items-center px-2 cursor-pointer hover:bg-surface-hover-solid",
-          activeFileId === file.id && "bg-surface-tertiary-solid text-primary"
+          "group flex items-center px-2 py-0.5 cursor-pointer hover:bg-[var(--ecode-sidebar-hover)]",
+          activeFileId === file.id && "bg-[var(--ecode-accent-subtle)] text-[var(--ecode-accent)]"
         )}
-        style={{ paddingLeft: `${level * 12 + 8}px`, lineHeight: '22px' }}
+        style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={() => {
-          if (file.isDirectory) {
+          if (file.isFolder) {
             setExpanded(!expanded);
           } else {
             onFileSelect(file);
           }
         }}
       >
-        {file.isDirectory ? (
+        {file.isFolder ? (
           <button
             className="p-0.5 hover:bg-[var(--ecode-sidebar-hover)] rounded"
             onClick={(e) => {
@@ -187,17 +186,17 @@ function FileTreeItem({
           <div className="w-4" />
         )}
         
-        {file.isDirectory ? (
+        {file.isFolder ? (
           expanded ? (
-            <FolderOpen className="h-3.5 w-3.5 ml-1 text-muted-foreground" />
+            <FolderOpen className="h-4 w-4 ml-1 text-[var(--ecode-text-muted)]" />
           ) : (
-            <Folder className="h-3.5 w-3.5 ml-1 text-muted-foreground" />
+            <Folder className="h-4 w-4 ml-1 text-[var(--ecode-text-muted)]" />
           )
         ) : (
           <div className="ml-1">{getFileIcon(file.name)}</div>
         )}
         
-        <span className="ml-2 text-[13px] flex-1 truncate">{file.name}</span>
+        <span className="ml-2 text-sm flex-1 truncate">{file.name}</span>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -211,7 +210,7 @@ function FileTreeItem({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            {file.isDirectory && (
+            {file.isFolder && (
               <>
                 <DropdownMenuItem onClick={() => {
                   setInputType('file');
@@ -240,7 +239,7 @@ function FileTreeItem({
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={() => onFileDelete(file.id)}
-              className="text-status-critical"
+              className="text-red-600"
             >
               Delete
             </DropdownMenuItem>
@@ -248,7 +247,7 @@ function FileTreeItem({
         </DropdownMenu>
       </div>
 
-      {file.isDirectory && expanded && showInput && (
+      {file.isFolder && expanded && showInput && (
         <div className="flex items-center px-2 py-1" style={{ paddingLeft: `${(level + 1) * 12 + 8}px` }}>
           {inputType === 'folder' ? (
             <Folder className="h-4 w-4 mr-2 text-[var(--ecode-text-muted)]" />
@@ -270,13 +269,13 @@ function FileTreeItem({
               setShowInput(false);
               setInputValue('');
             }}
-            className="h-6 text-[11px]"
+            className="h-6 text-xs"
             autoFocus
           />
         </div>
       )}
 
-      {file.isDirectory && expanded && (
+      {file.isFolder && expanded && (
         <>
           {children.map((child) => (
             <FileTreeItem
@@ -297,16 +296,15 @@ function FileTreeItem({
   );
 }
 
-export function ReplitFileSidebar({
-  files,
-  activeFileId,
-  onFileSelect,
-  onFileCreate,
+export function ReplitFileSidebar({ 
+  files, 
+  activeFileId, 
+  onFileSelect, 
+  onFileCreate, 
   onFileDelete,
   onFileRename,
   projectName = "Project",
-  projectId,
-  onClose
+  projectId
 }: ReplitFileSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewMenu, setShowNewMenu] = useState(false);
@@ -331,14 +329,15 @@ export function ReplitFileSidebar({
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* No Header - Start with actions */}
-      <div className="flex items-center justify-end px-2 py-1 border-b border-border">
+    <div className="h-full flex flex-col bg-[var(--ecode-background)]">
+      {/* Header */}
+      <div className="h-12 flex items-center justify-between px-3 border-b border-[var(--ecode-border)]">
+        <h2 className="text-sm font-medium">Files</h2>
         <div className="flex items-center gap-1">
           <DropdownMenu open={showNewMenu} onOpenChange={setShowNewMenu}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                <Plus className="h-3.5 w-3.5" />
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <Plus className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -347,7 +346,7 @@ export function ReplitFileSidebar({
                 setShowNewInput(true);
                 setShowNewMenu(false);
               }}>
-                <File className="h-3.5 w-3.5 mr-2" />
+                <File className="h-4 w-4 mr-2" />
                 New File
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
@@ -355,7 +354,7 @@ export function ReplitFileSidebar({
                 setShowNewInput(true);
                 setShowNewMenu(false);
               }}>
-                <Folder className="h-3.5 w-3.5 mr-2" />
+                <Folder className="h-4 w-4 mr-2" />
                 New Folder
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -363,26 +362,28 @@ export function ReplitFileSidebar({
                 setShowUploadDialog(true);
                 setShowNewMenu(false);
               }}>
-                <Upload className="h-3.5 w-3.5 mr-2" />
+                <Upload className="h-4 w-4 mr-2" />
                 Upload Files
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button variant="ghost" size="icon" className="h-6 w-6">
-            <RefreshCw className="h-3.5 w-3.5" />
+          
+          <Button variant="ghost" size="icon" className="h-7 w-7">
+            <RefreshCw className="h-4 w-4" />
           </Button>
+        </div>
+      </div>
 
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={onClose}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          )}
+      {/* Search */}
+      <div className="px-3 py-2 border-b border-[var(--ecode-border)]">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--ecode-text-muted)]" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search files..."
+            className="h-7 pl-7 text-xs"
+          />
         </div>
       </div>
 
@@ -406,7 +407,7 @@ export function ReplitFileSidebar({
                   setNewItemName('');
                 }
               }}
-              className="h-7 text-[11px]"
+              className="h-7 text-xs"
               autoFocus
             />
           </div>
@@ -417,7 +418,7 @@ export function ReplitFileSidebar({
       <ScrollArea className="flex-1">
         <div className="py-1">
           {filteredFiles.length === 0 ? (
-            <div className="text-center py-8 text-[13px] text-[var(--ecode-text-muted)]">
+            <div className="text-center py-8 text-sm text-[var(--ecode-text-muted)]">
               {searchQuery ? 'No files found' : 'No files yet'}
             </div>
           ) : (
@@ -438,6 +439,21 @@ export function ReplitFileSidebar({
         </div>
       </ScrollArea>
 
+      {/* Bottom Tabs */}
+      <div className="h-10 flex items-center border-t border-[var(--ecode-border)]">
+        <Button variant="ghost" size="sm" className="h-full rounded-none flex-1 text-xs">
+          <GitBranch className="h-3 w-3 mr-1" />
+          Git
+        </Button>
+        <Button variant="ghost" size="sm" className="h-full rounded-none flex-1 text-xs">
+          <Database className="h-3 w-3 mr-1" />
+          Database
+        </Button>
+        <Button variant="ghost" size="sm" className="h-full rounded-none flex-1 text-xs">
+          <Package className="h-3 w-3 mr-1" />
+          Packages
+        </Button>
+      </div>
 
       {/* Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>

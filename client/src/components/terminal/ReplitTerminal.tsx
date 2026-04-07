@@ -34,7 +34,6 @@ import {
   Zap,
   Clock,
 } from "lucide-react";
-import { TerminalMetricsIndicator } from "./TerminalMetricsIndicator";
 import "xterm/css/xterm.css";
 
 interface TerminalSession {
@@ -85,6 +84,9 @@ export function ReplitTerminal({
   const [isConnected, setIsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [currentInput, setCurrentInput] = useState("");
 
   // Configuration du thème du terminal
   const terminalTheme = theme === "dark" ? {
@@ -173,9 +175,9 @@ export function ReplitTerminal({
     terminal.writeln("\x1b[1;32m╰─────────────────────────────────────────╯\x1b[0m");
     terminal.writeln("");
 
-    // Configuration WebSocket - Use /api/terminal/ws endpoint
+    // Configuration WebSocket
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/api/terminal/ws?projectId=${projectId}`;
+    const wsUrl = `${protocol}//${window.location.host}/terminal?projectId=${projectId}`;
     
     const connectWebSocket = () => {
       const ws = new WebSocket(wsUrl);
@@ -184,11 +186,7 @@ export function ReplitTerminal({
       ws.onopen = () => {
         setIsConnected(true);
         terminal.writeln("\x1b[1;32m✓ Connected to terminal server\x1b[0m");
-        
-        const dims = fitAddon.proposeDimensions();
-        if (dims) {
-          ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-        }
+        terminal.write("\x1b[1;36muser@replit\x1b[0m:\x1b[1;34m/workspace\x1b[0m$ ");
         
         if (defaultCommand) {
           terminal.writeln(defaultCommand);
@@ -246,7 +244,45 @@ export function ReplitTerminal({
         return;
       }
 
-      // Envoyer au serveur (le PTY gère nativement l'historique et les prompts)
+      // Gestion de l'historique des commandes
+      if (data === "\x1b[A") { // Flèche haut
+        if (historyIndex < commandHistory.length - 1) {
+          setHistoryIndex(historyIndex + 1);
+          const command = commandHistory[commandHistory.length - 1 - historyIndex - 1];
+          if (command) {
+            // Effacer la ligne actuelle et afficher la commande de l'historique
+            terminal.write("\x1b[2K\r\x1b[1;36muser@replit\x1b[0m:\x1b[1;34m/workspace\x1b[0m$ " + command);
+            setCurrentInput(command);
+          }
+        }
+        return;
+      }
+
+      if (data === "\x1b[B") { // Flèche bas
+        if (historyIndex >= 0) {
+          setHistoryIndex(historyIndex - 1);
+          const command = historyIndex > 0 ? commandHistory[commandHistory.length - historyIndex] : "";
+          terminal.write("\x1b[2K\r\x1b[1;36muser@replit\x1b[0m:\x1b[1;34m/workspace\x1b[0m$ " + command);
+          setCurrentInput(command);
+        }
+        return;
+      }
+
+      // Sauvegarder la commande dans l'historique
+      if (data === "\r") {
+        if (currentInput.trim()) {
+          setCommandHistory(prev => [...prev.slice(-49), currentInput.trim()]);
+          onCommandExecute?.(currentInput.trim());
+        }
+        setCurrentInput("");
+        setHistoryIndex(-1);
+      } else if (data === "\x7f") { // Backspace
+        setCurrentInput(prev => prev.slice(0, -1));
+      } else if (data.charCodeAt(0) >= 32) { // Caractères imprimables
+        setCurrentInput(prev => prev + data);
+      }
+
+      // Envoyer au serveur
       wsRef.current.send(JSON.stringify({
         type: "input",
         sessionId: activeSessionId,
@@ -257,12 +293,7 @@ export function ReplitTerminal({
     // Démarrer la connexion
     connectWebSocket();
 
-    terminal.onResize(({ cols, rows }) => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
-      }
-    });
-
+    // Ajustement automatique de la taille
     const handleResize = () => {
       fitAddon.fit();
     };
@@ -362,10 +393,10 @@ export function ReplitTerminal({
         <div className="flex items-center justify-between p-2">
           <div className="flex items-center space-x-2">
             <TerminalIcon className="h-4 w-4 text-[var(--ecode-text-secondary)]" />
-            <span className="text-[13px] font-medium text-[var(--ecode-text)]">Terminal</span>
+            <span className="text-sm font-medium text-[var(--ecode-text)]">Terminal</span>
             <Badge 
               variant="outline" 
-              className={`text-[11px] ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
+              className={`text-xs ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
             >
               {isConnected ? 'Connected' : 'Disconnected'}
             </Badge>
@@ -397,7 +428,7 @@ export function ReplitTerminal({
                     variant={session.id === activeSessionId ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setActiveSessionId(session.id)}
-                    className={`h-6 px-2 text-[11px] ${
+                    className={`h-6 px-2 text-xs ${
                       session.id === activeSessionId
                         ? "bg-[var(--ecode-accent)] text-white"
                         : "text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
@@ -439,7 +470,7 @@ export function ReplitTerminal({
             {/* Status de connexion */}
             <Badge 
               variant="outline" 
-              className={`text-[11px] ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
+              className={`text-xs ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
             >
               {isConnected ? (
                 <>
@@ -453,9 +484,6 @@ export function ReplitTerminal({
                 </>
               )}
             </Badge>
-
-            {/* Fortune 500 Terminal Metrics */}
-            <TerminalMetricsIndicator compact data-testid="replit-terminal-metrics-compact" />
           </div>
 
           <div className="flex items-center space-x-1">
@@ -550,7 +578,7 @@ export function ReplitTerminal({
 
         {/* Footer avec informations de session */}
         {activeSession && (
-          <div className="flex items-center justify-between px-3 py-1 bg-[var(--ecode-surface-secondary)] border-t border-[var(--ecode-border)] text-[11px] text-[var(--ecode-text-secondary)]">
+          <div className="flex items-center justify-between px-3 py-1 bg-[var(--ecode-surface-secondary)] border-t border-[var(--ecode-border)] text-xs text-[var(--ecode-text-secondary)]">
             <div className="flex items-center space-x-4">
               <span>
                 <Clock className="h-3 w-3 inline mr-1" />
@@ -562,7 +590,7 @@ export function ReplitTerminal({
             </div>
             <div className="flex items-center space-x-2">
               {activeSession.process && (
-                <Badge variant="outline" className="text-[11px]">
+                <Badge variant="outline" className="text-xs">
                   {activeSession.process}
                 </Badge>
               )}

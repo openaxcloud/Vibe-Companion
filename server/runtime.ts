@@ -15,6 +15,8 @@ import { WebSocket } from 'ws';
 
 // Map of active project processes
 const activeProjects = new Map<number, {
+// Map of active project processes
+const activeProjects = new Map<number, {
   process: ChildProcess;
   logs: string[];
   status: 'starting' | 'running' | 'stopped' | 'error';
@@ -26,6 +28,53 @@ const activeProjects = new Map<number, {
 
 /**
  * Start a project's runtime
+ */
+export async function startProject(projectId: number): Promise<{
+  success: boolean;
+  url?: string;
+  error?: string;
+}> {
+  try {
+    // Create project directory
+    await fs.promises.mkdir(tmpDir, { recursive: true });
+    
+    // Get project details
+    const project = await storage.getProject(projectId);
+    if (!project) {
+      return {
+        success: false,
+        error: 'Project not found'
+      };
+    }
+    
+    // Get project files
+    const files = await storage.getFilesByProject(projectId);
+    if (!files.length) {
+      return {
+        success: false,
+        error: 'No files found in project'
+      };
+    }
+
+    // Init logs if not existing
+    if (!activeProjects.has(projectId)) {
+      activeProjects.set(projectId, {
+        process: null as unknown as ChildProcess,
+        logs: [],
+        status: 'starting',
+        logClients: new Set()
+      });
+    }
+    
+    return tmpDir;
+  } catch (error) {
+    log(`Error creating project directory: ${error}`, 'runtime');
+    throw error;
+  }
+}
+
+/**
+ * Stop a project's runtime
  */
 export async function startProject(projectId: number): Promise<{
   success: boolean;
@@ -157,6 +206,7 @@ export async function startProject(projectId: number): Promise<{
   }
 }
 
+// Stop a running project
 /**
  * Stop a project's runtime
  */
@@ -201,6 +251,14 @@ export async function stopProject(projectId: number): Promise<{
   }
 }
 
+/**
+ * Get the status of a project's runtime
+ */
+export function getProjectStatus(projectId: number): {
+  isRunning: boolean;
+  status: 'starting' | 'running' | 'stopped' | 'error' | 'unknown';
+  logs: string[];
+  url?: string;
 /**
  * Get the status of a project's runtime
  */
@@ -289,10 +347,39 @@ export async function checkRuntimeDependencies(): Promise<{
     version?: string;
     error?: string;
   };
-  nix: {
-    available: boolean;
-    version?: string;
-    error?: string;
+  // Add client to the set
+  projectData.logClients.add(client);
+  
+  // Send existing logs
+  for (const log of projectData.logs) {
+    sendMessage(log);
+  }
+  
+  // Handle disconnect
+  client.on('close', () => {
+    projectData.logClients.delete(client);
+  });
+}
+
+/**
+ * Broadcast log messages to all connected clients
+ */
+function broadcastLogsToClients(projectId: number, message: string): void {
+  if (!activeProjects.has(projectId)) return;
+  
+  const projectData = activeProjects.get(projectId)!;
+  
+  for (const client of projectData.logClients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        type: 'log',
+        data: message
+      }));
+    }
+    
+    if (process.stderr) {
+      process.stderr.removeListener('data', stderrListener);
+    }
   };
   languages?: Record<string, {
     available: boolean;

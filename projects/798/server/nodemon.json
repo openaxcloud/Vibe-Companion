@@ -1,6 +1,0 @@
-{
-  "name": "nodemon",
-  "version": "1.0.0",
-  "description": "Configure nodemon to watch src files with .ts extension and run via tsx.",
-  "config": {}
-}

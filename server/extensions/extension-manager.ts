@@ -77,17 +77,17 @@ export class ExtensionManager {
     const builtInExtensions: Extension[] = [
       {
         id: 'replit.dark-theme',
-        name: 'Replit Dark Theme',
+        name: 'E-Code Dark Theme',
         version: '1.0.0',
-        description: 'Official Replit dark theme',
-        author: 'Replit',
+        description: 'Official E-Code dark theme',
+        author: 'E-Code',
         category: 'theme',
         enabled: true,
         permissions: [],
         contributes: {
           themes: [{
             id: 'replit-dark',
-            label: 'Replit Dark',
+            label: 'E-Code Dark',
             uiTheme: 'vs-dark',
             path: './themes/replit-dark.json'
           }]
@@ -98,7 +98,7 @@ export class ExtensionManager {
         name: 'Python Language Support',
         version: '1.0.0',
         description: 'Python language support with IntelliSense',
-        author: 'Replit',
+        author: 'E-Code',
         category: 'language',
         enabled: true,
         permissions: ['workspace', 'language-server'],
@@ -115,7 +115,7 @@ export class ExtensionManager {
         name: 'Prettier Formatter',
         version: '1.0.0',
         description: 'Code formatter using Prettier',
-        author: 'Replit',
+        author: 'E-Code',
         category: 'formatter',
         enabled: true,
         permissions: ['workspace'],
@@ -132,7 +132,7 @@ export class ExtensionManager {
         name: 'ESLint',
         version: '1.0.0',
         description: 'JavaScript linter',
-        author: 'Replit',
+        author: 'E-Code',
         category: 'linter',
         enabled: true,
         permissions: ['workspace'],
@@ -149,7 +149,7 @@ export class ExtensionManager {
         name: 'Code Snippets',
         version: '1.0.0',
         description: 'Common code snippets',
-        author: 'Replit',
+        author: 'E-Code',
         category: 'snippet',
         enabled: true,
         permissions: [],

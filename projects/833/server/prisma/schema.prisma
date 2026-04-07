@@ -1,3 +1,0 @@
-Prisma schema with PostgreSQL provider defining User (id, email, passwordHash, role), Product (id, title, description, price, currency, images, stock, tags), Cart, CartItem, Order, OrderItem, and relations with indexes.
-
-Content generated as fallback. Please implement specific functionality as needed.

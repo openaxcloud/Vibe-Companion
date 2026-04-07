@@ -40,7 +40,7 @@ import {
   Download, Upload, Settings, Palette,
   Save, Trash2, Split
 } from 'lucide-react';
-import { useTheme } from '@/components/ThemeProvider';
+import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
 
 interface TerminalSession {
@@ -166,6 +166,7 @@ export function AdvancedTerminal({
       theme: terminalThemes[selectedTheme],
       allowTransparency: true,
       scrollback: 10000,
+      bellStyle: 'both',
       rightClickSelectsWord: true,
       convertEol: true,
       screenReaderMode: true,
@@ -187,42 +188,19 @@ export function AdvancedTerminal({
       currentDirectory: '~'
     };
 
+    // Connect WebSocket
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/api/terminal/ws?projectId=${projectId}`;
+    const wsUrl = `${wsProtocol}//${window.location.host}/terminal?projectId=${projectId}&sessionId=${id}`;
     const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
+      console.log(`Terminal session ${id} connected`);
       terminal.writeln('\x1b[1;32mConnected to terminal\x1b[0m');
       terminal.writeln('');
     };
 
     ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case 'output':
-            terminal.write(msg.data);
-            break;
-          case 'connected':
-          case 'ready':
-            break;
-          case 'history':
-            terminal.write(msg.data);
-            break;
-          case 'exit':
-            terminal.writeln(`\r\n\x1b[1;33m${msg.data}\x1b[0m`);
-            break;
-          case 'error':
-            terminal.writeln(`\r\n\x1b[1;31mError: ${msg.data}\x1b[0m`);
-            break;
-          case 'pong':
-            break;
-          default:
-            break;
-        }
-      } catch {
-        terminal.write(event.data);
-      }
+      terminal.write(event.data);
     };
 
     ws.onerror = (error) => {
@@ -231,30 +209,17 @@ export function AdvancedTerminal({
     };
 
     ws.onclose = () => {
-      terminal.writeln('\r\n\x1b[1;31mDisconnected from terminal\x1b[0m');
+      terminal.writeln('\x1b[1;31mDisconnected from terminal\x1b[0m');
     };
 
+    // Handle terminal input
     terminal.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'input', data }));
+        ws.send(data);
       }
     });
 
-    const sendResize = () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        const dims = fitAddon.proposeDimensions();
-        if (dims) {
-          ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-        }
-      }
-    };
-
-    terminal.onResize(({ cols, rows }) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-      }
-    });
-
+    // Track command history
     let currentCommand = '';
     terminal.onKey(({ key, domEvent }) => {
       if (domEvent.key === 'Enter') {
@@ -270,10 +235,6 @@ export function AdvancedTerminal({
     });
 
     session.websocket = ws;
-
-    ws.addEventListener('open', () => {
-      setTimeout(sendResize, 200);
-    });
     setSessions(prev => [...prev, session]);
     setActiveSessionId(id);
 
@@ -427,10 +388,10 @@ export function AdvancedTerminal({
     <TooltipProvider>
       <div className={`flex flex-col h-full bg-background ${className || ''}`}>
         {/* Terminal Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b bg-surface-solid">
+        <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
           <div className="flex items-center space-x-2">
             <TerminalIcon className="h-4 w-4" />
-            <span className="text-[13px] font-medium">Terminal</span>
+            <span className="text-sm font-medium">Terminal</span>
             
             {/* Session Tabs */}
             <Tabs value={activeSessionId} onValueChange={setActiveSessionId} className="ml-4">
@@ -439,7 +400,7 @@ export function AdvancedTerminal({
                   <TabsTrigger 
                     key={session.id} 
                     value={session.id}
-                    className="text-[11px] px-2 py-1 h-6"
+                    className="text-xs px-2 py-1 h-6"
                   >
                     <span className="max-w-[100px] truncate">{session.name}</span>
                     {sessions.length > 1 && (
@@ -619,7 +580,7 @@ export function AdvancedTerminal({
 
         {/* Search Bar */}
         {searchOpen && (
-          <div className="px-3 py-2 border-b bg-surface-solid">
+          <div className="px-3 py-2 border-b bg-muted/20">
             <div className="flex items-center space-x-2">
               <Input
                 type="text"
@@ -648,7 +609,7 @@ export function AdvancedTerminal({
                   {searchResults.map((result, index) => (
                     <div
                       key={index}
-                      className="px-2 py-1 text-[11px] hover:bg-muted rounded cursor-pointer"
+                      className="px-2 py-1 text-xs hover:bg-muted rounded cursor-pointer"
                       onClick={() => goToSearchResult(result.sessionId, result.line)}
                     >
                       <span className="font-medium">
@@ -708,7 +669,7 @@ export function AdvancedTerminal({
                 {activeSession?.history.map((command, index) => (
                   <div
                     key={index}
-                    className="px-3 py-2 rounded hover:bg-muted cursor-pointer font-mono text-[13px]"
+                    className="px-3 py-2 rounded hover:bg-muted cursor-pointer font-mono text-sm"
                     onClick={() => {
                       if (activeSession.websocket?.readyState === WebSocket.OPEN) {
                         activeSession.websocket.send(command);

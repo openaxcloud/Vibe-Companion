@@ -57,28 +57,28 @@ export function PackageViewer({ projectId }: { projectId: string }) {
 
   // Fetch installed packages
   const { data: installedPackages, isLoading: isLoadingPackages } = useQuery<PackageInfo[]>({
-    queryKey: [`/api/packages/installed`, projectId],
+    queryKey: [`/api/projects/${projectId}/packages`],
     enabled: !!projectId
   });
 
   // Fetch system packages
   const { data: systemPackages } = useQuery<SystemPackage[]>({
-    queryKey: [`/api/packages/system`, projectId],
+    queryKey: [`/api/projects/${projectId}/packages/system`],
     enabled: !!projectId
   });
 
   // Fetch package details
   const { data: packageDetails, isLoading: isLoadingDetails } = useQuery<PackageInfo>({
-    queryKey: [`/api/packages/details`, projectId, selectedPackage],
+    queryKey: [`/api/projects/${projectId}/packages/${selectedPackage}`],
     enabled: !!selectedPackage
   });
 
   // Search packages
   const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: [`/api/packages/search`, projectId, searchTerm],
+    queryKey: [`/api/projects/${projectId}/packages/search`, searchTerm],
     enabled: searchTerm.length > 2 && activeTab === 'search',
     queryFn: async () => {
-      const response = await fetch(`/api/packages/search?projectId=${projectId}&q=${searchTerm}`);
+      const response = await fetch(`/api/projects/${projectId}/packages/search?q=${searchTerm}`);
       if (!response.ok) throw new Error('Failed to search packages');
       return response.json();
     }
@@ -87,7 +87,11 @@ export function PackageViewer({ projectId }: { projectId: string }) {
   // Install package mutation
   const installPackageMutation = useMutation({
     mutationFn: async (packageName: string) => {
-      const response = await apiRequest('POST', `/api/packages/${projectId}/install`, { package: packageName });
+      const response = await fetch(`/api/projects/${projectId}/packages/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: packageName })
+      });
       if (!response.ok) throw new Error('Failed to install package');
       return response.json();
     },
@@ -96,7 +100,7 @@ export function PackageViewer({ projectId }: { projectId: string }) {
         title: "Package installed",
         description: "The package has been installed successfully"
       });
-      queryClient.invalidateQueries({ queryKey: [`/api/packages/installed`, projectId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/packages`] });
     },
     onError: (error: Error) => {
       toast({
@@ -110,7 +114,11 @@ export function PackageViewer({ projectId }: { projectId: string }) {
   // Uninstall package mutation
   const uninstallPackageMutation = useMutation({
     mutationFn: async (packageName: string) => {
-      const response = await apiRequest('POST', `/api/packages/${projectId}/uninstall`, { package: packageName });
+      const response = await fetch(`/api/projects/${projectId}/packages/uninstall`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: packageName })
+      });
       if (!response.ok) throw new Error('Failed to uninstall package');
       return response.json();
     },
@@ -142,7 +150,7 @@ export function PackageViewer({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-2">
             <Package className="h-5 w-5" />
             <div>
-              <CardTitle className="text-[15px]">Package Manager</CardTitle>
+              <CardTitle className="text-lg">Package Manager</CardTitle>
               <CardDescription>
                 Manage project dependencies and system packages
               </CardDescription>
@@ -200,13 +208,13 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                       >
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-[13px] font-medium truncate">{pkg.name}</span>
-                            <Badge variant="secondary" className="text-[11px]">
+                            <span className="text-sm font-medium truncate">{pkg.name}</span>
+                            <Badge variant="secondary" className="text-xs">
                               {pkg.version}
                             </Badge>
                           </div>
                           {pkg.description && (
-                            <p className="text-[11px] opacity-80 line-clamp-2">{pkg.description}</p>
+                            <p className="text-xs opacity-80 line-clamp-2">{pkg.description}</p>
                           )}
                         </div>
                       </button>
@@ -214,7 +222,7 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Package className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-[13px]">No packages installed</p>
+                      <p className="text-sm">No packages installed</p>
                     </div>
                   )}
                 </TabsContent>
@@ -231,7 +239,7 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                         className="p-3 rounded-md mb-1 hover:bg-muted transition-colors"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[13px] font-medium">{pkg.name}</span>
+                          <span className="text-sm font-medium">{pkg.name}</span>
                           <Button
                             size="sm"
                             variant="outline"
@@ -245,8 +253,8 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                             )}
                           </Button>
                         </div>
-                        <p className="text-[11px] text-muted-foreground line-clamp-2">{pkg.description}</p>
-                        <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground line-clamp-2">{pkg.description}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                           <span>{pkg.version}</span>
                           <span>•</span>
                           <span>{pkg.downloads} downloads</span>
@@ -256,12 +264,12 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                   ) : searchTerm.length > 2 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Search className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-[13px]">No packages found</p>
+                      <p className="text-sm">No packages found</p>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Search className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-[13px]">Type to search npm packages</p>
+                      <p className="text-sm">Type to search npm packages</p>
                     </div>
                   )}
                 </TabsContent>
@@ -273,13 +281,13 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                       className="p-3 rounded-md mb-1 hover:bg-muted transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[13px] font-medium">{pkg.name}</span>
-                        <Badge variant="outline" className="text-[11px]">
+                        <span className="text-sm font-medium">{pkg.name}</span>
+                        <Badge variant="outline" className="text-xs">
                           {pkg.version}
                         </Badge>
                       </div>
                       {pkg.description && (
-                        <p className="text-[11px] text-muted-foreground mt-1">{pkg.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{pkg.description}</p>
                       )}
                     </div>
                   ))}
@@ -314,7 +322,7 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                   </Button>
                 </div>
 
-                <div className="flex flex-wrap gap-4 text-[13px] text-muted-foreground">
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Code2 className="h-4 w-4" />
                     <span>v{packageDetails.version}</span>
@@ -368,8 +376,8 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                   <div className="space-y-2">
                     {Object.entries(packageDetails.dependencies).map(([name, version]) => (
                       <div key={name} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                        <span className="text-[13px] font-mono">{name}</span>
-                        <Badge variant="outline" className="text-[11px]">{version}</Badge>
+                        <span className="text-sm font-mono">{name}</span>
+                        <Badge variant="outline" className="text-xs">{version}</Badge>
                       </div>
                     ))}
                   </div>
@@ -383,8 +391,8 @@ export function PackageViewer({ projectId }: { projectId: string }) {
                   <div className="space-y-2">
                     {Object.entries(packageDetails.devDependencies).map(([name, version]) => (
                       <div key={name} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                        <span className="text-[13px] font-mono">{name}</span>
-                        <Badge variant="outline" className="text-[11px]">{version}</Badge>
+                        <span className="text-sm font-mono">{name}</span>
+                        <Badge variant="outline" className="text-xs">{version}</Badge>
                       </div>
                     ))}
                   </div>

@@ -1,4 +1,0 @@
-{
-  "description": "Nodemon config to watch src directory and restart on changes of .ts files, running tsx for execution.",
-  "todo": "Configure based on outline"
-}

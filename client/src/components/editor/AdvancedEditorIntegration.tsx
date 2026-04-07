@@ -1,50 +1,18 @@
-import React, { useState, Suspense } from "react";
+import { useState } from "react";
+import { ReplitMonacoEditor } from "./ReplitMonacoEditor";
 import { ReplitFileExplorer } from "../files/ReplitFileExplorer";
+import { ReplitTerminal } from "../terminal/ReplitTerminal";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { Loader2 } from "lucide-react";
-import { instrumentedLazy } from '@/utils/instrumented-lazy';
-
-const ReplitMonacoEditor = instrumentedLazy(() => 
-  import("./ReplitMonacoEditor").then(module => ({ default: module.ReplitMonacoEditor })), 'ReplitMonacoEditor'
-);
-
-const ReplitTerminal = instrumentedLazy(() => 
-  import("../terminal/ReplitTerminal").then(module => ({ default: module.ReplitTerminal })), 'ReplitTerminal'
-);
-
-const EditorFallback = () => (
-  <div className="h-full flex items-center justify-center bg-[var(--ecode-editor-bg)]">
-    <div className="flex flex-col items-center gap-2">
-      <Loader2 className="h-6 w-6 animate-spin text-[var(--ecode-accent)]" />
-      <p className="text-[13px] text-[var(--ecode-text-secondary)]">Loading editor...</p>
-    </div>
-  </div>
-);
-
-const TerminalFallback = () => (
-  <div className="h-full flex items-center justify-center bg-[var(--ecode-editor-bg)]">
-    <div className="flex flex-col items-center gap-2">
-      <Loader2 className="h-5 w-5 animate-spin text-[var(--ecode-accent)]" />
-      <p className="text-[11px] text-[var(--ecode-text-secondary)]">Loading terminal...</p>
-    </div>
-  </div>
-);
 
 interface FileNode {
   id: number;
   name: string;
   path: string;
   type: "file" | "folder";
-  size: number;
-  lastModified: Date;
-  language?: string;
-  isReadOnly?: boolean;
-  isHidden?: boolean;
-  isStarred?: boolean;
-  permissions?: "read" | "write" | "execute";
   content?: string;
+  language?: string;
+  lastModified: Date;
   children?: FileNode[];
-  parent?: FileNode;
 }
 
 interface AdvancedEditorIntegrationProps {
@@ -67,6 +35,7 @@ export function AdvancedEditorIntegration({
   };
 
   const handleFileCreate = (path: string, type: "file" | "folder") => {
+    console.log("Creating", type, "at", path);
   };
 
   const handleRunCode = () => {
@@ -84,6 +53,7 @@ export function AdvancedEditorIntegration({
   };
 
   const handleCommandExecute = (command: string) => {
+    console.log("Terminal command:", command);
   };
 
   return (
@@ -113,24 +83,22 @@ export function AdvancedEditorIntegration({
             <ResizablePanel defaultSize={showTerminal ? 65 : 100}>
               <div className="h-full bg-[var(--ecode-editor-bg)]">
                 {selectedFile ? (
-                  <Suspense fallback={<EditorFallback />}>
-                    <ReplitMonacoEditor
-                      projectId={projectId}
-                      fileId={selectedFile.id}
-                      onRunCode={handleRunCode}
-                      onStopCode={handleStopCode}
-                      isRunning={isRunning}
-                      theme="dark"
-                      showCollaborators={true}
-                    />
-                  </Suspense>
+                  <ReplitMonacoEditor
+                    projectId={projectId}
+                    fileId={selectedFile.id}
+                    onRunCode={handleRunCode}
+                    onStopCode={handleStopCode}
+                    isRunning={isRunning}
+                    theme="dark"
+                    showCollaborators={true}
+                  />
                 ) : (
                   <div className="h-full flex items-center justify-center">
                     <div className="text-center">
                       <div className="text-6xl mb-4 text-[var(--ecode-text-secondary)]">
                         📁
                       </div>
-                      <h3 className="text-[15px] font-medium text-[var(--ecode-text)] mb-2">
+                      <h3 className="text-lg font-medium text-[var(--ecode-text)] mb-2">
                         Welcome to Your Workspace
                       </h3>
                       <p className="text-[var(--ecode-text-secondary)] mb-4">
@@ -147,15 +115,13 @@ export function AdvancedEditorIntegration({
               <>
                 <ResizableHandle className="bg-[var(--ecode-border)] hover:bg-[var(--ecode-accent)]/50" />
                 <ResizablePanel defaultSize={35} minSize={25}>
-                  <Suspense fallback={<TerminalFallback />}>
-                    <ReplitTerminal
-                      projectId={projectId}
-                      className="h-full"
-                      onCommandExecute={handleCommandExecute}
-                      theme="dark"
-                      allowMultipleSessions={true}
-                    />
-                  </Suspense>
+                  <ReplitTerminal
+                    projectId={projectId}
+                    className="h-full"
+                    onCommandExecute={handleCommandExecute}
+                    theme="dark"
+                    allowMultipleSessions={true}
+                  />
                 </ResizablePanel>
               </>
             )}

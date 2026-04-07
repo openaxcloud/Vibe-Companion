@@ -1,6 +1,0 @@
-{
-  "name": ".prettierrc",
-  "version": "1.0.0",
-  "description": "Prettier configuration to standardize code style: semicolons, single quotes, trailing commas, width, etc.",
-  "config": {}
-}

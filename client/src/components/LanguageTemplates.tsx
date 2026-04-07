@@ -1,291 +1,482 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Input } from '@/components/ui/input';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
-  Code, FileText, Package, Zap, Terminal, Database, Globe, 
-  Cpu, GitBranch, Layers, Search, Plus, ExternalLink 
-} from 'lucide-react';
-import * as Icons from 'react-icons/si';
+  ScrollArea,
+  ScrollBar
+} from "@/components/ui/scroll-area";
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Search, Code, File, CheckCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface LanguageTemplatesProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectTemplate: (template: Template) => void;
+}
 
 interface Template {
   id: string;
   name: string;
   description: string;
-  category: string;
   language: string;
-  icon: string;
-  features: string[];
+  category: string;
+  files: { name: string; content: string }[];
   dependencies: string[];
-  setupTime: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
 }
 
-const templates: Template[] = [
-  {
-    id: 'react-typescript',
-    name: 'React + TypeScript',
-    description: 'Modern React app with TypeScript, Vite, and Tailwind CSS',
-    category: 'Frontend',
-    language: 'TypeScript',
-    icon: 'SiReact',
-    features: ['Hot Module Replacement', 'TypeScript', 'Tailwind CSS', 'ESLint'],
-    dependencies: ['react', 'vite', 'typescript', 'tailwindcss'],
-    setupTime: '30s',
-    difficulty: 'beginner'
-  },
-  {
-    id: 'nextjs-app',
-    name: 'Next.js App',
-    description: 'Full-stack Next.js application with App Router',
-    category: 'Full Stack',
-    language: 'TypeScript',
-    icon: 'SiNextdotjs',
-    features: ['App Router', 'Server Components', 'API Routes', 'Tailwind CSS'],
-    dependencies: ['next', 'react', 'typescript', 'tailwindcss'],
-    setupTime: '45s',
-    difficulty: 'intermediate'
-  },
-  {
-    id: 'express-api',
-    name: 'Express API',
-    description: 'RESTful API with Express.js and MongoDB',
-    category: 'Backend',
-    language: 'JavaScript',
-    icon: 'SiExpress',
-    features: ['REST API', 'MongoDB', 'JWT Auth', 'Middleware'],
-    dependencies: ['express', 'mongoose', 'jsonwebtoken', 'bcrypt'],
-    setupTime: '20s',
-    difficulty: 'intermediate'
-  },
-  {
-    id: 'python-flask',
-    name: 'Flask Web App',
-    description: 'Python web application with Flask and SQLAlchemy',
-    category: 'Backend',
-    language: 'Python',
-    icon: 'SiFlask',
-    features: ['Flask', 'SQLAlchemy', 'Jinja2', 'Authentication'],
-    dependencies: ['flask', 'sqlalchemy', 'flask-login', 'python-dotenv'],
-    setupTime: '25s',
-    difficulty: 'beginner'
-  },
-  {
-    id: 'django-rest',
-    name: 'Django REST API',
-    description: 'Django REST framework with PostgreSQL',
-    category: 'Backend',
-    language: 'Python',
-    icon: 'SiDjango',
-    features: ['REST API', 'PostgreSQL', 'Authentication', 'Admin Panel'],
-    dependencies: ['django', 'djangorestframework', 'psycopg2', 'django-cors-headers'],
-    setupTime: '40s',
-    difficulty: 'advanced'
-  },
-  {
-    id: 'vue-composition',
-    name: 'Vue 3 + Composition API',
-    description: 'Vue 3 app with Composition API and Pinia',
-    category: 'Frontend',
-    language: 'TypeScript',
-    icon: 'SiVuedotjs',
-    features: ['Composition API', 'Pinia', 'Vue Router', 'TypeScript'],
-    dependencies: ['vue', 'pinia', 'vue-router', 'typescript'],
-    setupTime: '35s',
-    difficulty: 'intermediate'
-  },
-  {
-    id: 'svelte-kit',
-    name: 'SvelteKit App',
-    description: 'Full-stack SvelteKit application',
-    category: 'Full Stack',
-    language: 'JavaScript',
-    icon: 'SiSvelte',
-    features: ['SSR/SSG', 'File-based routing', 'Adapters', 'TypeScript'],
-    dependencies: ['@sveltejs/kit', 'svelte', 'vite', '@sveltejs/adapter-auto'],
-    setupTime: '30s',
-    difficulty: 'intermediate'
-  },
-  {
-    id: 'rust-actix',
-    name: 'Rust Actix Web',
-    description: 'High-performance web server with Actix',
-    category: 'Backend',
-    language: 'Rust',
-    icon: 'SiRust',
-    features: ['Async/Await', 'Type Safety', 'Performance', 'WebSockets'],
-    dependencies: ['actix-web', 'tokio', 'serde', 'sqlx'],
-    setupTime: '50s',
-    difficulty: 'advanced'
-  },
-  {
-    id: 'go-gin',
-    name: 'Go Gin API',
-    description: 'RESTful API with Gin framework',
-    category: 'Backend',
-    language: 'Go',
-    icon: 'SiGo',
-    features: ['Fast Router', 'Middleware', 'JSON Validation', 'GORM'],
-    dependencies: ['gin', 'gorm', 'jwt-go', 'viper'],
-    setupTime: '25s',
-    difficulty: 'intermediate'
-  },
-  {
-    id: 'ruby-rails',
-    name: 'Ruby on Rails',
-    description: 'Full-stack Rails application with PostgreSQL',
-    category: 'Full Stack',
-    language: 'Ruby',
-    icon: 'SiRubyonrails',
-    features: ['MVC', 'Active Record', 'Action Cable', 'Turbo'],
-    dependencies: ['rails', 'pg', 'devise', 'redis'],
-    setupTime: '60s',
-    difficulty: 'intermediate'
-  }
-];
+export function LanguageTemplates({ 
+  isOpen, 
+  onClose,
+  onSelectTemplate 
+}: LanguageTemplatesProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const { toast } = useToast();
+  
+  // Mock template data
+  const templates: Template[] = [
+    {
+      id: "html-basic",
+      name: "HTML Static Website",
+      description: "Basic HTML, CSS, and JavaScript template for static websites",
+      language: "html",
+      category: "frontend",
+      files: [
+        { 
+          name: "index.html", 
+          content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Website</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Welcome to My Website</h1>
+  </header>
+  
+  <main>
+    <p>This is a starter template for your website.</p>
+  </main>
+  
+  <footer>
+    <p>&copy; 2025 My Website</p>
+  </footer>
+  
+  <script src="script.js"></script>
+</body>
+</html>` 
+        },
+        { 
+          name: "styles.css", 
+          content: `body {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
 
-const categories = ['All', 'Frontend', 'Backend', 'Full Stack'];
-const languages = ['All', 'TypeScript', 'JavaScript', 'Python', 'Rust', 'Go', 'Ruby'];
+header {
+  background-color: #f5f5f5;
+  padding: 20px;
+  text-align: center;
+}
 
-export function LanguageTemplates({ onSelectTemplate }: { onSelectTemplate: (template: Template) => void }) {
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedLanguage, setSelectedLanguage] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
+main {
+  padding: 20px;
+}
 
-  const filteredTemplates = templates.filter(template => {
-    const matchesCategory = selectedCategory === 'All' || template.category === selectedCategory;
-    const matchesLanguage = selectedLanguage === 'All' || template.language === selectedLanguage;
-    const matchesSearch = searchQuery === '' || 
-      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      template.description.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesCategory && matchesLanguage && matchesSearch;
-  });
+footer {
+  background-color: #f5f5f5;
+  padding: 10px 20px;
+  text-align: center;
+}` 
+        },
+        { 
+          name: "script.js", 
+          content: `// Your JavaScript code here
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Document loaded!');
+});` 
+        }
+      ],
+      dependencies: []
+    },
+    {
+      id: "react-app",
+      name: "React Application",
+      description: "Modern React application with TypeScript and Vite",
+      language: "typescript",
+      category: "frontend",
+      files: [
+        { 
+          name: "src/App.tsx", 
+          content: `import { useState } from 'react'
+import './App.css'
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner': return 'default';
-      case 'intermediate': return 'secondary';
-      case 'advanced': return 'destructive';
-      default: return 'outline';
-    }
-  };
-
-  const getIcon = (iconName: string) => {
-    const IconComponent = (Icons as any)[iconName];
-    return IconComponent ? <IconComponent className="h-8 w-8" /> : <Code className="h-8 w-8" />;
-  };
+function App() {
+  const [count, setCount] = useState(0)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Language Templates</h2>
-        <p className="text-muted-foreground">
-          Start your project with a pre-configured template
-        </p>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search templates..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-          <TabsList>
-            {categories.map(category => (
-              <TabsTrigger key={category} value={category}>
-                {category}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <div className="flex gap-2 flex-wrap">
-          {languages.map(language => (
-            <Button
-              key={language}
-              size="sm"
-              variant={selectedLanguage === language ? 'default' : 'outline'}
-              onClick={() => setSelectedLanguage(language)}
-            >
-              {language}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Templates Grid */}
-      <ScrollArea className="h-[600px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTemplates.map(template => (
-            <Card
-              key={template.id}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => onSelectTemplate(template)}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-lg bg-muted">
-                    {getIcon(template.icon)}
-                  </div>
-                  <Badge variant={getDifficultyColor(template.difficulty)}>
-                    {template.difficulty}
-                  </Badge>
-                </div>
-                <CardTitle className="text-[15px] mt-3">{template.name}</CardTitle>
-                <CardDescription>{template.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                  <Terminal className="h-4 w-4" />
-                  <span>{template.language}</span>
-                  <span>•</span>
-                  <Zap className="h-4 w-4" />
-                  <span>{template.setupTime}</span>
-                </div>
-                
-                <div className="flex flex-wrap gap-1">
-                  {template.features.slice(0, 3).map((feature, index) => (
-                    <Badge key={index} variant="secondary" className="text-[11px]">
-                      {feature}
-                    </Badge>
-                  ))}
-                  {template.features.length > 3 && (
-                    <Badge variant="outline" className="text-[11px]">
-                      +{template.features.length - 3}
-                    </Badge>
-                  )}
-                </div>
-
-                <Button className="w-full" size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Use Template
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </ScrollArea>
-
-      {filteredTemplates.length === 0 && (
-        <div className="text-center py-12">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No templates found</p>
-          <p className="text-[13px] text-muted-foreground mt-1">
-            Try adjusting your filters or search query
+    <div className="App">
+      <header className="App-header">
+        <h1>Vite + React</h1>
+        <div className="card">
+          <button onClick={() => setCount((count) => count + 1)}>
+            count is {count}
+          </button>
+          <p>
+            Edit <code>src/App.tsx</code> and save to test HMR
           </p>
         </div>
-      )}
+      </header>
     </div>
+  )
+}
+
+export default App` 
+        }
+      ],
+      dependencies: ["react", "react-dom", "typescript"]
+    },
+    {
+      id: "express-api",
+      name: "Express API",
+      description: "RESTful API server with Express and Node.js",
+      language: "javascript",
+      category: "backend",
+      files: [
+        { 
+          name: "server.js", 
+          content: `const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to the API' });
+});
+
+app.get('/api/items', (req, res) => {
+  // Sample data
+  const items = [
+    { id: 1, name: 'Item 1' },
+    { id: 2, name: 'Item 2' },
+  ];
+  
+  res.json(items);
+});
+
+app.listen(PORT, () => {
+  console.log(\`Server running on port \${PORT}\`);
+});` 
+        },
+        { 
+          name: "package.json", 
+          content: `{
+  "name": "express-api",
+  "version": "1.0.0",
+  "description": "Express API Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}` 
+        }
+      ],
+      dependencies: ["express", "nodemon"]
+    },
+    {
+      id: "python-flask",
+      name: "Python Flask App",
+      description: "Web application with Flask framework",
+      language: "python",
+      category: "backend",
+      files: [
+        { 
+          name: "app.py", 
+          content: `from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return jsonify({"message": "Welcome to Flask API"})
+
+@app.route('/api/items')
+def get_items():
+    items = [
+        {"id": 1, "name": "Item 1"},
+        {"id": 2, "name": "Item 2"}
+    ]
+    return jsonify(items)
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0')` 
+        },
+        { 
+          name: "requirements.txt", 
+          content: `flask==2.3.2` 
+        }
+      ],
+      dependencies: ["flask"]
+    },
+    {
+      id: "fullstack-nodejs",
+      name: "Fullstack Node.js App",
+      description: "Node.js with Express backend and React frontend",
+      language: "javascript",
+      category: "fullstack",
+      files: [
+        { 
+          name: "server/index.js", 
+          content: `const express = require('express');
+const path = require('path');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+
+// API routes
+app.get('/api/data', (req, res) => {
+  res.json({ message: 'API working!' });
+});
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  });
+}
+
+app.listen(PORT, () => {
+  console.log(\`Server running on port \${PORT}\`);
+});` 
+        }
+      ],
+      dependencies: ["express", "react", "react-dom"]
+    },
+  ];
+  
+  // Filter templates by search query and category
+  const filteredTemplates = templates.filter(template => {
+    const matchesSearch = 
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.language.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesCategory = activeCategory === 'all' || template.category === activeCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
+  
+  const handleCreateProject = () => {
+    if (!selectedTemplate) return;
+    
+    if (!projectName.trim()) {
+      toast({
+        title: "Project name required",
+        description: "Please enter a name for your project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    onSelectTemplate(selectedTemplate);
+    
+    toast({
+      title: "Project created",
+      description: `Your ${selectedTemplate.name} project has been created`,
+    });
+    
+    onClose();
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[800px] max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Code className="h-5 w-5" />
+            Start a New Project
+          </DialogTitle>
+          <DialogDescription>
+            Choose a template to quickly get started with your project.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 overflow-hidden">
+          <div className="md:col-span-1 space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search templates..." 
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label className="text-xs text-muted-foreground mb-2 block">CATEGORIES</Label>
+              <RadioGroup 
+                value={activeCategory} 
+                onValueChange={setActiveCategory}
+                className="space-y-1"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="all" id="all" />
+                  <Label htmlFor="all">All Templates</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="frontend" id="frontend" />
+                  <Label htmlFor="frontend">Frontend</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="backend" id="backend" />
+                  <Label htmlFor="backend">Backend</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="fullstack" id="fullstack" />
+                  <Label htmlFor="fullstack">Full Stack</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+          
+          <div className="md:col-span-2 overflow-hidden flex flex-col">
+            {selectedTemplate ? (
+              <div className="space-y-4 h-full flex flex-col">
+                <Button 
+                  variant="ghost" 
+                  className="self-start" 
+                  onClick={() => setSelectedTemplate(null)}
+                >
+                  ← Back to templates
+                </Button>
+                
+                <div className="space-y-4 flex-1 overflow-auto">
+                  <div>
+                    <h2 className="text-xl font-semibold">{selectedTemplate.name}</h2>
+                    <p className="text-muted-foreground">{selectedTemplate.description}</p>
+                    <div className="flex gap-2 mt-2">
+                      <Badge>{selectedTemplate.language}</Badge>
+                      <Badge variant="outline">{selectedTemplate.category}</Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="project-name">Project Name</Label>
+                    <Input 
+                      id="project-name" 
+                      placeholder="my-awesome-project" 
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Files included</Label>
+                    <div className="space-y-1">
+                      {selectedTemplate.files.map((file, index) => (
+                        <div key={index} className="flex items-center">
+                          <File className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span className="text-sm">{file.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {selectedTemplate.dependencies.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Dependencies</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTemplate.dependencies.map((dep, index) => (
+                          <Badge key={index} variant="outline">{dep}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="pt-4 border-t">
+                  <Button onClick={handleCreateProject} className="w-full">
+                    Create Project
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <ScrollArea className="h-[350px] pr-4">
+                <div className="space-y-4">
+                  {filteredTemplates.length === 0 ? (
+                    <div className="text-center py-10">
+                      <p className="text-muted-foreground">No templates found matching your criteria</p>
+                    </div>
+                  ) : (
+                    filteredTemplates.map(template => (
+                      <Card 
+                        key={template.id} 
+                        className="cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => setSelectedTemplate(template)}
+                      >
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">{template.name}</CardTitle>
+                          <CardDescription>{template.description}</CardDescription>
+                        </CardHeader>
+                        <CardFooter className="pt-1 border-t text-sm flex justify-between">
+                          <Badge>{template.language}</Badge>
+                          <Badge variant="outline">{template.category}</Badge>
+                        </CardFooter>
+                      </Card>
+                    ))
+                  )}
+                </div>
+                <ScrollBar />
+              </ScrollArea>
+            )}
+          </div>
+        </div>
+        
+        {!selectedTemplate && (
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

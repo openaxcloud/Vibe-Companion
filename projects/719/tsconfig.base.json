@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript config shared by frontend and backend. Sets strict, paths, jsx options, moduleResolution node, target ES2020, includes common compiler options.",
-  "todo": "Configure based on outline"
-}

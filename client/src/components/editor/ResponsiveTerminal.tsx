@@ -9,7 +9,7 @@ import { useMediaQuery } from '@/hooks/use-media-query';
 import 'xterm/css/xterm.css';
 
 interface ResponsiveTerminalProps {
-  projectId: string | number; // Support both UUID strings and numeric IDs
+  projectId: number;
   className?: string;
   onClose?: () => void;
   isFullscreen?: boolean;
@@ -176,7 +176,7 @@ export function ResponsiveTerminal({
 
   const downloadLog = () => {
     if (xtermRef.current) {
-      const buffer: string[] = [];
+      const buffer = [];
       const term = xtermRef.current;
       
       for (let i = 0; i < term.buffer.active.length; i++) {
@@ -205,11 +205,11 @@ export function ResponsiveTerminal({
       {/* Terminal Header */}
       <div className="h-8 flex items-center justify-between px-2 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)]">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium">Terminal</span>
+          <span className="text-xs font-medium">Terminal</span>
           {isConnected ? (
-            <span className="text-[10px] text-status-success">● Connected</span>
+            <span className="text-[10px] text-green-500">● Connected</span>
           ) : (
-            <span className="text-[10px] text-status-critical">● Disconnected</span>
+            <span className="text-[10px] text-red-500">● Disconnected</span>
           )}
         </div>
         

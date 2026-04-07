@@ -1,3 +1,0 @@
-Disallow indexing for MVP by default; can be changed for production.
-
-Content generated as fallback. Please implement specific functionality as needed.

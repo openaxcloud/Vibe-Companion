@@ -1,3 +1,0 @@
-Prisma schema defining User, Team, TeamMember, Subscription, PasswordResetToken models and relations. Configures PostgreSQL datasource and Prisma client generator.
-
-Content generated as fallback. Please implement specific functionality as needed.

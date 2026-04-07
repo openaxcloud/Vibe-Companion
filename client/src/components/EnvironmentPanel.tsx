@@ -43,14 +43,12 @@ import { Copy, Eye, EyeOff, HelpCircle, KeyRound, MoreVertical, Plus, Trash2 } f
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
 
 interface EnvironmentPanelProps {
   projectId: number;
 }
 
 export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
-  const { toast } = useToast();
   const {
     variables,
     isLoading,
@@ -120,28 +118,30 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
   );
 
   return (
-    <div className="flex flex-col h-full bg-[var(--ecode-surface)]">
-      <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
-        <div className="flex items-center gap-1.5">
-          <KeyRound className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
-          <span className="text-xs font-medium text-[var(--ecode-text)]">Environment</span>
+    <div className="flex flex-col h-full bg-background">
+      {/* Header Section - Styled exactly like E-Code */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-5 w-5 text-primary" />
+          <h2 className="text-base font-semibold">Environment Variables</h2>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full text-[var(--ecode-text-muted)]">
-                  <HelpCircle className="w-3 h-3" />
+                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-sm text-xs">
-                <p>Environment variables contain data that your Repl can access at runtime.</p>
+              <TooltipContent side="right" className="max-w-sm">
+                <p>Environment variables contain data that your Repl can access at runtime. They are commonly used to store configuration and secrets.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md text-[hsl(142,72%,42%)] hover:bg-[hsl(142,72%,42%)]/10">
-              <Plus className="w-3.5 h-3.5" />
+            <Button size="sm" className="h-8 px-3 gap-2 bg-primary hover:bg-primary/90">
+              <Plus className="h-4 w-4" />
+              Add variable
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -240,7 +240,7 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
             ) : filteredVariables.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-center">
                 <KeyRound className="h-10 w-10 text-muted-foreground mb-4" />
-                <h3 className="text-[15px] font-medium mb-1">No environment variables</h3>
+                <h3 className="text-lg font-medium mb-1">No environment variables</h3>
                 <p className="text-muted-foreground mb-4 max-w-md">
                   Environment variables can be used to store configuration data and secrets for your repl.
                 </p>
@@ -257,7 +257,7 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
                 {/* User Variables Section */}
                 <div>
                   <div className="py-2">
-                    <h3 className="text-[13px] font-medium text-muted-foreground">Your variables</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">Your variables</h3>
                   </div>
                   <div className="bg-background border rounded-md overflow-hidden">
                     {filteredVariables.map((variable, index) => (
@@ -266,12 +266,12 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
                         <div className="p-3 flex items-center justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-[13px] font-medium truncate">{variable.key}</span>
+                              <span className="font-mono text-sm font-medium truncate">{variable.key}</span>
                               {variable.isSecret && (
-                                <span className="px-1.5 py-0.5 rounded text-[11px] bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400">Secret</span>
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400">Secret</span>
                               )}
                             </div>
-                            <div className="flex items-center mt-1 text-[13px] font-mono text-muted-foreground">
+                            <div className="flex items-center mt-1 text-sm font-mono text-muted-foreground">
                               {variable.isSecret ? (
                                 showSecrets[variable.id] ? (
                                   variable.value
@@ -367,7 +367,7 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
                 {/* System Secrets Section */}
                 <div>
                   <div className="py-2">
-                    <h3 className="text-[13px] font-medium text-muted-foreground">System secrets</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">System secrets</h3>
                   </div>
                   <div className="bg-background border rounded-md overflow-hidden">
                     {["DATABASE_URL", "PGHOST", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGPORT"].map((key, index) => (
@@ -376,10 +376,10 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
                         <div className="p-3 flex items-center justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-[13px] font-medium truncate">{key}</span>
-                              <span className="px-1.5 py-0.5 rounded text-[11px] bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">System</span>
+                              <span className="font-mono text-sm font-medium truncate">{key}</span>
+                              <span className="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">System</span>
                             </div>
-                            <div className="flex items-center mt-1 text-[13px] font-mono text-muted-foreground">
+                            <div className="flex items-center mt-1 text-sm font-mono text-muted-foreground">
                               ••••••••••••••••
                             </div>
                           </div>
@@ -388,12 +388,7 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
                               variant="ghost"
                               size="icon" 
                               className="h-8 w-8 rounded-full"
-                              onClick={() => {
-                                toast({
-                                  title: "System Secret",
-                                  description: "System secrets are protected and cannot be viewed for security reasons."
-                                });
-                              }}
+                              onClick={() => {}}
                               disabled
                             >
                               <Eye className="h-4 w-4" />
@@ -402,12 +397,7 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
                               variant="ghost"
                               size="icon" 
                               className="h-8 w-8 rounded-full"
-                              onClick={() => {
-                                toast({
-                                  title: "System Secret",
-                                  description: "System secrets are protected and cannot be copied for security reasons."
-                                });
-                              }}
+                              onClick={() => {}}
                               disabled
                             >
                               <Copy className="h-4 w-4" />
@@ -426,7 +416,7 @@ export default function EnvironmentPanel({ projectId }: EnvironmentPanelProps) {
         <TabsContent value="prod" className="flex-1 overflow-hidden m-0 p-0">
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <KeyRound className="h-10 w-10 text-muted-foreground mb-4" />
-            <h3 className="text-[15px] font-medium mb-1">Production Environment</h3>
+            <h3 className="text-lg font-medium mb-1">Production Environment</h3>
             <p className="text-muted-foreground mb-4 max-w-md">
               Production environment variables are used when deploying your application.
               They are separate from development variables and can be configured for each deployment.

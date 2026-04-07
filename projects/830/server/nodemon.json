@@ -1,6 +1,0 @@
-{
-  "name": "nodemon",
-  "version": "1.0.0",
-  "description": "Configure nodemon to watch src directory, run ts-node for index.ts, and ignore prisma and dist folders.",
-  "config": {}
-}

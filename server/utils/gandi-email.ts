@@ -1,4 +1,3 @@
-// @ts-nocheck
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
@@ -7,10 +6,9 @@ const GANDI_SMTP_HOST = process.env.GANDI_SMTP_HOST || 'mail.gandi.net';
 const GANDI_SMTP_PORT = parseInt(process.env.GANDI_SMTP_PORT || '587');
 const GANDI_SMTP_USER = process.env.GANDI_SMTP_USER || process.env.GANDI_EMAIL;
 const GANDI_SMTP_PASS = process.env.GANDI_SMTP_PASS || process.env.GANDI_PASSWORD;
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@e-code.ai';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@e-code.dev';
 const FROM_NAME = process.env.FROM_NAME || 'E-Code';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
-const APP_BASE_URL = BASE_URL.replace(/\/$/, '');
 
 // Create reusable transporter
 let transporter: Transporter | null = null;
@@ -18,6 +16,7 @@ let transporter: Transporter | null = null;
 // Initialize Gandi transporter
 function getTransporter(): Transporter | null {
   if (!GANDI_SMTP_USER || !GANDI_SMTP_PASS) {
+    console.log('⚠️  Gandi email not configured - missing GANDI_SMTP_USER or GANDI_SMTP_PASS');
     return null;
   }
 
@@ -111,19 +110,20 @@ function getEmailTemplate(content: string): string {
 }
 
 // Send email via Gandi
-type SendResult = { success: boolean; error?: string };
-
 export async function sendGandiEmail(options: {
   to: string;
   subject: string;
   html: string;
   text?: string;
-  headers?: Record<string, string>;
-}): Promise<SendResult> {
+}): Promise<boolean> {
   const transport = getTransporter();
-
+  
   if (!transport) {
-    return { success: true }; // Return true to not break the flow
+    console.log('📧 Email (Gandi not configured):');
+    console.log(`To: ${options.to}`);
+    console.log(`Subject: ${options.subject}`);
+    console.log('---');
+    return true; // Return true to not break the flow
   }
 
   try {
@@ -133,20 +133,19 @@ export async function sendGandiEmail(options: {
       subject: options.subject,
       text: options.text || '', // Fallback to empty string
       html: options.html,
-      headers: options.headers,
     });
 
-    return { success: true };
+    console.log(`✅ Email sent via Gandi: ${info.messageId}`);
+    return true;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown email delivery error';
-    console.error('❌ Gandi email error:', errorMessage);
-    return { success: false, error: errorMessage };
+    console.error('❌ Gandi email error:', error);
+    return false;
   }
 }
 
 // Newsletter welcome email
 export async function sendNewsletterWelcomeEmail(email: string, confirmationToken: string): Promise<boolean> {
-  const confirmUrl = `${APP_BASE_URL}/newsletter/confirm?email=${encodeURIComponent(email)}&token=${confirmationToken}`;
+  const confirmUrl = `${BASE_URL}/api/newsletter/confirm?email=${encodeURIComponent(email)}&token=${confirmationToken}`;
   
   const html = getEmailTemplate(`
     <div class="email-header">
@@ -190,14 +189,12 @@ You'll receive:
 Best regards,
 The E-Code Team`;
 
-  const result = await sendGandiEmail({
+  return await sendGandiEmail({
     to: email,
     subject: 'Welcome to E-Code Newsletter - Please Confirm',
     html,
     text,
   });
-
-  return result.success;
 }
 
 // Newsletter confirmation success email
@@ -218,7 +215,7 @@ export async function sendNewsletterConfirmedEmail(email: string): Promise<boole
       </ul>
       <p>In the meantime, why not:</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${APP_BASE_URL}/projects" class="email-button">Start Creating</a>
+        <a href="${BASE_URL}/projects" class="email-button">Start Creating</a>
       </div>
     </div>
     <div class="email-footer">
@@ -236,147 +233,34 @@ Here's what you can expect:
 - Monthly Digest: Best projects and creator spotlights
 - Special Announcements: New features and events
 
-Start creating at: ${APP_BASE_URL}/projects
+Start creating at: ${BASE_URL}/projects
 
 Best regards,
 The E-Code Team`;
 
-  const result = await sendGandiEmail({
+  return await sendGandiEmail({
     to: email,
     subject: 'Welcome to E-Code Newsletter! 🎉',
     html,
     text,
   });
-
-  return result.success;
 }
 
 // Test Gandi connection
 export async function testGandiConnection(): Promise<boolean> {
   const transport = getTransporter();
-
+  
   if (!transport) {
+    console.log('❌ Gandi email not configured');
     return false;
   }
 
   try {
     await transport.verify();
+    console.log('✅ Gandi SMTP connection verified');
     return true;
   } catch (error) {
     console.error('❌ Gandi SMTP connection failed:', error);
     return false;
   }
-}
-
-function getAdminRecipients(): string[] {
-  const configured =
-    process.env.NEWSLETTER_ADMIN_EMAILS ||
-    process.env.ADMIN_ALERT_EMAILS ||
-    process.env.ADMIN_EMAIL ||
-    '';
-
-  return configured
-    .split(',')
-    .map((email) => email.trim())
-    .filter(Boolean);
-}
-
-function formatMetadataAsHtml(metadata?: Record<string, any>): string {
-  if (!metadata || Object.keys(metadata).length === 0) {
-    return '';
-  }
-
-  return `
-    <div style="margin-top: 24px;">
-      <p style="font-weight: 600; margin-bottom: 8px;">Context</p>
-      <pre style="background: #f4f6f8; padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.4;">${
-        JSON.stringify(metadata, null, 2)
-      }</pre>
-    </div>
-  `;
-}
-
-export async function sendAdminAlertEmail(options: {
-  subject: string;
-  title: string;
-  description: string;
-  metadata?: Record<string, any>;
-}): Promise<boolean> {
-  const recipients = getAdminRecipients();
-  const metadataHtml = formatMetadataAsHtml(options.metadata);
-
-  const html = getEmailTemplate(`
-    <div class="email-header">
-      <div class="email-logo">E-Code</div>
-      <p style="margin: 0; font-size: 18px;">${options.title}</p>
-    </div>
-    <div class="email-body">
-      <p>${options.description}</p>
-      ${metadataHtml}
-    </div>
-    <div class="email-footer">
-      <p>You received this alert because you're listed as an admin contact.</p>
-      <p>© ${new Date().getFullYear()} E-Code. All rights reserved.</p>
-    </div>
-  `);
-
-  const textLines = [
-    options.title,
-    '',
-    options.description,
-  ];
-
-  if (options.metadata) {
-    textLines.push('', JSON.stringify(options.metadata, null, 2));
-  }
-
-  const text = textLines.join('\n');
-
-  if (recipients.length === 0) {
-    return false;
-  }
-
-  let allDelivered = true;
-  for (const recipient of recipients) {
-    const delivered = await sendGandiEmail({
-      to: recipient,
-      subject: options.subject,
-      html,
-      text,
-    });
-
-    allDelivered = allDelivered && delivered.success;
-  }
-
-  return allDelivered;
-}
-
-export async function sendNewsletterCampaignEmail(options: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-  unsubscribeUrl: string;
-  previewText?: string;
-}): Promise<SendResult> {
-  const headers: Record<string, string> = {
-    'List-Unsubscribe': `<${options.unsubscribeUrl}>`,
-    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-  };
-
-  const previewBlock = options.previewText
-    ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#fff;line-height:1px;opacity:0;">${options.previewText}</div>`
-    : '';
-
-  const finalHtml = options.html.includes('<body')
-    ? options.html.replace('<body', `<body>${previewBlock}`)
-    : `${previewBlock}${options.html}`;
-
-  return await sendGandiEmail({
-    to: options.to,
-    subject: options.subject,
-    html: finalHtml,
-    text: options.text,
-    headers,
-  });
 }

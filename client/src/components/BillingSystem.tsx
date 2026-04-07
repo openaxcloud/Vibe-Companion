@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
 import { 
   CreditCard, Zap, TrendingUp, Package, Shield, 
   Check, X, Loader2, AlertCircle, Info, ChevronRight,
@@ -11,13 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { apiRequest } from '@/lib/queryClient';
 
 interface BillingSystemProps {
   userId: number;
@@ -40,35 +38,8 @@ interface Usage {
   collaborators: { used: number; limit: number; unit: 'users' };
 }
 
-interface StripePlan {
-  id: string;
-  name: string;
-  tier: 'free' | 'core' | 'teams' | 'enterprise';
-  price: number;
-  interval: 'month' | 'year';
-  creditsMonthly: number;
-  features: string[];
-  limits: {
-    projects: number;
-    collaborators: number;
-    storage: number;
-    cpuHours: number;
-    deployments: number;
-  };
-  allowances: {
-    vcpus: number;
-    ramGb: number;
-    storageGb: number;
-    bandwidthGb: number;
-    developmentMinutes: number;
-    publicApps: number;
-    privateApps: number;
-    collaborators: number;
-  };
-}
-
 interface Plan {
-  id: string;
+  id: 'free' | 'hacker' | 'pro' | 'teams';
   name: string;
   price: number;
   interval: 'month' | 'year';
@@ -82,129 +53,115 @@ interface Plan {
   };
   badge?: string;
   popular?: boolean;
-  tier?: string;
-  stripePriceId?: string;
 }
 
-const convertStripePlanToLegacy = (stripePlan: StripePlan): Plan => {
-  const tierBadges: Record<string, string | undefined> = {
-    free: undefined,
-    core: 'Most Popular',
-    teams: 'Enterprise',
-    enterprise: 'Custom'
-  };
-
-  return {
-    id: stripePlan.id,
-    name: stripePlan.name,
-    price: stripePlan.price,
-    interval: stripePlan.interval,
-    features: stripePlan.features,
-    limits: {
-      compute: stripePlan.allowances.developmentMinutes === -1 ? -1 : stripePlan.allowances.developmentMinutes / 60,
-      storage: stripePlan.allowances.storageGb,
-      bandwidth: stripePlan.allowances.bandwidthGb,
-      privateRepls: stripePlan.allowances.privateApps,
-      collaborators: stripePlan.allowances.collaborators
-    },
-    badge: tierBadges[stripePlan.tier],
-    popular: stripePlan.tier === 'core',
-    tier: stripePlan.tier,
-    stripePriceId: stripePlan.id
-  };
-};
-
-const FALLBACK_PLANS: Plan[] = [
+const PLANS: Plan[] = [
   {
     id: 'free',
-    name: 'Starter',
+    name: 'Free',
     price: 0,
     interval: 'month',
-    features: ['Replit Agent trial included', '10 development apps', 'Public apps only', 'Limited build time'],
-    limits: { compute: 20, storage: 1, bandwidth: 1, privateRepls: 0, collaborators: 1 }
+    features: [
+      'Unlimited public Repls',
+      '500 MB storage',
+      '10 GB bandwidth/month',
+      'Basic compute power',
+      'Community support'
+    ],
+    limits: {
+      compute: 10,
+      storage: 0.5,
+      bandwidth: 10,
+      privateRepls: 0,
+      collaborators: 0
+    }
   },
   {
-    id: 'core',
-    name: 'Core',
-    price: 25,
+    id: 'hacker',
+    name: 'Hacker',
+    price: 7,
     interval: 'month',
-    features: ['Full Replit Agent access', '$25 of monthly credits', 'Private and public apps', 'Access to latest models'],
-    limits: { compute: -1, storage: 50, bandwidth: 100, privateRepls: -1, collaborators: 3 },
+    features: [
+      'Everything in Free',
+      'Unlimited private Repls',
+      '5 GB storage',
+      '50 GB bandwidth/month',
+      '2x compute power',
+      'Email support',
+      'Custom domains'
+    ],
+    limits: {
+      compute: 20,
+      storage: 5,
+      bandwidth: 50,
+      privateRepls: -1,
+      collaborators: 5
+    },
     badge: 'Most Popular',
     popular: true
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: 20,
+    interval: 'month',
+    features: [
+      'Everything in Hacker',
+      '20 GB storage',
+      '100 GB bandwidth/month',
+      '4x compute power',
+      'Priority support',
+      'Advanced analytics',
+      'Team collaboration'
+    ],
+    limits: {
+      compute: 40,
+      storage: 20,
+      bandwidth: 100,
+      privateRepls: -1,
+      collaborators: 10
+    }
   },
   {
     id: 'teams',
     name: 'Teams',
     price: 40,
     interval: 'month',
-    features: ['Everything in Core', 'Team collaboration', 'Priority support', 'SSO & SAML'],
-    limits: { compute: -1, storage: 100, bandwidth: 500, privateRepls: -1, collaborators: -1 },
+    features: [
+      'Everything in Pro',
+      '100 GB storage',
+      '500 GB bandwidth/month',
+      '8x compute power',
+      'Dedicated support',
+      'SSO & SAML',
+      'Admin dashboard',
+      'Unlimited collaborators'
+    ],
+    limits: {
+      compute: 80,
+      storage: 100,
+      bandwidth: 500,
+      privateRepls: -1,
+      collaborators: -1
+    },
     badge: 'Enterprise'
   }
 ];
 
 export function BillingSystem({ userId, className }: BillingSystemProps) {
-  const [, navigate] = useLocation();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
-  const [allStripePlans, setAllStripePlans] = useState<StripePlan[]>([]);
-  const [plansLoading, setPlansLoading] = useState(true);
-  const [selectedTier, setSelectedTier] = useState<string>('core');
+  const [selectedPlan, setSelectedPlan] = useState<Plan['id']>('hacker');
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
   const { toast } = useToast();
 
-  const getPlansForDisplay = (): Plan[] => {
-    if (allStripePlans.length === 0) return FALLBACK_PLANS;
-    
-    const tierOrder = ['free', 'core', 'teams', 'enterprise'];
-    const displayPlans: Plan[] = [];
-    
-    for (const tier of tierOrder) {
-      const planForTier = allStripePlans.find(p => 
-        p.tier === tier && (p.tier === 'free' || p.interval === billingInterval)
-      );
-      if (planForTier) {
-        displayPlans.push(convertStripePlanToLegacy(planForTier));
-      }
-    }
-    
-    return displayPlans.length > 0 ? displayPlans : FALLBACK_PLANS;
-  };
-
-  const getSelectedPlanId = (): string => {
-    const plansForInterval = getPlansForDisplay();
-    const selectedPlan = plansForInterval.find(p => p.tier === selectedTier);
-    return selectedPlan?.id || plansForInterval[0]?.id || 'core';
-  };
-
   useEffect(() => {
-    loadAllPlans();
     loadSubscription();
     loadUsage();
   }, [userId]);
-
-  const loadAllPlans = async () => {
-    setPlansLoading(true);
-    try {
-      const response = await fetch('/api/payments/plans');
-      if (response.ok) {
-        const stripePlans: StripePlan[] = await response.json();
-        setAllStripePlans(stripePlans);
-      }
-    } catch (error) {
-      console.error('Failed to load plans from API:', error);
-      setAllStripePlans([]);
-    } finally {
-      setPlansLoading(false);
-    }
-  };
-
-  const plans = getPlansForDisplay();
-  const selectedPlan = getSelectedPlanId();
 
   const loadSubscription = async () => {
     try {
@@ -250,18 +207,22 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
     }
   };
 
-  const handleUpgrade = async (tier: string) => {
-    setSelectedTier(tier);
+  const handleUpgrade = async (planId: Plan['id']) => {
+    setSelectedPlan(planId);
     setShowUpgradeDialog(true);
   };
 
   const handleSubscribe = async () => {
     setIsLoading(true);
-    const stripePriceId = getSelectedPlanId();
     try {
-      const response = await apiRequest('POST', '/api/billing/subscribe', {
-        planId: stripePriceId,
-        interval: billingInterval
+      const response = await fetch('/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          planId: selectedPlan,
+          interval: billingInterval
+        })
       });
 
       if (response.ok) {
@@ -286,7 +247,10 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
 
     setIsLoading(true);
     try {
-      const response = await apiRequest('POST', `/api/billing/cancel`, {});
+      const response = await fetch(`/api/billing/cancel`, {
+        method: 'POST',
+        credentials: 'include'
+      });
 
       if (response.ok) {
         await loadSubscription();
@@ -312,6 +276,9 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
   };
 
   const getPlanPrice = (plan: Plan) => {
+    if (billingInterval === 'year') {
+      return Math.floor(plan.price * 10); // 20% discount for annual
+    }
     return plan.price;
   };
 
@@ -351,7 +318,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                     <Crown className="h-4 w-4 mr-2 text-yellow-500" />
                     Current Plan
                   </h3>
-                  {subscription?.plan !== 'free' && subscription && (
+                  {subscription?.plan !== 'free' && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -366,7 +333,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                 <div className="space-y-2">
                   <p className="text-2xl font-bold capitalize">{subscription?.plan || 'Free'}</p>
                   {subscription && subscription.plan !== 'free' && (
-                    <p className="text-[13px] text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       {subscription.cancelAtPeriodEnd 
                         ? `Ends on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
                         : `Renews on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
@@ -391,7 +358,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                 <Button 
                   variant="outline" 
                   className="w-full"
-                  onClick={() => navigate('/account')}
+                  onClick={() => window.location.href = '/account'}
                 >
                   <Clock className="h-4 w-4 mr-2" />
                   Billing History
@@ -399,7 +366,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                 <Button 
                   variant="outline" 
                   className="w-full"
-                  onClick={() => navigate('/account')}
+                  onClick={() => window.location.href = '/account'}
                 >
                   <CreditCard className="h-4 w-4 mr-2" />
                   Payment Methods
@@ -413,7 +380,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                   <div className="space-y-2">
                     {Object.entries(usage).slice(0, 3).map(([key, value]) => (
                       <div key={key} className="space-y-1">
-                        <div className="flex items-center justify-between text-[13px]">
+                        <div className="flex items-center justify-between text-sm">
                           <span className="capitalize">{key}</span>
                           <span className="text-muted-foreground">
                             {value.used} / {value.limit === -1 ? '∞' : value.limit} {value.unit}
@@ -448,12 +415,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
 
               {/* Plans Grid */}
               <div className="grid gap-4 md:grid-cols-2">
-                {plansLoading ? (
-                  <div className="col-span-2 flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    <span>Loading plans...</span>
-                  </div>
-                ) : plans.map((plan) => (
+                {PLANS.map((plan) => (
                   <Card 
                     key={plan.id}
                     className={`relative ${plan.popular ? 'border-primary' : ''} ${
@@ -488,19 +450,18 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                         {plan.features.map((feature, i) => (
                           <li key={i} className="flex items-start">
                             <Check className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                            <span className="text-[13px]">{feature}</span>
+                            <span className="text-sm">{feature}</span>
                           </li>
                         ))}
                       </ul>
                       
                       <Button
                         className="w-full"
-                        variant={subscription?.plan === plan.tier ? 'outline' : 'default'}
-                        disabled={subscription?.plan === plan.tier || plan.price === 0}
-                        onClick={() => handleUpgrade(plan.tier || 'core')}
-                        data-testid={`plan-select-${plan.tier}`}
+                        variant={subscription?.plan === plan.id ? 'outline' : 'default'}
+                        disabled={subscription?.plan === plan.id || plan.price === 0}
+                        onClick={() => handleUpgrade(plan.id)}
                       >
-                        {subscription?.plan === plan.tier 
+                        {subscription?.plan === plan.id 
                           ? 'Current Plan' 
                           : plan.price === 0 
                           ? 'Free Forever' 
@@ -513,7 +474,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
               </div>
             </TabsContent>
 
-            <TabsContent value="usage" className="space-y-4" data-testid="usage-tab">
+            <TabsContent value="usage" className="space-y-4">
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
@@ -536,7 +497,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                             {key.replace(/([A-Z])/g, ' $1').trim()}
                           </span>
                         </div>
-                        <span className="text-[13px] text-muted-foreground">
+                        <span className="text-sm text-muted-foreground">
                           {value.used} / {value.limit === -1 ? 'Unlimited' : value.limit} {value.unit}
                         </span>
                       </div>
@@ -545,7 +506,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
                         className="h-2"
                       />
                       {getUsagePercentage(value.used, value.limit) > 80 && (
-                        <p className="text-[11px] text-yellow-600">
+                        <p className="text-xs text-yellow-600">
                           Approaching limit. Consider upgrading for more {key}.
                         </p>
                       )}
@@ -558,7 +519,7 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
 
               <div className="space-y-2">
                 <h3 className="font-medium">Need More Resources?</h3>
-                <p className="text-[13px] text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Upgrade your plan to get more compute power, storage, and features.
                 </p>
                 <Button 
@@ -579,33 +540,29 @@ export function BillingSystem({ userId, className }: BillingSystemProps) {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Choose Your Plan</DialogTitle>
-            <DialogDescription>
-              Select a plan that best fits your development needs. You can change or cancel anytime.
-            </DialogDescription>
           </DialogHeader>
           
           <ScrollArea className="max-h-[500px] pr-4">
             <div className="space-y-4">
-              {plans.filter(p => p.price !== 0).map((plan) => (
+              {PLANS.filter(p => p.id !== 'free').map((plan) => (
                 <Card 
                   key={plan.id}
                   className={`cursor-pointer transition-colors ${
-                    selectedTier === plan.tier ? 'border-primary' : ''
+                    selectedPlan === plan.id ? 'border-primary' : ''
                   }`}
-                  onClick={() => setSelectedTier(plan.tier || 'core')}
-                  data-testid={`upgrade-plan-${plan.tier}`}
+                  onClick={() => setSelectedPlan(plan.id)}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-[15px]">{plan.name}</CardTitle>
+                      <CardTitle className="text-lg">{plan.name}</CardTitle>
                       <div className="text-right">
                         <p className="text-2xl font-bold">${getPlanPrice(plan)}</p>
-                        <p className="text-[11px] text-muted-foreground">per {billingInterval}</p>
+                        <p className="text-xs text-muted-foreground">per {billingInterval}</p>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <ul className="text-[13px] space-y-1">
+                    <ul className="text-sm space-y-1">
                       {plan.features.slice(0, 3).map((feature, i) => (
                         <li key={i} className="flex items-center">
                           <Check className="h-3 w-3 text-green-500 mr-2" />

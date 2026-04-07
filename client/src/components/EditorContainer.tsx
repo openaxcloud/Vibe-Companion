@@ -71,7 +71,7 @@ const EditorContainer = ({
             <div
               key={file.id}
               className={cn(
-                "flex items-center gap-1 px-3 py-2 text-[13px] border-r cursor-pointer group",
+                "flex items-center gap-1 px-3 py-2 text-sm border-r cursor-pointer group",
                 activeFileId === file.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
               )}
               onClick={() => onFileSelect(file.id)}

@@ -1,6 +1,0 @@
-{
-  "name": "nodemon",
-  "version": "1.0.0",
-  "description": "Nodemon configuration to watch server/src and shared, restart on TypeScript changes by running ts-node or esbuild-on-change script. Use ignore lists for dist and node_modules.",
-  "config": {}
-}

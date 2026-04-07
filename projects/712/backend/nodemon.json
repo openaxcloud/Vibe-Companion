@@ -1,4 +1,0 @@
-{
-  "description": "Nodemon configuration to watch TypeScript source files under src and restart the dev server on changes while ignoring dist and node_modules.",
-  "todo": "Configure based on outline"
-}

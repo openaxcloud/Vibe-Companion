@@ -1,4 +1,0 @@
-{
-  "description": "Nodemon config to watch TypeScript files in src and restart on changes, using ts-node/register for runtime transpilation.",
-  "todo": "Configure based on outline"
-}

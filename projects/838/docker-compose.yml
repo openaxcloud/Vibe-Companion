@@ -1,8 +1,0 @@
-# Defines services for app and Postgres database with volumes, environment variables, and ports for local development.
-
-version: '1.0'
-
-settings:
-  enabled: true
-  
-# Add configuration here

@@ -1,6 +1,0 @@
-{
-  "name": ".eslintrc",
-  "version": "1.0.0",
-  "description": "Root ESLint configuration enabling TypeScript parser, React rules for client, Node rules for server via overrides, and Prettier integration.",
-  "config": {}
-}

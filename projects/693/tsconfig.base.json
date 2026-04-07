@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript config shared by server and client with strict settings, path aliases, and module resolution.",
-  "todo": "Configure based on outline"
-}

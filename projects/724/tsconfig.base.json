@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript config shared across client and server with strict, ES2020 target, module resolution NodeNext, and path aliases placeholder.",
-  "todo": "Configure based on outline"
-}

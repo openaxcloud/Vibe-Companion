@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript configuration shared by server and client. Defines common compiler options like strict mode, module resolution, paths, source maps, and target. Extended by server/tsconfig.json and client/tsconfig.json to avoid duplication.",
-  "todo": "Configure based on outline"
-}

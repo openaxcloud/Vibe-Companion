@@ -1,4 +1,0 @@
-{
-  "description": "Base TypeScript configuration shared by server and client. Sets strict options, common module resolution, path aliases for shared types, and JSX for react-jsx to be overridden by client.",
-  "todo": "Configure based on outline"
-}
