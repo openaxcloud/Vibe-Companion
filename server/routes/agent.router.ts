@@ -1085,68 +1085,28 @@ router.get('/schema/status/:projectId', async (req, res) => {
 });
 
 // GET /api/agent/schema/stream/:projectId - SSE stream for schema warming progress
-const sseConnectionsByIp = new Map<string, number>();
-const SSE_MAX_CONCURRENT_PER_IP = 3;
-const SSE_CONNECTION_TIMEOUT_MS = 5 * 60 * 1000;
-
 router.get('/schema/stream/:projectId', async (req, res) => {
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-  let tracked = false;
-
   try {
     const { projectId } = req.params;
-
-    const currentConnections = sseConnectionsByIp.get(clientIp) || 0;
-    if (currentConnections >= SSE_MAX_CONCURRENT_PER_IP) {
-      res.status(429).json({ error: 'Too many concurrent SSE connections' });
-      return;
-    }
-    sseConnectionsByIp.set(clientIp, currentConnections + 1);
-    tracked = true;
-
-    if (!validateAndSetSSEHeaders(res, req)) {
-      const c = sseConnectionsByIp.get(clientIp) || 1;
-      if (c <= 1) { sseConnectionsByIp.delete(clientIp); } else { sseConnectionsByIp.set(clientIp, c - 1); }
-      tracked = false;
-      return;
-    }
-
-    let closed = false;
-
-    const cleanup = () => {
-      if (closed) return;
-      closed = true;
-      schemaWarming.off('progress', onProgress);
-      schemaWarming.off('ready', onReady);
-      schemaWarming.off('error', onError);
-      clearTimeout(connectionTimeout);
-      const count = sseConnectionsByIp.get(clientIp) || 1;
-      if (count <= 1) {
-        sseConnectionsByIp.delete(clientIp);
-      } else {
-        sseConnectionsByIp.set(clientIp, count - 1);
-      }
-    };
-
-    const connectionTimeout = setTimeout(() => {
-      if (!closed) {
-        res.write(`data: ${JSON.stringify({ type: 'timeout', message: 'Connection timed out' })}\n\n`);
-        cleanup();
-        res.end();
-      }
-    }, SSE_CONNECTION_TIMEOUT_MS);
     
+    // Set up SSE with CORS security - reject invalid origins with 403
+    if (!validateAndSetSSEHeaders(res, req)) {
+      return;
+    }
+    
+    // Send initial status
     const initialStatus = schemaWarming.getStatus(projectId);
     res.write(`data: ${JSON.stringify({ type: 'status', ...initialStatus })}\n\n`);
     
+    // Listen for progress updates
     const onProgress = (data: { projectId: string; progress: any }) => {
-      if (!closed && data.projectId === projectId) {
+      if (data.projectId === projectId) {
         res.write(`data: ${JSON.stringify({ type: 'progress', ...data.progress })}\n\n`);
       }
     };
     
     const onReady = (data: { projectId: string; schema: any }) => {
-      if (!closed && data.projectId === projectId) {
+      if (data.projectId === projectId) {
         res.write(`data: ${JSON.stringify({ type: 'ready', schemaPreview: 'Schema ready' })}\n\n`);
         cleanup();
         res.end();
@@ -1154,7 +1114,7 @@ router.get('/schema/stream/:projectId', async (req, res) => {
     };
     
     const onError = (data: { projectId: string; error: string }) => {
-      if (!closed && data.projectId === projectId) {
+      if (data.projectId === projectId) {
         res.write(`data: ${JSON.stringify({ type: 'error', error: data.error })}\n\n`);
         cleanup();
         res.end();
@@ -1165,10 +1125,18 @@ router.get('/schema/stream/:projectId', async (req, res) => {
     schemaWarming.on('ready', onReady);
     schemaWarming.on('error', onError);
     
+    const cleanup = () => {
+      schemaWarming.off('progress', onProgress);
+      schemaWarming.off('ready', onReady);
+      schemaWarming.off('error', onError);
+    };
+    
+    // Handle client disconnect
     req.on('close', () => {
       cleanup();
     });
     
+    // If already ready, close immediately
     if (schemaWarming.isReady(projectId)) {
       res.write(`data: ${JSON.stringify({ type: 'ready', schemaPreview: 'Schema already ready' })}\n\n`);
       cleanup();
@@ -1176,14 +1144,6 @@ router.get('/schema/stream/:projectId', async (req, res) => {
     }
   } catch (error: any) {
     logger.error('[AgentRouter] Error in schema stream:', error);
-    if (tracked) {
-      const count = sseConnectionsByIp.get(clientIp) || 1;
-      if (count <= 1) {
-        sseConnectionsByIp.delete(clientIp);
-      } else {
-        sseConnectionsByIp.set(clientIp, count - 1);
-      }
-    }
     res.status(500).json({ error: error.message || 'Failed to create schema stream' });
   }
 });

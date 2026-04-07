@@ -222,7 +222,7 @@ export async function safeSetupVite(app: Application, server: Server): Promise<b
         }
 
         // SPA fallback - serve index.html for all non-API/non-asset routes WITH nonce injection
-        app.use('{*path}', (req: any, res: any, next: any) => {
+        app.use('*', (req: any, res: any, next: any) => {
           // Skip API, WebSocket, and static asset paths
           // express.static above handles /assets/* — if it calls next(), the file is missing (404)
           if (req.originalUrl.startsWith('/api/') || 
@@ -286,7 +286,7 @@ export async function setupFallbackServer(app: Application): Promise<void> {
     const builtHTML = fsModule.readFileSync(builtIndexPath, 'utf-8');
     
     // Serve index.html for all non-API, non-asset routes WITH nonce injection
-    app.get('{*path}', (req: any, res: any, next: any) => {
+    app.get('*', (req: any, res: any, next: any) => {
       if (req.path.startsWith('/api') || 
           req.path.startsWith('/collaboration') || 
           req.path.startsWith('/webrtc') ||
@@ -311,7 +311,7 @@ export async function setupFallbackServer(app: Application): Promise<void> {
   logger.warn('[FALLBACK] Using emergency fallback HTML...');
   
   // Emergency fallback
-  app.get('{*path}', (req, res) => {
+  app.get('*', (req, res) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/collaboration') || req.path.startsWith('/webrtc')) {
       return res.status(404).json({ error: 'API endpoint not found' });
     }

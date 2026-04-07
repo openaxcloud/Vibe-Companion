@@ -16,7 +16,7 @@ export function serveStatic(app: Express) {
     index: false,
   }));
 
-  app.get("{*path}", (_req, res, next) => {
+  app.get("*", (_req, res, next) => {
     if (_req.path.startsWith("/api") || _req.path.startsWith("/ws")) {
       return next();
     }

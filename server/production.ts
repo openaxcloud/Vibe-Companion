@@ -93,7 +93,7 @@ app.get('/api/cors-health', async (_req, res) => {
     app.use(express.static(staticPath));
     
     // Handle client-side routing - serve index.html for all non-API routes
-    app.get('{*path}', (req, res) => {
+    app.get('*', (req, res) => {
       if (!req.path.startsWith('/api')) {
         const indexPath = path.join(staticPath, 'index.html');
         if (existsSync(indexPath)) {
@@ -108,7 +108,7 @@ app.get('/api/cors-health', async (_req, res) => {
     console.error('[PRODUCTION SERVER] Tried:', possiblePaths);
     
     // Fallback response
-    app.get('{*path}', (req, res) => {
+    app.get('*', (req, res) => {
       if (!req.path.startsWith('/api')) {
         res.status(500).send(`
           <!DOCTYPE html>

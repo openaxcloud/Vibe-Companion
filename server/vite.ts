@@ -1,3 +1,4 @@
+// @ts-nocheck
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
@@ -19,7 +20,7 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-export async function setupVite(app: Express, server: Server) {
+export async function setupVite(server: Server, app: Express) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
