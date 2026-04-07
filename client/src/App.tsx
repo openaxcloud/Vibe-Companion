@@ -87,7 +87,7 @@ const AIAgent = lazy(() => import("@/pages/AIAgent"));
 const AIPlatform = lazy(() => import("@/pages/AI"));
 const MobilePage = lazy(() => import("@/pages/mobile"));
 const Deployments = lazy(() => import("@/pages/Deployments"));
-const TeamsOverview = lazy(() => import("@/pages/TeamsOverview"));
+const TeamsOverview = lazy(() => import("@/pages/Teams"));
 const ReportAbuse = lazy(() => import("@/pages/ReportAbuse"));
 const Tutorials = lazy(() => import("@/pages/resources/Tutorials"));
 const Changelog = lazy(() => import("@/pages/resources/Changelog"));
