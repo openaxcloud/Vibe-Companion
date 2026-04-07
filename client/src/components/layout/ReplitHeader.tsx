@@ -51,7 +51,7 @@ export function ReplitHeader() {
           <div className="w-8 h-8 bg-[var(--replit-green)] rounded-lg flex items-center justify-center">
             <Code className="h-5 w-5 text-black" />
           </div>
-          <span className="font-bold text-lg text-[var(--replit-text)]">PLOT</span>
+          <span className="font-bold text-lg text-[var(--replit-text)]">E-Code</span>
         </Link>
 
         <nav className="hidden md:flex items-center space-x-1">

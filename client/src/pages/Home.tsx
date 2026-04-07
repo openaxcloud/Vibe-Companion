@@ -361,7 +361,7 @@ export default function Home() {
             ) : (
               <div className="text-center py-12 bg-card rounded-lg border border-border">
                 <h3 className="text-xl mb-2">Welcome, {user?.username || 'user'}!</h3>
-                <p className="text-muted-foreground mb-6">Create your first project to get started with PLOT</p>
+                <p className="text-muted-foreground mb-6">Create your first project to get started with E-Code</p>
                 <Button onClick={() => setIsCreateModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create a Project

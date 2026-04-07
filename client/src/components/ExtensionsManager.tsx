@@ -64,7 +64,7 @@ export function ExtensionsManager({ isOpen, onClose }: ExtensionsManagerProps) {
       id: "1",
       name: "Python Language Support",
       description: "Advanced Python language features including linting, formatting, and intellisense",
-      author: "PLOT Team",
+      author: "E-Code Team",
       version: "1.2.0",
       stars: 1234,
       downloads: 45678,

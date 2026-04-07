@@ -84,7 +84,7 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold">Welcome to PLOT</CardTitle>
+            <CardTitle className="text-2xl font-bold">Welcome to E-Code</CardTitle>
             <CardDescription>
               Sign in to your account or create a new one to get started.
             </CardDescription>
@@ -321,10 +321,10 @@ export default function AuthPage() {
       <div className="flex-1 bg-gradient-to-br from-primary/20 to-primary/10 p-8 flex flex-col justify-center hidden md:flex">
         <div className="max-w-xl mx-auto space-y-6">
           <h1 className="text-4xl font-extrabold tracking-tight">
-            Code, collaborate, and deploy with <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">PLOT</span>
+            Code, collaborate, and deploy with <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">E-Code</span>
           </h1>
           <p className="text-lg text-muted-foreground">
-            PLOT is a browser-based IDE that lets you write code with friends in real-time.
+            E-Code is a browser-based IDE that lets you write code with friends in real-time.
             Create projects, share them, and deploy them with just a few clicks.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-4">

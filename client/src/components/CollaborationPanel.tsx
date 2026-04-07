@@ -114,7 +114,7 @@ export function CollaborationPanel({ projectId, fileId, visible, onInviteClick }
         {
           id: 'welcome',
           userId: 0,
-          username: 'PLOT',
+          username: 'E-Code',
           text: 'Welcome to the project chat! Collaborate with your team in real-time.',
           timestamp: Date.now()
         }

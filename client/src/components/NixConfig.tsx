@@ -118,7 +118,7 @@ export function NixConfig({ projectId, open, onOpenChange }: NixConfigProps) {
               </p>
               <ul className="list-disc pl-5 space-y-1 text-sm">
                 <li>Add packages from the nixpkgs repository</li>
-                <li>PLOT will build your environment automatically</li>
+                <li>E-Code will build your environment automatically</li>
                 <li>Changes require a container rebuild</li>
               </ul>
               <a 
