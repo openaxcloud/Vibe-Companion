@@ -34,6 +34,7 @@ import {
   Zap,
   Clock,
 } from "lucide-react";
+import { TerminalMetricsIndicator } from "./TerminalMetricsIndicator";
 import "xterm/css/xterm.css";
 
 interface TerminalSession {
@@ -84,9 +85,6 @@ export function ReplitTerminal({
   const [isConnected, setIsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [currentInput, setCurrentInput] = useState("");
 
   // Configuration du thème du terminal
   const terminalTheme = theme === "dark" ? {
@@ -170,14 +168,14 @@ export function ReplitTerminal({
 
     // Message de bienvenue
     terminal.writeln("\x1b[1;32m╭─────────────────────────────────────────╮\x1b[0m");
-    terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[1;36mWelcome to Replit Terminal\x1b[0m           \x1b[1;32m│\x1b[0m");
+    terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[1;36mWelcome to E-Code Terminal\x1b[0m           \x1b[1;32m│\x1b[0m");
     terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[90mConnecting to workspace...\x1b[0m            \x1b[1;32m│\x1b[0m");
     terminal.writeln("\x1b[1;32m╰─────────────────────────────────────────╯\x1b[0m");
     terminal.writeln("");
 
-    // Configuration WebSocket
+    // Configuration WebSocket - Use /api/terminal/ws endpoint
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/api/terminal/ws?projectId=${projectId}`;
     
     const connectWebSocket = () => {
       const ws = new WebSocket(wsUrl);
@@ -186,7 +184,11 @@ export function ReplitTerminal({
       ws.onopen = () => {
         setIsConnected(true);
         terminal.writeln("\x1b[1;32m✓ Connected to terminal server\x1b[0m");
-        terminal.write("\x1b[1;36muser@replit\x1b[0m:\x1b[1;34m/workspace\x1b[0m$ ");
+        
+        const dims = fitAddon.proposeDimensions();
+        if (dims) {
+          ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        }
         
         if (defaultCommand) {
           terminal.writeln(defaultCommand);
@@ -244,45 +246,7 @@ export function ReplitTerminal({
         return;
       }
 
-      // Gestion de l'historique des commandes
-      if (data === "\x1b[A") { // Flèche haut
-        if (historyIndex < commandHistory.length - 1) {
-          setHistoryIndex(historyIndex + 1);
-          const command = commandHistory[commandHistory.length - 1 - historyIndex - 1];
-          if (command) {
-            // Effacer la ligne actuelle et afficher la commande de l'historique
-            terminal.write("\x1b[2K\r\x1b[1;36muser@replit\x1b[0m:\x1b[1;34m/workspace\x1b[0m$ " + command);
-            setCurrentInput(command);
-          }
-        }
-        return;
-      }
-
-      if (data === "\x1b[B") { // Flèche bas
-        if (historyIndex >= 0) {
-          setHistoryIndex(historyIndex - 1);
-          const command = historyIndex > 0 ? commandHistory[commandHistory.length - historyIndex] : "";
-          terminal.write("\x1b[2K\r\x1b[1;36muser@replit\x1b[0m:\x1b[1;34m/workspace\x1b[0m$ " + command);
-          setCurrentInput(command);
-        }
-        return;
-      }
-
-      // Sauvegarder la commande dans l'historique
-      if (data === "\r") {
-        if (currentInput.trim()) {
-          setCommandHistory(prev => [...prev.slice(-49), currentInput.trim()]);
-          onCommandExecute?.(currentInput.trim());
-        }
-        setCurrentInput("");
-        setHistoryIndex(-1);
-      } else if (data === "\x7f") { // Backspace
-        setCurrentInput(prev => prev.slice(0, -1));
-      } else if (data.charCodeAt(0) >= 32) { // Caractères imprimables
-        setCurrentInput(prev => prev + data);
-      }
-
-      // Envoyer au serveur
+      // Envoyer au serveur (le PTY gère nativement l'historique et les prompts)
       wsRef.current.send(JSON.stringify({
         type: "input",
         sessionId: activeSessionId,
@@ -293,7 +257,12 @@ export function ReplitTerminal({
     // Démarrer la connexion
     connectWebSocket();
 
-    // Ajustement automatique de la taille
+    terminal.onResize(({ cols, rows }) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
+      }
+    });
+
     const handleResize = () => {
       fitAddon.fit();
     };
@@ -389,14 +358,14 @@ export function ReplitTerminal({
 
   if (isMinimized) {
     return (
-      <div className={`bg-[var(--replit-surface)] border border-[var(--replit-border)] rounded-md ${className}`}>
+      <div className={`bg-[var(--ecode-surface)] border border-[var(--ecode-border)] rounded-md ${className}`}>
         <div className="flex items-center justify-between p-2">
           <div className="flex items-center space-x-2">
-            <TerminalIcon className="h-4 w-4 text-[var(--replit-text-secondary)]" />
-            <span className="text-sm font-medium text-[var(--replit-text)]">Terminal</span>
+            <TerminalIcon className="h-4 w-4 text-[var(--ecode-text-secondary)]" />
+            <span className="text-[13px] font-medium text-[var(--ecode-text)]">Terminal</span>
             <Badge 
               variant="outline" 
-              className={`text-xs ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
+              className={`text-[11px] ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
             >
               {isConnected ? 'Connected' : 'Disconnected'}
             </Badge>
@@ -405,7 +374,7 @@ export function ReplitTerminal({
             variant="ghost"
             size="sm"
             onClick={() => setIsMinimized(false)}
-            className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+            className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
           >
             <Maximize2 className="h-3 w-3" />
           </Button>
@@ -416,9 +385,9 @@ export function ReplitTerminal({
 
   return (
     <TooltipProvider>
-      <div className={`flex flex-col bg-[var(--replit-surface)] border border-[var(--replit-border)] rounded-md ${isFullscreen ? 'fixed inset-4 z-50' : className}`}>
+      <div className={`flex flex-col bg-[var(--ecode-surface)] border border-[var(--ecode-border)] rounded-md ${isFullscreen ? 'fixed inset-4 z-50' : className}`}>
         {/* Header du terminal */}
-        <div className="flex items-center justify-between p-2 border-b border-[var(--replit-border)]">
+        <div className="flex items-center justify-between p-2 border-b border-[var(--ecode-border)]">
           <div className="flex items-center space-x-2">
             {/* Onglets des sessions */}
             <div className="flex items-center space-x-1">
@@ -428,10 +397,10 @@ export function ReplitTerminal({
                     variant={session.id === activeSessionId ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setActiveSessionId(session.id)}
-                    className={`h-6 px-2 text-xs ${
+                    className={`h-6 px-2 text-[11px] ${
                       session.id === activeSessionId
-                        ? "bg-[var(--replit-accent)] text-white"
-                        : "text-[var(--replit-text)] hover:bg-[var(--replit-sidebar-hover)]"
+                        ? "bg-[var(--ecode-accent)] text-white"
+                        : "text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                     }`}
                   >
                     <TerminalIcon className="h-3 w-3 mr-1" />
@@ -447,7 +416,7 @@ export function ReplitTerminal({
                       variant="ghost"
                       size="sm"
                       onClick={() => closeSession(session.id)}
-                      className="h-4 w-4 p-0 ml-1 text-[var(--replit-text-secondary)] hover:text-[var(--replit-danger)]"
+                      className="h-4 w-4 p-0 ml-1 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-danger)]"
                     >
                       <X className="h-2 w-2" />
                     </Button>
@@ -460,7 +429,7 @@ export function ReplitTerminal({
                   variant="ghost"
                   size="sm"
                   onClick={createNewSession}
-                  className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+                  className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -470,7 +439,7 @@ export function ReplitTerminal({
             {/* Status de connexion */}
             <Badge 
               variant="outline" 
-              className={`text-xs ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
+              className={`text-[11px] ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
             >
               {isConnected ? (
                 <>
@@ -484,6 +453,9 @@ export function ReplitTerminal({
                 </>
               )}
             </Badge>
+
+            {/* Fortune 500 Terminal Metrics */}
+            <TerminalMetricsIndicator compact data-testid="replit-terminal-metrics-compact" />
           </div>
 
           <div className="flex items-center space-x-1">
@@ -494,7 +466,7 @@ export function ReplitTerminal({
                   variant="ghost"
                   size="sm"
                   onClick={clearTerminal}
-                  className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+                  className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
                 >
                   <Square className="h-3 w-3" />
                 </Button>
@@ -508,7 +480,7 @@ export function ReplitTerminal({
                   variant="ghost"
                   size="sm"
                   onClick={restartSession}
-                  className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+                  className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
                 >
                   <RotateCcw className="h-3 w-3" />
                 </Button>
@@ -522,22 +494,22 @@ export function ReplitTerminal({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+                  className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
                 >
                   <Settings className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-40 bg-[var(--replit-surface)] border-[var(--replit-border)]">
-                <DropdownMenuItem onClick={copySelection} className="text-[var(--replit-text)] hover:bg-[var(--replit-sidebar-hover)]">
+              <DropdownMenuContent className="w-40 bg-[var(--ecode-surface)] border-[var(--ecode-border)]">
+                <DropdownMenuItem onClick={copySelection} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
                   <Copy className="mr-2 h-3 w-3" />
                   Copy
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={pasteFromClipboard} className="text-[var(--replit-text)] hover:bg-[var(--replit-sidebar-hover)]">
+                <DropdownMenuItem onClick={pasteFromClipboard} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
                   <Copy className="mr-2 h-3 w-3" />
                   Paste
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-[var(--replit-border)]" />
-                <DropdownMenuItem className="text-[var(--replit-text)] hover:bg-[var(--replit-sidebar-hover)]">
+                <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
+                <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
                   <Search className="mr-2 h-3 w-3" />
                   Find
                 </DropdownMenuItem>
@@ -548,7 +520,7 @@ export function ReplitTerminal({
               variant="ghost"
               size="sm"
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+              className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
             >
               {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
@@ -557,7 +529,7 @@ export function ReplitTerminal({
               variant="ghost"
               size="sm"
               onClick={() => setIsMinimized(true)}
-              className="h-6 w-6 p-0 text-[var(--replit-text-secondary)] hover:text-[var(--replit-text)]"
+              className="h-6 w-6 p-0 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
             >
               <ChevronDown className="h-3 w-3" />
             </Button>
@@ -566,7 +538,7 @@ export function ReplitTerminal({
 
         {/* Zone du terminal */}
         <div 
-          className="flex-1 terminal-container bg-[var(--replit-editor-bg)] overflow-hidden"
+          className="flex-1 terminal-container bg-[var(--ecode-editor-bg)] overflow-hidden"
           style={{ maxHeight: isFullscreen ? 'none' : `${maxHeight}px` }}
         >
           <div
@@ -578,7 +550,7 @@ export function ReplitTerminal({
 
         {/* Footer avec informations de session */}
         {activeSession && (
-          <div className="flex items-center justify-between px-3 py-1 bg-[var(--replit-surface-secondary)] border-t border-[var(--replit-border)] text-xs text-[var(--replit-text-secondary)]">
+          <div className="flex items-center justify-between px-3 py-1 bg-[var(--ecode-surface-secondary)] border-t border-[var(--ecode-border)] text-[11px] text-[var(--ecode-text-secondary)]">
             <div className="flex items-center space-x-4">
               <span>
                 <Clock className="h-3 w-3 inline mr-1" />
@@ -590,7 +562,7 @@ export function ReplitTerminal({
             </div>
             <div className="flex items-center space-x-2">
               {activeSession.process && (
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-[11px]">
                   {activeSession.process}
                 </Badge>
               )}

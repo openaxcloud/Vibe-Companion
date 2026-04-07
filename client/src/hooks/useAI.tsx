@@ -20,8 +20,7 @@ export function useAI() {
       language: string;
       maxTokens?: number;
     }): Promise<string> => {
-      const res = await apiRequest('POST', '/api/ai/completion', { code, language, maxTokens });
-      const data = await res.json();
+      const data = await apiRequest('POST', '/api/ai/completion', { code, language, maxTokens });
       return data.completion;
     },
     onError: (error: Error) => {
@@ -39,8 +38,7 @@ export function useAI() {
       code: string; 
       language: string;
     }): Promise<string> => {
-      const res = await apiRequest('POST', '/api/ai/explanation', { code, language });
-      const data = await res.json();
+      const data = await apiRequest('POST', '/api/ai/explanation', { code, language });
       return data.explanation;
     },
     onError: (error: Error) => {
@@ -63,8 +61,7 @@ export function useAI() {
       fromLanguage: string;
       toLanguage: string;
     }): Promise<string> => {
-      const res = await apiRequest('POST', '/api/ai/convert', { code, fromLanguage, toLanguage });
-      const data = await res.json();
+      const data = await apiRequest('POST', '/api/ai/convert', { code, fromLanguage, toLanguage });
       return data.convertedCode;
     },
     onError: (error: Error) => {
@@ -87,8 +84,7 @@ export function useAI() {
       language: string;
       style?: 'standard' | 'jsdoc' | 'google' | 'numpy';
     }): Promise<string> => {
-      const res = await apiRequest('POST', '/api/ai/document', { code, language, style });
-      const data = await res.json();
+      const data = await apiRequest('POST', '/api/ai/document', { code, language, style });
       return data.documentedCode;
     },
     onError: (error: Error) => {
@@ -111,8 +107,7 @@ export function useAI() {
       language: string;
       framework?: string;
     }): Promise<string> => {
-      const res = await apiRequest('POST', '/api/ai/tests', { code, language, framework });
-      const data = await res.json();
+      const data = await apiRequest('POST', '/api/ai/tests', { code, language, framework });
       return data.testCode;
     },
     onError: (error: Error) => {

@@ -72,15 +72,15 @@ export default function RuntimeDiagnosticsPage() {
   const memoryPercentage = parseFloat(systemHealth.memoryUsage?.replace('%', '') || '0');
 
   return (
-    <div className="container py-6">
-      <h1 className="text-3xl font-bold mb-6">Runtime Diagnostics</h1>
+    <div className="container py-6" data-testid="page-runtime-diagnostics">
+      <h1 className="text-3xl font-bold mb-6" data-testid="heading-runtime-diagnostics">Runtime Diagnostics</h1>
       
-      <Tabs defaultValue="overview" className="mb-6">
+      <Tabs defaultValue="overview" className="mb-6" data-testid="tabs-diagnostics">
         <TabsList className="mb-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="languages">Languages</TabsTrigger>
-          <TabsTrigger value="system">System Resources</TabsTrigger>
-          <TabsTrigger value="projects">Active Projects</TabsTrigger>
+          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="languages" data-testid="tab-languages">Languages</TabsTrigger>
+          <TabsTrigger value="system" data-testid="tab-system">System Resources</TabsTrigger>
+          <TabsTrigger value="projects" data-testid="tab-projects">Active Projects</TabsTrigger>
         </TabsList>
         
         {/* Overview Tab */}
@@ -101,30 +101,30 @@ export default function RuntimeDiagnosticsPage() {
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">CPU Load</span>
-                      <span className="text-sm text-muted-foreground">{systemHealth.cpuUsage?.toFixed(2) || '0'}</span>
+                      <span className="text-[13px] font-medium">CPU Load</span>
+                      <span className="text-[13px] text-muted-foreground">{systemHealth.cpuUsage?.toFixed(2) || '0'}</span>
                     </div>
                     <Progress value={systemHealth.cpuUsage * 10} className="h-2" />
                   </div>
                   
                   <div>
                     <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Memory Usage</span>
-                      <span className="text-sm text-muted-foreground">{systemHealth.memoryUsage || '0%'}</span>
+                      <span className="text-[13px] font-medium">Memory Usage</span>
+                      <span className="text-[13px] text-muted-foreground">{systemHealth.memoryUsage || '0%'}</span>
                     </div>
                     <Progress value={memoryPercentage} className="h-2" />
                   </div>
                   
                   <div className="pt-2">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-[13px]">
                       <span>Platform:</span>
                       <span className="text-muted-foreground">{systemHealth.platform || 'Unknown'}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-[13px]">
                       <span>Architecture:</span>
                       <span className="text-muted-foreground">{systemHealth.arch || 'Unknown'}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-[13px]">
                       <span>Uptime:</span>
                       <span className="text-muted-foreground">
                         {systemHealth.uptime ? `${Math.floor(systemHealth.uptime / 3600)} hours` : 'Unknown'}
@@ -150,7 +150,7 @@ export default function RuntimeDiagnosticsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <span className="text-sm font-medium">Docker</span>
+                      <span className="text-[13px] font-medium">Docker</span>
                     </div>
                     {runtimeEnvironments.docker?.available ? (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
@@ -165,7 +165,7 @@ export default function RuntimeDiagnosticsPage() {
                   
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <span className="text-sm font-medium">Nix</span>
+                      <span className="text-[13px] font-medium">Nix</span>
                     </div>
                     {runtimeEnvironments.nix?.available ? (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
@@ -179,18 +179,18 @@ export default function RuntimeDiagnosticsPage() {
                   </div>
                   
                   <div className="border-t pt-3 mt-3">
-                    <h4 className="text-sm font-medium mb-2">Available Languages</h4>
+                    <h4 className="text-[13px] font-medium mb-2">Available Languages</h4>
                     <div className="flex flex-wrap gap-2">
                       {Object.entries(runtimeEnvironments.languages || {})
                         .filter(([_, info]: [string, any]) => info.available)
                         .map(([language]: [string, any]) => (
-                          <Badge key={language} variant="secondary" className="text-xs">
+                          <Badge key={language} variant="secondary" className="text-[11px]">
                             {language}
                           </Badge>
                         ))
                       }
                       {Object.values(runtimeEnvironments.languages || {}).filter((info: any) => info.available).length === 0 && (
-                        <span className="text-sm text-muted-foreground">No languages detected</span>
+                        <span className="text-[13px] text-muted-foreground">No languages detected</span>
                       )}
                     </div>
                   </div>
@@ -212,13 +212,13 @@ export default function RuntimeDiagnosticsPage() {
               <CardContent>
                 <ul className="space-y-2">
                   {recommendations.map((recommendation: string, index: number) => (
-                    <li key={index} className="text-sm flex">
+                    <li key={index} className="text-[13px] flex">
                       <InfoIcon className="h-4 w-4 mr-2 mt-0.5 text-blue-500 flex-shrink-0" />
                       <span>{recommendation}</span>
                     </li>
                   ))}
                   {recommendations.length === 0 && (
-                    <li className="text-sm text-muted-foreground">No recommendations available</li>
+                    <li className="text-[13px] text-muted-foreground">No recommendations available</li>
                   )}
                 </ul>
               </CardContent>
@@ -246,10 +246,10 @@ export default function RuntimeDiagnosticsPage() {
                     {availableLanguages.map((lang: any) => (
                       <div key={lang.language} className="pb-3 border-b last:border-0">
                         <div className="flex justify-between items-start">
-                          <h3 className="text-sm font-medium">{lang.language}</h3>
+                          <h3 className="text-[13px] font-medium">{lang.language}</h3>
                           <Badge variant="outline">{lang.version.split('\\n')[0]}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1">{lang.notes}</p>
+                        <p className="text-[13px] text-muted-foreground mt-1">{lang.notes}</p>
                       </div>
                     ))}
                   </div>
@@ -277,8 +277,8 @@ export default function RuntimeDiagnosticsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     {missingLanguages.map((lang: string) => (
                       <div key={lang} className="border rounded-md p-3">
-                        <div className="font-medium text-sm">{lang}</div>
-                        <div className="text-xs text-muted-foreground mt-1">Not installed</div>
+                        <div className="font-medium text-[13px]">{lang}</div>
+                        <div className="text-[11px] text-muted-foreground mt-1">Not installed</div>
                       </div>
                     ))}
                   </div>
@@ -309,43 +309,43 @@ export default function RuntimeDiagnosticsPage() {
               <CardContent>
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-sm font-medium mb-2">CPU Information</h3>
+                    <h3 className="text-[13px] font-medium mb-2">CPU Information</h3>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="border rounded-md p-3">
-                        <div className="text-xs text-muted-foreground">CPU Cores</div>
-                        <div className="font-medium text-lg">{systemInfo.cpus || 'N/A'}</div>
+                        <div className="text-[11px] text-muted-foreground">CPU Cores</div>
+                        <div className="font-medium text-[15px]">{systemInfo.cpus || 'N/A'}</div>
                       </div>
                       <div className="border rounded-md p-3">
-                        <div className="text-xs text-muted-foreground">Architecture</div>
-                        <div className="font-medium text-lg">{systemInfo.architecture || 'N/A'}</div>
+                        <div className="text-[11px] text-muted-foreground">Architecture</div>
+                        <div className="font-medium text-[15px]">{systemInfo.architecture || 'N/A'}</div>
                       </div>
                       <div className="border rounded-md p-3">
-                        <div className="text-xs text-muted-foreground">CPU Load</div>
-                        <div className="font-medium text-lg">{systemHealth.cpuUsage?.toFixed(2) || 'N/A'}</div>
+                        <div className="text-[11px] text-muted-foreground">CPU Load</div>
+                        <div className="font-medium text-[15px]">{systemHealth.cpuUsage?.toFixed(2) || 'N/A'}</div>
                       </div>
                       <div className="border rounded-md p-3">
-                        <div className="text-xs text-muted-foreground">Platform</div>
-                        <div className="font-medium text-lg">{systemInfo.platform || 'N/A'}</div>
+                        <div className="text-[11px] text-muted-foreground">Platform</div>
+                        <div className="font-medium text-[15px]">{systemInfo.platform || 'N/A'}</div>
                       </div>
                     </div>
                   </div>
                   
                   <div>
-                    <h3 className="text-sm font-medium mb-2">Memory Usage</h3>
+                    <h3 className="text-[13px] font-medium mb-2">Memory Usage</h3>
                     <div className="mb-4">
                       <div className="flex justify-between mb-1">
-                        <span className="text-sm">Memory Utilization</span>
-                        <span className="text-sm text-muted-foreground">{systemHealth.memoryUsage}</span>
+                        <span className="text-[13px]">Memory Utilization</span>
+                        <span className="text-[13px] text-muted-foreground">{systemHealth.memoryUsage}</span>
                       </div>
                       <Progress value={memoryPercentage} className="h-2" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="border rounded-md p-3">
-                        <div className="text-xs text-muted-foreground">Total Memory</div>
+                        <div className="text-[11px] text-muted-foreground">Total Memory</div>
                         <div className="font-medium">{systemInfo.memory?.total || 'N/A'}</div>
                       </div>
                       <div className="border rounded-md p-3">
-                        <div className="text-xs text-muted-foreground">Free Memory</div>
+                        <div className="text-[11px] text-muted-foreground">Free Memory</div>
                         <div className="font-medium">{systemInfo.memory?.free || 'N/A'}</div>
                       </div>
                     </div>
@@ -368,23 +368,23 @@ export default function RuntimeDiagnosticsPage() {
               <CardContent>
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-sm font-medium mb-2">Node.js Environment</h3>
+                    <h3 className="text-[13px] font-medium mb-2">Node.js Environment</h3>
                     <div className="border rounded-md p-3">
                       <div className="grid grid-cols-2 gap-y-2">
-                        <div className="text-sm font-medium">Version</div>
-                        <div className="text-sm text-muted-foreground">{systemInfo.nodeVersion || 'N/A'}</div>
+                        <div className="text-[13px] font-medium">Version</div>
+                        <div className="text-[13px] text-muted-foreground">{systemInfo.nodeVersion || 'N/A'}</div>
                         
-                        <div className="text-sm font-medium">Package Manager</div>
-                        <div className="text-sm text-muted-foreground">npm</div>
+                        <div className="text-[13px] font-medium">Package Manager</div>
+                        <div className="text-[13px] text-muted-foreground">npm</div>
                       </div>
                     </div>
                   </div>
                   
                   <div>
-                    <h3 className="text-sm font-medium mb-2">Runtime Engines</h3>
+                    <h3 className="text-[13px] font-medium mb-2">Runtime Engines</h3>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between border rounded-md p-3">
-                        <span className="text-sm font-medium">Docker</span>
+                        <span className="text-[13px] font-medium">Docker</span>
                         {runtimeEnvironments.docker?.available ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
                             {runtimeEnvironments.docker.version?.split('\n')[0] || 'Installed'}
@@ -395,7 +395,7 @@ export default function RuntimeDiagnosticsPage() {
                       </div>
                       
                       <div className="flex items-center justify-between border rounded-md p-3">
-                        <span className="text-sm font-medium">Nix</span>
+                        <span className="text-[13px] font-medium">Nix</span>
                         {runtimeEnvironments.nix?.available ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
                             {runtimeEnvironments.nix.version?.split(' ')[2] || 'Installed'}
@@ -431,7 +431,7 @@ export default function RuntimeDiagnosticsPage() {
                         <Badge>{project.status.language || 'Unknown'}</Badge>
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="grid grid-cols-3 gap-2 text-[13px]">
                         <div>
                           <div className="text-muted-foreground">Status</div>
                           <div>{project.status.isRunning ? 'Running' : 'Stopped'}</div>
@@ -460,7 +460,7 @@ export default function RuntimeDiagnosticsPage() {
                 <div className="text-center py-12 text-muted-foreground">
                   <HardDrive className="mx-auto h-12 w-12 mb-4 opacity-20" />
                   <p>No active runtime projects</p>
-                  <p className="text-sm">Start a project runtime to see it listed here</p>
+                  <p className="text-[13px]">Start a project runtime to see it listed here</p>
                 </div>
               )}
             </CardContent>
@@ -468,7 +468,7 @@ export default function RuntimeDiagnosticsPage() {
         </TabsContent>
       </Tabs>
       
-      <div className="text-xs text-muted-foreground text-center mt-6">
+      <div className="text-[11px] text-muted-foreground text-center mt-6">
         Last updated: {dashboard?.timestamp ? new Date(dashboard.timestamp).toLocaleString() : 'Unknown'}
       </div>
     </div>

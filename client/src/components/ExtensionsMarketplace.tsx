@@ -1,543 +1,421 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Puzzle, Download, Star, TrendingUp, Search, Filter,
-  Code, Palette, Terminal, Languages, Zap, GitBranch,
-  FileCode, Package, Shield, Check, X, Loader2,
-  ExternalLink, Heart, Clock, Users
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Package,
+  Search,
+  Download,
+  Star,
+  TrendingUp,
+  Code,
+  Palette,
+  Terminal,
+  Zap,
+  Shield,
+  Globe,
+  Settings,
+  Check,
+  ExternalLink,
+  User,
+  Tag,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
-interface ExtensionsMarketplaceProps {
-  projectId: number;
-  className?: string;
-}
-
-interface Extension {
-  id: string;
+interface MarketplaceExtension {
+  extensionId: string;
   name: string;
   description: string;
   author: string;
-  authorAvatar?: string;
   version: string;
-  downloads: number;
-  rating: number;
-  ratingCount: number;
-  category: 'themes' | 'languages' | 'formatters' | 'linters' | 'snippets' | 'tools';
-  tags: string[];
+  category: string;
   icon: string;
-  installed: boolean;
-  hasUpdate?: boolean;
-  price: number;
-  screenshots?: string[];
-  lastUpdated: string;
 }
 
-const MOCK_EXTENSIONS: Extension[] = [
-  {
-    id: 'one-dark-pro',
-    name: 'One Dark Pro',
-    description: 'Atom\'s iconic One Dark theme for a modern coding experience',
-    author: 'binaryify',
-    version: '3.15.0',
-    downloads: 12500000,
-    rating: 4.9,
-    ratingCount: 2340,
-    category: 'themes',
-    tags: ['dark', 'modern', 'popular'],
-    icon: '🎨',
-    installed: false,
-    price: 0,
-    lastUpdated: '2024-01-15'
-  },
-  {
-    id: 'prettier',
-    name: 'Prettier - Code formatter',
-    description: 'Code formatter using prettier',
-    author: 'Prettier',
-    version: '10.1.0',
-    downloads: 34000000,
-    rating: 4.8,
-    ratingCount: 5670,
-    category: 'formatters',
-    tags: ['formatter', 'javascript', 'typescript', 'css'],
-    icon: '✨',
-    installed: true,
-    price: 0,
-    lastUpdated: '2024-01-20'
-  },
-  {
-    id: 'eslint',
-    name: 'ESLint',
-    description: 'Integrates ESLint JavaScript into VS Code',
-    author: 'Microsoft',
-    version: '2.4.2',
-    downloads: 28000000,
-    rating: 4.7,
-    ratingCount: 3450,
-    category: 'linters',
-    tags: ['linter', 'javascript', 'typescript'],
-    icon: '🔍',
-    installed: true,
-    hasUpdate: true,
-    price: 0,
-    lastUpdated: '2024-01-18'
-  },
-  {
-    id: 'python',
-    name: 'Python',
-    description: 'IntelliSense, linting, debugging, and more',
-    author: 'Microsoft',
-    version: '2024.0.1',
-    downloads: 45000000,
-    rating: 4.6,
-    ratingCount: 8900,
-    category: 'languages',
-    tags: ['python', 'language', 'debugger'],
-    icon: '🐍',
-    installed: false,
-    price: 0,
-    lastUpdated: '2024-01-10'
-  },
-  {
-    id: 'github-copilot',
-    name: 'GitHub Copilot',
-    description: 'AI pair programmer',
-    author: 'GitHub',
-    version: '1.156.0',
-    downloads: 8000000,
-    rating: 4.5,
-    ratingCount: 2100,
-    category: 'tools',
-    tags: ['ai', 'autocomplete', 'productivity'],
-    icon: '🤖',
-    installed: false,
-    price: 10,
-    lastUpdated: '2024-01-22'
-  },
-  {
-    id: 'react-snippets',
-    name: 'ES7+ React Snippets',
-    description: 'Extensions for React, React-Native and Redux',
-    author: 'dsznajder',
-    version: '4.4.3',
-    downloads: 5600000,
-    rating: 4.7,
-    ratingCount: 890,
-    category: 'snippets',
-    tags: ['react', 'snippets', 'javascript'],
-    icon: '⚛️',
-    installed: false,
-    price: 0,
-    lastUpdated: '2024-01-05'
-  }
-];
+interface InstalledExtension {
+  id: number;
+  projectId: number;
+  extensionId: string;
+  name: string;
+  description: string | null;
+  author: string | null;
+  version: string | null;
+  category: string | null;
+  icon: string | null;
+  enabled: boolean;
+}
 
-const CATEGORIES = [
-  { value: 'all', label: 'All Categories', icon: Package },
-  { value: 'themes', label: 'Themes', icon: Palette },
-  { value: 'languages', label: 'Languages', icon: Languages },
-  { value: 'formatters', label: 'Formatters', icon: FileCode },
-  { value: 'linters', label: 'Linters', icon: Shield },
-  { value: 'snippets', label: 'Snippets', icon: Code },
-  { value: 'tools', label: 'Developer Tools', icon: Zap }
-];
+interface MarketplaceResponse {
+  extensions: MarketplaceExtension[];
+  categories: string[];
+}
+
+interface ExtensionsMarketplaceProps {
+  projectId?: number;
+  className?: string;
+}
+
+function ShimmerSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn("rounded-lg bg-muted animate-pulse", className)} />
+  );
+}
+
+const categoryIcons: Record<string, typeof Package> = {
+  all: Package,
+  themes: Palette,
+  languages: Code,
+  tools: Terminal,
+  formatters: Zap,
+  linters: Shield,
+  snippets: Globe,
+};
 
 export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarketplaceProps) {
-  const [extensions, setExtensions] = useState<Extension[]>(MOCK_EXTENSIONS);
-  const [filteredExtensions, setFilteredExtensions] = useState<Extension[]>(MOCK_EXTENSIONS);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'popular' | 'rating' | 'recent'>('popular');
-  const [selectedExtension, setSelectedExtension] = useState<Extension | null>(null);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  const [installingId, setInstallingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('discover');
   const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  useEffect(() => {
-    filterAndSortExtensions();
-  }, [selectedCategory, searchQuery, sortBy, extensions]);
-
-  const filterAndSortExtensions = () => {
-    let filtered = extensions;
-
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(ext => ext.category === selectedCategory);
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(ext => 
-        ext.name.toLowerCase().includes(query) ||
-        ext.description.toLowerCase().includes(query) ||
-        ext.tags.some(tag => tag.toLowerCase().includes(query))
-      );
-    }
-
-    // Filter by tab
-    if (activeTab === 'installed') {
-      filtered = filtered.filter(ext => ext.installed);
-    } else if (activeTab === 'updates') {
-      filtered = filtered.filter(ext => ext.hasUpdate);
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'popular':
-          return b.downloads - a.downloads;
-        case 'rating':
-          return b.rating - a.rating;
-        case 'recent':
-          return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
-        default:
-          return 0;
-      }
-    });
-
-    setFilteredExtensions(filtered);
-  };
-
-  const handleInstall = async (extension: Extension) => {
-    setInstallingId(extension.id);
-    
-    try {
-      const response = await fetch(`/api/projects/${projectId}/extensions/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ extensionId: extension.id })
+  const { data: marketplaceData, isLoading: isLoadingMarketplace, error: marketplaceError, refetch: refetchMarketplace } = useQuery<MarketplaceResponse>({
+    queryKey: ['/api/extensions/marketplace'],
+    queryFn: async () => {
+      const response = await fetch('/api/extensions/marketplace', {
+        credentials: 'include'
       });
-
-      if (response.ok) {
-        setExtensions(prev => prev.map(ext => 
-          ext.id === extension.id ? { ...ext, installed: true } : ext
-        ));
-        toast({
-          title: "Extension Installed",
-          description: `${extension.name} has been installed successfully`,
-        });
+      if (!response.ok) {
+        throw new Error('Failed to fetch marketplace extensions');
       }
-    } catch (error) {
+      return response.json();
+    },
+    staleTime: 60000,
+  });
+
+  const { data: installedExtensions = [], isLoading: isLoadingInstalled, refetch: refetchInstalled } = useQuery<InstalledExtension[]>({
+    queryKey: ['/api/extensions', projectId, 'installed'],
+    queryFn: async () => {
+      if (!projectId) throw new Error('Project ID required');
+      const response = await fetch(`/api/extensions/${projectId}/installed`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch installed extensions');
+      }
+      return response.json();
+    },
+    enabled: !!projectId,
+    staleTime: 30000,
+  });
+
+  const installMutation = useMutation({
+    mutationFn: async (extension: MarketplaceExtension) => {
+      if (!projectId) throw new Error('Project ID required');
+      const response = await apiRequest('POST', `/api/extensions/${projectId}/install`, {
+        extensionId: extension.extensionId,
+        name: extension.name,
+        description: extension.description,
+        author: extension.author,
+        version: extension.version,
+        category: extension.category,
+        icon: extension.icon,
+      });
+      return response.json();
+    },
+    onSuccess: (_, extension) => {
       toast({
-        title: "Installation Failed",
-        description: "Failed to install extension",
-        variant: "destructive"
+        title: 'Extension installed',
+        description: `${extension.name} has been installed successfully`,
       });
-    } finally {
-      setInstallingId(null);
-    }
-  };
-
-  const handleUninstall = async (extension: Extension) => {
-    try {
-      const response = await fetch(`/api/projects/${projectId}/extensions/uninstall`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ extensionId: extension.id })
-      });
-
-      if (response.ok) {
-        setExtensions(prev => prev.map(ext => 
-          ext.id === extension.id ? { ...ext, installed: false } : ext
-        ));
-        toast({
-          title: "Extension Uninstalled",
-          description: `${extension.name} has been uninstalled`,
-        });
-      }
-    } catch (error) {
+      queryClient.invalidateQueries({ queryKey: ['/api/extensions', projectId, 'installed'] });
+    },
+    onError: (error: any, extension) => {
       toast({
-        title: "Uninstall Failed",
-        description: "Failed to uninstall extension",
-        variant: "destructive"
+        title: 'Installation failed',
+        description: error.message || `Failed to install ${extension.name}`,
+        variant: 'destructive',
       });
+    },
+  });
+
+  const uninstallMutation = useMutation({
+    mutationFn: async (extensionId: string) => {
+      if (!projectId) throw new Error('Project ID required');
+      const response = await apiRequest('DELETE', `/api/extensions/${projectId}/${extensionId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Extension uninstalled',
+        description: 'Extension has been removed successfully',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/extensions', projectId, 'installed'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Uninstall failed',
+        description: error.message || 'Failed to uninstall extension',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const installedExtensionIds = new Set(installedExtensions.map(ext => ext.extensionId));
+
+  const extensions = marketplaceData?.extensions || [];
+  const categories = [
+    { id: 'all', label: 'All' },
+    ...(marketplaceData?.categories || []).map(cat => ({ id: cat, label: cat.charAt(0).toUpperCase() + cat.slice(1) }))
+  ];
+
+  const filteredExtensions = extensions.filter((ext) => {
+    const matchesSearch = ext.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ext.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || ext.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const handleInstallToggle = (extension: MarketplaceExtension) => {
+    const isInstalled = installedExtensionIds.has(extension.extensionId);
+    if (isInstalled) {
+      uninstallMutation.mutate(extension.extensionId);
+    } else {
+      installMutation.mutate(extension);
     }
   };
 
-  const formatDownloads = (downloads: number) => {
-    if (downloads >= 1000000) {
-      return `${(downloads / 1000000).toFixed(1)}M`;
-    } else if (downloads >= 1000) {
-      return `${(downloads / 1000).toFixed(0)}K`;
-    }
-    return downloads.toString();
-  };
+  const isLoading = isLoadingMarketplace || isLoadingInstalled;
+  const isMutating = installMutation.isPending || uninstallMutation.isPending;
+
+  if (!projectId) {
+    return (
+      <Card className={cn("h-full", className)} data-testid="extensions-marketplace-no-project">
+        <CardContent className="flex flex-col items-center justify-center h-full p-8">
+          <Package className="h-12 w-12 mb-4 text-muted-foreground opacity-40" />
+          <p className="text-muted-foreground">Select a project to browse extensions</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <>
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center">
-              <Puzzle className="h-5 w-5 mr-2" />
-              Extensions Marketplace
-            </span>
-            <Badge variant="secondary">
-              {extensions.filter(e => e.installed).length} installed
-            </Badge>
+    <Card className={cn("h-full", className)} data-testid="extensions-marketplace">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-medium flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Extensions Marketplace
           </CardTitle>
-          <CardDescription>
-            Enhance your development experience with extensions
-          </CardDescription>
-        </CardHeader>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => { refetchMarketplace(); refetchInstalled(); }}
+            disabled={isLoading}
+            data-testid="button-refresh-marketplace"
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="p-4 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search extensions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-extensions"
+            />
+          </div>
 
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="discover">Discover</TabsTrigger>
-              <TabsTrigger value="installed">Installed</TabsTrigger>
-              <TabsTrigger value="updates">
-                Updates
-                {extensions.filter(e => e.hasUpdate).length > 0 && (
-                  <Badge variant="destructive" className="ml-2 h-5 px-1">
-                    {extensions.filter(e => e.hasUpdate).length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {categories.map((category) => {
+              const Icon = categoryIcons[category.id] || Package;
+              return (
+                <Button
+                  key={category.id}
+                  size="sm"
+                  variant={selectedCategory === category.id ? 'default' : 'outline'}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className="flex-shrink-0"
+                  data-testid={`button-category-${category.id}`}
+                >
+                  <Icon className="h-4 w-4 mr-1" />
+                  {category.label}
+                </Button>
+              );
+            })}
+          </div>
 
-            <div className="mt-4 space-y-4">
-              {/* Search and Filters */}
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search extensions..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        <span className="flex items-center">
-                          <cat.icon className="h-4 w-4 mr-2" />
-                          {cat.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="popular">Most Popular</SelectItem>
-                    <SelectItem value="rating">Highest Rated</SelectItem>
-                    <SelectItem value="recent">Recently Updated</SelectItem>
-                  </SelectContent>
-                </Select>
+          <Separator />
+
+          <ScrollArea className="h-[calc(100vh-20rem)]">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map(i => (
+                  <ShimmerSkeleton key={i} className="h-32 w-full" />
+                ))}
               </div>
+            ) : marketplaceError ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="marketplace-error">
+                <AlertCircle className="h-12 w-12 mb-3 text-red-500 opacity-40" />
+                <p className="text-muted-foreground mb-2">Failed to load extensions</p>
+                <Button 
+                  variant="link" 
+                  onClick={() => refetchMarketplace()}
+                  data-testid="button-retry-marketplace"
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : filteredExtensions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="marketplace-empty">
+                <Package className="h-12 w-12 mb-3 text-muted-foreground opacity-40" />
+                <p className="text-muted-foreground">
+                  {searchQuery ? `No extensions found matching "${searchQuery}"` : 'No extensions available'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredExtensions.map((extension) => {
+                  const isInstalled = installedExtensionIds.has(extension.extensionId);
+                  const isPending = (installMutation.isPending && installMutation.variables?.extensionId === extension.extensionId) ||
+                    (uninstallMutation.isPending && uninstallMutation.variables === extension.extensionId);
 
-              {/* Extensions List */}
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-3 pr-4">
-                  {filteredExtensions.map((extension) => (
-                    <Card 
-                      key={extension.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => {
-                        setSelectedExtension(extension);
-                        setShowDetailsDialog(true);
-                      }}
+                  return (
+                    <div
+                      key={extension.extensionId}
+                      className="p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                      data-testid={`extension-card-${extension.extensionId}`}
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3 flex-1">
-                            <div className="text-2xl">{extension.icon}</div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-medium">{extension.name}</h4>
-                                {extension.hasUpdate && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Update available
-                                  </Badge>
-                                )}
-                                {extension.price > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    ${extension.price}/mo
-                                  </Badge>
-                                )}
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex gap-3 flex-1">
+                          <div className="text-2xl">
+                            {extension.icon === 'palette' && '🎨'}
+                            {extension.icon === 'code' && '💻'}
+                            {extension.icon === 'git-branch' && '🔀'}
+                            {extension.icon === 'box' && '📦'}
+                            {extension.icon === 'wand' && '✨'}
+                            {extension.icon === 'check-circle' && '✅'}
+                            {extension.icon === 'file-code' && '📄'}
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-[13px] font-medium">{extension.name}</h4>
+                              {isInstalled && (
+                                <Badge variant="secondary" className="text-[11px]">
+                                  Installed
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              {extension.description}
+                            </p>
+                            <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {extension.author}
                               </div>
-                              <p className="text-sm text-muted-foreground line-clamp-1">
-                                {extension.description}
-                              </p>
-                              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                <span className="flex items-center">
-                                  <Download className="h-3 w-3 mr-1" />
-                                  {formatDownloads(extension.downloads)}
-                                </span>
-                                <span className="flex items-center">
-                                  <Star className="h-3 w-3 mr-1 text-yellow-500" />
-                                  {extension.rating} ({extension.ratingCount})
-                                </span>
-                                <span>{extension.author}</span>
+                              <div className="flex items-center gap-1">
+                                <Tag className="h-3 w-3" />
+                                v{extension.version}
                               </div>
                             </div>
                           </div>
-                          
-                          <div className="ml-4">
-                            {extension.installed ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUninstall(extension);
-                                }}
-                              >
-                                Uninstall
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleInstall(extension);
-                                }}
-                                disabled={installingId === extension.id}
-                              >
-                                {installingId === extension.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  'Install'
-                                )}
-                              </Button>
-                            )}
-                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  
-                  {filteredExtensions.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No extensions found
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant={isInstalled ? 'outline' : 'default'}
+                            onClick={() => handleInstallToggle(extension)}
+                            disabled={isMutating}
+                            data-testid={`button-install-${extension.extensionId}`}
+                          >
+                            {isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : isInstalled ? (
+                              <>
+                                <Check className="h-4 w-4 mr-1" />
+                                Installed
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-4 w-4 mr-1" />
+                                Install
+                              </>
+                            )}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            data-testid={`button-details-${extension.extensionId}`}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* Extension Details Dialog */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-2xl">
-          {selectedExtension && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center space-x-3">
-                  <span className="text-2xl">{selectedExtension.icon}</span>
-                  <span>{selectedExtension.name}</span>
-                </DialogTitle>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                    <span className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      {selectedExtension.author}
-                    </span>
-                    <span>v{selectedExtension.version}</span>
-                    <span className="flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      Updated {new Date(selectedExtension.lastUpdated).toLocaleDateString()}
-                    </span>
-                  </div>
-                  {selectedExtension.price > 0 && (
-                    <Badge variant="outline">${selectedExtension.price}/month</Badge>
-                  )}
-                </div>
-
-                <p className="text-sm">{selectedExtension.description}</p>
-
-                <div className="flex items-center space-x-6">
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                    <span className="font-medium">{selectedExtension.rating}</span>
-                    <span className="text-sm text-muted-foreground ml-1">
-                      ({selectedExtension.ratingCount} ratings)
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <Download className="h-4 w-4 mr-1" />
-                    <span className="text-sm">
-                      {selectedExtension.downloads.toLocaleString()} downloads
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {selectedExtension.tags.map(tag => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-
-                {selectedExtension.hasUpdate && (
-                  <Alert>
-                    <Zap className="h-4 w-4" />
-                    <AlertDescription>
-                      An update is available for this extension. Install it to get the latest features and fixes.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                  );
+                })}
               </div>
+            )}
+          </ScrollArea>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
-                  Close
-                </Button>
-                {selectedExtension.installed ? (
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      handleUninstall(selectedExtension);
-                      setShowDetailsDialog(false);
-                    }}
-                  >
-                    Uninstall
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      handleInstall(selectedExtension);
-                      setShowDetailsDialog(false);
-                    }}
-                  >
-                    Install Extension
-                  </Button>
-                )}
-              </DialogFooter>
-            </>
+          {!isLoading && !marketplaceError && extensions.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-[13px] font-medium mb-3 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Featured Extensions
+              </h3>
+              <div className="grid gap-2">
+                {extensions.slice(0, 3).map((extension) => {
+                  const isInstalled = installedExtensionIds.has(extension.extensionId);
+                  return (
+                    <div
+                      key={extension.extensionId}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                      data-testid={`featured-extension-${extension.extensionId}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[15px]">
+                          {extension.icon === 'palette' && '🎨'}
+                          {extension.icon === 'code' && '💻'}
+                          {extension.icon === 'git-branch' && '🔀'}
+                        </span>
+                        <div>
+                          <p className="text-[13px] font-medium">{extension.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            by {extension.author}
+                          </p>
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => handleInstallToggle(extension)}
+                        disabled={isMutating}
+                        data-testid={`button-featured-install-${extension.extensionId}`}
+                      >
+                        {isInstalled ? 'Installed' : 'Install'}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
-    </>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

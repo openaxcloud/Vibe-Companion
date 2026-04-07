@@ -1,418 +1,556 @@
-import React, { useState } from 'react';
+// @ts-nocheck
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { Project } from '@shared/schema';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Plus, 
-  TrendingUp, 
-  Clock, 
-  Star, 
-  GitFork,
-  MessageSquare,
-  Users,
-  Zap,
-  Globe,
-  Code2,
-  Rocket,
-  Search,
-  Filter,
-  Grid3X3,
-  List
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  ChevronRight, CheckCircle2, Clock, Code2,
+  Sparkles, Plus, Github, BookMarked, FileText,
+  Loader2, Sun, Moon, Sunrise, Coffee, Search, Edit, Play, ArrowLeft,
+  Zap, Calendar
 } from 'lucide-react';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { SiSlack, SiTelegram } from 'react-icons/si';
 import { useAuth } from '@/hooks/use-auth';
-import { CreateProjectModal } from '@/components/CreateProjectModal';
+import { useToast } from '@/hooks/use-toast';
+import { ECodeLoading } from '@/components/ECodeLoading';
+import { getProjectUrl, cn } from '@/lib/utils';
+import { useMediaQuery } from '@/hooks/use-media-query';
+import { useDebounce } from '@/hooks/use-debounce';
+import { TABLET_GRID_CLASSES } from '@shared/responsive-config';
+import { apiRequest } from '@/lib/queryClient';
+import { AIModelSelector } from '@/components/ai/AIModelSelector';
+import { BuildModeSelector, BuildMode } from '@/components/ai/BuildModeSelector';
+
+// Get personalized greeting based on time of day
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 6) return { text: 'Good night', icon: Moon };
+  if (hour < 12) return { text: 'Good morning', icon: Sunrise };
+  if (hour < 18) return { text: 'Good afternoon', icon: Sun };
+  return { text: 'Good evening', icon: Coffee };
+}
+
+// Get project icon based on project details
+function getProjectIcon(project: Project) {
+  const colors = [
+    'bg-gradient-to-br from-[var(--ecode-accent)] to-[var(--ecode-accent-hover)]',
+    'bg-gradient-to-br from-[var(--ecode-accent-hover)] to-[var(--ecode-accent)]',
+    'bg-gradient-to-br from-[var(--ecode-accent)] via-[var(--ecode-accent-hover)] to-[var(--ecode-accent)]',
+    'bg-gradient-to-br from-[hsl(var(--ecode-green))] to-[hsl(var(--ecode-green)/0.8)]',
+  ];
+  const bgColor = colors[project.id % colors.length];
+  const firstLetter = (project.name?.[0] || '?').toUpperCase();
+
+  return (
+    <div 
+      className={`${bgColor} w-12 h-12 rounded-xl flex items-center justify-center text-white font-semibold text-[15px] shadow-lg overflow-hidden`}
+      role="img"
+      aria-label={`Project icon for ${project.name}`}
+    >
+      {project.owner?.avatarUrl ? (
+        <img src={project.owner.avatarUrl} alt="" className="w-full h-full object-cover" />
+      ) : firstLetter}
+    </div>
+  );
+}
+
+// Format time ago
+function getTimeAgo(date: Date | string) {
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+  if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffMinutes > 0) return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+  return 'Just now';
+}
+
+interface ProjectWithDeployment extends Project {
+  isDeployed?: boolean;
+  owner?: {
+    id: number;
+    username: string;
+    email: string;
+    avatarUrl?: string | null;
+  };
+}
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { toast } = useToast();
+  const [aiPrompt, setAiPrompt] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isBuildModeOpen, setIsBuildModeOpen] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState('');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const greeting = getGreeting();
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Fetch recent projects
-  const { data: recentProjects = [], isLoading: loadingRecent } = useQuery({
-    queryKey: ['/api/projects/recent'],
+  const { data: projectsResponse, isLoading, error: projectsError } = useQuery<{ projects: ProjectWithDeployment[], pagination?: any }>({
+    queryKey: ['/api/projects', { limit: 12, search: debouncedSearchQuery }],
+    queryFn: async () => {
+      let url = '/api/projects?limit=12';
+      if (debouncedSearchQuery) {
+        url += `&search=${encodeURIComponent(debouncedSearchQuery)}`;
+      }
+      const res = await apiRequest('GET', url);
+      // Projects API returns { projects: [...], pagination: {...} }
+      return res;
+    },
     enabled: !!user,
+    staleTime: 30000, // 30 seconds - prevent excessive refetches
+    retry: (failureCount, error: any) => {
+      // Don't retry for auth errors (401/403) - prevents toast spam
+      if (error?.status === 401 || error?.status === 403) return false;
+      // Limit retries for other errors
+      return failureCount < 2;
+    },
   });
 
-  // Fetch trending repls (mock data for now)
-  const trendingRepls = [
-    {
-      id: 1,
-      name: 'ChatGPT Clone',
-      author: 'alex_dev',
-      language: 'Python',
-      stars: 342,
-      forks: 89,
-      description: 'A full-featured ChatGPT clone with streaming responses',
-      lastUpdated: '2 hours ago',
-      avatar: null,
-    },
-    {
-      id: 2,
-      name: '3D Game Engine',
-      author: 'gamedev123',
-      language: 'JavaScript',
-      stars: 567,
-      forks: 123,
-      description: 'WebGL-based 3D game engine with physics',
-      lastUpdated: '5 hours ago',
-      avatar: null,
-    },
-    {
-      id: 3,
-      name: 'Music Synthesizer',
-      author: 'soundwave',
-      language: 'TypeScript',
-      stars: 234,
-      forks: 45,
-      description: 'Browser-based music synthesizer with MIDI support',
-      lastUpdated: '1 day ago',
-      avatar: null,
-    },
-  ];
+  const recentProjects = Array.isArray(projectsResponse?.projects) ? projectsResponse.projects : [];
 
-  // Community activity feed (mock data)
-  const activityFeed = [
-    {
-      id: 1,
-      type: 'fork',
-      user: 'sarah_coder',
-      action: 'forked',
-      target: 'Neural Network Visualizer',
-      time: '10 minutes ago',
-    },
-    {
-      id: 2,
-      type: 'star',
-      user: 'dev_mike',
-      action: 'starred',
-      target: 'Real-time Chat App',
-      time: '25 minutes ago',
-    },
-    {
-      id: 3,
-      type: 'comment',
-      user: 'tech_guru',
-      action: 'commented on',
-      target: 'Machine Learning Toolkit',
-      time: '1 hour ago',
-    },
-    {
-      id: 4,
-      type: 'deploy',
-      user: 'deploy_master',
-      action: 'deployed',
-      target: 'E-commerce Platform',
-      time: '2 hours ago',
-    },
-  ];
+  // Show error toast if projects fail to load - use refs to avoid loops and duplicates
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  const hasShownErrorRef = useRef(false);
+  
+  useEffect(() => {
+    // Reset error flag when there's no error (query succeeded or reset)
+    if (!projectsError) {
+      hasShownErrorRef.current = false;
+      return;
+    }
+    
+    // Only show toast once per error state to prevent infinite toast spam
+    if (projectsError && !hasShownErrorRef.current) {
+      hasShownErrorRef.current = true;
+      toastRef.current({
+        title: "Error loading projects",
+        description: projectsError.message || "Failed to fetch your projects. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [projectsError]);
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'fork': return <GitFork className="h-4 w-4" />;
-      case 'star': return <Star className="h-4 w-4" />;
-      case 'comment': return <MessageSquare className="h-4 w-4" />;
-      case 'deploy': return <Rocket className="h-4 w-4" />;
-      default: return <Zap className="h-4 w-4" />;
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!aiPrompt.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a project description.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Show build mode selector for longer prompts (detailed descriptions)
+    if (aiPrompt.trim().length > 20) {
+      setPendingPrompt(aiPrompt.trim());
+      setIsBuildModeOpen(true);
+      return;
+    }
+
+    // For short prompts, proceed directly with full-app build
+    await createWorkspace(aiPrompt.trim(), 'full-app');
+  };
+
+  const createWorkspace = async (prompt: string, buildMode: BuildMode) => {
+    setIsCreating(true);
+
+    try {
+      // Use Fortune 500-grade workspace bootstrap endpoint
+      // This orchestrates project creation + agent session + auto-start workflow
+      const response = await apiRequest('POST', '/api/workspace/bootstrap', {
+        prompt,
+        buildMode,
+        options: {
+          language: 'typescript',
+          framework: 'react',
+          autoStart: true,
+          visibility: 'private'
+        }
+      }) as any;
+
+      navigate(`/ide/${response.projectId}?bootstrap=${response.bootstrapToken}`);
+    } catch (error) {
+      console.error('Failed to create project:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  const getLanguageColor = (language: string) => {
-    const colors: Record<string, string> = {
-      'JavaScript': 'bg-yellow-500',
-      'TypeScript': 'bg-blue-500',
-      'Python': 'bg-green-500',
-      'Java': 'bg-orange-500',
-      'Go': 'bg-cyan-500',
-      'Rust': 'bg-red-500',
-      'C++': 'bg-purple-500',
-      'Ruby': 'bg-pink-500',
-    };
-    return colors[language] || 'bg-gray-500';
+  const handleSelectBuildMode = async (mode: BuildMode) => {
+    setIsBuildModeOpen(false);
+    
+    if (mode === 'continue-planning') {
+      // Keep the prompt in input for further refinement
+      return;
+    }
+    
+    await createWorkspace(pendingPrompt, mode);
+    setPendingPrompt('');
+    setAiPrompt('');
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold">Dashboard</h1>
-              <Badge variant="secondary" className="gap-1">
-                <Zap className="h-3 w-3" />
-                Pro
-              </Badge>
+  const agentsAutomations = [
+    {
+      icon: SiSlack,
+      title: 'Slack Bot',
+      description: 'Build a Slack bot',
+      action: () => navigate('/templates?category=slack')
+    },
+    {
+      icon: SiTelegram,
+      title: 'Telegram Bot',
+      description: 'Build a Telegram bot',
+      action: () => navigate('/templates?category=telegram')
+    },
+    {
+      icon: Zap,
+      title: 'Automations',
+      description: 'Automate workflows',
+      action: () => navigate('/templates?category=automation')
+    },
+    {
+      icon: Calendar,
+      title: 'Meeting Prep',
+      description: 'AI meeting assistant',
+      action: () => navigate('/templates?category=meeting')
+    },
+  ];
+
+  const quickActions = [
+    {
+      icon: Plus,
+      title: 'Create New Project',
+      description: 'Start from scratch',
+      action: () => inputRef.current?.focus()
+    },
+    {
+      icon: Github,
+      title: 'Import from GitHub',
+      description: 'Clone repository',
+      action: () => navigate('/github-import')
+    },
+    {
+      icon: BookMarked,
+      title: 'Browse Templates',
+      description: 'Start with template',
+      action: () => navigate('/templates')
+    },
+    {
+      icon: FileText,
+      title: 'Documentation',
+      description: 'Learn the platform',
+      action: () => navigate('/docs')
+    },
+  ];
+
+  const filteredProjects = recentProjects;
+
+  const sortedProjects = useMemo(() => {
+    return [...filteredProjects].sort((a, b) => {
+      const dateA = a?.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const dateB = b?.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [filteredProjects]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="relative h-full min-h-[calc(100vh-200px)]">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <ECodeLoading size="lg" text="Loading your dashboard..." />
             </div>
-            <div className="flex items-center gap-2">
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[var(--ecode-background)] p-4 md:p-6 lg:p-8" style={{ fontFamily: 'var(--ecode-font-sans)' }}>
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Welcome Header with AI Prompt - E-Code Branded */}
+        <div 
+          className="animate-slide-in-up relative rounded-2xl overflow-hidden bg-gradient-to-br from-[var(--ecode-accent)] via-[var(--ecode-accent)]/90 to-[var(--ecode-accent)]/80 shadow-[0_8px_32px_-8px_rgba(var(--ecode-accent-rgb,242,98,7),0.4)]"
+        >
+          {/* Decorative background pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/2" />
+          </div>
+          
+          <div className="relative p-6 md:p-8 text-white">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                <greeting.icon className="h-6 w-6" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                {greeting.text}, {user?.displayName || user?.username || 'Developer'}!
+              </h1>
+            </div>
+            <p className="text-white/90 mb-5 text-[15px]">
+              What would you like to build today?
+            </p>
+
+            {/* AI Model Selection */}
+            <div className="mb-5">
+              <AIModelSelector variant="inline" />
+            </div>
+
+            {/* AI Prompt Input - E-Code Styled */}
+            <form onSubmit={handleCreateProject} className="max-w-2xl">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder={isMobile ? "Describe your app..." : "Describe your app idea in natural language..."}
+                  className="flex-1 px-5 py-3.5 rounded-xl bg-white/15 backdrop-blur-md text-white placeholder:text-white/60 border border-white/25 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/25 text-base transition-all duration-200"
+                  style={{ fontFamily: 'var(--ecode-font-sans)' }}
+                  data-testid="input-ai-prompt"
+                />
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={!aiPrompt.trim() || isCreating}
+                  className="bg-white text-[var(--ecode-accent)] hover:bg-white/95 font-semibold h-12 sm:h-auto w-full sm:w-auto px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                  data-testid="button-create-project"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Build with AI
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Agents & Automations Section */}
+        <div>
+          <h2 className="text-[15px] font-semibold mb-4 text-[var(--ecode-text)]">Agents & Automations</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {agentsAutomations.map((item, index) => (
+              <div
+                key={item.title}
+                className="animate-slide-in-up opacity-0"
+                style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'forwards' }}
+              >
+                <Card
+                  className="cursor-pointer group border border-[var(--ecode-border)] bg-[var(--ecode-surface)] hover:border-[var(--ecode-accent)]/30 hover:shadow-[0_4px_16px_-4px_rgba(var(--ecode-accent-rgb,242,98,7),0.15)] transition-all duration-200"
+                  onClick={item.action}
+                  data-testid={`agent-${item.title.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  <CardContent className="p-6 flex flex-col items-center text-center">
+                    <div className="p-3 rounded-xl bg-[var(--ecode-accent)]/10 group-hover:bg-[var(--ecode-accent)]/15 transition-colors mb-3">
+                      <item.icon className="h-6 w-6 text-[var(--ecode-accent)]" />
+                    </div>
+                    <h3 className="font-medium text-[13px] mb-1 text-[var(--ecode-text)] group-hover:text-[var(--ecode-accent)] transition-colors">{item.title}</h3>
+                    <p className="text-[11px] text-[var(--ecode-text-muted)] hidden md:block">{item.description}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions - E-Code Styled */}
+        <div>
+          <h2 className="text-[15px] font-semibold mb-4 text-[var(--ecode-text)]">Quick Actions</h2>
+          <div className={`grid ${TABLET_GRID_CLASSES.quickActionsTabletOptimized} gap-4`}>
+            {quickActions.map((action, index) => (
+              <div
+                key={action.title}
+                className="animate-slide-in-up opacity-0"
+                style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'forwards' }}
+              >
+                <Card
+                  className="cursor-pointer group border border-[var(--ecode-border)] bg-[var(--ecode-surface)] hover:border-[var(--ecode-accent)]/30 hover:shadow-[0_4px_16px_-4px_rgba(var(--ecode-accent-rgb,242,98,7),0.15)] transition-all duration-200"
+                  onClick={action.action}
+                  data-testid={`action-${action.title.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  <CardContent className="p-6 flex flex-col items-center text-center">
+                    <div className="p-3 rounded-xl bg-[var(--ecode-accent)]/10 group-hover:bg-[var(--ecode-accent)]/15 transition-colors mb-3">
+                      <action.icon className="h-6 w-6 text-[var(--ecode-accent)]" />
+                    </div>
+                    <h3 className="font-medium text-[13px] mb-1 text-[var(--ecode-text)] group-hover:text-[var(--ecode-accent)] transition-colors">{action.title}</h3>
+                    <p className="text-[11px] text-[var(--ecode-text-muted)] hidden md:block">{action.description}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Projects - E-Code Styled */}
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h2 className="text-[15px] font-semibold text-[var(--ecode-text)]">Your Projects ({recentProjects.length})</h2>
+            <div className="flex items-center gap-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ecode-text-muted)]" />
+                <input
+                  type="text"
                   placeholder="Search projects..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 pl-10"
+                  className="pl-9 pr-4 py-2.5 min-h-[44px] text-[13px] border border-[var(--ecode-border)] rounded-xl bg-[var(--ecode-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--ecode-accent)]/20 focus:border-[var(--ecode-accent)]/40 transition-all duration-200"
+                  style={{ fontFamily: 'var(--ecode-font-sans)' }}
+                  data-testid="input-search-projects"
                 />
               </div>
-              <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Create Repl
-              </Button>
+              {recentProjects.length > 12 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-h-[44px] border-[var(--ecode-border)] hover:border-[var(--ecode-accent)]/40 hover:text-[var(--ecode-accent)] transition-colors rounded-xl"
+                  onClick={() => navigate('/projects')}
+                  data-testid="button-view-all"
+                >
+                  View All
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              )}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content Area */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Recent Projects */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Recent Repls</CardTitle>
-                    <CardDescription>Your recently accessed projects</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setViewMode('grid')}
-                      className={viewMode === 'grid' ? 'bg-accent' : ''}
-                    >
-                      <Grid3X3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setViewMode('list')}
-                      className={viewMode === 'list' ? 'bg-accent' : ''}
-                    >
-                      <List className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loadingRecent ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent" />
-                  </div>
-                ) : recentProjects.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Code2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                    <p className="text-muted-foreground">No recent projects</p>
-                    <Button 
-                      onClick={() => setIsCreateModalOpen(true)} 
-                      className="mt-4"
-                      variant="outline"
-                    >
-                      Create your first Repl
-                    </Button>
-                  </div>
-                ) : (
-                  <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-3'}>
-                    {recentProjects.map((project: any) => (
-                      <Card 
-                        key={project.id} 
-                        className="cursor-pointer hover:shadow-md transition-all"
-                        onClick={() => navigate(`/project/${project.id}`)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h3 className="font-semibold">{project.name}</h3>
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                {project.description || 'No description'}
-                              </p>
-                            </div>
-                            <Badge variant="secondary" className={`ml-2 ${getLanguageColor(project.language)}`}>
-                              {project.language}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {project.updatedAt}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Globe className="h-3 w-3" />
-                              {project.visibility || 'Private'}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
+          {isLoading ? (
+            <div className={`grid ${TABLET_GRID_CLASSES.projectsTabletOptimized} gap-4`}>
+              {[1, 2, 3, 4].map((n) => (
+                <Card key={n}>
+                  <Skeleton className="aspect-video" />
+                  <CardContent className="p-4 space-y-3">
+                    <Skeleton className="h-5" />
+                    <Skeleton className="h-3" />
+                    <Skeleton className="h-3 w-3/4" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : sortedProjects.length === 0 ? (
+            <Card className="p-12 text-center border-dashed border-[var(--ecode-border)] bg-[var(--ecode-surface)]" data-testid="card-empty-state">
+              <div className="p-4 rounded-2xl bg-[var(--ecode-accent)]/10 w-fit mx-auto mb-4">
+                <Code2 className="h-10 w-10 text-[var(--ecode-accent)]" />
+              </div>
+              <p className="text-[var(--ecode-text-muted)]" data-testid="text-empty-message">
+                {searchQuery ? 'No projects found matching your search.' : 'No projects yet. Create your first one!'}
+              </p>
             </Card>
-
-            {/* Trending Repls */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Trending Repls
-                </CardTitle>
-                <CardDescription>Popular projects from the community</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {trendingRepls.map((repl) => (
-                    <div key={repl.id} className="flex items-start gap-3 p-3 hover:bg-accent/50 cursor-pointer">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={repl.avatar || undefined} />
-                        <AvatarFallback>{repl.author[0].toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-semibold">{repl.name}</h4>
-                            <p className="text-sm text-muted-foreground">by {repl.author}</p>
-                            <p className="text-sm mt-1">{repl.description}</p>
-                          </div>
-                          <Badge variant="secondary" className={getLanguageColor(repl.language)}>
-                            {repl.language}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Star className="h-3 w-3" />
-                            {repl.stars}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <GitFork className="h-3 w-3" />
-                            {repl.forks}
-                          </span>
-                          <span>{repl.lastUpdated}</span>
-                        </div>
-                      </div>
+          ) : (
+            <div className={`grid ${TABLET_GRID_CLASSES.projectsTabletOptimized} gap-4`}>
+              {sortedProjects.map((project, index) => (
+                <div
+                  key={project.id}
+                  className="animate-slide-in-up opacity-0"
+                  style={{ animationDelay: `${index * 30}ms`, animationFillMode: 'forwards' }}
+                >
+                  <Card
+                    className="cursor-pointer group border border-[var(--ecode-border)] bg-[var(--ecode-surface)] hover:border-[var(--ecode-accent)]/30 hover:shadow-[0_8px_24px_-8px_rgba(var(--ecode-accent-rgb,242,98,7),0.2)] transition-all duration-200 overflow-hidden"
+                    onClick={() => {
+                      navigate(`/ide/${project.id}`);
+                    }}
+                    data-testid={`project-card-${project.id}`}
+                  >
+                    {/* Project Icon/Preview */}
+                    <div className="aspect-video relative bg-gradient-to-br from-[var(--ecode-accent)]/5 to-[var(--ecode-accent)]/10 flex items-center justify-center">
+                      {getProjectIcon(project)}
+                      {project.isDeployed && (
+                        <Badge className="absolute top-2 right-2 bg-[hsl(var(--ecode-green))] text-white border-0 shadow-sm">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Live
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="absolute bottom-2 left-2 text-[11px] bg-[var(--ecode-surface)] text-[var(--ecode-text-muted)] border border-[var(--ecode-border)]">
+                        {project.language || 'JavaScript'}
+                      </Badge>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Stats</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{recentProjects.length}</div>
-                    <div className="text-xs text-muted-foreground">Total Repls</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">12</div>
-                    <div className="text-xs text-muted-foreground">Followers</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">45</div>
-                    <div className="text-xs text-muted-foreground">Total Stars</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">8</div>
-                    <div className="text-xs text-muted-foreground">Deployments</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold truncate mb-1 text-[var(--ecode-text)] group-hover:text-[var(--ecode-accent)] transition-colors" data-testid={`project-name-${project.id}`}>
+                        {project.name}
+                      </h3>
+                      <p className="text-[13px] text-[var(--ecode-text-muted)] mb-3 line-clamp-2" data-testid={`project-description-${project.id}`}>
+                        {project.description || 'No description'}
+                      </p>
 
-            {/* Activity Feed */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Community Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[300px]">
-                  <div className="space-y-3">
-                    {activityFeed.map((activity) => (
-                      <div key={activity.id} className="flex items-start gap-3 text-sm">
-                        <div className={`mt-0.5 ${
-                          activity.type === 'star' ? 'text-yellow-500' :
-                          activity.type === 'fork' ? 'text-blue-500' :
-                          activity.type === 'comment' ? 'text-green-500' :
-                          'text-purple-500'
-                        }`}>
-                          {getActivityIcon(activity.type)}
-                        </div>
-                        <div className="flex-1">
-                          <p>
-                            <span className="font-semibold">{activity.user}</span>
-                            {' '}{activity.action}{' '}
-                            <span className="font-semibold">{activity.target}</span>
-                          </p>
-                          <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[var(--ecode-text-muted)] flex items-center gap-1" data-testid={`project-updated-${project.id}`}>
+                          <Clock className="h-3 w-3" />
+                          {getTimeAgo(project.updatedAt)}
+                        </span>
+                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 hover:bg-[var(--ecode-accent)]/10 hover:text-[var(--ecode-accent)]" 
+                            data-testid={`button-open-ide-${project.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/ide/${project.id}`);
+                            }}
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 hover:bg-[var(--ecode-accent)]/10 hover:text-[var(--ecode-accent)]"
+                            data-testid={`button-edit-project-${project.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const projectUrl = getProjectUrl(project, user?.username);
+                              navigate(projectUrl);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start gap-2"
-                    onClick={() => navigate('/explore')}
-                  >
-                    <Globe className="h-4 w-4" />
-                    Explore Community
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start gap-2"
-                    onClick={() => navigate('/teams')}
-                  >
-                    <Users className="h-4 w-4" />
-                    My Teams
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start gap-2"
-                    onClick={() => navigate('/deployments')}
-                  >
-                    <Rocket className="h-4 w-4" />
-                    Deployments
-                  </Button>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Create Project Modal */}
-      <CreateProjectModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+      {/* Build Mode Selector Dialog */}
+      <BuildModeSelector
+        open={isBuildModeOpen}
+        onOpenChange={setIsBuildModeOpen}
+        onSelectMode={handleSelectBuildMode}
+        projectName={pendingPrompt.slice(0, 50) + (pendingPrompt.length > 50 ? '...' : '')}
       />
     </div>
   );

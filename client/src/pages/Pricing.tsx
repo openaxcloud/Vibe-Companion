@@ -349,7 +349,6 @@ export default function Pricing() {
                 checked={billingPeriod === 'yearly'}
                 onCheckedChange={(checked) => setBillingPeriod(checked ? 'yearly' : 'monthly')}
                 className="scale-110 sm:scale-125 data-[state=checked]:bg-[var(--ecode-accent)]"
-                aria-label="Toggle yearly billing"
                 data-testid="switch-billing-period"
               />
               <span className={`text-[13px] sm:text-[15px] font-medium transition-colors duration-200 ${billingPeriod === 'yearly' ? 'text-[var(--ecode-text)]' : 'text-[var(--ecode-text-muted)]'}`}>

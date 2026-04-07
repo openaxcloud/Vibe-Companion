@@ -447,19 +447,12 @@ export function ResponsiveWebPreview({
         {/* No Content State (fallback) */}
         {currentState === 'no-content' && (
           <div className="text-center" data-testid="preview-no-content">
-            <div className="w-16 h-16 rounded-full bg-[var(--ecode-accent)]/10 flex items-center justify-center mx-auto mb-4">
-              <Monitor className="h-8 w-8 text-[var(--ecode-accent)] opacity-60" />
-            </div>
-            <p className="text-[var(--ecode-text-muted)] mb-2 font-medium">
-              No preview available
+            <p className="text-[var(--ecode-text-muted)] mb-2">
+              Add an HTML file to preview your project
             </p>
-            <p className="text-[13px] text-[var(--ecode-text-muted)] mb-4">
-              Run your project or start a build to see a preview
+            <p className="text-[13px] text-[var(--ecode-text-muted)]">
+              The preview will appear automatically
             </p>
-            <Button variant="outline" size="sm" onClick={() => { autoStartAttemptedRef.current = false; startPreview(); }} className="gap-2" data-testid="button-start-preview">
-              <Play className="h-3.5 w-3.5" />
-              Run
-            </Button>
           </div>
         )}
 

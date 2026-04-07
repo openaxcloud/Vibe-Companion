@@ -35,15 +35,16 @@ export interface RuntimeLogs {
  */
 export function useRuntime(projectId: number) {
   const queryClient = useQueryClient();
-  const queryKey = [`/api/projects/${projectId}/runtime`];
-  const logsQueryKey = [`/api/projects/${projectId}/runtime/logs`];
+  const queryKey = [`/api/runtime/${projectId}`];
+  const logsQueryKey = [`/api/runtime/${projectId}/logs`];
 
   /**
    * Get runtime status
    */
   const { data: runtimeStatus, isLoading, error } = useQuery<RuntimeState>({
     queryKey,
-    refetchInterval: (data) => {
+    refetchInterval: (_data, _query) => {
+      const data = _data;
       // Poll more frequently when starting, less often when running/stopped
       if (data?.status === 'starting') return 1000;
       if (data?.status === 'running') return 5000;
@@ -65,8 +66,8 @@ export function useRuntime(projectId: number) {
    */
   const startRuntime = useMutation<RuntimeStartResult, Error>({
     mutationFn: async () => {
-      const res = await apiRequest('POST', `/api/projects/${projectId}/runtime/start`);
-      return await res.json();
+      // apiRequest already returns parsed JSON
+      return await apiRequest('POST', `/api/runtime/${projectId}/start`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -78,8 +79,8 @@ export function useRuntime(projectId: number) {
    */
   const stopRuntime = useMutation<RuntimeStopResult, Error>({
     mutationFn: async () => {
-      const res = await apiRequest('POST', `/api/projects/${projectId}/runtime/stop`);
-      return await res.json();
+      // apiRequest already returns parsed JSON
+      return await apiRequest('POST', `/api/runtime/${projectId}/stop`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -91,8 +92,8 @@ export function useRuntime(projectId: number) {
    */
   const executeCommand = useMutation<{ success: boolean; output: string }, Error, string>({
     mutationFn: async (command: string) => {
-      const res = await apiRequest('POST', `/api/projects/${projectId}/runtime/execute`, { command });
-      return await res.json();
+      // apiRequest already returns parsed JSON
+      return await apiRequest('POST', `/api/runtime/${projectId}/execute`, { command });
     },
   });
 

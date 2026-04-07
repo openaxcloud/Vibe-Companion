@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
@@ -6,7 +5,6 @@ import { AlertTriangle } from 'lucide-react';
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  SentryErrorBoundary: React.ComponentType<any> | null;
 }
 
 function ErrorFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
@@ -44,15 +42,7 @@ class ErrorBoundary extends React.Component<
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null, SentryErrorBoundary: null };
-  }
-
-  componentDidMount() {
-    import('@sentry/react').then((Sentry) => {
-      if (Sentry.isInitialized()) {
-        this.setState({ SentryErrorBoundary: Sentry.ErrorBoundary });
-      }
-    }).catch(() => {});
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
@@ -60,11 +50,6 @@ class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    import('@sentry/react').then((Sentry) => {
-      if (Sentry.isInitialized()) {
-        Sentry.captureException(error, { extra: errorInfo });
-      }
-    }).catch(() => {});
     console.error('Error caught by boundary:', {
       message: error?.message || 'Unknown error',
       name: error?.name || 'Unknown',
@@ -81,20 +66,6 @@ class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return <ErrorFallback error={this.state.error} onReset={this.handleReset} />;
     }
-
-    const { SentryErrorBoundary } = this.state;
-    if (SentryErrorBoundary) {
-      return (
-        <SentryErrorBoundary
-          fallback={({ error, resetError }: { error: Error; resetError: () => void }) => (
-            <ErrorFallback error={error} onReset={resetError} />
-          )}
-        >
-          {this.props.children}
-        </SentryErrorBoundary>
-      );
-    }
-
     return this.props.children;
   }
 }

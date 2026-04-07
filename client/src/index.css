@@ -1,14 +1,13 @@
 /* E-Code Theme - Only essential variables inline for faster compilation */
 @import './styles/replit-theme.css';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @import './styles/collaboration.css';
 @import './styles/performance-animations.css';
 @import './styles/micro-interactions.css';
 @import './styles/agent-animations.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Respect reduced motion preferences */
 @media (prefers-reduced-motion: reduce) {

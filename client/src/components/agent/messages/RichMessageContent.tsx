@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { xssProtection } from '@/utils/security';
 
 interface RichMessageContentProps {
   content: string;
@@ -28,18 +27,7 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const sanitizedContent = content.replace(
-    /(```[\s\S]*?```|`[^`\n]+`)|([^`]+)/g,
-    (_match, codeBlock, text) => {
-      if (codeBlock) return codeBlock;
-      return xssProtection.sanitizeHtml(text, {
-        ALLOWED_TAGS: [],
-        KEEP_CONTENT: true,
-      });
-    }
-  );
-
-  const cleanedContent = sanitizedContent
+  const cleanedContent = content
     .replace(/<!--\s*filename:\s*([^\s]+)\s*-->/g, '**`$1`**')
     .replace(/\/\/\s*filename:\s*([^\n]+)/g, '**`$1`**')
     .replace(/\/\*\s*filename:\s*([^\s*]+)\s*\*\//g, '**`$1`**');

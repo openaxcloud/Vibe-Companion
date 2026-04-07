@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
-import { IDEFeatureShowcase } from '@/components/landing/IDEFeatureShowcase';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Spinner } from '@/components/ui/spinner';
@@ -532,9 +531,6 @@ export default function Landing() {
         </LazyMotionDiv>
       </LazyMotionDiv>
 
-      {/* IDE Feature Showcase - Pre-login value demonstration */}
-      <IDEFeatureShowcase />
-
       {/* Stats Section */}
       <section className="py-20 bg-gradient-to-b from-[var(--ecode-background)] to-[var(--ecode-surface-tertiary)]" data-testid="section-stats">
         <div className="container-responsive max-w-7xl">
@@ -631,13 +627,12 @@ export default function Landing() {
                       setIsPlaying(!isPlaying);
                     }
                   }}
-                  aria-label={isPlaying ? 'Pause video' : 'Play video'}
                 >
                   <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                     {isPlaying ? (
-                      <Pause className="h-8 w-8 text-white ml-0" aria-hidden="true" />
+                      <Pause className="h-8 w-8 text-white ml-0" />
                     ) : (
-                      <Play className="h-8 w-8 text-white ml-1" aria-hidden="true" />
+                      <Play className="h-8 w-8 text-white ml-1" />
                     )}
                   </div>
                 </button>
@@ -653,9 +648,8 @@ export default function Landing() {
                         videoRef.current.muted = !isMuted;
                       }
                     }}
-                    aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                   >
-                    {isMuted ? <VolumeX className="h-5 w-5" aria-hidden="true" /> : <Volume2 className="h-5 w-5" aria-hidden="true" />}
+                    {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                   </button>
                   
                   <div className="flex-1" />
@@ -668,9 +662,8 @@ export default function Landing() {
                         videoRef.current.requestFullscreen();
                       }
                     }}
-                    aria-label="Enter fullscreen"
                   >
-                    <Maximize className="h-5 w-5" aria-hidden="true" />
+                    <Maximize className="h-5 w-5" />
                   </button>
                 </div>
               </div>
@@ -1055,7 +1048,7 @@ export default function Landing() {
                   transition={{ delay: index * 0.05 }}
                   data-testid={`language-${name.toLowerCase().replace(/\./g, '')}`}
                 >
-                  <Icon className={`h-12 w-12 ${color}`} aria-label={name} />
+                  <Icon className={`h-12 w-12 ${color}`} />
                   <span className="text-[13px] font-medium text-[var(--ecode-text)]">{name}</span>
                 </LazyMotionDiv>
               ))}
@@ -1139,7 +1132,7 @@ export default function Landing() {
               Trusted by Fortune 500 companies and startups alike
             </p>
             <div className="flex flex-wrap justify-center items-center gap-12 opacity-60 grayscale hover:grayscale-0 transition-all duration-300 hover:opacity-100 text-[var(--ecode-text)]">
-              <SiGoogle className="h-8 w-auto" aria-label="Google" />
+              <SiGoogle className="h-8 w-auto" />
               <span className="text-2xl font-bold">Microsoft</span>
               {/* Amazon icon removed */}
               <span className="text-2xl font-bold">IBM</span>

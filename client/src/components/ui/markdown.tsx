@@ -1,7 +1,6 @@
-import React from 'react';
+// @ts-nocheck
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { LightSyntaxHighlighter, darkStyle } from './LightSyntaxHighlighter';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 
@@ -19,14 +18,13 @@ export function Markdown({ children, className }: MarkdownProps) {
         code({ node, inline, className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || '');
           return !inline && match ? (
-            <SyntaxHighlighter
+            <LightSyntaxHighlighter
               language={match[1]}
-              style={vscDarkPlus}
-              customStyle={{ margin: '1em 0', borderRadius: '0.375rem' }}
-              {...props}
+              style={darkStyle}
+              customStyle={{ margin: '1em 0', borderRadius: '0.375rem', background: '#0e1525' }}
             >
               {String(children).replace(/\n$/, '')}
-            </SyntaxHighlighter>
+            </LightSyntaxHighlighter>
           ) : (
             <code className={cn("bg-muted px-1 py-0.5 rounded text-sm", className)} {...props}>
               {children}

@@ -49,9 +49,6 @@ export function CM6Editor({
   const placeholderCompartment = useRef(new Compartment());
 
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const isLoadingRef = useRef(true);
 
   onChangeRef.current = onChange;
 
@@ -66,12 +63,6 @@ export function CM6Editor({
     if (!containerRef.current) return;
 
     let mounted = true;
-    isLoadingRef.current = true;
-    const timeoutId = setTimeout(() => {
-      if (mounted && isLoadingRef.current) {
-        setLoadError('Editor took too long to initialize');
-      }
-    }, 10000);
 
     const initEditor = async () => {
       if (!containerRef.current || !mounted) return;
@@ -111,7 +102,6 @@ export function CM6Editor({
       });
 
       viewRef.current = view;
-      isLoadingRef.current = false;
       setIsLoading(false);
 
       if (autoFocus) {
@@ -125,13 +115,12 @@ export function CM6Editor({
 
     return () => {
       mounted = false;
-      clearTimeout(timeoutId);
       if (viewRef.current) {
         viewRef.current.destroy();
         viewRef.current = null;
       }
     };
-  }, [retryCount]);
+  }, []);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -217,40 +206,6 @@ export function CM6Editor({
       ),
     });
   }, [placeholder, isLoading]);
-
-  if (loadError) {
-    return (
-      <div
-        data-testid="cm6-editor-error"
-        className={cn(
-          'flex items-center justify-center',
-          'rounded-lg border border-border bg-background',
-          className
-        )}
-        style={{ height: getHeightStyle() }}
-      >
-        <div className="text-center">
-          <p className="text-muted-foreground text-[13px] mb-3">{loadError}</p>
-          <button
-            onClick={() => {
-              setLoadError(null);
-              isLoadingRef.current = true;
-              setIsLoading(true);
-              if (viewRef.current) {
-                viewRef.current.destroy();
-                viewRef.current = null;
-              }
-              setRetryCount(c => c + 1);
-            }}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-[13px] hover:opacity-90"
-            data-testid="button-retry-cm6"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
