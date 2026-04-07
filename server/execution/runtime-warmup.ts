@@ -139,7 +139,7 @@ class RuntimeWarmupManager {
         proc.on('error', () => {
           resolve(false);
         });
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         resolve(false);
       }
     });

@@ -1990,7 +1990,7 @@ export class DeploymentRollbackService extends EventEmitter {
                 await fs.rm(path.join(deploymentPath, entry), { recursive: true, force: true });
               }
             }
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             // Expected: directory may not exist or may be in use during recovery cleanup
           }
           
@@ -2147,7 +2147,7 @@ export class DeploymentRollbackService extends EventEmitter {
       // Check if deployment path exists
       try {
         await fs.access(deploymentPath);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         logger.warn('Deployment path does not exist, skipping safety checkpoint', { 
           deploymentId, 
           deploymentPath 

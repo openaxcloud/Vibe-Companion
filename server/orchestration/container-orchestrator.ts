@@ -764,7 +764,7 @@ export class ContainerOrchestrator extends EventEmitter {
         'find', '/workspace', '-type', 'f', '-newer', '/workspace'
       ]);
       return result.stdout.split('\n').filter(f => f.length > 0);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return [];
     }
   }

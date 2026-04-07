@@ -189,7 +189,7 @@ export class RealTimeMonitoringService {
         packetsSent += parseInt(parts[10], 10) || 0;
       }
       return { bytesReceived, bytesSent, packetsReceived, packetsSent };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return null;
     }
   }

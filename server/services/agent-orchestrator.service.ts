@@ -356,7 +356,7 @@ export class AgentOrchestratorService extends EventEmitter {
         limit,
         resetIn: resetIn > 0 ? resetIn : 0
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return { remaining: limit, limit, resetIn: 0 };
     }
   }

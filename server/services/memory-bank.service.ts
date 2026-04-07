@@ -204,7 +204,7 @@ export class MemoryBankService extends EventEmitter {
       const mbPath = this.getMemoryBankPath(projectId);
       await fs.access(mbPath);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }
@@ -432,7 +432,7 @@ Output valid JSON only, no markdown code blocks.`;
         if (providers.length > 0) {
           return modelId;
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         continue;
       }
     }
@@ -569,7 +569,7 @@ npm run dev  # Start development server
     
     try {
       await fs.access(mbPath);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return null;
     }
     
@@ -638,7 +638,7 @@ npm run dev  # Start development server
         lastUpdated: stats.mtime,
         size: stats.size
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return null;
     }
   }
@@ -710,7 +710,7 @@ npm run dev  # Start development server
       this.memoryCache.delete(projectId);
       this.emit('fileDeleted', { projectId, filename: safeFilename });
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

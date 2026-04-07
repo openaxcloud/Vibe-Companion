@@ -158,7 +158,7 @@ export class ResourceMonitor {
       const { stdout } = await execAsync(`du -sb "${projectPath}" 2>/dev/null || echo "0"`);
       const size = parseInt(stdout.split('\t')[0]) || 0;
       return size;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return 0;
     }
   }
@@ -180,7 +180,7 @@ export class ResourceMonitor {
       });
 
       return { bytesIn: totalBytesIn, bytesOut: totalBytesOut };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return { bytesIn: 0, bytesOut: 0 };
     }
   }
@@ -206,7 +206,7 @@ export class ResourceMonitor {
         queryCount: result[0]?.count || 0,
         storageBytes
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return { queryCount: 0, storageBytes: 0 };
     }
   }

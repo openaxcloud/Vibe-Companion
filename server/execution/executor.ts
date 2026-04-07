@@ -325,7 +325,7 @@ export class CodeExecutor {
       if (execDir && existsSync(execDir)) {
         try {
           rmSync(execDir, { recursive: true, force: true });
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // Ignore cleanup errors
         }
       }

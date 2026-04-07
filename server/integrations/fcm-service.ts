@@ -40,7 +40,7 @@ export class FCMService {
 
     try {
       this.admin = require('firebase-admin');
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       console.warn('[FCMService] firebase-admin not installed — push notifications disabled.');
       return;
     }
@@ -149,12 +149,12 @@ export class FCMService {
 
   async subscribeToTopic(tokens: string[], topic: string): Promise<void> {
     if (!this.initialized) return;
-    try { await this.admin.messaging().subscribeToTopic(tokens, topic); } catch {}
+    try { await this.admin.messaging().subscribeToTopic(tokens, topic); } catch (err: any) { console.error("[catch]", err?.message || err);}
   }
 
   async unsubscribeFromTopic(tokens: string[], topic: string): Promise<void> {
     if (!this.initialized) return;
-    try { await this.admin.messaging().unsubscribeFromTopic(tokens, topic); } catch {}
+    try { await this.admin.messaging().unsubscribeFromTopic(tokens, topic); } catch (err: any) { console.error("[catch]", err?.message || err);}
   }
 
   private async removeStaleToken(token: string): Promise<void> {

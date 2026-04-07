@@ -50,7 +50,7 @@ function isRuntimeAvailable(command: string): boolean {
   try {
     execSync(`which ${command}`, { stdio: 'pipe' });
     return true;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }
@@ -60,7 +60,7 @@ function isSandboxEnvironmentAvailable(): boolean {
     execSync('which unshare && which chroot', { stdio: 'pipe' });
     execSync('cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo 1', { stdio: 'pipe' });
     return true;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }

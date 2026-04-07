@@ -734,7 +734,7 @@ export class ProjectsRouter {
                 // Otherwise wrap as content
                 eventData = { content: chunk };
               }
-            } catch {
+            } catch (err: any) { console.error("[catch]", err?.message || err);
               // Not JSON, wrap as text content
               eventData = { content: chunk };
             }

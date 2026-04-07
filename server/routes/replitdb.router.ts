@@ -177,7 +177,7 @@ replitdbRouter.post('/:projectId', express.json({ type: 'application/json' }), a
     if (typeof data === 'string') {
       try {
         data = JSON.parse(data);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         return res.status(400).send('Body must be a JSON object');
       }
     }

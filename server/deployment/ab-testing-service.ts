@@ -318,7 +318,7 @@ export class ABTestingService extends EventEmitter {
             case 'custom':
                 try {
                     return this.safeEvaluateCondition(rule.condition, context);
-                } catch {
+                } catch (err: any) { console.error("[catch]", err?.message || err);
                     return false;
                 }
             

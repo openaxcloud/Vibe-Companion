@@ -38,7 +38,7 @@ describe('Environment File Persistence - E2E Tests', () => {
     const projectDir = getProjectWorkspacePath(testProjectId);
     try {
       fs.rmSync(projectDir, { recursive: true, force: true });
-    } catch {}
+    } catch (err: any) { console.error("[catch]", err?.message || err);}
   });
 
   beforeEach(async () => {
@@ -131,7 +131,7 @@ describe('Environment File Persistence - E2E Tests', () => {
 
     const projectDir = getProjectWorkspacePath(testProjectId);
     const envPath = path.join(projectDir, '.env');
-    try { fs.unlinkSync(envPath); } catch {}
+    try { fs.unlinkSync(envPath); } catch (err: any) { console.error("[catch]", err?.message || err);}
 
     await syncFileToDisc(testProjectId, '.env', dbRecord.content || '');
     const restored = fs.readFileSync(envPath, 'utf8');

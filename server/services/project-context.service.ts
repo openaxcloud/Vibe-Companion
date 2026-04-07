@@ -114,7 +114,7 @@ export class ProjectContextService {
             action: log.action
           }));
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Audit logs not available, skip
     }
 

@@ -575,7 +575,7 @@ export class RedisCache {
     try {
       await client.ping();
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

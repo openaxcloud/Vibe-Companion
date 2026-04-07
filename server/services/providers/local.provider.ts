@@ -401,7 +401,7 @@ export class LocalProvider implements IDatabaseProvider {
       };
     } catch (error: any) {
       logger.error(`Failed to create backup for project ${databaseId}`, { error: error.message });
-      try { fsSync.unlinkSync(backupFile); } catch {}
+      try { fsSync.unlinkSync(backupFile); } catch (err: any) { console.error("[catch]", err?.message || err);}
       return {
         id: backupId,
         name: backupName,
@@ -504,7 +504,7 @@ export class LocalProvider implements IDatabaseProvider {
     try {
       await db.execute(sql`SELECT 1`);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

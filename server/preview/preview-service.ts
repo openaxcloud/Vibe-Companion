@@ -110,7 +110,7 @@ async function fetchProjectEnvVars(projectId: string): Promise<Record<string, st
             const secretService = new RealSecretManagementService();
             const encryptedData = JSON.parse(envVar.value) as { iv: string; encryptedData: string; authTag: string };
             vars[envVar.key] = secretService.decryptValue(encryptedData);
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             logger.warn(`Failed to decrypt secret ${envVar.key} for project ${projectId}`);
           }
         } else {
@@ -248,7 +248,7 @@ export class PreviewService {
   }
 
   registerRoutes(app: express.Application) {
-    app.use('/preview/:projectId/:port/*', this.ensurePreviewAuth, this.ensureProjectAccess.bind(this), async (req, res, next) => {
+    app.use('/preview/:projectId/:port/{*proxyPath}', this.ensurePreviewAuth, this.ensureProjectAccess.bind(this), async (req, res, next) => {
       const projectId = req.params.projectId;
       const port = parseInt(req.params.port);
       const preview = this.previews.get(projectId);
@@ -288,7 +288,7 @@ export class PreviewService {
       proxy(req, res, next);
     });
 
-    app.use('/preview/:projectId/*', this.ensurePreviewAuth, this.ensureProjectAccess.bind(this), async (req, res, next) => {
+    app.use('/preview/:projectId/{*proxyPath}', this.ensurePreviewAuth, this.ensureProjectAccess.bind(this), async (req, res, next) => {
       const projectId = req.params.projectId;
       const preview = this.previews.get(projectId);
       
@@ -416,7 +416,7 @@ export class PreviewService {
     if (existing) {
       existing.status = 'stopped';
       for (const [port, proc] of existing.processes) {
-        try { proc.kill('SIGKILL'); } catch {}
+        try { proc.kill('SIGKILL'); } catch (err: any) { console.error("[catch]", err?.message || err);}
         this.allocatedPorts.delete(port);
       }
       existing.processes.clear();
@@ -488,7 +488,7 @@ export class PreviewService {
         for (const cachedPath of [...projectCache.keys()]) {
           if (!currentPaths.has(cachedPath)) {
             const fullPath = path.join(previewPath, cachedPath);
-            try { await fs.unlink(fullPath); } catch {}
+            try { await fs.unlink(fullPath); } catch (err: any) { console.error("[catch]", err?.message || err);}
             projectCache.delete(cachedPath);
             removed++;
           }
@@ -496,13 +496,13 @@ export class PreviewService {
       } else {
         const walkDir = async (dir: string, base: string) => {
           let entries: import('fs').Dirent[];
-          try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+          try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch (err: any) { console.error("[catch]", err?.message || err); return; }
           for (const entry of entries) {
             const rel = path.join(base, entry.name);
             if (entry.isDirectory()) {
               await walkDir(path.join(dir, entry.name), rel);
             } else if (!currentPaths.has(rel)) {
-              try { await fs.unlink(path.join(dir, entry.name)); } catch {}
+              try { await fs.unlink(path.join(dir, entry.name)); } catch (err: any) { console.error("[catch]", err?.message || err);}
               removed++;
             }
           }
@@ -518,7 +518,7 @@ export class PreviewService {
           if (stat && stat.isDirectory()) {
             await fs.rm(filePath, { recursive: true, force: true });
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
         await fs.mkdir(dir, { recursive: true });
         await fs.writeFile(filePath, content, 'utf-8');
         projectCache.set(relPath, hash);
@@ -608,7 +608,7 @@ export class PreviewService {
       for (const [port, proc] of preview.processes) {
         try {
           proc.kill('SIGKILL');
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
         this.allocatedPorts.delete(port);
       }
       preview.processes.clear();
@@ -848,7 +848,7 @@ http.createServer((req, res) => {
   const safePath = path.normalize(req.url.split('?')[0]);
   let target = path.join(root, safePath);
   let stat;
-  try { stat = fs.statSync(target); } catch {}
+  try { stat = fs.statSync(target); } catch (err: any) { console.error("[catch]", err?.message || err);}
   if (!stat || stat.isDirectory()) { target = path.join(root, 'index.html'); }
   fs.readFile(target, (err, data) => {
     if (err) { res.writeHead(404,'Not Found',{'Content-Type':'text/plain'}); return res.end('404'); }
@@ -965,7 +965,7 @@ http.createServer((req, res) => {
         signal: AbortSignal.timeout(3000)
       });
       return response.status < 500;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

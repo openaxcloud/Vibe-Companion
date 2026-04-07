@@ -260,7 +260,7 @@ export class NeonProvider implements IDatabaseProvider {
     try {
       await this.request('GET', '/projects?limit=1');
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

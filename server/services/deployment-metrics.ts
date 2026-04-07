@@ -151,7 +151,7 @@ export class DeploymentMetricsService extends EventEmitter {
               }
             }
           }
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // Fallback to estimates based on load
           networkRx = cpuUsage * 10000; // Estimate bytes/sec based on CPU
           networkTx = cpuUsage * 5000;
@@ -168,7 +168,7 @@ export class DeploymentMetricsService extends EventEmitter {
         try {
           const { stdout } = await execAsync("df -h / | tail -1 | awk '{print $5}' | sed 's/%//'");
           diskUsage = parseFloat(stdout.trim()) || 50;
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // Keep default
         }
       }

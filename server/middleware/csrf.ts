@@ -67,13 +67,13 @@ function isAllowedOrigin(origin: string | undefined): boolean {
       try {
         const allowedUrl = new URL(allowed);
         return originHostPort === `${allowedUrl.protocol}//${allowedUrl.host}`;
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         return origin === allowed;
       }
     })) {
       return true;
     }
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 
@@ -173,7 +173,7 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
         message: 'Invalid or expired CSRF token',
       });
     }
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return res.status(403).json({
       error: 'CSRF validation failed',
       message: 'Invalid CSRF token format',

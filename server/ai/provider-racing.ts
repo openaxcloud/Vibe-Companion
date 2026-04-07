@@ -125,7 +125,7 @@ export class ProviderRacing {
             try {
               // First try direct parse
               JSON.parse(result);
-            } catch {
+            } catch (err: any) { console.error("[catch]", err?.message || err);
               // Try to extract JSON from text with pre/postamble
               const jsonMatch = result.match(/(\{[\s\S]*\})/);
               if (!jsonMatch) {
@@ -133,7 +133,7 @@ export class ProviderRacing {
               }
               try {
                 JSON.parse(jsonMatch[1]);
-              } catch {
+              } catch (err: any) { console.error("[catch]", err?.message || err);
                 throw new Error('Invalid JSON response');
               }
             }

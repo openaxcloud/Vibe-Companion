@@ -10,7 +10,7 @@ export function parseReplitNix(content: string): Record<string, any> {
       }
     }
     return { deps };
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return { deps: [] };
   }
 }

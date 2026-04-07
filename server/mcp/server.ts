@@ -890,7 +890,7 @@ export default class MCPServer {
           let parsedData;
           try {
             parsedData = JSON.parse(data);
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             parsedData = data;
           }
           

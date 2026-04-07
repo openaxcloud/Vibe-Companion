@@ -90,7 +90,7 @@ export function safeJsonParseWithValidator<T>(
       return parsed;
     }
     return null;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }

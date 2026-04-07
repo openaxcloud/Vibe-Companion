@@ -200,7 +200,7 @@ export class StatusPageService {
           try {
             const response = await fetch('http://localhost:5000', { timeout: 5000 });
             return response.ok;
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         
@@ -210,7 +210,7 @@ export class StatusPageService {
             const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
             const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
             return hasOpenAIKey || hasAnthropicKey;
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         
@@ -226,7 +226,7 @@ export class StatusPageService {
             // Check if postgres process is running
             const psOutput = execSync('ps aux | grep postgres | grep -v grep', { encoding: 'utf8' });
             return psOutput.length > 0;
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         
@@ -235,7 +235,7 @@ export class StatusPageService {
           try {
             const response = await fetch('http://localhost:5000/api/user', { timeout: 2000 });
             return response.status === 401 || response.status === 200; // Either authenticated or not
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         
@@ -262,7 +262,7 @@ export class StatusPageService {
                 resolve(false);
               }, 2000);
             });
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         
@@ -294,7 +294,7 @@ export class StatusPageService {
                 resolve(false);
               }, 2000);
             });
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         
@@ -303,7 +303,7 @@ export class StatusPageService {
           try {
             const response = await fetch('http://localhost:5000/api/monitoring/health', { timeout: 2000 });
             return response.ok;
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return false;
           }
         

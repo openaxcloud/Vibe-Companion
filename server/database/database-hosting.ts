@@ -605,7 +605,7 @@ export class DatabaseHostingService {
               storageUsed = parseInt(parts[2]) / (1024 * 1024); // Convert to MB
             }
           }
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           storageUsed = memoryUsage * 0.5; // Fallback to half of memory usage
         }
         
@@ -614,7 +614,7 @@ export class DatabaseHostingService {
         try {
           const lsofOutput = execSync(`lsof -p ${process.pid} 2>/dev/null | grep -E '(TCP|UDP)' | wc -l`, { encoding: 'utf8' }) as string;
           connections = parseInt(lsofOutput.trim()) || 0;
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           connections = 5; // Default minimum connections
         }
         

@@ -341,7 +341,7 @@ export class RealDatabaseManagementService {
       return backupId;
     } catch (error: any) {
       logger.error(`Failed to create backup for database ${databaseId}:`, error);
-      try { fsSync.unlinkSync(backupFile); } catch {}
+      try { fsSync.unlinkSync(backupFile); } catch (err: any) { console.error("[catch]", err?.message || err);}
       throw new Error(`Backup creation failed: ${error.message}`);
     }
   }

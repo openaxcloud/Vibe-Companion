@@ -81,7 +81,7 @@ async function getAuthenticatedRemoteUrl(remoteUrl: string, userId: number): Pro
     url.username = credentials.username;
     url.password = credentials.password;
     return url.toString();
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     if (remoteUrl.includes('github.com')) {
       return remoteUrl.replace('https://github.com/', `https://${credentials.username}:${credentials.password}@github.com/`);
     }
@@ -108,7 +108,7 @@ async function ensureGitRepo(): Promise<boolean> {
   try {
     await execa('git', ['rev-parse', '--git-dir'], { cwd: PROJECT_ROOT });
     return true;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }
@@ -175,7 +175,7 @@ router.get('/status', ensureAuthenticated, async (req: Request, res: Response) =
   }
 });
 
-router.get('/diff/:filePath(*)', ensureAuthenticated, async (req: Request, res: Response) => {
+router.get('/diff/{*filePath}', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
     const { filePath } = req.params;
     const { staged, stream } = req.query;
@@ -652,7 +652,7 @@ async function parseBranchInfo(branchLine: string, currentBranch: string): Promi
         ahead = parseInt(parts[0], 10) || 0;
         behind = parseInt(parts[1], 10) || 0;
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
     }
     
     return {
@@ -669,7 +669,7 @@ async function parseBranchInfo(branchLine: string, currentBranch: string): Promi
       isRemote,
       trackingBranch: isRemote ? undefined : `origin/${name}`
     };
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }
@@ -736,7 +736,7 @@ router.post('/branches', ensureAuthenticated, csrfProtection, async (req: Reques
   }
 });
 
-router.delete('/branches/:name(*)', ensureAuthenticated, csrfProtection, async (req: Request, res: Response) => {
+router.delete('/branches/{*name}', ensureAuthenticated, csrfProtection, async (req: Request, res: Response) => {
   try {
     const { name } = req.params;
     const { force } = req.query;
@@ -966,7 +966,7 @@ router.get('/log/stream', ensureAuthenticated, async (req: Request, res: Respons
   }
 });
 
-router.get('/diff/stream/:filePath(*)', ensureAuthenticated, async (req: Request, res: Response) => {
+router.get('/diff/stream/{*filePath}', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
     const { filePath } = req.params;
     const { staged } = req.query;
@@ -1089,7 +1089,7 @@ interface BlameEntry {
   };
 }
 
-router.get('/blame/:filePath(*)', ensureAuthenticated, async (req: Request, res: Response) => {
+router.get('/blame/{*filePath}', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
     const { filePath } = req.params;
     

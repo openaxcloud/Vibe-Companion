@@ -309,7 +309,7 @@ export class TemplateSubmissionService {
         const filePath = path.join(repoPath, file);
         try {
           await fs.access(filePath);
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           errors.push(`Missing required file: ${file}`);
         }
       }
@@ -318,7 +318,7 @@ export class TemplateSubmissionService {
         const filePath = path.join(repoPath, file);
         try {
           await fs.access(filePath);
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           warnings.push(`Consider adding: ${file}`);
         }
       }
@@ -504,7 +504,7 @@ export class TemplateSubmissionService {
         return parsed.hostname === requiredHost || parsed.hostname === `www.${requiredHost}`;
       }
       return ['http:', 'https:'].includes(parsed.protocol);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

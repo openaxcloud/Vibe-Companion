@@ -313,7 +313,7 @@ router.post('/folder', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/:path(*)/download', async (req: Request, res: Response) => {
+router.get('/{*path}/download', async (req: Request, res: Response) => {
   try {
     const projectId = req.params.projectId;
     const filePath = req.params.path;
@@ -350,7 +350,7 @@ router.get('/:path(*)/download', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/:path(*)/url', async (req: Request, res: Response) => {
+router.get('/{*path}/url', async (req: Request, res: Response) => {
   try {
     const projectId = req.params.projectId;
     const filePath = req.params.path;
@@ -376,7 +376,7 @@ router.get('/:path(*)/url', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:path(*)', async (req: Request, res: Response) => {
+router.delete('/{*path}', async (req: Request, res: Response) => {
   try {
     const projectId = req.params.projectId;
     const filePath = req.params.path;

@@ -87,7 +87,7 @@ export class FilesRouter {
       }
     });
 
-    this.router.get("/:projectId/files/*", this.ensureAuthenticated, async (req: Request, res: Response) => {
+    this.router.get("/:projectId/files/{*filePath}", this.ensureAuthenticated, async (req: Request, res: Response) => {
       try {
         const projectIdResult = projectIdSchema.safeParse(req.params.projectId);
         if (!projectIdResult.success) {
@@ -99,7 +99,7 @@ export class FilesRouter {
         }
         const projectId = projectIdResult.data;
         const userId = req.user!.id;
-        let fileIdentifier = req.params[0];
+        let fileIdentifier = req.params.filePath || req.params[0];
         
         if (!fileIdentifier) {
           return res.status(400).json({
@@ -282,7 +282,7 @@ export class FilesRouter {
       }
     });
 
-    this.router.put("/:projectId/files/*", this.ensureAuthenticated, csrfProtection, async (req: Request, res: Response) => {
+    this.router.put("/:projectId/files/{*filePath}", this.ensureAuthenticated, csrfProtection, async (req: Request, res: Response) => {
       try {
         const projectIdResult = projectIdSchema.safeParse(req.params.projectId);
         if (!projectIdResult.success) {
@@ -294,7 +294,7 @@ export class FilesRouter {
         }
         const projectId = projectIdResult.data;
         const userId = req.user!.id;
-        let filePath = req.params[0];
+        let filePath = req.params.filePath || req.params[0];
         const { content } = req.body;
         
         if (!filePath) {
@@ -357,7 +357,7 @@ export class FilesRouter {
       }
     });
 
-    this.router.delete("/:projectId/files/*", this.ensureAuthenticated, csrfProtection, async (req: Request, res: Response) => {
+    this.router.delete("/:projectId/files/{*filePath}", this.ensureAuthenticated, csrfProtection, async (req: Request, res: Response) => {
       try {
         const projectIdResult = projectIdSchema.safeParse(req.params.projectId);
         if (!projectIdResult.success) {
@@ -369,7 +369,7 @@ export class FilesRouter {
         }
         const projectId = projectIdResult.data;
         const userId = req.user!.id;
-        let filePath = req.params[0];
+        let filePath = req.params.filePath || req.params[0];
         
         if (!filePath) {
           return res.status(400).json({

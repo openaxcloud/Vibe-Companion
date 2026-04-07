@@ -8,7 +8,7 @@ router.get('/status', (_req: Request, res: Response) => {
   try {
     const { services } = statusService.getSystemStatus();
     res.json(services);
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.json([]);
   }
 });
@@ -17,7 +17,7 @@ router.get('/status/services', (_req: Request, res: Response) => {
   try {
     const { services } = statusService.getSystemStatus();
     res.json(services);
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.json([]);
   }
 });
@@ -27,7 +27,7 @@ router.get('/status/incidents', (_req: Request, res: Response) => {
     const days = parseInt(String((_req.query as Record<string, string>).days || '30'), 10);
     const incidents = statusService.getIncidentHistory(days);
     res.json(incidents);
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.json([]);
   }
 });
@@ -36,7 +36,7 @@ router.get('/status/maintenance', (_req: Request, res: Response) => {
   try {
     const { maintenance } = statusService.getSystemStatus();
     res.json(maintenance);
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.json([]);
   }
 });
@@ -45,7 +45,7 @@ router.get('/status/metrics', (_req: Request, res: Response) => {
   try {
     const summary = statusService.getStatusSummary();
     res.json(summary);
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.json({ uptime: 100, response_time: 0, active_incidents: 0, services_operational: 0, total_services: 0 });
   }
 });
@@ -57,7 +57,7 @@ router.get('/status/uptime', (_req: Request, res: Response) => {
     const uptime = statusService.getUptimePercentage(hours);
     const metrics = statusService.getMetrics(hours);
     res.json({ uptime, metrics, range });
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.json({ uptime: 100, metrics: [], range: '24h' });
   }
 });

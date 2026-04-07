@@ -126,7 +126,7 @@ class PreviewWebSocketService {
       if (client.ws.readyState === WebSocket.OPEN) {
         client.ws.close(1000, 'Cleanup');
       }
-    } catch (e) {}
+    } catch (e: any) { console.error('[catch]', e?.message || e); }
     
     this.clients.delete(clientId);
   }

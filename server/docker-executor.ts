@@ -102,7 +102,7 @@ async function executeWithTimeout(container: Docker.Container, timeout: number):
     // Ensure cleanup
     try {
       await container.remove({ force: true });
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Container might already be removed
     }
   }
@@ -213,7 +213,7 @@ function getDockerConfig(
       } else {
         command = ['node', 'index.js'];
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Expected: package.json may be malformed - use safe fallback
       command = ['node', 'index.js'];
     }

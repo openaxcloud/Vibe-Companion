@@ -693,7 +693,7 @@ export async function generateProjectSuggestions(req: Request, res: Response) {
     try {
       const match = raw.match(/\[[\s\S]*\]/);
       if (match) suggestions = JSON.parse(match[0]);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       suggestions = [
         { title: 'Add error handling', description: 'Wrap async operations in try/catch blocks', type: 'improvement' },
         { title: 'Write unit tests', description: 'Add tests for critical functions', type: 'testing' },

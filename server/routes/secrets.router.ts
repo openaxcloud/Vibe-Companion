@@ -173,7 +173,7 @@ router.patch('/:id', async (req, res) => {
         try {
           const encryptedData = JSON.parse(secret.value);
           valueToStore = (secretService as any).decrypt(encryptedData);
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           throw new Error('DECRYPT_FAILED');
         }
       } else if (!secret.isSecret && updates.isSecret === true && !valueProvided) {
@@ -289,7 +289,7 @@ router.post('/:id/reveal', async (req, res) => {
         try {
           const encryptedData = JSON.parse(secret.value);
           value = (secretService as any).decrypt(encryptedData);
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           throw new Error('DECRYPT_FAILED');
         }
       }

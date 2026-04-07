@@ -86,7 +86,7 @@ async function resolveProjectDirectory(projectId: string): Promise<string | null
   try {
     await fs.access(projectDir);
     return projectDir;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     // SECURITY: Do NOT fallback to process.cwd() - that would allow installing in server root
     return null;
   }
@@ -254,13 +254,13 @@ router.post('/:projectId/install', ensureAuthenticated, ensureProjectAccess, asy
       // Node.js project
       packageManager = 'npm';
       installArgs = ['install', version ? `${pkgToInstall}@${version}` : pkgToInstall];
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         // Python project
         packageManager = 'pip';
         installArgs = ['install', version ? `${pkgToInstall}==${version}` : pkgToInstall];
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // Default to npm
         packageManager = 'npm';
         installArgs = ['install', version ? `${pkgToInstall}@${version}` : pkgToInstall];
@@ -338,12 +338,12 @@ router.post('/:projectId/uninstall', ensureAuthenticated, ensureProjectAccess, a
       await fs.access(path.join(workingDir, 'package.json'));
       packageManager = 'npm';
       uninstallArgs = ['uninstall', packageName];
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         packageManager = 'pip';
         uninstallArgs = ['uninstall', '-y', packageName];
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         packageManager = 'npm';
         uninstallArgs = ['uninstall', packageName];
       }
@@ -417,7 +417,7 @@ router.get('/installed', ensureAuthenticated, ensureProjectAccess, async (req, r
         packages,
         language: 'javascript',
       });
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Try Python requirements.txt
       try {
         const requirementsPath = path.join(workingDir, 'requirements.txt');
@@ -440,7 +440,7 @@ router.get('/installed', ensureAuthenticated, ensureProjectAccess, async (req, r
           packages,
           language: 'python',
         });
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // No package files found
         return res.json({
           success: true,
@@ -464,7 +464,7 @@ router.get('/installed', ensureAuthenticated, ensureProjectAccess, async (req, r
  * Also supports: GET /api/packages/:projectId/search/:query
  * AND: GET /api/packages/:id/search (legacy compatibility)
  */
-router.get('/:projectId/search/:query?', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.get('/:projectId/search{/:query}', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.projectId || req.query.projectId;
     const query = (req.params.query || req.query.q) as string;
@@ -492,7 +492,7 @@ router.get('/:projectId/search/:query?', ensureAuthenticated, ensureProjectAcces
             homepage: data.info.home_page || data.info.project_url || '',
           }];
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // PyPI API doesn't have a search endpoint, so we try exact match
         packages = [];
       }
@@ -584,12 +584,12 @@ router.post('/:projectId/update', ensureAuthenticated, ensureProjectAccess, asyn
       await fs.access(path.join(workingDir, 'package.json'));
       packageManager = 'npm';
       updateArgs = ['install', version ? `${pkgToUpdate}@${version}` : `${pkgToUpdate}@latest`];
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         packageManager = 'pip';
         updateArgs = ['install', '--upgrade', version ? `${pkgToUpdate}==${version}` : pkgToUpdate];
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         packageManager = 'npm';
         updateArgs = ['install', version ? `${pkgToUpdate}@${version}` : `${pkgToUpdate}@latest`];
       }
@@ -666,7 +666,7 @@ router.get('/:projectId/list', ensureAuthenticated, ensureProjectAccess, async (
         })),
       ];
       language = 'nodejs';
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Try Python requirements.txt
       try {
         const requirementsPath = path.join(workingDir, 'requirements.txt');
@@ -685,7 +685,7 @@ router.get('/:projectId/list', ensureAuthenticated, ensureProjectAccess, async (
             };
           });
         language = 'python';
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         packages = [];
       }
     }
@@ -704,7 +704,7 @@ router.get('/:projectId/list', ensureAuthenticated, ensureProjectAccess, async (
           .filter(pkg => pkg)
           .map(pkg => ({ name: pkg, type: 'system' }));
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       systemDependencies = [];
     }
     
@@ -761,12 +761,12 @@ router.delete('/:projectId/:packageName', ensureAuthenticated, ensureProjectAcce
       await fs.access(path.join(workingDir, 'package.json'));
       packageManager = 'npm';
       uninstallArgs = ['uninstall', packageName];
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         packageManager = 'pip';
         uninstallArgs = ['uninstall', '-y', packageName];
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         packageManager = 'npm';
         uninstallArgs = ['uninstall', packageName];
       }
@@ -855,12 +855,12 @@ router.get('/:projectId/audit', ensureAuthenticated, ensureProjectAccess, async 
               
               summary = auditData.metadata?.vulnerabilities || summary;
             }
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             // Couldn't parse audit output
           }
         }
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         language = 'python';
@@ -878,10 +878,10 @@ router.get('/:projectId/audit', ensureAuthenticated, ensureProjectAccess, async 
               fixAvailable: true,
             }));
           }
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           vulnerabilities = [];
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         return res.json({
           success: true,
           vulnerabilities: [],
@@ -962,12 +962,12 @@ router.get('/:projectId/outdated', ensureAuthenticated, ensureProjectAccess, asy
               type: data.type || 'dependencies',
               homepage: data.homepage || `https://www.npmjs.com/package/${name}`,
             }));
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             outdatedPackages = [];
           }
         }
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         language = 'python';
@@ -984,10 +984,10 @@ router.get('/:projectId/outdated', ensureAuthenticated, ensureProjectAccess, asy
             type: 'dependencies',
             homepage: `https://pypi.org/project/${pkg.name}/`,
           }));
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           outdatedPackages = [];
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         return res.json({
           success: true,
           outdated: [],
@@ -1051,12 +1051,12 @@ router.get('/:projectId/dependencies', ensureAuthenticated, ensureProjectAccess,
           try {
             const depData = JSON.parse(lsError.stdout || '{}');
             dependencies = depData.dependencies || {};
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             dependencies = {};
           }
         }
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       try {
         await fs.access(path.join(workingDir, 'requirements.txt'));
         language = 'python';
@@ -1078,7 +1078,7 @@ router.get('/:projectId/dependencies', ensureAuthenticated, ensureProjectAccess,
         pkgs.forEach(pkg => {
           dependencies[pkg.name] = { version: pkg.version, dependencies: {} };
         });
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         return res.json({
           success: true,
           dependencies: [],
@@ -1141,20 +1141,20 @@ async function detectProjectManager(workingDir: string): Promise<DetectedManager
       return { language: 'javascript', manager: 'npm' };
     }
 
-    try { await fs.access(path.join(workingDir, 'pnpm-lock.yaml')); return { language: 'javascript', manager: 'pnpm' }; } catch {}
-    try { await fs.access(path.join(workingDir, 'yarn.lock')); return { language: 'javascript', manager: 'yarn' }; } catch {}
-    try { await fs.access(path.join(workingDir, 'bun.lockb')); return { language: 'javascript', manager: 'bun' }; } catch {}
-    try { await fs.access(path.join(workingDir, 'bun.lock')); return { language: 'javascript', manager: 'bun' }; } catch {}
+    try { await fs.access(path.join(workingDir, 'pnpm-lock.yaml')); return { language: 'javascript', manager: 'pnpm' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+    try { await fs.access(path.join(workingDir, 'yarn.lock')); return { language: 'javascript', manager: 'yarn' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+    try { await fs.access(path.join(workingDir, 'bun.lockb')); return { language: 'javascript', manager: 'bun' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+    try { await fs.access(path.join(workingDir, 'bun.lock')); return { language: 'javascript', manager: 'bun' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
 
     return { language: 'javascript', manager: 'npm' };
-  } catch {}
+  } catch (err: any) { console.error("[catch]", err?.message || err);}
 
-  try { await fs.access(path.join(workingDir, 'requirements.txt')); return { language: 'python', manager: 'pip' }; } catch {}
-  try { await fs.access(path.join(workingDir, 'pyproject.toml')); return { language: 'python', manager: 'pip' }; } catch {}
-  try { await fs.access(path.join(workingDir, 'Cargo.toml')); return { language: 'rust', manager: 'cargo' }; } catch {}
-  try { await fs.access(path.join(workingDir, 'go.mod')); return { language: 'go', manager: 'go' }; } catch {}
-  try { await fs.access(path.join(workingDir, 'Gemfile')); return { language: 'ruby', manager: 'gem' }; } catch {}
-  try { await fs.access(path.join(workingDir, 'composer.json')); return { language: 'php', manager: 'composer' }; } catch {}
+  try { await fs.access(path.join(workingDir, 'requirements.txt')); return { language: 'python', manager: 'pip' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+  try { await fs.access(path.join(workingDir, 'pyproject.toml')); return { language: 'python', manager: 'pip' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+  try { await fs.access(path.join(workingDir, 'Cargo.toml')); return { language: 'rust', manager: 'cargo' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+  try { await fs.access(path.join(workingDir, 'go.mod')); return { language: 'go', manager: 'go' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+  try { await fs.access(path.join(workingDir, 'Gemfile')); return { language: 'ruby', manager: 'gem' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
+  try { await fs.access(path.join(workingDir, 'composer.json')); return { language: 'php', manager: 'composer' }; } catch (err: any) { console.error("[catch]", err?.message || err);}
 
   return { language: 'javascript', manager: 'npm' };
 }
@@ -1234,7 +1234,7 @@ async function parseCargoTomlDependencies(workingDir: string): Promise<any[]> {
       }
     }
     return packages;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return [];
   }
 }
@@ -1264,7 +1264,7 @@ async function parseGoModDependencies(workingDir: string): Promise<any[]> {
       }
     }
     return packages;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return [];
   }
 }
@@ -1305,7 +1305,7 @@ projectPackagesRouter.get('/:projectId/packages', ensureAuthenticated, ensurePro
             isDevDependency: true,
           })),
         ];
-      } catch { /* no package.json */ }
+      } catch (err: any) { console.error("[catch]", err?.message || err); /* no package.json */ }
     } else if (language === 'python') {
       try {
         const content = await fs.readFile(path.join(workingDir, 'requirements.txt'), 'utf-8');
@@ -1319,7 +1319,7 @@ projectPackagesRouter.get('/:projectId/packages', ensureAuthenticated, ensurePro
               isDevDependency: false,
             };
           });
-      } catch { /* no requirements.txt */ }
+      } catch (err: any) { console.error("[catch]", err?.message || err); /* no requirements.txt */ }
     } else if (language === 'rust') {
       packages = await parseCargoTomlDependencies(workingDir);
     } else if (language === 'go') {
@@ -1556,7 +1556,7 @@ router.get('/search', ensureAuthenticated, async (req, res) => {
             description: data.info.summary || '',
           }];
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         packages = [];
       }
     } else {
@@ -1570,7 +1570,7 @@ router.get('/search', ensureAuthenticated, async (req, res) => {
             description: obj.package.description || '',
           })) || [];
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         packages = [];
       }
     }

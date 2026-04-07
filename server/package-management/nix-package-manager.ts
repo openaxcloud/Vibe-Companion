@@ -391,7 +391,7 @@ pkgs.mkShell {
       // Check if running in environment without Nix using fs.access instead of existsSync
       try {
         await fs.access('/nix/store');
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         if (!process.env.NIX_PATH) {
         // Use real package data for production readiness
         if (args.includes('search')) {

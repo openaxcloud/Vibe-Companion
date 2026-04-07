@@ -168,7 +168,7 @@ export class AdvancedMonitoringService extends EventEmitter {
           gte(agentSessions.startedAt, fiveMinAgo)
         ));
       activeUsers = Number(result?.count || 0);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       activeUsers = 0;
     }
 

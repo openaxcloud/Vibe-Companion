@@ -316,10 +316,10 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
   if (req.method === 'GET' && !isApiRequest) {
     const token = crypto.randomBytes(32).toString('hex');
     res.cookie('csrf-token', token, {
-      httpOnly: false, // Needs to be readable by JS
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 3600000 // 1 hour
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production' || !!process.env.REPL_ID,
+      sameSite: (process.env.NODE_ENV === 'production' || !!process.env.REPL_ID) ? 'none' as const : 'lax' as const,
+      maxAge: 3600000
     });
   }
   

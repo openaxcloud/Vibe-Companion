@@ -5949,7 +5949,7 @@ Constraints: {{constraints}}`,
     let fingerprint: string;
     try {
       fingerprint = 'SHA256:' + createHash('sha256').update(Buffer.from(keyBody, 'base64')).digest('base64').replace(/=+$/, '');
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       fingerprint = 'SHA256:' + createHash('sha256').update(publicKey).digest('base64').replace(/=+$/, '');
     }
     const id = crypto.randomUUID();
@@ -6186,7 +6186,7 @@ async function initSessionStore() {
       } catch (tlsErr) {
         if (isTls) {
           console.warn('[Session Store] TLS connection failed, retrying without TLS');
-          try { redisClient.removeAllListeners(); redisClient.disconnect(); } catch (_) {}
+          try { redisClient.removeAllListeners(); redisClient.disconnect(); } catch (_err: any) { console.error('[catch]', _err?.message || _err); }
           const plainUrl = redisUrl.replace('rediss://', 'redis://');
           const { tls, ...plainOpts } = redisOpts;
           redisClient = new ioredis.default(plainUrl, plainOpts);

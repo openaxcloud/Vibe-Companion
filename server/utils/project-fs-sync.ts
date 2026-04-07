@@ -151,12 +151,12 @@ async function reconcileStaleFiles(
           if (remaining.length === 0) {
             await fs.promises.rmdir(fullPath);
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       } else {
         if (!validPaths.has(fullPath)) {
           try {
             await fs.promises.unlink(fullPath);
-          } catch {}
+          } catch (err: any) { console.error("[catch]", err?.message || err);}
         }
       }
     }

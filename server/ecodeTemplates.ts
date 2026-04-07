@@ -17,7 +17,7 @@ export function detectDependencies(files: Array<{ name: string; content?: string
       try {
         const pkg = JSON.parse(f.content);
         deps.push(...Object.keys(pkg.dependencies || {}));
-      } catch {}
+      } catch (err: any) { console.error("[catch]", err?.message || err);}
     }
   }
   return deps;

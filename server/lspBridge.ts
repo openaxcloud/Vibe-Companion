@@ -18,7 +18,7 @@ export function handleLSPConnection(ws: WebSocket, projectId: string, language: 
           },
         }));
       }
-    } catch {}
+    } catch (err: any) { console.error("[catch]", err?.message || err);}
   });
   ws.on("close", () => {
     console.log(`[lsp] LSP connection closed for project ${projectId}`);

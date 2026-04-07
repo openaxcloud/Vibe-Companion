@@ -4,7 +4,7 @@ import os from 'os';
 import { execSync } from 'child_process';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { aiProviderManager } from '../ai/ai-provider-manager';
 import { agentOrchestrator } from '../services/agent-orchestrator.service';
 import { db } from '../db';
@@ -164,14 +164,12 @@ export class HealthRouter {
           break;
         }
         case 'gemini': {
-          const client = new GoogleGenerativeAI(apiKey);
-          // Gemini 3 → 2.5 → 2.0 fallback chain for maximum compatibility
+          const client = new GoogleGenAI({ apiKey });
           const geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
           testPromise = (async () => {
             for (const modelName of geminiModels) {
               try {
-                const model = client.getGenerativeModel({ model: modelName });
-                await model.generateContent('test');
+                await client.models.generateContent({ model: modelName, contents: 'test' });
                 return true;
               } catch (e: any) {
                 if (e.message?.includes('not found') || e.status === 404) {

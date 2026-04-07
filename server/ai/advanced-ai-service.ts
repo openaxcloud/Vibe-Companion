@@ -127,7 +127,7 @@ Format as JSON matching the CodeExplanation interface.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Fallback if AI doesn't return valid JSON
       return {
         summary: response,
@@ -173,7 +173,7 @@ Format as JSON matching the BugDetection interface.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         bugs: [],
         summary: response
@@ -212,7 +212,7 @@ Format as JSON matching the TestGeneration interface.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         framework,
         tests: [],
@@ -258,7 +258,7 @@ Format as JSON matching the RefactoringSuggestion interface.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         suggestions: []
       };
@@ -293,7 +293,7 @@ Format as JSON matching the DocumentationGeneration interface.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         fileDoc: response,
         functions: analysis.functions.map((f: any) => ({
@@ -338,7 +338,7 @@ Format as JSON matching the CodeReview interface.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         score: 75,
         strengths: ['Code is functional'],
@@ -386,7 +386,7 @@ Consider the full file context and common ${analysis.language} pitfalls.`;
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         diagnosis: response,
         possibleCauses: [],

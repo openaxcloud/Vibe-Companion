@@ -116,7 +116,7 @@ app.get("/api/ready", async (_req, res) => {
   try {
     await storage.getUser("0").catch(() => null);
     res.status(200).json({ ready: true });
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.status(503).json({ ready: false, reason: "Database unavailable" });
   }
 });
@@ -198,7 +198,7 @@ app.use((req, res, next) => {
         let safe: any;
         try {
           safe = JSON.parse(JSON.stringify(capturedJsonResponse));
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           safe = { _serialization: "failed" };
         }
         const redactKeys = ["password", "csrfToken", "encryptedValue", "token", "secret", "apiKey"];

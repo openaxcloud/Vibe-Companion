@@ -143,7 +143,7 @@ export function decodeTokenWithoutVerification(token: string): { jti?: string; e
   try {
     const decoded = jwt.decode(token) as any;
     return decoded ? { jti: decoded.jti, exp: decoded.exp, userId: decoded.userId } : null;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }

@@ -18,7 +18,7 @@ async function getDOMPurify(): Promise<typeof import('isomorphic-dompurify').def
     const module = await import('isomorphic-dompurify');
     DOMPurifyInstance = module.default;
     return DOMPurifyInstance;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }
@@ -152,7 +152,7 @@ export const validators = {
     try {
       JSON.parse(jsonString);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   },

@@ -116,7 +116,7 @@ export class RealDatabaseHostingService extends EventEmitter {
         const usedBytes = parseInt(output.split('\t')[0]) || 0;
         storagePercent = usedBytes / (1024 * 1024 * 1024) * 100;
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       storagePercent = 0;
     }
 
@@ -126,7 +126,7 @@ export class RealDatabaseHostingService extends EventEmitter {
       try {
         const output = execSync(`ls /proc/${proc.pid}/fd 2>/dev/null | wc -l`, { encoding: 'utf8' }).trim();
         connectionCount = parseInt(output) || 0;
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         connectionCount = 0;
       }
     }
@@ -160,7 +160,7 @@ export class RealDatabaseHostingService extends EventEmitter {
       try {
         process.kill(proc.pid, 0);
         processAlive = true;
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         processAlive = false;
       }
 
@@ -692,7 +692,7 @@ export class RealDatabaseHostingService extends EventEmitter {
       const instanceDir = path.join(this.dataDir, instanceId);
       const output = execSync(`du -sb ${instanceDir} 2>/dev/null || echo 0`, { encoding: 'utf8' }).trim();
       storageBytes = parseInt(output.split('\t')[0]) || 0;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       storageBytes = 0;
     }
 
@@ -702,7 +702,7 @@ export class RealDatabaseHostingService extends EventEmitter {
       try {
         const output = execSync(`ls /proc/${proc.pid}/fd 2>/dev/null | wc -l`, { encoding: 'utf8' }).trim();
         connectionCount = parseInt(output) || 0;
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         connectionCount = 0;
       }
     }

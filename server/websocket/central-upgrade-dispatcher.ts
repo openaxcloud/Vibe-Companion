@@ -160,7 +160,7 @@ class CentralUpgradeDispatcher {
       }
       
       return false;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }
@@ -315,7 +315,7 @@ class CentralUpgradeDispatcher {
         pathname: url.pathname,
         channel: url.searchParams.get('channel')
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         pathname: request.url || '/',
         channel: null

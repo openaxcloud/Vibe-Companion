@@ -535,7 +535,7 @@ export class EnhancedOpenAIProvider implements AIProvider {
     
     try {
       return JSON.parse(result);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return { analysis: result };
     }
   }

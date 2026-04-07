@@ -695,7 +695,7 @@ export class SpeculativeScaffoldService {
           await fs.access(fullPath);
           // File exists, skip
           logger.debug(`[Scaffold] Skipping existing file: ${filePath}`);
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // File doesn't exist, create it
           await fs.writeFile(fullPath, content, 'utf-8');
           filesCreated.push(filePath);
@@ -745,7 +745,7 @@ export class SpeculativeScaffoldService {
       const packageJson = path.join(projectDir, 'package.json');
       await fs.access(packageJson);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

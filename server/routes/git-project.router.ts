@@ -36,7 +36,7 @@ async function syncProjectFiles(projectId: string, projectDir: string): Promise<
 async function ensureGitInitialized(projectDir: string): Promise<void> {
   try {
     await execa('git', ['rev-parse', '--git-dir'], { cwd: projectDir });
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     await execa('git', ['init'], { cwd: projectDir });
     await execa('git', ['config', 'user.name', 'E-Code User'], { cwd: projectDir });
     await execa('git', ['config', 'user.email', 'user@e-code.ai'], { cwd: projectDir });
@@ -354,7 +354,7 @@ router.post('/:projectId/checkout', ensureAuthenticated, async (req: Request, re
 });
 
 // GET /:projectId/diff/:filePath
-router.get('/:projectId/diff/:filePath(*)', ensureAuthenticated, async (req: Request, res: Response) => {
+router.get('/:projectId/diff/{*filePath}', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId, filePath } = req.params;
   const { staged } = req.query;
   try {
@@ -444,7 +444,7 @@ router.get('/:projectId/backup-status', ensureAuthenticated, async (req: Request
       if (backupCount > 0) {
         lastBackupAt = new Date().toISOString(); // Mock for visual representation
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Ignored
     }
 
@@ -475,7 +475,7 @@ router.get('/:projectId/backups', ensureAuthenticated, async (req: Request, res:
         trigger: 'manual',
         createdAt: new Date().toISOString()
       }));
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // No backups
     }
     res.json(backups);

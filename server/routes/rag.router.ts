@@ -102,7 +102,7 @@ router.get('/stats', async (req, res) => {
         SELECT COUNT(*) as count FROM knowledge_graph_nodes WHERE embedding IS NOT NULL
       `) as unknown as { rows: { count: string }[] };
       embeddingsCount = parseInt(embeddingsResult.rows[0]?.count || '0', 10);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       embeddingsCount = 0;
     }
 

@@ -423,7 +423,7 @@ export class ContainerOrchestrator {
           // Try to get logs from journalctl for the process
           const journalLogs = execSync(`journalctl _PID=${container.pid} -n 100 --no-pager`, { encoding: 'utf8' });
           logs.push(...journalLogs.split('\n').filter((line: string) => line.trim()));
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // Fallback to checking process output
           const logFile = `/tmp/containers/${containerId}/output.log`;
           const fs = require('fs');
@@ -467,7 +467,7 @@ export class ContainerOrchestrator {
       // Check if process exists by sending signal 0
       process.kill(pid, 0);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

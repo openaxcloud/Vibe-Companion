@@ -37,7 +37,7 @@ export class SimpleGitManager {
         await execAsync(`cd ${projectDir} && git rev-parse --git-dir`);
         logger.info('Git repository already exists, skipping init');
         return;
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // Not a Git repo, continue with init
       }
       

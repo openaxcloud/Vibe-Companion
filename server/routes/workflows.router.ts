@@ -260,7 +260,7 @@ workflowsRouter.delete('/:id', async (req: Request, res: Response) => {
     const processes = runningProcesses.get(id);
     if (processes) {
       processes.forEach(p => {
-        try { p.kill('SIGTERM'); } catch {}
+        try { p.kill('SIGTERM'); } catch (err: any) { console.error("[catch]", err?.message || err);}
       });
       runningProcesses.delete(id);
     }
@@ -319,7 +319,7 @@ workflowsRouter.post('/:id/stop', async (req: Request, res: Response) => {
     const processes = runningProcesses.get(id);
     if (processes && processes.length > 0) {
       processes.forEach(p => {
-        try { p.kill('SIGTERM'); } catch {}
+        try { p.kill('SIGTERM'); } catch (err: any) { console.error("[catch]", err?.message || err);}
       });
       runningProcesses.delete(id);
       

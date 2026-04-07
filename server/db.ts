@@ -14,3 +14,6 @@ export const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, { schema });
+
+export { withTransaction, withTransactionAndRetry } from "./utils/db-transactions";
+export type { TransactionClient } from "./utils/db-transactions";

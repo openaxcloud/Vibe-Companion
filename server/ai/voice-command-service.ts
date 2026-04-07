@@ -377,7 +377,7 @@ Return only valid JSON.
 
     try {
       return JSON.parse(response);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         type: 'natural_language',
         text,

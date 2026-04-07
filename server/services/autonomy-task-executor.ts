@@ -988,7 +988,7 @@ Generate the task breakdown (aim for ${complexityAnalysis.suggestedTaskCount} ta
       try {
         const existing = await fs.readFile(fullPath, 'utf-8');
         content = JSON.parse(existing);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
       }
       
       const merged = { ...content, ...changes };
@@ -1098,7 +1098,7 @@ Generate the task breakdown (aim for ${complexityAnalysis.suggestedTaskCount} ta
         return result;
       }
       return { action: 'analysis', findings: response, tokensUsed };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return { action: 'analysis', findings: response, tokensUsed };
     }
   }

@@ -201,7 +201,7 @@ export class PackageInstaller {
             content = await fs.readFile(packageFile, 'utf-8');
             const packages = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
             return { dependencies: packages };
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return { dependencies: [] };
           }
           
@@ -210,7 +210,7 @@ export class PackageInstaller {
           try {
             content = await fs.readFile(packageFile, 'utf-8');
             return { dependencies: content };
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return { dependencies: '' };
           }
           
@@ -219,7 +219,7 @@ export class PackageInstaller {
           try {
             content = await fs.readFile(packageFile, 'utf-8');
             return { dependencies: content };
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return { dependencies: '' };
           }
           
@@ -232,7 +232,7 @@ export class PackageInstaller {
               dependencies: composerJson.require || {},
               devDependencies: composerJson['require-dev'] || {}
             };
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return { dependencies: {}, devDependencies: {} };
           }
           

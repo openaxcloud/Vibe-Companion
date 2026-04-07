@@ -361,7 +361,7 @@ export class StorageService {
 
   private async downloadLocal(key: string, options: DownloadOptions): Promise<Buffer> {
     const filePath = this.getLocalPath(key);
-    try { await fs.access(filePath); } catch { throw new Error(`File not found: ${key}`); }
+    try { await fs.access(filePath); } catch (err: any) { console.error("[catch]", err?.message || err); throw new Error(`File not found: ${key}`); }
     const buffer = await fs.readFile(filePath);
     return this.applyRange(buffer, options);
   }
@@ -494,7 +494,7 @@ export class StorageService {
             });
           }
         }
-      } catch { }
+      } catch (err: any) { console.error("[catch]", err?.message || err); }
     };
 
     await walk(searchPath);
@@ -574,7 +574,7 @@ export class StorageService {
           const { HeadObjectCommand } = await import('@aws-sdk/client-s3');
           await this.s3Client.send(new HeadObjectCommand({ Bucket: this.config.s3Bucket, Key: key }));
           return true;
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           return false;
         }
       default:
@@ -586,7 +586,7 @@ export class StorageService {
     try {
       await fs.access(this.getLocalPath(key));
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

@@ -293,12 +293,12 @@ server {
       try {
         const errorLogs = await fs.readFile(errorLogPath, 'utf-8');
         logs.push('=== Error Logs ===', errorLogs);
-      } catch { /* Log file may not exist yet - that's OK */ }
+      } catch (err: any) { console.error("[catch]", err?.message || err); /* Log file may not exist yet - that's OK */ }
       
       try {
         const outLogs = await fs.readFile(outLogPath, 'utf-8');
         logs.push('=== Output Logs ===', outLogs);
-      } catch { /* Log file may not exist yet - that's OK */ }
+      } catch (err: any) { console.error("[catch]", err?.message || err); /* Log file may not exist yet - that's OK */ }
       
       return logs;
     } catch (error) {

@@ -963,7 +963,7 @@ export function formatValue(value: unknown): string {
 export function parseValue<T>(value: string, defaultValue: T): T {
   try {
     return JSON.parse(value) as T;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return defaultValue;
   }
 }

@@ -224,19 +224,19 @@ export class SimplePackageInstaller {
     try {
       await fs.access(path.join(projectDir, 'package.json'));
       return 'nodejs';
-    } catch { /* File not found - check next type */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - check next type */ }
     
     // Check for requirements.txt
     try {
       await fs.access(path.join(projectDir, 'requirements.txt'));
       return 'python';
-    } catch { /* File not found - check next type */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - check next type */ }
     
     // Check for Gemfile
     try {
       await fs.access(path.join(projectDir, 'Gemfile'));
       return 'ruby';
-    } catch { /* File not found - use default */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - use default */ }
     
     return 'nodejs'; // Default
   }
@@ -250,7 +250,7 @@ export class SimplePackageInstaller {
     // Ensure package.json exists
     try {
       await fs.access(path.join(projectDir, 'package.json'));
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Create a basic package.json
       const packageJson = {
         name: 'project',
@@ -283,7 +283,7 @@ export class SimplePackageInstaller {
       
       try {
         requirements = await fs.readFile(requirementsPath, 'utf-8');
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // File doesn't exist yet
       }
       

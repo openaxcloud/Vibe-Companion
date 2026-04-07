@@ -62,7 +62,7 @@ router.post('/analyze', ensureAuthenticated, async (req: Request, res: Response)
     try {
       const jsonMatch = content.text.match(/\{[\s\S]*\}/);
       reviewData = JSON.parse(jsonMatch ? jsonMatch[0] : content.text);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       reviewData = { summary: content.text.slice(0, 500), score: 75, issues: [] };
     }
 
@@ -80,7 +80,7 @@ router.post('/analyze', ensureAuthenticated, async (req: Request, res: Response)
             ${new Date()}
           )
         `);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // Non-critical — review result still returned to client
       }
     }

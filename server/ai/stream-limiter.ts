@@ -231,7 +231,7 @@ export function serializeChunk(chunk: any): string {
   if (typeof chunk === 'object') {
     try {
       return JSON.stringify(chunk);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return '[Object]';
     }
   }

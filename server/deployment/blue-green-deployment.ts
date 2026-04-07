@@ -371,7 +371,7 @@ export class BlueGreenDeploymentService {
     try {
       const response = await fetch(env.healthCheckUrl);
       return response.ok;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

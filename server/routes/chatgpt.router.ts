@@ -135,7 +135,7 @@ export class ChatGPTRouter {
           if (!clientDisconnected && !streamEnded) {
             try {
               res.write(`data: ${JSON.stringify({ type: 'error', message: streamError.message || 'Stream error' })}\n\n`);
-            } catch (_) {}
+            } catch (_err: any) { console.error('[catch]', _err?.message || _err); }
           }
         } finally {
           if (!streamEnded) { streamEnded = true; res.end(); }
@@ -584,7 +584,7 @@ export class ChatGPTRouter {
               }
             }
             return count;
-          } catch { return 0; }
+          } catch (err: any) { console.error("[catch]", err?.message || err); return 0; }
         };
 
         const [serverCount, clientCount, sharedCount] = await Promise.all([

@@ -212,7 +212,7 @@ app.get("/api/ready", async (_req, res) => {
     const { storage } = await import("./storage");
     await storage.getUser("0").catch(() => null);
     res.status(200).json({ ready: true });
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     res.status(503).json({ ready: false, reason: "Database unavailable" });
   }
 });
@@ -275,7 +275,7 @@ app.use((req, res, next) => {
           };
           redact(safe);
           logLine += ` :: ${JSON.stringify(safe).slice(0, 200)}`;
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       }
       log(logLine);
     }
@@ -328,7 +328,7 @@ app.post("/api/workspace/bootstrap", async (req: Request, res: Response) => {
         entryFile: null,
         settings: {},
       });
-    } catch (_) {}
+    } catch (_err: any) { console.error('[catch]', _err?.message || _err); }
     try {
       const runCommands: Record<string, string> = {
         javascript: "npm install && npm start",
@@ -354,7 +354,7 @@ app.post("/api/workspace/bootstrap", async (req: Request, res: Response) => {
         continueOnError: false,
       });
       await storage.updateProject(project.id, { selectedWorkflowId: workflow.id });
-    } catch (_) {}
+    } catch (_err: any) { console.error('[catch]', _err?.message || _err); }
     try {
       await storage.createFile({
         projectId: project.id,
@@ -437,7 +437,7 @@ app.post("/api/agent/chat", async (req: Request, res: Response) => {
   try {
     const storageModule = await import("./storage");
     chatStorage = storageModule.storage;
-  } catch {}
+  } catch (err: any) { console.error("[catch]", err?.message || err);}
 
   try {
     let result = "";
@@ -712,7 +712,7 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
         const finalMessage = await stream.finalMessage();
         tokensInput = finalMessage.usage?.input_tokens || 0;
         tokensOutput = finalMessage.usage?.output_tokens || 0;
-      } catch {}
+      } catch (err: any) { console.error("[catch]", err?.message || err);}
       // Save assistant message to in-memory store
       const convKey = String(conversationId || "default");
       if (!conversationMessages.has(convKey)) conversationMessages.set(convKey, []);
@@ -814,7 +814,7 @@ app.get("/api/projects/:projectId/files", async (req: Request, res: Response) =>
     try {
       const { storage: st } = await import("./storage");
       dbFiles = await st.getFilesByProjectId(projectId);
-    } catch {}
+    } catch (err: any) { console.error("[catch]", err?.message || err);}
     const filesWithPath = dbFiles.map((f: any) => ({
       id: f.id, projectId: f.projectId,
       filename: f.filename, path: f.path || f.filename,
@@ -857,7 +857,7 @@ app.get("/api/projects/:projectId/files", async (req: Request, res: Response) =>
               dbFilenames.add(relPath);
             }
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       }
       scanDir(projDir, '', 0);
     }
@@ -878,7 +878,7 @@ app.get("/api/projects/:projectId/files/:fileIdOrName", async (req: Request, res
       const file = files.find((f: any) => String(f.id) === fileIdOrName);
       if (file) return res.json(file);
       return res.status(404).json({ error: "File not found" });
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return res.status(500).json({ error: "Failed to get file" });
     }
   }
@@ -1221,7 +1221,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const templates = await storage.getTemplates?.() || [];
         res.json(templates);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         res.json([]);
       }
     });
@@ -1264,7 +1264,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const templates = await storage.getTemplates?.() || [];
         res.json(templates);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         res.json([]);
       }
     });
@@ -1612,7 +1612,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         cwd: process.cwd(),
         env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
       });
-      shell.onData((data: string) => { try { ws.send(data); } catch {} });
+      shell.onData((data: string) => { try { ws.send(data); } catch (err: any) { console.error("[catch]", err?.message || err);} });
       ws.on("message", (msg) => {
         const str = msg.toString();
         try {
@@ -1621,11 +1621,11 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
             shell.resize(parsed.cols, parsed.rows);
             return;
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
         shell.write(str);
       });
       ws.on("close", () => { shell.kill(); });
-      shell.onExit(() => { try { ws.close(); } catch {} });
+      shell.onExit(() => { try { ws.close(); } catch (err: any) { console.error("[catch]", err?.message || err);} });
     });
 
     // =========================================================
@@ -1642,14 +1642,14 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       runtimeLogBuffer.push(entry);
       if (runtimeLogBuffer.length > MAX_LOG_BUFFER) runtimeLogBuffer.shift();
       const msg = JSON.stringify({ type: "log", log: entry });
-      runtimeLogClients.forEach(ws => { try { ws.send(msg); } catch {} });
+      runtimeLogClients.forEach(ws => { try { ws.send(msg); } catch (err: any) { console.error("[catch]", err?.message || err);} });
     }
 
     function broadcastServerLog(entry: LogEntry) {
       serverLogBuffer.push(entry);
       if (serverLogBuffer.length > MAX_LOG_BUFFER) serverLogBuffer.shift();
       const msg = JSON.stringify({ type: "log", log: entry });
-      serverLogClients.forEach(ws => { try { ws.send(msg); } catch {} });
+      serverLogClients.forEach(ws => { try { ws.send(msg); } catch (err: any) { console.error("[catch]", err?.message || err);} });
     }
 
     const origConsoleLog = console.log;
@@ -1680,15 +1680,15 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       const clients = isRuntime ? runtimeLogClients : serverLogClients;
       const buffer = isRuntime ? runtimeLogBuffer : serverLogBuffer;
       clients.add(ws);
-      try { ws.send(JSON.stringify({ type: "connected" })); } catch {}
+      try { ws.send(JSON.stringify({ type: "connected" })); } catch (err: any) { console.error("[catch]", err?.message || err);}
       if (buffer.length > 0) {
-        try { ws.send(JSON.stringify({ type: "initial", logs: buffer.slice(-50) })); } catch {}
+        try { ws.send(JSON.stringify({ type: "initial", logs: buffer.slice(-50) })); } catch (err: any) { console.error("[catch]", err?.message || err);}
       }
       ws.on("message", (raw: any) => {
         try {
           const data = JSON.parse(raw.toString());
           if (data.type === "ping") { ws.send(JSON.stringify({ type: "pong" })); }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       });
       ws.on("close", () => { clients.delete(ws); });
       ws.on("error", () => { clients.delete(ws); });
@@ -1730,9 +1730,9 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           const parts = ab.split(/\s+/);
           ahead = parseInt(parts[0]) || 0;
           behind = parseInt(parts[1]) || 0;
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
         res.json({ branch, clean: files.length === 0, files, staged, unstaged, untracked, ahead, behind });
-      } catch { res.json({ branch: "main", clean: true, files: [], staged: [], unstaged: [], untracked: [], ahead: 0, behind: 0 }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ branch: "main", clean: true, files: [], staged: [], unstaged: [], untracked: [], ahead: 0, behind: 0 }); }
     });
 
     app.get("/api/git/projects/:id/branches", (_req, res) => {
@@ -1747,7 +1747,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           try {
             commitMsg = git(`log -1 --format="%s" ${hash}`);
             commitAuthor = git(`log -1 --format="%an" ${hash}`);
-          } catch {}
+          } catch (err: any) { console.error("[catch]", err?.message || err);}
           let branchAhead = 0, branchBehind = 0;
           if (!isRemote) {
             try {
@@ -1755,7 +1755,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
               const parts = ab.split(/\s+/);
               branchAhead = parseInt(parts[0]) || 0;
               branchBehind = parseInt(parts[1]) || 0;
-            } catch {}
+            } catch (err: any) { console.error("[catch]", err?.message || err);}
           }
           return {
             name, current: isCurrent, isRemote, hash, date,
@@ -1765,7 +1765,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           };
         });
         res.json({ branches });
-      } catch { res.json({ branches: [{ name: "main", current: true, isRemote: false, lastCommit: { hash: "", message: "", author: "", date: "" }, ahead: 0, behind: 0 }] }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ branches: [{ name: "main", current: true, isRemote: false, lastCommit: { hash: "", message: "", author: "", date: "" }, ahead: 0, behind: 0 }] }); }
     });
 
     app.get("/api/git/projects/:id/log", (req, res) => {
@@ -1777,7 +1777,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           return { hash, short, shortHash: short, author, email, date, message: msgParts.join("|") };
         });
         res.json({ commits });
-      } catch { res.json({ commits: [] }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ commits: [] }); }
     });
 
     app.get("/api/git/projects/:id/diff", (_req, res) => {
@@ -1785,7 +1785,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         const diff = git("diff");
         const staged = git("diff --cached");
         res.json({ diff, staged, hasDiff: !!(diff || staged) });
-      } catch { res.json({ diff: "", staged: "", hasDiff: false }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ diff: "", staged: "", hasDiff: false }); }
     });
 
     app.get("/api/git/projects/:id/diff/:file", (req, res) => {
@@ -1807,7 +1807,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           return { name, url, type: "fetch" as const };
         });
         res.json({ remotes });
-      } catch { res.json({ remotes: [] }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ remotes: [] }); }
     });
 
     app.post("/api/git/projects/:id/stage", (req, res) => {
@@ -1938,7 +1938,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
     app.delete("/api/workflows/:id", (req, res) => {
       const proc = workflowProcesses.get(req.params.id);
-      if (proc) { try { proc.kill("SIGTERM"); } catch {} workflowProcesses.delete(req.params.id); }
+      if (proc) { try { proc.kill("SIGTERM"); } catch (err: any) { console.error("[catch]", err?.message || err);} workflowProcesses.delete(req.params.id); }
       activeWorkflows.delete(req.params.id);
       res.json({ success: true });
     });
@@ -1951,7 +1951,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       const projCwd = wf.projectId
         ? path.resolve(process.cwd(), "projects", wf.projectId)
         : process.cwd();
-      if (!fs.existsSync(projCwd)) { try { fs.mkdirSync(projCwd, { recursive: true }); } catch {} }
+      if (!fs.existsSync(projCwd)) { try { fs.mkdirSync(projCwd, { recursive: true }); } catch (err: any) { console.error("[catch]", err?.message || err);} }
 
       wf.logs = [];
       wf.status = "running";
@@ -2006,8 +2006,8 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       if (!wf) return res.status(404).json({ error: "Not found" });
       const proc = workflowProcesses.get(req.params.id);
       if (proc) {
-        try { proc.kill("SIGTERM"); } catch {}
-        setTimeout(() => { try { proc.kill("SIGKILL"); } catch {} }, 3000);
+        try { proc.kill("SIGTERM"); } catch (err: any) { console.error("[catch]", err?.message || err);}
+        setTimeout(() => { try { proc.kill("SIGKILL"); } catch (err: any) { console.error("[catch]", err?.message || err);} }, 3000);
         workflowProcesses.delete(req.params.id);
       }
       wf.status = "stopped";
@@ -2134,9 +2134,9 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
                   }
                 }
               }
-            } catch {}
+            } catch (err: any) { console.error("[catch]", err?.message || err);}
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       }
       scanDir(projDir);
       return findings;
@@ -2169,7 +2169,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
             });
           }
         }
-      } catch {}
+      } catch (err: any) { console.error("[catch]", err?.message || err);}
       return findings;
     }
 
@@ -2203,7 +2203,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
       setTimeout(() => {
         const projDir = path.resolve(process.cwd(), "projects", projectId);
-        if (!fs.existsSync(projDir)) { try { fs.mkdirSync(projDir, { recursive: true }); } catch {} }
+        if (!fs.existsSync(projDir)) { try { fs.mkdirSync(projDir, { recursive: true }); } catch (err: any) { console.error("[catch]", err?.message || err);} }
 
         const sastFindings = runSastScan(projDir);
         const depFindings = runNpmAudit(projDir);
@@ -2315,7 +2315,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       res.json({ id: scanId, status: "queued" });
       setTimeout(() => {
         const projDir = path.resolve(process.cwd(), "projects", projectId);
-        if (!fs.existsSync(projDir)) { try { fs.mkdirSync(projDir, { recursive: true }); } catch {} }
+        if (!fs.existsSync(projDir)) { try { fs.mkdirSync(projDir, { recursive: true }); } catch (err: any) { console.error("[catch]", err?.message || err);} }
         scan.findings = [...runSastScan(projDir), ...runNpmAudit(projDir)];
         scan.totalFindings = scan.findings.length;
         scan.critical = scan.findings.filter(f => f.severity === "critical").length;
@@ -2486,7 +2486,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           if (dbFile) {
             return res.json({ id: fileId, projectId, filename: relPath, path: relPath, name: relPath.split("/").pop(), content: dbFile.content, type: "file" });
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       }
       return res.status(404).json({ error: "File not found" });
     }
@@ -2557,7 +2557,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         } else {
           res.json({ packages: [] });
         }
-      } catch { res.json({ packages: [] }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ packages: [] }); }
     });
 
     app.get("/api/packages", (req, res) => {
@@ -2590,14 +2590,14 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const result = execSync("npm outdated --json 2>/dev/null || echo '{}'", { encoding: "utf-8", timeout: 30000 });
         res.json({ outdated: JSON.parse(result) });
-      } catch { res.json({ outdated: {} }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ outdated: {} }); }
     });
 
     app.get("/api/packages/:projectId/audit", (req, res) => {
       try {
         const result = execSync("npm audit --json 2>/dev/null || echo '{}'", { encoding: "utf-8", timeout: 30000 });
         res.json(JSON.parse(result));
-      } catch { res.json({ vulnerabilities: {} }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ vulnerabilities: {} }); }
     });
 
     app.post("/api/packages/:projectId/update", async (req, res) => {
@@ -2711,7 +2711,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const u = new URL(url);
         return { host: u.hostname, port: parseInt(u.port) || 5432, databaseName: u.pathname.replace("/",""), username: u.username, password: u.password };
-      } catch { return { host: "localhost", port: 5432, databaseName: "ecode", username: "runner", password: "" }; }
+      } catch (err: any) { console.error("[catch]", err?.message || err); return { host: "localhost", port: 5432, databaseName: "ecode", username: "runner", password: "" }; }
     }
 
     function projectSchemaName(projectId: string): string {
@@ -2855,7 +2855,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           try {
             const countResult = await dbPool.query(`SELECT COUNT(*) as count FROM "${schemaName}"."${row.table_name}"`);
             rowCount = parseInt(countResult.rows[0].count);
-          } catch {}
+          } catch (err: any) { console.error("[catch]", err?.message || err);}
           tables.push({ name: row.table_name, displayName: row.table_name, icon: "table" as const, rowCount });
         }
         res.json(tables);
@@ -2883,7 +2883,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         try {
           const countResult = await dbPool.query(`SELECT COUNT(*) as count FROM "${row.tablename}"`);
           rowCount = parseInt(countResult.rows[0].count);
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
         tables.push({ name: row.tablename, displayName: row.tablename, icon: "table" as const, rowCount });
       }
       return tables;
@@ -2954,7 +2954,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           try {
             const countResult = await dbPool.query(`SELECT COUNT(*) as count FROM "${schemaName}"."${row.table_name}"`);
             rowCount = parseInt(countResult.rows[0].count);
-          } catch {}
+          } catch (err: any) { console.error("[catch]", err?.message || err);}
           const columnsResult = await dbPool.query(
             `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`,
             [schemaName, row.table_name]
@@ -3122,7 +3122,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           return { id: hash, shortId: short, author, date, message: msg.join("|"), type: "auto" };
         });
         res.json({ checkpoints });
-      } catch { res.json({ checkpoints: [] }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ checkpoints: [] }); }
     });
 
     app.post("/api/checkpoints/:id/restore", (req, res) => {
@@ -3143,7 +3143,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const files = await storage.getFilesByProjectId(req.params.id);
         res.json(files.map(f => ({ ...f, hasHistory: false, versions: [] })));
-      } catch { res.json([]); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json([]); }
     });
 
     app.get("/api/projects/:id/files/:fileId/history", (req, res) => {
@@ -3169,7 +3169,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       const projectId = sock.handshake.query.projectId as string || "default";
       const sessionId = sock.handshake.query.sessionId as string || sock.id;
       let projCwd = path.join(process.cwd(), "projects", projectId);
-      if (!fs.existsSync(projCwd)) { try { fs.mkdirSync(projCwd, { recursive: true }); } catch {} projCwd = process.cwd(); }
+      if (!fs.existsSync(projCwd)) { try { fs.mkdirSync(projCwd, { recursive: true }); } catch (err: any) { console.error("[catch]", err?.message || err);} projCwd = process.cwd(); }
 
       if (!pty) {
         sock.emit("error", { message: "Terminal not available (node-pty not installed)" });
@@ -3199,7 +3199,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       });
       sock.on("resize", (msg: { cols: number; rows: number }) => {
         if (msg?.cols && msg?.rows) {
-          try { shell.resize(Math.min(msg.cols, 500), Math.min(msg.rows, 200)); } catch {}
+          try { shell.resize(Math.min(msg.cols, 500), Math.min(msg.rows, 200)); } catch (err: any) { console.error("[catch]", err?.message || err);}
         }
       });
       sock.on("disconnect", () => {
@@ -3405,7 +3405,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         if (result.rows.length === 0) return res.status(404).json({ message: "Task not found" });
         const r = result.rows[0];
         res.json({ success: true, task: { id: r.id, status: r.status, title: r.title } });
-      } catch { res.status(500).json({ message: "Failed to accept task" }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.status(500).json({ message: "Failed to accept task" }); }
     });
 
     app.post("/api/projects/:id/tasks/:taskId/apply", async (req, res) => {
@@ -3418,7 +3418,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         );
         if (result.rows.length === 0) return res.status(404).json({ message: "Task not found" });
         res.json({ success: true, appliedFiles: [], conflicts: [] });
-      } catch { res.status(500).json({ message: "Failed to apply task" }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.status(500).json({ message: "Failed to apply task" }); }
     });
 
     app.post("/api/projects/:id/tasks/:taskId/dismiss", async (req, res) => {
@@ -3431,7 +3431,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         );
         if (result.rows.length === 0) return res.status(404).json({ message: "Task not found" });
         res.json({ success: true });
-      } catch { res.status(500).json({ message: "Failed to dismiss task" }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.status(500).json({ message: "Failed to dismiss task" }); }
     });
 
     app.post("/api/projects/:id/tasks/:taskId/resolve-conflict", (_req, res) => {
@@ -3458,7 +3458,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         res.json(result.rows.map((m: any) => ({
           id: m.id, taskId: m.task_id, role: m.role, content: m.content, createdAt: m.created_at,
         })));
-      } catch { res.status(500).json({ message: "Failed to load messages" }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.status(500).json({ message: "Failed to load messages" }); }
     });
 
     app.post("/api/projects/:id/tasks/:taskId/messages", async (req, res) => {
@@ -3478,7 +3478,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           [msgId, req.params.taskId, role || "user", content]
         );
         res.status(201).json({ id: msgId, taskId: req.params.taskId, role: role || "user", content });
-      } catch { res.status(500).json({ message: "Failed to send message" }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.status(500).json({ message: "Failed to send message" }); }
     });
 
     app.get("/api/autonomy/sessions/:id/progress", (req, res) => {
@@ -3517,7 +3517,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           id: p.id, name: p.name, status: "ready", projectId: p.id,
         }));
         res.json({ workspaces });
-      } catch { res.json({ workspaces: [] }); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ workspaces: [] }); }
     });
 
     app.get("/api/workspaces/:id", async (req, res) => {
@@ -3541,7 +3541,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       try {
         const projects = await storage.getProjectsByUserId(user.id);
         res.json(Array.isArray(projects) ? projects : []);
-      } catch { res.json([]); }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json([]); }
     });
 
     // Agent conversation mode endpoint
@@ -3860,7 +3860,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.content) fullContent += data.content;
-            } catch {}
+            } catch (err: any) { console.error("[catch]", err?.message || err);}
           }
         }
         res.json({ success: true, content: fullContent, projectId });

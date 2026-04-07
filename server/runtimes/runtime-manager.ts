@@ -29,7 +29,7 @@ async function isDockerAvailable(): Promise<boolean> {
     await execAsync('docker --version');
     dockerAvailable = true;
     logger.info('Docker is available');
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     dockerAvailable = false;
     logger.warn('Docker not available - using direct execution mode');
   }

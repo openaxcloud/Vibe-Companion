@@ -17,7 +17,7 @@ async function getDOMPurify(): Promise<typeof import('isomorphic-dompurify').def
     const module = await import('isomorphic-dompurify');
     DOMPurifyInstance = module.default;
     return DOMPurifyInstance;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }

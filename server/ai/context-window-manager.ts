@@ -437,7 +437,7 @@ export class ContextWindowManager {
       const session = JSON.parse(data) as SessionMemory;
       this.sessionMemory.set(sessionId, session);
       return session;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return null;
     }
   }
@@ -651,7 +651,7 @@ export class ContextWindowManager {
       const memory = JSON.parse(data) as LongTermMemory;
       this.longTermMemory.set(key, memory);
       return memory;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return null;
     }
   }
@@ -706,7 +706,7 @@ export class ContextWindowManager {
         return size;
       };
       storageSize = await calcSize(this.memoryStoragePath);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       storageSize = 0;
     }
     
@@ -763,7 +763,7 @@ export class ContextWindowManager {
     try {
       const sessionPath = path.join(this.memoryStoragePath, 'sessions', `${sessionId}.json`);
       await fs.unlink(sessionPath);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
     }
     logger.info(`Cleared session: ${sessionId}`);
   }
@@ -775,7 +775,7 @@ export class ContextWindowManager {
     try {
       const memoryPath = path.join(this.memoryStoragePath, 'long-term', `${key}.json`);
       await fs.unlink(memoryPath);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
     }
     logger.info(`Cleared long-term memory: ${key}`);
   }

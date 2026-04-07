@@ -279,7 +279,7 @@ export class RealObjectStorageService {
     
     try {
       await fs.access(filePath);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       throw new Error(`File not found: ${key}`);
     }
 
@@ -507,7 +507,7 @@ export class RealObjectStorageService {
       const filePath = this.getFilePath(key);
       await fs.access(filePath);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

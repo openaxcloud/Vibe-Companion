@@ -92,7 +92,7 @@ export class CloudNativePGProvider implements IDatabaseProvider {
       try {
         const fs = require('fs');
         this.k8sToken = fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf8');
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         logger.warn('Unable to read Kubernetes service account token');
       }
     }
@@ -468,7 +468,7 @@ export class CloudNativePGProvider implements IDatabaseProvider {
     try {
       await this.k8sRequest('GET', '/apis/postgresql.cnpg.io/v1/clusters?limit=1');
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }

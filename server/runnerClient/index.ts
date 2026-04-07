@@ -166,7 +166,7 @@ export async function getWorkspaceStatus(
     const res = await runnerFetch(`/workspaces/${workspaceId}`);
     if (!res.ok) return null;
     return res.json() as Promise<WorkspaceInfo>;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }
@@ -178,7 +178,7 @@ export async function stopWorkspace(workspaceId: string): Promise<boolean> {
   try {
     const res = await runnerFetch(`/workspaces/${workspaceId}`, { method: 'DELETE' });
     return res.ok || res.status === 404;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }
@@ -193,7 +193,7 @@ export async function fsRead(
     const res = await runnerFetch(`/workspaces/${workspaceId}/files/${encodeURIComponent(path)}`);
     if (!res.ok) return null;
     return res.json() as Promise<FsReadResult>;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return null;
   }
 }
@@ -210,7 +210,7 @@ export async function fsWrite(
       { method: 'PUT', body: JSON.stringify({ content }) }
     );
     return res.ok;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }
@@ -223,7 +223,7 @@ export async function fsDelete(workspaceId: string, path: string): Promise<boole
       { method: 'DELETE' }
     );
     return res.ok || res.status === 404;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }
@@ -245,7 +245,7 @@ export async function fsRename(
     const wrote = await fsWrite(workspaceId, toPath, read.content);
     if (!wrote) return false;
     return fsDelete(workspaceId, fromPath);
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }

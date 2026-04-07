@@ -41,7 +41,7 @@ export class GitManager {
       // Check if .git directory exists
       await fs.access(path.join(projectPath, '.git'));
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }
@@ -150,7 +150,7 @@ temp/
         const [ahead, behind] = aheadBehind.trim().split('\t').map(n => parseInt(n, 10));
         status.ahead = ahead || 0;
         status.behind = behind || 0;
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // No upstream branch
       }
       

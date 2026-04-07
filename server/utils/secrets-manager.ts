@@ -210,7 +210,7 @@ class SecretsManager {
   getEncryptionKey(): string | null {
     try {
       return this.getSecret('ENCRYPTION_KEY');
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return null;
     }
   }

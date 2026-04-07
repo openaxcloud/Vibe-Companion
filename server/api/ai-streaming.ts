@@ -333,7 +333,7 @@ Focus on planning, design, and collaboration - not implementation.`
               enforcedTools: tools && tools.length > 0 ? tools : undefined,
               prompt: 'You are in BUILD MODE. You can execute actions like creating files and modifying code.'
             };
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return { mode: 'build' as const, enforcedTools: tools && tools.length > 0 ? tools : undefined };
           }
         })(),
@@ -344,7 +344,7 @@ Focus on planning, design, and collaboration - not implementation.`
             const contextProvider = new ProjectContextProvider(projectId);
             const projectContext = await contextProvider.getContext();
             return ProjectContextProvider.formatAsSystemPrompt(projectContext);
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             return '';
           }
         })()
@@ -388,7 +388,7 @@ Focus on planning, design, and collaboration - not implementation.`
           retrievalDepth = ragConfig?.retrievalDepth ?? 3;
           includeConversationHistory = ragConfig?.includeConversationHistory ?? false;
         }
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // Use defaults on error
       }
       
@@ -421,7 +421,7 @@ Focus on planning, design, and collaboration - not implementation.`
                       historyContext = '\n=== CONVERSATION MEMORY ===\n' + 
                         history.map(h => `${h.role}: ${h.content.substring(0, 200)}...`).join('\n') + '\n===========================\n';
                     }
-                  } catch {}
+                  } catch (err: any) { console.error("[catch]", err?.message || err);}
                 }
                 
                 return `\n=== CONTEXT ===\n${ragItems}\n===============\n${historyContext}`;

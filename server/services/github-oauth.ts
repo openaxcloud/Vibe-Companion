@@ -289,7 +289,7 @@ export class GitHubOAuthService {
     try {
       await this.getUser(token);
       return true;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }
@@ -308,7 +308,7 @@ export class GitHubOAuthService {
         username: user.githubUsername,
         avatarUrl: user.avatarUrl || undefined
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return { connected: false };
     }
   }

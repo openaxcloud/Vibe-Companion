@@ -111,7 +111,7 @@ async function validateConnection(req: IncomingMessage): Promise<{ isValid: bool
           return { isValid: true, userId: user.id, username: user.username || 'Anonymous' };
         }
       }
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Token verification failed, continue to check other methods
     }
   }
@@ -131,7 +131,7 @@ async function validateConnection(req: IncomingMessage): Promise<{ isValid: bool
               return { isValid: true, userId: user.id, username: user.username || 'Anonymous' };
             }
           }
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // Token verification failed
         }
       }

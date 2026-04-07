@@ -523,7 +523,7 @@ export class RepoOverviewService {
       }
       
       return count;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return 0;
     }
   }
@@ -533,7 +533,7 @@ export class RepoOverviewService {
       const packageJsonPath = join(projectPath, 'package.json');
       const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
       return packageJson.name || basename(projectPath);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return basename(projectPath);
     }
   }
@@ -543,7 +543,7 @@ export class RepoOverviewService {
       const packageJsonPath = join(projectPath, 'package.json');
       const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
       return packageJson.description || 'No description available';
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return 'No description available';
     }
   }

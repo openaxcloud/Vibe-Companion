@@ -575,7 +575,7 @@ export class SandboxExecutor {
     await this.sandboxManager.destroyAllSandboxes();
     try {
       await fs.rm(this.tempDir, { recursive: true, force: true });
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Ignore errors
     }
   }

@@ -483,7 +483,7 @@ const integration = new gitReviewIntegration('${this.projectPath}');
             } else {
               categories.refactor.push(file);
             }
-          } catch {
+          } catch (err: any) { console.error("[catch]", err?.message || err);
             categories.refactor.push(file);
           }
         }
@@ -673,7 +673,7 @@ const integration = new gitReviewIntegration('${this.projectPath}');
             message,
             linesOfCode: content.split('\n').length
           });
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // File might not exist at this commit
         }
       }
@@ -738,7 +738,7 @@ const integration = new gitReviewIntegration('${this.projectPath}');
 
           totalIssues += review.issues.length;
           analysis.issues.push(...review.issues);
-        } catch {
+        } catch (err: any) { console.error("[catch]", err?.message || err);
           // File might have been deleted
         }
       }

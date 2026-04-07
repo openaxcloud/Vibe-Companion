@@ -21,7 +21,7 @@ export function parseReplitConfig(content: string): ReplitConfig {
       }
     }
     return config;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return {};
   }
 }

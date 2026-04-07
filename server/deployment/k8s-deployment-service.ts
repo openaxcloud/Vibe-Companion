@@ -54,7 +54,7 @@ export class K8sDeploymentService {
     // Load from default kubeconfig or in-cluster config
     try {
       this.kc.loadFromDefault();
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // If not in cluster, use mock config for development
       this.kc.loadFromString(this.getDevKubeconfig());
     }

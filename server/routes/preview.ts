@@ -609,7 +609,7 @@ router.post('/projects/:id/preview/switch-port', ensureAuthenticated, ensureProj
 // - Directory paths: /api/preview/projects/:id/preview/public/ (serves public/index.html)
 // - Nested index.html: /api/preview/projects/:id/preview/public/index.html
 // Note: This route handles /api/preview/projects/:id/preview/:filepath
-router.get('/projects/:id/preview/:filepath(*)', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.get('/projects/:id/preview/{*filepath}', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     let filepath = req.params.filepath || 'index.html';

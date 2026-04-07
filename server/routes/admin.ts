@@ -1207,7 +1207,7 @@ router.get('/usage/users', async (req, res) => {
         try {
           const projects = await storage.getProjectsByUserId(String(u.id));
           projectCount = projects?.length || 0;
-        } catch (_) {}
+        } catch (_err: any) { console.error('[catch]', _err?.message || _err); }
 
         const tier = u.subscriptionTier || 'free';
         const planPriceMap: Record<string, number> = { free: 0, core: 9.99, pro: 9.99, teams: 29.99, enterprise: 99.99 };

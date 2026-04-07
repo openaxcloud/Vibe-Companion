@@ -471,18 +471,18 @@ export class RealDeploymentService {
     try {
       await fs.access(path.join(projectPath, 'package.json'));
       return 'node';
-    } catch { /* File not found - check next type */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - check next type */ }
     
     try {
       await fs.access(path.join(projectPath, 'requirements.txt'));
       return 'python';
-    } catch { /* File not found - check next type */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - check next type */ }
     
     try {
       // Check for Go
       await fs.access(path.join(projectPath, 'go.mod'));
       return 'go';
-    } catch { /* File not found - use default */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - use default */ }
     
     return 'static';
   }
@@ -594,7 +594,7 @@ CMD ["sh"]`;
           });
         }
       }
-    } catch { /* api/ directory may not exist - that's OK */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* api/ directory may not exist - that's OK */ }
     
     return functions;
   }

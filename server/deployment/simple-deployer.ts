@@ -104,19 +104,19 @@ export class SimpleDeployer {
       // Check for package.json
       await fs.access(path.join(projectDir, 'package.json'));
       return 'node.js';
-    } catch { /* File not found - check next type */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - check next type */ }
     
     try {
       // Check for requirements.txt
       await fs.access(path.join(projectDir, 'requirements.txt'));
       return 'python';
-    } catch { /* File not found - check next type */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - check next type */ }
     
     try {
       // Check for index.html
       await fs.access(path.join(projectDir, 'index.html'));
       return 'static';
-    } catch { /* File not found - use default */ }
+    } catch (err: any) { console.error("[catch]", err?.message || err); /* File not found - use default */ }
     
     return 'unknown';
   }

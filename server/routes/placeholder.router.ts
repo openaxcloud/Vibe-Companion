@@ -154,7 +154,7 @@ function generateProductSVG(width: number, height: number): string {
 
 // Avatar endpoint: /api/avatar/:name or /api/avatar/:name/:size
 // SECURITY FIX #22: Apply rate limiting
-router.get('/avatar/:name/:size?', placeholderRateLimiter, (req: Request, res: Response) => {
+router.get('/avatar/:name{/:size}', placeholderRateLimiter, (req: Request, res: Response) => {
   const name = decodeURIComponent(req.params.name || 'User');
   const size = parseInt(req.params.size || '100', 10);
   

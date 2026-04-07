@@ -143,7 +143,7 @@ function isViteHMRConnection(request: IncomingMessage): boolean {
       return true;
     }
     return false;
-  } catch {
+  } catch (err: any) { console.error("[catch]", err?.message || err);
     return false;
   }
 }

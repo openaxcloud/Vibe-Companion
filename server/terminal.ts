@@ -62,7 +62,7 @@ async function validateTerminalConnection(req: IncomingMessage): Promise<{ isVal
       if (decoded.userId || decoded.projectId) {
         return { isValid: true, userId: decoded.userId };
       }
-    } catch { }
+    } catch (err: any) { console.error("[catch]", err?.message || err); }
   }
   
   return { isValid: false };

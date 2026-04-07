@@ -276,7 +276,7 @@ export class PTYTerminalService {
             authenticated = true;
             authenticatedUserId = decoded.userId || decoded.id || decoded.sub || null;
           }
-        } catch {}
+        } catch (err: any) { console.error("[catch]", err?.message || err);}
       }
 
       if (!authenticated && process.env.NODE_ENV === 'production') {

@@ -529,7 +529,7 @@ class Sandbox {
       const utime = parseInt(fields[13]);
       const stime = parseInt(fields[14]);
       return (utime + stime) / 100; // Convert to seconds
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return 0;
     }
   }
@@ -541,7 +541,7 @@ class Sandbox {
       const status = await fs.readFile(`/proc/${this.process.pid}/status`, 'utf-8');
       const vmRssMatch = status.match(/VmRSS:\s+(\d+)\s+kB/);
       return vmRssMatch ? parseInt(vmRssMatch[1]) * 1024 : 0;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return 0;
     }
   }
@@ -550,7 +550,7 @@ class Sandbox {
     try {
       const { stdout } = await this.runCommandOutput('du', ['-sb', this.rootDir]);
       return parseInt(stdout.split('\t')[0]);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return 0;
     }
   }
@@ -587,7 +587,7 @@ class Sandbox {
       };
       
       await walkDir(workspaceDir);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Ignore errors
     }
     
@@ -631,7 +631,7 @@ class Sandbox {
     // Remove sandbox directory
     try {
       await fs.rm(this.rootDir, { recursive: true, force: true });
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Ignore errors
     }
   }

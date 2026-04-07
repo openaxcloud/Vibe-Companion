@@ -88,14 +88,16 @@ export class AuthRouter {
     this.router.use('/forgot-password', tierRateLimiters.auth);
     this.router.use('/reset-password', tierRateLimiters.auth);
     
-    // Get current user (sanitized - no sensitive fields)
-    this.router.get("/me", this.ensureAuthenticated, (req: Request, res: Response) => {
+    const meHandler = (req: Request, res: Response) => {
       const user = req.user;
       if (!user) {
         return res.status(401).json({ message: "Not authenticated" });
       }
       res.json(this.sanitizeUser(user));
-    });
+    };
+
+    this.router.get("/me", this.ensureAuthenticated, meHandler);
+    this.router.get("/auth/me", this.ensureAuthenticated, meHandler);
 
     // Alias: /user -> /me (for compatibility with health probes and legacy clients)
     this.router.get("/user", this.ensureAuthenticated, (req: Request, res: Response) => {

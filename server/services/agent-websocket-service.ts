@@ -777,7 +777,7 @@ class AgentWebSocketService {
               logger.warn(`[Heartbeat] Device ${device.deviceId} missed ${pingState.missedPings} pings, terminating`);
               try {
                 device.ws.close(1000, 'Heartbeat timeout');
-              } catch (e) {}
+              } catch (e: any) { console.error('[catch]', e?.message || e); }
               devices.delete(device);
               this.devicePingState.delete(deviceKey);
               return;

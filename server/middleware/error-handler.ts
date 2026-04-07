@@ -16,7 +16,7 @@ import { createLogger } from '../utils/logger';
 let _sentry: any = null;
 function getSentry() {
   if (_sentry === null) {
-    try { _sentry = require('@sentry/node'); } catch { _sentry = undefined; }
+    try { _sentry = require('@sentry/node'); } catch (err: any) { console.error("[catch]", err?.message || err); _sentry = undefined; }
   }
   return _sentry;
 }

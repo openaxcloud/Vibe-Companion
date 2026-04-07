@@ -572,7 +572,7 @@ class AgentGridDataService {
         avgActionsPerSession: totalSessions > 0 ? Math.round(totalOperations / totalSessions) : 0,
         totalCost: 0,
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         totalSessions: 0,
         activeSessions: 0,
@@ -616,7 +616,7 @@ class AgentGridDataService {
         rollbackRate: 0,
         avgActionDuration: 0,
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         totalActions: 0,
         actionsByType: {},
@@ -650,7 +650,7 @@ class AgentGridDataService {
         topLanguages: [],
         topFileTypes: [],
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         totalFileOperations: 0,
         filesCreated: 0,
@@ -692,7 +692,7 @@ class AgentGridDataService {
         avgMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
         topModels: [],
       };
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return {
         totalConversations: 0,
         totalMessages: 0,

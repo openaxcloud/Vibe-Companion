@@ -218,7 +218,7 @@ WORKDIR /code
     // Check if image exists
     try {
       await execAsync(`docker image inspect ${imageName}`);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       // Build image
       const dockerfilePath = path.join(this.containersDir, `Dockerfile.${language}`);
       await fs.writeFile(dockerfilePath, dockerfile);

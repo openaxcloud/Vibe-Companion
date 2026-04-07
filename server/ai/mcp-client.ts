@@ -70,7 +70,7 @@ export class MCPClient {
     const text = result.content[0]?.text || '[]';
     try {
       return JSON.parse(text);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return [];
     }
   }
@@ -92,7 +92,7 @@ export class MCPClient {
     const text = result.content[0]?.text || '[]';
     try {
       return JSON.parse(text);
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return [];
     }
   }
@@ -197,7 +197,7 @@ export class MCPClient {
     if (dir && dir !== projectPath) {
       try {
         await this.createDirectory(dir);
-      } catch {
+      } catch (err: any) { console.error("[catch]", err?.message || err);
         // Directory might already exist
       }
     }
@@ -218,7 +218,7 @@ export class MCPClient {
     try {
       const response = await fetch(`${this.baseUrl}/health`);
       return response.ok;
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
   }
@@ -233,7 +233,7 @@ export class MCPClient {
         return await response.json() as any[];
       }
       return [];
-    } catch {
+    } catch (err: any) { console.error("[catch]", err?.message || err);
       return [];
     }
   }

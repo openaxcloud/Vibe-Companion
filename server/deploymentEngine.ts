@@ -103,7 +103,7 @@ export async function shutdownAllProcesses(): Promise<void> {
       if (proc.process) proc.process.kill();
       else if (proc.pid) process.kill(proc.pid, "SIGTERM");
       managedProcesses.delete(projectId);
-    } catch {}
+    } catch (err: any) { console.error("[catch]", err?.message || err);}
   }
 }
 
@@ -117,6 +117,6 @@ function detectProjectType(projectDir: string): DeploymentType {
       const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf-8"));
       if (pkg.scripts?.start || pkg.scripts?.dev) return "node";
     }
-  } catch {}
+  } catch (err: any) { console.error("[catch]", err?.message || err);}
   return "static";
 }
