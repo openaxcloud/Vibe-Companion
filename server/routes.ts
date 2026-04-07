@@ -10,6 +10,13 @@ import { storage } from "./storage";
 import { incrementRequests, incrementErrors, recordResponseTime } from "./metricsCollector";
 import { MainRouter } from "./routes/index";
 
+function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.userId || (req as any).user) {
+    return next();
+  }
+  return res.status(401).json({ error: "Not authenticated" });
+}
+
 function qstr(val: unknown): string {
   if (typeof val === 'string') return val;
   if (Array.isArray(val)) return String(val[0] ?? '');
@@ -363,6 +370,244 @@ export async function registerRoutes(
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.sendFile(filepath);
   });
+
+  // Simple preview route for HTML/CSS/JS projects
+  app.get('/preview/:projectId/{*filepath}', async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const filepath = (req.params as any).filepath || 'index.html';
+      
+      // Get all project files
+      const files = await storage.getFilesByProject(projectId);
+      
+      // Find the requested file
+      const file = files.find(f => f.name === filepath && !f.isFolder);
+      
+      if (!file) {
+        // Try to find index.html as default
+        const indexFile = files.find(f => f.name === 'index.html' && !f.isFolder);
+        if (indexFile) {
+          res.type('html').send(indexFile.content || '');
+          return;
+        }
+        return res.status(404).send('File not found');
+      }
+      
+      // Set appropriate content type
+      const ext = path.extname(filepath).toLowerCase();
+      switch (ext) {
+        case '.html':
+          res.type('text/html');
+          break;
+        case '.css':
+          res.type('text/css');
+          break;
+        case '.js':
+          res.type('application/javascript');
+          break;
+        default:
+          res.type('text/plain');
+      }
+      
+      res.send(file.content || '');
+    } catch (error) {
+      console.error('Error serving preview:', error);
+      res.status(500).send('Error loading preview');
+    }
+  });
+  
+  // Secrets Routes
+  app.get('/api/secrets', ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const userSecrets = await storage.getSecretsByUser(userId);
+      
+      // Don't send the actual values for security
+      const sanitizedSecrets = userSecrets.map(secret => ({
+        id: secret.id,
+        key: secret.key,
+        description: secret.description,
+        projectId: secret.projectId,
+        createdAt: secret.createdAt,
+        updatedAt: secret.updatedAt
+      }));
+      
+      res.json(sanitizedSecrets);
+    } catch (error) {
+      console.error('Error fetching secrets:', error);
+      res.status(500).json({ error: 'Failed to fetch secrets' });
+    }
+  });
+  
+  app.post('/api/secrets', ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { key, value, description, projectId } = req.body;
+      
+      if (!key || !value) {
+        return res.status(400).json({ error: 'Key and value are required' });
+      }
+      
+      // Validate key format (uppercase, underscores only)
+      if (!/^[A-Z_]+$/.test(key)) {
+        return res.status(400).json({ error: 'Key must contain only uppercase letters and underscores' });
+      }
+      
+      const secret = await storage.createSecret({
+        userId,
+        key,
+        value,
+        description,
+        projectId
+      });
+      
+      // Return without the value for security
+      res.json({
+        id: secret.id,
+        key: secret.key,
+        description: secret.description,
+        projectId: secret.projectId,
+        createdAt: secret.createdAt,
+        updatedAt: secret.updatedAt
+      });
+    } catch (error: any) {
+      if (error.message?.includes('duplicate key')) {
+        return res.status(409).json({ error: 'A secret with this key already exists' });
+      }
+      console.error('Error creating secret:', error);
+      res.status(500).json({ error: 'Failed to create secret' });
+    }
+  });
+  
+  app.put('/api/secrets/:id', ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const secretId = parseInt(req.params.id);
+      const { value, description } = req.body;
+      
+      // Verify ownership
+      const secret = await storage.getSecret(secretId);
+      if (!secret || secret.userId !== userId) {
+        return res.status(404).json({ error: 'Secret not found' });
+      }
+      
+      const updated = await storage.updateSecret(secretId, {
+        value,
+        description
+      });
+      
+      // Return without the value for security
+      res.json({
+        id: updated.id,
+        key: updated.key,
+        description: updated.description,
+        projectId: updated.projectId,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt
+      });
+    } catch (error) {
+      console.error('Error updating secret:', error);
+      res.status(500).json({ error: 'Failed to update secret' });
+    }
+  });
+  
+  app.delete('/api/secrets/:id', ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const secretId = parseInt(req.params.id);
+      
+      // Verify ownership
+      const secret = await storage.getSecret(secretId);
+      if (!secret || secret.userId !== userId) {
+        return res.status(404).json({ error: 'Secret not found' });
+      }
+      
+      await storage.deleteSecret(secretId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting secret:', error);
+      res.status(500).json({ error: 'Failed to delete secret' });
+    }
+  });
+  
+  // Get secret value (for server-side use only)
+  app.get('/api/secrets/:id/value', ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const secretId = parseInt(req.params.id);
+      
+      const secret = await storage.getSecret(secretId);
+      if (!secret || secret.userId !== userId) {
+        return res.status(404).json({ error: 'Secret not found' });
+      }
+      
+      res.json({ value: secret.value });
+    } catch (error) {
+      console.error('Error fetching secret value:', error);
+      res.status(500).json({ error: 'Failed to fetch secret value' });
+    }
+  });
+
+  // Serve project static files for preview
+  app.get("/api/preview/:projectId/", async (req: Request, res: Response) => {
+    return serveProjectFile(req, res, req.params.projectId, "index.html");
+  });
+  app.get("/api/preview/:projectId/{*filePath}", async (req: Request, res: Response) => {
+    const filePath = (req.params as any).filePath || "index.html";
+    return serveProjectFile(req, res, req.params.projectId, filePath);
+  });
+
+  async function serveProjectFile(req: Request, res: Response, projectId: string, filePath: string) {
+    try {
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).send("Project not found");
+      if (project.visibility === "private") {
+        const sessionUserId = req.session?.userId;
+        if (!sessionUserId) {
+          return res.status(403).send("Access denied: this project is private");
+        }
+        if (sessionUserId !== project.userId) {
+          const isGuest = await storage.isProjectGuest(project.id, sessionUserId);
+          if (!isGuest) {
+            if (project.teamId) {
+              const teams = await storage.getUserTeams(sessionUserId);
+              if (!teams.some(t => t.id === project.teamId)) {
+                return res.status(403).send("Access denied: this project is private");
+              }
+            } else {
+              return res.status(403).send("Access denied: this project is private");
+            }
+          }
+        }
+      }
+      const files = await storage.getFilesByProject(projectId);
+      const targetFile = files.find(f => f.filename === filePath || f.filename === `/${filePath}`);
+      if (!targetFile || !targetFile.content) {
+        const indexFile = files.find(f => f.filename === "index.html");
+        if (indexFile && indexFile.content) {
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          return res.send(indexFile.content);
+        }
+        return res.status(404).send("File not found");
+      }
+      const ext = filePath.split(".").pop()?.toLowerCase() || "";
+      const mimeTypes: Record<string, string> = {
+        html: "text/html; charset=utf-8",
+        css: "text/css; charset=utf-8",
+        js: "application/javascript; charset=utf-8",
+        json: "application/json; charset=utf-8",
+        png: "image/png",
+        jpg: "image/jpeg",
+        svg: "image/svg+xml",
+      };
+      const contentType = mimeTypes[ext] || "text/plain; charset=utf-8";
+      res.setHeader("Content-Type", contentType);
+      return res.send(targetFile.content);
+    } catch (err: any) {
+      console.error("[preview] Error serving file:", err.message);
+      return res.status(500).send("Internal error");
+    }
+  }
 
   return httpServer;
 }

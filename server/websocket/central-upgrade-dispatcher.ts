@@ -24,7 +24,7 @@ import type { Server } from 'http';
 import { parse as parseCookie } from 'cookie';
 import { markSocketAsHandled, isSocketHandled } from './upgrade-guard';
 import { createCentralizedLogger } from '../logging/centralized-logger';
-import { sessionStore } from '../storage';
+import { sessionStore, storage } from '../storage';
 
 const logger = createCentralizedLogger('central-upgrade-dispatcher');
 
@@ -42,6 +42,25 @@ interface ConnectionStats {
   activeConnections: number;
 }
 
+const WS_REAUTH_INTERVAL_MS = 60_000;
+const WS_CLOSE_AUTH_EXPIRED = 4001;
+
+function sendWebSocketCloseFrame(socket: Duplex, code: number, reason: string): void {
+  try {
+    const reasonBuf = Buffer.from(reason, 'utf8');
+    const payloadLen = 2 + reasonBuf.length;
+    const frame = Buffer.alloc(2 + payloadLen);
+    frame[0] = 0x88;
+    frame[1] = payloadLen;
+    frame.writeUInt16BE(code, 2);
+    reasonBuf.copy(frame, 4);
+    socket.write(frame);
+    socket.end();
+  } catch {
+    socket.destroy();
+  }
+}
+
 class CentralUpgradeDispatcher {
   private handlers: ServiceHandler[] = [];
   private isInitialized = false;
@@ -49,6 +68,7 @@ class CentralUpgradeDispatcher {
   private totalConnections = 0;
   private connectionsByPath: Map<string, number> = new Map();
   private activeConnections = 0;
+  private reauthIntervals: Map<Duplex, NodeJS.Timeout> = new Map();
   
   /**
    * Initialize the dispatcher on an HTTP server
@@ -106,60 +126,72 @@ class CentralUpgradeDispatcher {
    */
   private async validateWebSocketConnection(request: IncomingMessage): Promise<boolean> {
     try {
+      let userId: number | null = null;
+
       // Method 1: Check session cookie (standard authentication)
       const cookies = request.headers.cookie;
       if (cookies) {
         const parsedCookies = parseCookie(cookies);
         const sessionId = parsedCookies['ecode.sid'] || parsedCookies['connect.sid'];
         if (sessionId) {
-          // Extract session ID from signed cookie (remove 's:' prefix and signature)
           const sid = sessionId.startsWith('s:') 
             ? sessionId.slice(2).split('.')[0] 
             : sessionId;
           
-          const hasValidSession = await new Promise<boolean>((resolve) => {
+          userId = await new Promise<number | null>((resolve) => {
             sessionStore.get(sid, (err, session) => {
               if (err || !session) {
-                resolve(false);
+                resolve(null);
                 return;
               }
-              resolve(session.passport?.user != null);
+              resolve(session.passport?.user ?? null);
             });
           });
-          
-          if (hasValidSession) {
-            return true;
-          }
         }
       }
       
       // Method 2: Check bootstrap token in URL query parameters (for autonomous workspace)
-      const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
-      const bootstrapToken = url.searchParams.get('bootstrap') || url.searchParams.get('bootstrapToken');
-      
-      if (bootstrapToken) {
-        try {
-          // Dynamically import jwt and getJwtSecret to avoid circular dependencies
-          const jwt = await import('jsonwebtoken');
-          const { getJwtSecret } = await import('../utils/secrets-manager');
-          
-          const decoded = jwt.default.verify(bootstrapToken, getJwtSecret()) as {
-            type: string;
-            projectId: string;
-            userId: number;
-          };
-          
-          // Validate it's a bootstrap token with required fields
-          if (decoded.type === 'agent_bootstrap' && decoded.projectId && decoded.userId) {
-            logger.debug('[Central Dispatcher] Bootstrap token validated for WebSocket connection');
-            return true;
+      if (userId == null) {
+        const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+        const bootstrapToken = url.searchParams.get('bootstrap') || url.searchParams.get('bootstrapToken');
+        
+        if (bootstrapToken) {
+          try {
+            const jwt = await import('jsonwebtoken');
+            const { getJwtSecret } = await import('../utils/secrets-manager');
+            
+            const decoded = jwt.default.verify(bootstrapToken, getJwtSecret()) as {
+              type: string;
+              projectId: string;
+              userId: number;
+            };
+            
+            if (decoded.type === 'agent_bootstrap' && decoded.projectId && decoded.userId) {
+              logger.debug('[Central Dispatcher] Bootstrap token validated for WebSocket connection');
+              userId = decoded.userId;
+            }
+          } catch (tokenError) {
+            logger.debug('[Central Dispatcher] Bootstrap token validation failed:', tokenError);
           }
-        } catch (tokenError) {
-          logger.debug('[Central Dispatcher] Bootstrap token validation failed:', tokenError);
         }
       }
-      
-      return false;
+
+      if (userId == null) {
+        return false;
+      }
+
+      try {
+        const user = await storage.getUser(userId);
+        if (!user || user.isBanned) {
+          logger.warn('[Central Dispatcher] User banned or not found during WS auth', { userId });
+          return false;
+        }
+      } catch (lookupErr) {
+        logger.warn('[Central Dispatcher] Could not verify user ban status, denying connection', { userId });
+        return false;
+      }
+
+      return true;
     } catch (err: any) { console.error("[catch]", err?.message || err);
       return false;
     }
@@ -223,9 +255,14 @@ class CentralUpgradeDispatcher {
     const currentPathCount = this.connectionsByPath.get(handler.path) || 0;
     this.connectionsByPath.set(handler.path, currentPathCount + 1);
     
-    // Track socket close to update active connections
+    // Track socket close to update active connections and clear reauth
     socket.once('close', () => {
       this.activeConnections--;
+      const interval = this.reauthIntervals.get(socket);
+      if (interval) {
+        clearInterval(interval);
+        this.reauthIntervals.delete(socket);
+      }
     });
     
     // Public paths that don't require auth from the dispatcher
@@ -256,6 +293,35 @@ class CentralUpgradeDispatcher {
       logger.debug('[Central Dispatcher] WebSocket authentication successful', {
         effectivePath,
       });
+
+      let reauthErrors = 0;
+      const MAX_REAUTH_ERRORS = 3;
+      const reauthInterval = setInterval(async () => {
+        try {
+          const stillValid = await this.validateWebSocketConnection(request);
+          if (!stillValid) {
+            logger.warn('[Central Dispatcher] Session expired during WebSocket connection', {
+              effectivePath,
+              ip: request.socket?.remoteAddress,
+            });
+            clearInterval(reauthInterval);
+            this.reauthIntervals.delete(socket);
+            sendWebSocketCloseFrame(socket, WS_CLOSE_AUTH_EXPIRED, 'Session expired');
+          } else {
+            reauthErrors = 0;
+          }
+        } catch {
+          reauthErrors++;
+          logger.error(`[Central Dispatcher] Error during periodic re-auth check (${reauthErrors}/${MAX_REAUTH_ERRORS})`);
+          if (reauthErrors >= MAX_REAUTH_ERRORS) {
+            logger.warn('[Central Dispatcher] Too many re-auth errors, closing connection');
+            clearInterval(reauthInterval);
+            this.reauthIntervals.delete(socket);
+            sendWebSocketCloseFrame(socket, WS_CLOSE_AUTH_EXPIRED, 'Auth check failed');
+          }
+        }
+      }, WS_REAUTH_INTERVAL_MS);
+      this.reauthIntervals.set(socket, reauthInterval);
     }
     
     logger.info(`[Central Dispatcher] Routing ${effectivePath} to registered handler`);

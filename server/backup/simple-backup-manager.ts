@@ -228,7 +228,24 @@ export class SimpleBackupManager {
       fs.writeFileSync(tmpZipPath, backupBuffer);
 
       const extract = require('extract-zip');
-      await extract(tmpZipPath, { dir: extractPath });
+      const resolvedExtractPath = path.resolve(extractPath);
+      await extract(tmpZipPath, {
+        dir: resolvedExtractPath,
+        onEntry: (entry: { fileName: string }) => {
+          const entryTarget = path.resolve(resolvedExtractPath, entry.fileName);
+          if (!entryTarget.startsWith(resolvedExtractPath + path.sep) && entryTarget !== resolvedExtractPath) {
+            throw new Error(`Zip-slip detected: entry "${entry.fileName}" escapes extraction directory`);
+          }
+        }
+      });
+
+      const allFiles = this.getAllFilesRecursive(resolvedExtractPath);
+      for (const filePath of allFiles) {
+        const resolvedFile = path.resolve(filePath);
+        if (!resolvedFile.startsWith(resolvedExtractPath + path.sep) && resolvedFile !== resolvedExtractPath) {
+          throw new Error(`Zip-slip detected: file "${filePath}" escapes extraction directory`);
+        }
+      }
       
       const metadataPath = path.join(extractPath, 'backup-metadata.json');
       if (fs.existsSync(metadataPath)) {
@@ -317,6 +334,20 @@ export class SimpleBackupManager {
     }
   }
   
+  private getAllFilesRecursive(dir: string): string[] {
+    const results: string[] = [];
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...this.getAllFilesRecursive(fullPath));
+      } else {
+        results.push(fullPath);
+      }
+    }
+    return results;
+  }
+
   private scheduleAutoBackup(projectId: number, settings: BackupSettings) {
     // In a real implementation, this would use a job scheduler
     logger.info(`Scheduled ${settings.frequency} backups for project ${projectId}`);

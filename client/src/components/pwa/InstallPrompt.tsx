@@ -34,7 +34,8 @@ export function InstallPrompt() {
 
     // Check if user dismissed the prompt before
     const dismissed = localStorage.getItem('pwa-install-dismissed');
-    const dismissedTime = dismissed ? parseInt(dismissed) : 0;
+    const parsed = dismissed ? parseInt(dismissed, 10) : 0;
+    const dismissedTime = isNaN(parsed) ? 0 : parsed;
     const now = Date.now();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
 

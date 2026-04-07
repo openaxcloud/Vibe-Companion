@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cva } from "class-variance-authority"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
@@ -11,8 +11,6 @@ const alertVariants = cva(
         default: "bg-background text-foreground",
         destructive:
           "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
-        secondary:
-          "border-secondary/40 bg-secondary/10 text-secondary-foreground [&>svg]:text-secondary",
       },
     },
     defaultVariants: {
@@ -21,45 +19,17 @@ const alertVariants = cva(
   }
 )
 
-type AlertVariant = "default" | "destructive" | "secondary"
-
-/**
- * Alert component props
- * 
- * @remarks
- * For dynamic status alerts that update, add aria-live="polite" and aria-atomic="true"
- * to ensure screen readers announce changes.
- * 
- * @example
- * ```tsx
- * <Alert variant="destructive" aria-live="assertive">
- *   <AlertTitle>Error</AlertTitle>
- *   <AlertDescription>{errorMessage}</AlertDescription>
- * </Alert>
- * ```
- */
-export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: AlertVariant | null
-  /** Use "polite" for non-urgent updates, "assertive" for errors */
-  'aria-live'?: 'polite' | 'assertive' | 'off'
-  /** When true, entire region is announced; when false, only changes */
-  'aria-atomic'?: boolean
-}
-
-const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
-  ({ className, variant, ...props }, ref) => (
-    <div
-      ref={ref}
-      role="alert"
-      className={cn(
-        alertVariants({ variant: variant ?? undefined }),
-        "rounded-lg",
-        className
-      )}
-      {...props}
-    />
-  )
-)
+const Alert = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
+>(({ className, variant, ...props }, ref) => (
+  <div
+    ref={ref}
+    role="alert"
+    className={cn(alertVariants({ variant }), className)}
+    {...props}
+  />
+))
 Alert.displayName = "Alert"
 
 const AlertTitle = React.forwardRef<
@@ -87,4 +57,3 @@ const AlertDescription = React.forwardRef<
 AlertDescription.displayName = "AlertDescription"
 
 export { Alert, AlertTitle, AlertDescription }
-
