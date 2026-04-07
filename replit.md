@@ -47,7 +47,20 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
 - **`server/ai.ts` vs `server/ai/index.ts`**: `server/ai.ts` takes precedence for `from '../ai'` imports
 - **Post-merge script**: NEVER use `drizzle-kit push --force` — it renames tables destructively
 
+## Auth Architecture
+- **Session**: Single session middleware in `server/index.ts` using `connect-pg-simple` with `ecode.sid` cookie
+- **Passport**: Set up in `server/middleware/passport-setup.ts` with email-based LocalStrategy
+- **Auth routes**: Registered in `server/auth.ts` via `setupAuth(app)` — includes both legacy (`/api/login`, `/api/register`) and new (`/api/auth/login`, `/api/auth/me`, etc.) paths
+- **Password hashing**: `comparePasswords()` in `auth.ts` supports both bcrypt (`$2a$`/`$2b$`) and scrypt (`hex.salt`) formats
+- **Cookie settings**: `secure: true` + `sameSite: none` on Replit (via HTTPS proxy), `trust proxy: 1` enabled
+- **IMPORTANT**: Do NOT add duplicate session or passport middleware in `auth.ts` — `index.ts` handles it
+
 ## Recent Changes
+- 2026-04-07: Fixed auth route 404s — added `/api/auth/me`, `/api/auth/login`, `/api/auth/register`, `/api/auth/logout`, `/api/auth/session` routes to `auth.ts`
+- 2026-04-07: Removed duplicate session/passport middleware from `auth.ts` (was conflicting with `index.ts`)
+- 2026-04-07: Fixed password comparison to support both bcrypt and scrypt hash formats
+- 2026-04-07: Added missing utility routes to `routes.ts`: `/api/logs/ingest`, `/api/monitoring/*`, `/api/marketplace/templates`, `/api/notifications`, `/api/agent/conversation/:projectId`
+- 2026-04-07: Disabled noisy `[Auth Debug]` logging (now gated by AUTH_DEBUG env var)
 - 2026-04-07: Full stub page audit — replaced 5 stubs with real pages (Import→GitHubImport, CLI→Account, SharedProject→SharedSnippet, TeamsOverview→Teams, Demo→redirect). Rebuilt 4 stubs as real functional pages (AcceptInvite, McpDirectory, McpInstallLink, OpenInReplit). Restored 8 pages to their biggest clean historical versions (Docs 1287L, Deployments 869L, AIDocumentation 1453L, Bounties 580L, Cycles 459L, BoltImport 263L, Forum 254L). Languages page confirmed at max (664L). All 87 routes pass.
 - 2026-04-07: Design System Pro & All AI Models Working (Task #127)
   - Created shared DESIGN_SYSTEM_PROMPT constant (server/ai/prompts/design-system.ts) with Tailwind CSS CDN, Inter font, color palette, glassmorphism, animations

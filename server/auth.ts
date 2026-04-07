@@ -1,10 +1,8 @@
 import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response } from "express";
-import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { storage, sessionStore } from "./storage";
+import { storage } from "./storage";
 import { User } from "@shared/schema";
 import { 
   generateEmailVerificationToken, 
@@ -59,95 +57,25 @@ async function hashPassword(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
-// Password comparison function
+// Password comparison function - supports both scrypt and bcrypt formats
 async function comparePasswords(supplied: string, stored: string) {
+  if (stored.startsWith("$2a$") || stored.startsWith("$2b$") || stored.startsWith("$2y$")) {
+    const bcrypt = await import("bcryptjs");
+    return bcrypt.compare(supplied, stored);
+  }
   const [hashed, salt] = stored.split(".");
+  if (!hashed || !salt) return false;
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+  if (hashedBuf.length !== suppliedBuf.length) return false;
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
 // Setup authentication for the Express app
 export function setupAuth(app: Express) {
-  // Configure session middleware
-  const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || 'plot-secret-key-strong-enough-for-development',
-    resave: false, // Changed to false as we're using a store that implements touch
-    saveUninitialized: true, // Changed to true to allow all sessions for testing
-    store: sessionStore,
-    name: 'plot.sid', // Custom name to avoid using the default
-    cookie: {
-      secure: false, // Set to false for development to work with HTTP
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      path: '/'
-    }
-  };
-  
-  // Debug session configuration
-  console.log("Session configuration:", {
-    secret: sessionSettings.secret ? 'Set (hidden)' : 'Not set',
-    resave: sessionSettings.resave,
-    saveUninitialized: sessionSettings.saveUninitialized,
-    cookieSecure: sessionSettings.cookie?.secure,
-    environment: process.env.NODE_ENV
-  });
+  // Session and passport middleware are already initialized in index.ts
+  // This function only registers auth routes
 
-  // Setup session middleware and passport
-  app.set("trust proxy", 1);
-  app.use(session(sessionSettings));
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  // Setup local strategy for username/password authentication
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        console.log(`Authentication attempt for user: ${username}`);
-        const user = await storage.getUserByUsername(username);
-        if (!user) {
-          console.log(`User not found: ${username}`);
-          return done(null, false, { message: "Incorrect username" });
-        }
-        
-        const isValidPassword = await comparePasswords(password, user.password);
-        if (!isValidPassword) {
-          console.log(`Invalid password for user: ${username}`);
-          return done(null, false, { message: "Incorrect password" });
-        }
-        
-        console.log(`Authentication successful for user: ${username}`);
-        // Use as any to get around TypeScript checking as the user object is compatible with Express.User
-        return done(null, user as any);
-      } catch (err) {
-        console.error(`Authentication error for user ${username}:`, err);
-        return done(err);
-      }
-    })
-  );
-
-  // Serialize user to the session
-  passport.serializeUser((user: Express.User, done) => {
-    console.log('Serializing user:', user.id);
-    done(null, user.id);
-  });
-
-  // Deserialize user from the session
-  passport.deserializeUser(async (id: number, done) => {
-    try {
-      console.log('Deserializing user ID:', id);
-      const user = await storage.getUser(id);
-      if (!user) {
-        console.log('User not found during deserialization:', id);
-        return done(null, false);
-      }
-      done(null, user);
-    } catch (err) {
-      console.error('Error deserializing user:', err);
-      done(err, null);
-    }
-  });
 
   // Register a new user with email verification
   app.post("/api/register", createRateLimiter("register"), async (req, res, next) => {
@@ -581,15 +509,91 @@ export function setupAuth(app: Express) {
   // Get current user info
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) {
-      console.log("User not authenticated when accessing /api/user");
       return res.status(401).json({ message: "Not authenticated" });
     }
-    
-    // Return user info without password
-    console.log(`User ${req.user?.username} retrieved their profile`);
-    // Using as any to get around type checking since the shapes are compatible but TypeScript doesn't know
     const { password, ...userWithoutPassword } = req.user as any; 
     res.json(userWithoutPassword);
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    if (req.isAuthenticated() && req.user) {
+      const { password: _, ...safeUser } = req.user as any;
+      return res.json(safeUser);
+    }
+    if ((req.session as any)?.userId) {
+      try {
+        const user = await storage.getUser((req.session as any).userId);
+        if (user) {
+          const { password: _, ...safeUser } = user;
+          return res.json(safeUser);
+        }
+      } catch {}
+    }
+    return res.status(401).json({ message: "Not authenticated" });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    const userId = req.user?.id || (req.session as any)?.userId;
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+    res.json({ authenticated: true, userId });
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password: pw } = req.body;
+      if (!email || !pw) return res.status(400).json({ message: "Email and password are required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(401).json({ message: "Invalid email or password" });
+      const isValid = await comparePasswords(pw, user.password);
+      if (!isValid) return res.status(401).json({ message: "Invalid email or password" });
+      await new Promise<void>((resolve, reject) => {
+        req.login(user, (err) => err ? reject(err) : resolve());
+      });
+      (req.session as any).userId = user.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => err ? reject(err) : resolve());
+      });
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (err: any) {
+      console.error("[auth/login]", err?.message || err);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { email, password: pw, username, displayName, name } = req.body;
+      if (!email || !pw) return res.status(400).json({ message: "Email and password are required" });
+      const existing = await storage.getUserByEmail(email);
+      if (existing) return res.status(409).json({ message: "Email already registered" });
+      const hashedPw = await hashPassword(pw);
+      const user = await storage.createUser({
+        email,
+        password: hashedPw,
+        displayName: displayName || name || username || email.split("@")[0],
+      });
+      await new Promise<void>((resolve, reject) => {
+        req.login(user, (err) => err ? reject(err) : resolve());
+      });
+      (req.session as any).userId = user.id;
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (err: any) {
+      console.error("[auth/register]", err?.message || err);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout(() => {
+      req.session.destroy((err) => {
+        if (err) return res.status(500).json({ message: "Logout failed" });
+        res.clearCookie("plot.sid");
+        res.clearCookie("ecode.sid");
+        res.json({ success: true });
+      });
+    });
   });
   
   // Diagnostic endpoint for session debugging (development only)
