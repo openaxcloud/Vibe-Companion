@@ -4,7 +4,10 @@
  * Fortune 500-grade database optimization
  */
 
-import { Pool, PoolClient, PoolConfig } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
+type PoolClient = pg.PoolClient;
+type PoolConfig = pg.PoolConfig;
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { createLogger } from '../utils/logger';
 import * as schema from '@shared/schema';

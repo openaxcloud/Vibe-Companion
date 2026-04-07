@@ -20,3 +20,14 @@ export function useMediaQuery(query: string): boolean {
 export const useIsMobile = () => useMediaQuery('(max-width: 640px)');
 export const useIsTablet = () => useMediaQuery('(max-width: 768px)');
 export const useIsDesktop = () => useMediaQuery('(min-width: 769px)');
+
+export function useDeviceType() {
+  const isMobile = useMediaQuery('(max-width: 640px)');
+  const isTablet = useMediaQuery('(min-width: 641px) and (max-width: 1024px)');
+  return {
+    isMobile,
+    isTablet,
+    isDesktop: !isMobile && !isTablet,
+    deviceType: isMobile ? 'mobile' as const : isTablet ? 'tablet' as const : 'desktop' as const
+  };
+}

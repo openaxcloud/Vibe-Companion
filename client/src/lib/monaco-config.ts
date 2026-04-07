@@ -1,54 +1,27 @@
-// Monaco Editor Configuration and Worker Setup
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+
 self.MonacoEnvironment = {
   getWorker: function (_: any, label: string) {
     if (label === 'json') {
-      return new Worker(
-        new URL(
-          'monaco-editor/esm/vs/language/json/json.worker?worker',
-          import.meta.url
-        ),
-        { type: 'module' }
-      );
+      return new jsonWorker();
     }
     if (label === 'css' || label === 'scss' || label === 'less') {
-      return new Worker(
-        new URL(
-          'monaco-editor/esm/vs/language/css/css.worker?worker',
-          import.meta.url
-        ),
-        { type: 'module' }
-      );
+      return new cssWorker();
     }
     if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return new Worker(
-        new URL(
-          'monaco-editor/esm/vs/language/html/html.worker?worker',
-          import.meta.url
-        ),
-        { type: 'module' }
-      );
+      return new htmlWorker();
     }
     if (label === 'typescript' || label === 'javascript') {
-      return new Worker(
-        new URL(
-          'monaco-editor/esm/vs/language/typescript/ts.worker?worker',
-          import.meta.url
-        ),
-        { type: 'module' }
-      );
+      return new tsWorker();
     }
-    return new Worker(
-      new URL(
-        'monaco-editor/esm/vs/editor/editor.worker?worker',
-        import.meta.url
-      ),
-      { type: 'module' }
-    );
+    return new editorWorker();
   }
 };
 
-// Configure Monaco settings
 export const configureMonaco = () => {
-  // Additional Monaco configurations can be added here
   console.log('Monaco Editor configured');
 };

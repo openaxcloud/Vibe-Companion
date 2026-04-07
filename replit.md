@@ -33,7 +33,22 @@ A comprehensive web-based IDE that clones Replit.com exactly, then adds unique f
 - **ReplitFileExplorer**: Interactive file system with drag/drop
 - **ReplitTerminal**: Full-featured terminal with multiple sessions
 
+## Recovery Notes (Critical)
+- **ESM `pg` import**: Always use `import pg from 'pg'; const { Pool } = pg;` — never `import { Pool } from 'pg'`
+- **Express version**: 4.21.2 (NOT Express 5) — use `app.get("*", ...)` for catch-all, NOT `/{*path}`
+- **Logger utility**: `createLogger()` returns `{ debug, info, warn, error }` — all four levels required
+- **`server/ai.ts` vs `server/ai/index.ts`**: `server/ai.ts` takes precedence for `from '../ai'` imports
+- **Post-merge script**: NEVER use `drizzle-kit push --force` — it renames tables destructively
+
 ## Recent Changes
+- 2026-04-07: Major recovery from Task #121 damage — restored server/index.ts, server/routes.ts, server/storage.ts, server/auth.ts, server/db-init.ts from git 729fa5ce6
+- 2026-04-07: Fixed all ESM `Pool` imports in 6 files (pg → default import pattern)
+- 2026-04-07: Added missing exports to server/ai.ts (generateAI, handleCodeActions, etc.)
+- 2026-04-07: Added `useDeviceType`, `ReplitLayoutLoading` stubs for merged task compatibility
+- 2026-04-07: Added `debug` method to `createLogger()` for task compatibility
+- 2026-04-07: Fixed Express 4 catch-all route (was using Express 5 `/{*path}` syntax)
+- 2026-04-07: Installed 60+ missing npm packages removed by merged tasks
+- 2026-04-07: Result: 93/93 routers loaded, 0 failed; frontend built successfully
 - 2025-01-21: Fixed critical database "NaN" error and missing `/api/projects/recent` endpoint
 - 2025-01-21: Enhanced ReplitFileExplorer with drag & drop, search, context menus, file upload
 - 2025-01-21: Created AdvancedTerminal with multiple sessions, search, history, themes

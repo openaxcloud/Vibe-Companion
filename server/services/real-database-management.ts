@@ -1,7 +1,8 @@
 import { db } from '../db';
 import { projects, users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
 import crypto from 'crypto';
 import * as os from 'os';
 import { execSync } from 'child_process';

@@ -1,0 +1,36 @@
+LES APPS GÉNÉRÉES SONT MOCHES — ROOT CAUSE TROUVÉE
+Le problème est dans les system prompts envoyés à l'AI. Ils disent vaguement "make beautiful apps" mais ne montrent JAMAIS comment. Le modèle (gpt-4o-mini via ModelFarm) génère du HTML basique sans framework CSS.
+3 fichiers à modifier :
+
+server/routes.ts (lignes ~8662-8720 et ~11000-11100)
+server/ai/prompts/agent-system-prompt.ts (lignes ~243-270)
+
+Ce qui manque dans le system prompt :
+
+Aucune palette de couleurs spécifique (juste "use beautiful colors")
+Aucune échelle typographique
+Aucun exemple de composant concret
+Aucune instruction d'inclure Tailwind CSS CDN
+Aucune spécification d'animations/transitions
+Pas de design system de référence
+
+Solution concrète — copie-colle ce prompt amélioré pour l'agent Replit :
+Remplace le system prompt dans server/ai/prompts/agent-system-prompt.ts et server/routes.ts par les instructions suivantes pour la génération de code :
+
+DESIGN SYSTEM OBLIGATOIRE :
+- TOUJOURS inclure <script src="https://cdn.tailwindcss.com"></script> dans le <head>
+- TOUJOURS inclure Google Fonts : Inter pour le body, un accent font pour les titres
+- Palette : primary #667eea, secondary #764ba2, dark #0f172a, light #f8fafc, accent #06b6d4
+- Typographie : titres 3.5rem font-bold, sous-titres 1.5rem, body 1rem, labels 0.875rem
+- Spacing : système 8px (p-2, p-4, p-8, p-12, p-16)
+- Composants : boutons avec hover scale-105 transition-all, cards avec shadow-xl rounded-2xl backdrop-blur, inputs avec focus:ring-2 focus:ring-primary
+- Animations : fade-in au chargement, transitions 200ms ease-out sur hover
+- Layout : mobile-first, min-h-screen, flex ou grid, max-w-7xl mx-auto
+- TOUJOURS ajouter un gradient hero section, des micro-interactions, et un footer
+- Style visuel : glassmorphism (bg-white/80 backdrop-blur-xl), gradients subtils, shadows douces
+- Dark mode : supporter prefers-color-scheme avec des variantes dark:
+
+JAMAIS générer du HTML nu sans Tailwind CSS.
+JAMAIS utiliser des couleurs par défaut du navigateur.
+TOUJOURS produire un design de niveau professionnel/startup moderne.
+Impact estimé : Design 2/10 → 8/10, 0 coût, 2-4h d'implémentation.

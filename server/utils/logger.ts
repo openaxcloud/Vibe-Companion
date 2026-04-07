@@ -25,6 +25,9 @@ export function log(message: string, source: string, level: LogLevel = 'info'): 
  */
 export function createLogger(defaultSource: string) {
   return {
+    debug: (message: string, ..._args: any[]) => {
+      if (process.env.NODE_ENV === 'development') log(message, defaultSource, 'info');
+    },
     info: (message: string, source: string = defaultSource) => log(message, source, 'info'),
     warn: (message: string, source: string = defaultSource) => log(message, source, 'warn'),
     error: (message: string, source: string = defaultSource) => log(message, source, 'error')

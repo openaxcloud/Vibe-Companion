@@ -11,7 +11,8 @@ import { hashToken, generateEmailVerificationToken, generatePasswordResetToken, 
 import { revokeToken, revokeAllUserTokens } from "../auth/token-revocation";
 import { sendVerificationEmail, sendPasswordResetEmail, resendVerificationEmail } from "../utils/sendgrid-email-service";
 import { z } from "zod";
-import { db, withTransaction } from "../db";
+import { db } from "../db";
+import { withTransaction } from "../utils/db-transactions";
 import { eq, and, gte } from "drizzle-orm";
 import { users } from "@shared/schema";
 import { sessionManager } from "../auth/session-manager";

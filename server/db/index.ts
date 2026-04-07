@@ -3,7 +3,9 @@
  * Production-ready database pooling configuration
  */
 
-import { Pool, PoolConfig } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
+type PoolConfig = pg.PoolConfig;
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '../../shared/schema';
 import { createLogger } from '../utils/logger';

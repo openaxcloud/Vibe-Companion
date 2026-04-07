@@ -197,7 +197,146 @@ export async function generateTests(req: Request, res: Response) {
   }
 }
 
-// Helper function to create language-specific prompts
+export async function handleCodeActions(req: Request, res: Response) {
+  try {
+    const { code, action } = req.body;
+    const actionPrompts: Record<string, string> = {
+      explain: `Explain this code:\n\n${code}`,
+      refactor: `Refactor this code for better readability and performance:\n\n${code}`,
+      optimize: `Optimize this code for performance:\n\n${code}`,
+      debug: `Find and fix bugs in this code:\n\n${code}`,
+      document: `Add documentation comments to this code:\n\n${code}`,
+    };
+    const prompt = actionPrompts[action] || `${action}:\n\n${code}`;
+    const completion = await openai.chat.completions.create({
+      model: GPT_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 4096,
+    });
+    res.json({ result: completion.choices[0].message.content?.trim() || '', action });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Code action failed', details: error.message });
+  }
+}
+
+export async function handleCodeActionsStream(req: Request, res: Response) {
+  try {
+    const { code, action, language } = req.body;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const stream = await openai.chat.completions.create({
+      model: GPT_MODEL,
+      messages: [{ role: 'user', content: `${action || 'explain'} this ${language || ''} code:\n\n${code}` }],
+      max_tokens: 4096,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content || '';
+      if (token) res.write(`data: ${JSON.stringify({ token })}\n\n`);
+    }
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (error: any) {
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+}
+
+export async function generateProjectChat(req: Request, res: Response) {
+  try {
+    const { projectId } = req.params;
+    const { message, model } = req.body;
+    const completion = await openai.chat.completions.create({
+      model: model || GPT_MODEL,
+      messages: [
+        { role: 'system', content: `You are an AI coding assistant for project ${projectId}. Help the user write, debug, and improve their code.` },
+        { role: 'user', content: message }
+      ],
+      max_tokens: 4096,
+    });
+    res.json({ response: completion.choices[0].message.content?.trim() || '', model: model || GPT_MODEL, provider: 'openai' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'AI chat failed', details: error.message });
+  }
+}
+
+export async function getProjectHistory(req: Request, res: Response) {
+  try {
+    res.json({ history: [] });
+  } catch (error: any) {
+    res.json({ history: [] });
+  }
+}
+
+export async function generateProjectSuggestions(req: Request, res: Response) {
+  try {
+    const { code, language } = req.body;
+    const { projectId } = req.params;
+    const completion = await openai.chat.completions.create({
+      model: GPT_MODEL,
+      messages: [{ role: 'user', content: `Given this ${language || ''} code from project ${projectId}, suggest 3-5 improvements:\n\n${code}` }],
+      max_tokens: 2048,
+    });
+    res.json({ suggestions: completion.choices[0].message.content?.trim() || '' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Suggestions failed', details: error.message });
+  }
+}
+
+export async function generateAI(req: Request, res: Response) {
+  try {
+    const { prompt, model, maxTokens, systemPrompt } = req.body;
+    const completion = await openai.chat.completions.create({
+      model: model || GPT_MODEL,
+      messages: [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: maxTokens || 4096,
+    });
+    res.json({ response: completion.choices[0].message.content?.trim() || '', model: model || GPT_MODEL, provider: 'openai' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'AI generation failed', details: error.message });
+  }
+}
+
+export async function generateOpenAI(req: Request, res: Response) {
+  try {
+    const { prompt, model, maxTokens, systemPrompt } = req.body;
+    const completion = await openai.chat.completions.create({
+      model: model || GPT_MODEL,
+      messages: [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: maxTokens || 4096,
+    });
+    res.json({ response: completion.choices[0].message.content?.trim() || '', model: model || GPT_MODEL, provider: 'openai' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'OpenAI generation failed', details: error.message });
+  }
+}
+
+export async function generateOpenSource(req: Request, res: Response) {
+  try {
+    const { prompt, model, maxTokens, systemPrompt } = req.body;
+    const completion = await openai.chat.completions.create({
+      model: model || GPT_MODEL,
+      messages: [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: maxTokens || 4096,
+    });
+    res.json({ response: completion.choices[0].message.content?.trim() || '', model: model || GPT_MODEL, provider: 'openai' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Open source generation failed', details: error.message });
+  }
+}
+
 function getPromptForLanguage(language: string, code: string): string {
   // Remove trailing whitespace to ensure consistent completions
   const trimmedCode = code.trimEnd();
