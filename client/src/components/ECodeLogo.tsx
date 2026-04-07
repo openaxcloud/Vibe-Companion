@@ -2,21 +2,24 @@ import { cn } from '@/lib/utils';
 
 interface ECodeLogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   showText?: boolean;
 }
 
+const sizeMap: Record<NonNullable<ECodeLogoProps['size']>, { icon: string; text: string }> = {
+  xs: { icon: 'h-6 w-6', text: 'text-base' },
+  sm: { icon: 'h-7 w-7', text: 'text-[15px]' },
+  md: { icon: 'h-9 w-9', text: 'text-xl' },
+  lg: { icon: 'h-11 w-11', text: 'text-2xl' }
+};
+
 export function ECodeLogo({ className, size = 'md', showText = true }: ECodeLogoProps) {
-  const sizes = {
-    sm: { icon: 'h-6 w-6', text: 'text-lg' },
-    md: { icon: 'h-8 w-8', text: 'text-xl' },
-    lg: { icon: 'h-10 w-10', text: 'text-2xl' }
-  };
+  const resolvedSize = sizeMap[size] ?? sizeMap.md;
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex flex-row items-center gap-2 flex-nowrap whitespace-nowrap', className)}>
       <svg
-        className={sizes[size].icon}
+        className={cn(resolvedSize.icon, 'shrink-0')}
         viewBox="0 0 40 40"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -50,9 +53,9 @@ export function ECodeLogo({ className, size = 'md', showText = true }: ECodeLogo
           </linearGradient>
         </defs>
       </svg>
-      
+
       {showText && (
-        <span className={cn('font-bold', sizes[size].text)}>
+        <span className={cn('font-bold', resolvedSize.text)}>
           E-Code
         </span>
       )}

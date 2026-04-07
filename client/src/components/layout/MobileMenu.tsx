@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
-import { 
-  Menu, X, Home, Code, Zap, Globe, Users, Database, Book, 
-  Settings, User, HelpCircle, Crown, Plus, Search, FileCode,
-  Terminal, GitBranch, Sparkles, Package, Shield, LogOut,
-  ChevronRight, Heart, Star, Briefcase, GraduationCap
+import { ECodeLogo } from '@/components/ECodeLogo';
+import {
+  Menu, Home, Code, Globe, Users, Database, Book,
+  Settings, User, HelpCircle, Crown, Plus, Search,
+  Shield, LogOut,
+  ChevronRight, Zap, Briefcase, GraduationCap, Workflow, HardDrive
 } from 'lucide-react';
 
 interface MobileMenuProps {
@@ -22,9 +23,7 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
   const { user, logoutMutation } = useAuth();
 
   const handleNavigate = (path: string) => {
-    // Close the menu immediately
     setOpen(false);
-    // Navigate after a small delay to ensure smooth animation
     setTimeout(() => {
       navigate(path);
     }, 150);
@@ -37,240 +36,201 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
     }, 150);
   };
 
-  const primaryLinks = [
+  const navigationLinks = [
     { icon: Home, label: 'Home', path: '/dashboard' },
-    { icon: Code, label: 'My Projects', path: '/projects' },
-    { icon: Plus, label: 'Create New', path: '/projects', action: 'create' },
-    { icon: Globe, label: 'Explore', path: '/explore' },
+    { icon: Code, label: 'My Apps', path: '/projects' },
     { icon: Users, label: 'Community', path: '/community' },
-    { icon: Briefcase, label: 'Teams', path: '/teams' },
+    { icon: Book, label: 'Templates', path: '/templates' },
   ];
-
-  const handlePrimaryLinkClick = (link: any) => {
-    if (link.action === 'create') {
-      // Close menu and navigate to projects with create action
-      setOpen(false);
-      setTimeout(() => {
-        navigate('/projects');
-        // Trigger create modal after navigation
-        setTimeout(() => {
-          const createButton = document.querySelector('[data-create-project]');
-          if (createButton) {
-            (createButton as HTMLElement).click();
-          }
-        }, 300);
-      }, 150);
-    } else {
-      handleNavigate(link.path);
-    }
-  };
 
   const toolsLinks = [
-    { icon: Terminal, label: 'Shell', path: '/shell' },
-    { icon: GitBranch, label: 'Version Control', path: '/git' },
-    { icon: Database, label: 'Database', path: '/database' },
-    { icon: Package, label: 'Packages', path: '/packages' },
-    { icon: Shield, label: 'Secrets', path: '/secrets' },
+    { icon: Shield, label: 'Security', path: '/security' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
-  const accountLinks = [
-    { icon: User, label: 'Profile', path: `/@${user?.username}` },
-    { icon: Settings, label: 'Account Settings', path: '/account' },
-    { icon: Zap, label: 'Cycles & Power Ups', path: '/cycles' },
-    { icon: Globe, label: 'Deployments', path: '/deployments' },
-    { icon: Database, label: 'Bounties', path: '/bounties' },
-    { icon: Star, label: 'Achievements', path: '/achievements' },
-  ];
-
-  const learnLinks = [
-    { icon: GraduationCap, label: 'Learn', path: '/learn' },
+  const resourceLinks = [
     { icon: Book, label: 'Documentation', path: '/docs' },
-    { icon: HelpCircle, label: 'Support', path: '/support' },
-    { icon: Heart, label: 'Community Forum', path: '/forum' },
+    { icon: HelpCircle, label: 'Help & Support', path: '/support' },
+    { icon: Briefcase, label: 'Bounties', path: '/bounties' },
+    { icon: GraduationCap, label: 'Learn', path: '/learn' },
   ];
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="lg:hidden h-10 w-10"
-          aria-label="Open menu"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-      </SheetTrigger>
-      <SheetContent 
-        side="left" 
-        className="w-[300px] sm:w-[380px] p-0 bg-[var(--ecode-background)] border-[var(--ecode-border)]"
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden h-10 w-10"
+        aria-label="Open menu"
+        onClick={() => setOpen(true)}
       >
-        <SheetHeader className="px-6 py-4 border-b border-[var(--ecode-border)]">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="text-[var(--ecode-text)]">E-Code</SheetTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setOpen(false)}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </SheetHeader>
+        <Menu className="h-5 w-5" />
+      </Button>
 
-        <ScrollArea className="h-[calc(100vh-80px)]">
-          <div className="px-6 py-4">
-            {/* Search */}
-            <Button
-              variant="outline"
-              className="w-full justify-start mb-4"
-              onClick={() => {
-                setOpen(false);
-                onOpenSpotlight?.();
-              }}
-            >
-              <Search className="mr-2 h-4 w-4" />
-              Search or run a command...
-            </Button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="left"
+          className="w-full sm:w-[380px] p-0 bg-white dark:bg-zinc-950"
+        >
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800">
+              <div className="flex items-center justify-between mb-4">
+                <ECodeLogo size="sm" showText />
+              </div>
 
-            {/* User Info */}
-            {user && (
-              <>
-                <div 
-                  className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-[var(--ecode-surface)] cursor-pointer hover:bg-[var(--ecode-sidebar-hover)] transition-colors"
+              {/* User Profile */}
+              {user && (
+                <div
+                  className="p-3 rounded-lg bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                   onClick={() => handleNavigate(`/@${user.username}`)}
                 >
-                  <div className="w-10 h-10 rounded-full bg-[var(--ecode-accent)] text-white flex items-center justify-center font-semibold">
-                    {user.username.charAt(0).toUpperCase()}
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 text-white flex items-center justify-center font-bold">
+                      {user.username?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-[13px] text-gray-900 dark:text-white">
+                        {user.username}
+                      </div>
+                      <div className="text-[11px] text-gray-500 dark:text-zinc-400">
+                        {user.email}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-[var(--ecode-text)]">{user.displayName || user.username}</p>
-                    <p className="text-sm text-[var(--ecode-text-secondary)]">{user.email}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-[var(--ecode-text-secondary)]" />
                 </div>
-                <Separator className="mb-4" />
-              </>
-            )}
+              )}
 
-            {/* Primary Navigation */}
-            <div className="space-y-1 mb-6">
-              <h3 className="text-xs font-semibold text-[var(--ecode-text-secondary)] uppercase tracking-wider mb-2">
-                Navigation
-              </h3>
-              {primaryLinks.map((link) => (
-                <Button
-                  key={link.label}
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={() => handlePrimaryLinkClick(link)}
-                >
-                  <link.icon className="mr-3 h-4 w-4" />
-                  {link.label}
-                </Button>
-              ))}
-            </div>
-
-            <Separator className="mb-4" />
-
-            {/* Tools */}
-            <div className="space-y-1 mb-6">
-              <h3 className="text-xs font-semibold text-[var(--ecode-text-secondary)] uppercase tracking-wider mb-2">
-                Tools
-              </h3>
-              {toolsLinks.map((link) => (
-                <Button
-                  key={link.path}
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={() => handleNavigate(link.path)}
-                >
-                  <link.icon className="mr-3 h-4 w-4" />
-                  {link.label}
-                </Button>
-              ))}
-            </div>
-
-            <Separator className="mb-4" />
-
-            {/* Account */}
-            {user && (
-              <>
-                <div className="space-y-1 mb-6">
-                  <h3 className="text-xs font-semibold text-[var(--ecode-text-secondary)] uppercase tracking-wider mb-2">
-                    Account
-                  </h3>
-                  {accountLinks.map((link) => (
-                    <Button
-                      key={link.path}
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => handleNavigate(link.path)}
-                    >
-                      <link.icon className="mr-3 h-4 w-4" />
-                      {link.label}
-                    </Button>
-                  ))}
-                </div>
-
-                <Separator className="mb-4" />
-              </>
-            )}
-
-            {/* Learn & Support */}
-            <div className="space-y-1 mb-6">
-              <h3 className="text-xs font-semibold text-[var(--ecode-text-secondary)] uppercase tracking-wider mb-2">
-                Learn & Support
-              </h3>
-              {learnLinks.map((link) => (
-                <Button
-                  key={link.path}
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={() => handleNavigate(link.path)}
-                >
-                  <link.icon className="mr-3 h-4 w-4" />
-                  {link.label}
-                </Button>
-              ))}
-            </div>
-
-            <Separator className="mb-4" />
-
-            {/* Actions */}
-            <div className="space-y-2">
-              {!user ? (
-                <Button
-                  className="w-full"
-                  onClick={() => handleNavigate('/auth')}
-                >
-                  Sign In
-                </Button>
-              ) : (
-                <>
+              {!user && (
+                <div className="space-y-2">
                   <Button
+                    className="w-full justify-start"
                     variant="outline"
-                    className="w-full justify-start border-[var(--ecode-warning)] text-[var(--ecode-warning)]"
-                    onClick={() => handleNavigate('/pricing')}
+                    onClick={() => handleNavigate('/login')}
                   >
-                    <Crown className="mr-2 h-4 w-4" />
-                    Upgrade to Pro
+                    Sign In
                   </Button>
                   <Button
-                    variant="ghost"
-                    className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                    onClick={handleLogout}
+                    className="w-full justify-start bg-blue-600 hover:bg-blue-700"
+                    onClick={() => handleNavigate('/signup')}
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log Out
+                    Sign Up
                   </Button>
-                </>
+                </div>
               )}
             </div>
+
+            {/* Content */}
+            <ScrollArea className="flex-1 px-6">
+              <div className="py-6 space-y-6">
+                {/* Create New */}
+                {user && (
+                  <>
+                    <div>
+                      <Button
+                        className="w-full justify-start gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => handleNavigate('/new')}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create New Project
+                      </Button>
+                    </div>
+                    <Separator className="bg-gray-200 dark:bg-zinc-800" />
+                  </>
+                )}
+
+                {/* Navigation */}
+                <div>
+                  <h3 className="text-[11px] font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+                    Navigation
+                  </h3>
+                  <div className="space-y-1">
+                    {navigationLinks.map((link) => (
+                      <button
+                        key={link.path}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors ${
+                          location === link.path
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                            : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                        }`}
+                        onClick={() => handleNavigate(link.path)}
+                      >
+                        <link.icon className="h-4 w-4" />
+                        <span className="font-medium">{link.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator className="bg-gray-200 dark:bg-zinc-800" />
+
+                {/* Tools */}
+                <div>
+                  <h3 className="text-[11px] font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+                    Tools
+                  </h3>
+                  <div className="space-y-1">
+                    {toolsLinks.map((link) => (
+                      <button
+                        key={link.path}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors ${
+                          location === link.path
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                            : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                        }`}
+                        onClick={() => handleNavigate(link.path)}
+                      >
+                        <link.icon className="h-4 w-4" />
+                        <span className="font-medium">{link.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator className="bg-gray-200 dark:bg-zinc-800" />
+
+                {/* Resources */}
+                <div>
+                  <h3 className="text-[11px] font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+                    Resources
+                  </h3>
+                  <div className="space-y-1">
+                    {resourceLinks.map((link) => (
+                      <button
+                        key={link.path}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors ${
+                          location === link.path
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                            : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                        }`}
+                        onClick={() => handleNavigate(link.path)}
+                      >
+                        <link.icon className="h-4 w-4" />
+                        <span className="font-medium">{link.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+
+            {/* Footer */}
+            {user && (
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-zinc-800">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2 text-gray-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </Button>
+              </div>
+            )}
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

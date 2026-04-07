@@ -1,82 +1,126 @@
 import { useLocation } from 'wouter';
-import { Home, ChevronLeft, ChevronRight, Menu, SquareStack } from 'lucide-react';
+import { Home, Code2, Rocket, FolderOpen, Settings, Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
-export function MobileNavigation() {
+interface MobileNavigationProps {
+  projectId?: string;
+  showNewProject?: boolean;
+}
+
+export function MobileNavigation({ projectId, showNewProject }: MobileNavigationProps) {
   const [location, navigate] = useLocation();
+  const [notificationCount, setNotificationCount] = useState(0);
 
-  const goBack = () => {
-    window.history.back();
+  // Get current route to highlight active tab
+  const isActive = (path: string) => {
+    if (path === '/projects' && location === '/') return true;
+    return location.startsWith(path);
   };
 
-  const goForward = () => {
-    window.history.forward();
-  };
+  // Fetch notifications count
+  const { data: notifications } = useQuery({
+    queryKey: ['/api/notifications'],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
 
-  const goHome = () => {
-    navigate('/projects');
-  };
+  useEffect(() => {
+    if (notifications) {
+      setNotificationCount(notifications.filter((n: any) => !n.read).length);
+    }
+  }, [notifications]);
+
+  const navigationItems = [
+    {
+      path: '/projects',
+      label: 'Projects',
+      icon: FolderOpen,
+      badge: notificationCount > 0 ? notificationCount : null,
+    },
+    {
+      path: projectId ? `/ide/${projectId}` : null,
+      label: 'Editor',
+      icon: Code2,
+      disabled: !projectId,
+    },
+    {
+      path: projectId ? `/projects/${projectId}/deploy` : null,
+      label: 'Deploy',
+      icon: Rocket,
+      disabled: !projectId,
+    },
+    {
+      path: '/dashboard',
+      label: 'Home',
+      icon: Home,
+    },
+    {
+      path: '/settings',
+      label: 'Settings',
+      icon: Settings,
+    },
+  ];
 
   return (
     <>
-      {/* Ligne noire en bas de l'écran, exactement comme sur E-Code */}
-      <div className="fixed bottom-0 left-0 right-0 h-1 bg-black md:hidden z-50"></div>
-      
-      {/* Navigation mobile principale */}
-      <div className="fixed bottom-[1px] left-0 right-0 bg-green-400 border-t h-14 flex items-center justify-between px-6 md:hidden z-40">
-        <div className="flex items-center justify-center flex-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-12 w-12 rounded-none"
-            onClick={goBack}
-            aria-label="Retour"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </Button>
-        </div>
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t h-16 flex items-center justify-around px-2 md:hidden z-40 safe-area-inset-bottom">
+        {navigationItems.map((item) => {
+          if (item.path === null) return null;
+          const Icon = item.icon;
+          const isCurrentActive = isActive(item.path || '');
+          
+          return (
+            <Button
+              key={item.path}
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-12 w-12 flex flex-col items-center justify-center gap-1 relative",
+                isCurrentActive && "text-primary bg-primary/10",
+                item.disabled && "opacity-50 cursor-not-allowed"
+              )}
+              onClick={() => !item.disabled && item.path && navigate(item.path)}
+              disabled={item.disabled}
+              aria-label={item.label}
+            >
+              <Icon className={cn(
+                "h-5 w-5",
+                isCurrentActive && "text-primary"
+              )} />
+              <span className={cn(
+                "text-[10px] font-medium",
+                isCurrentActive && "text-primary"
+              )}>
+                {item.label}
+              </span>
+              {item.badge && (
+                <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </Button>
+          );
+        })}
         
-        <div className="flex items-center justify-center flex-1">
+        {/* Floating Action Button for New Project */}
+        {showNewProject && (
           <Button
-            variant="ghost"
+            variant="default"
             size="icon"
-            className="h-12 w-12 rounded-none"
-            onClick={goForward}
-            aria-label="Avancer"
+            className="fixed bottom-20 right-4 h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-primary to-secondary hover:opacity-90 z-50"
+            onClick={() => navigate('/projects/new')}
+            aria-label="New Project"
           >
-            <ChevronRight className="h-6 w-6" />
+            <Plus className="h-6 w-6 text-primary-foreground" />
           </Button>
-        </div>
-        
-        <div className="flex items-center justify-center flex-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-12 w-12 rounded-none"
-            onClick={goHome}
-            aria-label="Accueil"
-          >
-            <Home className="h-6 w-6" />
-          </Button>
-        </div>
-        
-        <div className="flex items-center justify-center flex-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-12 w-12 rounded-none relative"
-            onClick={() => navigate('/projects')}
-            aria-label="Projets"
-          >
-            <SquareStack className="h-6 w-6" />
-            {/* Badge de notification, comme sur les captures d'écran */}
-            <span className="absolute top-2 right-2 bg-primary text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              3
-            </span>
-          </Button>
-        </div>
+        )}
       </div>
+      
+      {/* Add padding to the bottom of the page content to account for the navigation bar */}
+      <div className="h-16 md:hidden" />
     </>
   );
 }

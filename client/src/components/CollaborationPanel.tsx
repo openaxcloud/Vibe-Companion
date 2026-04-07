@@ -1,344 +1,699 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useCollaboration } from '@/lib/collaboration';
-import { useAuth } from '@/hooks/use-auth';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+/**
+ * E-Code Real-Time Collaboration Panel
+ * Fortune 500 Quality Full-Featured Collaboration UI
+ * 
+ * Features:
+ * - Collaborator list with status, activity, and cursor tracking
+ * - In-IDE real-time chat
+ * - Share/Invite system
+ * - Follow mode
+ * - Voice/Video call buttons
+ * - Mobile-responsive design
+ */
+
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { 
-  MessageSquare, 
-  Users, 
-  Send, 
-  AlertCircle,
-  Info,
-  User,
-  UserPlus
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Users,
+  UserPlus,
+  Circle,
+  Eye,
+  Edit,
+  MessageSquare,
+  Video,
+  Mic,
+  MicOff,
+  VideoOff,
+  Share2,
+  Copy,
+  Check,
+  MousePointer,
+  Activity,
+  Send,
+  Terminal,
+  Code2,
+  Phone,
 } from 'lucide-react';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { useRealTimeCollaboration, Collaborator, ChatMessage } from '@/hooks/useRealTimeCollaboration';
+import { formatDistanceToNow, format } from 'date-fns';
 
 interface CollaborationPanelProps {
   projectId: number;
-  fileId: number;
-  visible: boolean;
-  onInviteClick: () => void;
+  projectName?: string;
+  currentUser?: any;
+  currentFile?: string;
+  onFollowUser?: (userId: string) => void;
+  onFollowCursor?: (cursor: { lineNumber: number; column: number } | null) => void;
+  onStartCall?: () => void;
+  className?: string;
 }
 
-interface ChatMessage {
-  id: string;
-  userId: number;
-  username: string;
-  text: string;
-  timestamp: number;
-}
-
-export function CollaborationPanel({ projectId, fileId, visible, onInviteClick }: CollaborationPanelProps) {
-  const { user } = useAuth();
-  const { collaborators, cursors } = useCollaboration(projectId, fileId);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [messageText, setMessageText] = useState('');
-  const [activeTab, setActiveTab] = useState('chat');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  const handleSendMessage = () => {
-    if (!messageText.trim() || !user) return;
-    
-    // Create a new message
-    const newMessage: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      userId: user.id,
-      username: user.username,
-      text: messageText.trim(),
-      timestamp: Date.now()
-    };
-    
-    // Update local state
-    setChatMessages(prev => [...prev, newMessage]);
-    
-    // Send message to WebSocket
-    const socket = (window as any).collaborationSocket;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      const message = {
-        type: 'chat_message',
-        data: {
-          text: messageText.trim(),
-          timestamp: Date.now()
-        },
-        userId: user.id,
-        username: user.username,
-        projectId,
-        fileId,
-        timestamp: Date.now()
-      };
-      
-      socket.send(JSON.stringify(message));
-    }
-    
-    setMessageText('');
-    inputRef.current?.focus();
-  };
-  
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-  
-  // Auto-scroll to bottom when new messages come in
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
-  
-  // Initialize WebSocket connection for chat
-  useEffect(() => {
-    // This would be handled through the useCollaboration hook in a real implementation
-    // We'd add a listener for 'chat_message' events
-    
-    // For demo purposes, let's add a welcome message when the component mounts
-    if (chatMessages.length === 0) {
-      setChatMessages([
-        {
-          id: 'welcome',
-          userId: 0,
-          username: 'PLOT',
-          text: 'Welcome to the project chat! Collaborate with your team in real-time.',
-          timestamp: Date.now()
-        }
-      ]);
-    }
-    
-    // Listen for incoming chat messages from the WebSocket connection
-    const handleWebSocketMessage = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'chat_message' && data.projectId === projectId) {
-          // Add message to chat
-          setChatMessages(prev => [
-            ...prev,
-            {
-              id: `msg_${data.timestamp}`,
-              userId: data.userId,
-              username: data.username,
-              text: data.data.text,
-              timestamp: data.data.timestamp
-            }
-          ]);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
-    
-    // Access the WebSocket instance from the collaboration hook
-    // This would typically be provided by the hook, but we're simulating it here
-    if ((window as any).collaborationSocket) {
-      (window as any).collaborationSocket.addEventListener('message', handleWebSocketMessage);
-    }
-    
-    return () => {
-      if ((window as any).collaborationSocket) {
-        (window as any).collaborationSocket.removeEventListener('message', handleWebSocketMessage);
-      }
-    };
-  }, [projectId, chatMessages.length]);
-  
-  if (!visible) return null;
-  
-  const formatTimestamp = (timestamp: number) => {
-    return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
-  };
-  
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
-  
-  // Generate a consistent color based on username
-  const getColorForUser = (username: string) => {
-    const colors = [
-      'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
-      'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500'
-    ];
-    
-    // Simple hash function
-    let hash = 0;
-    for (let i = 0; i < username.length; i++) {
-      hash = username.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    return colors[Math.abs(hash) % colors.length];
+const StatusIndicator = memo(({ status }: { status: 'active' | 'idle' | 'away' }) => {
+  const config = {
+    active: { color: 'bg-green-500', label: 'Active' },
+    idle: { color: 'bg-yellow-500', label: 'Idle' },
+    away: { color: 'bg-gray-400', label: 'Away' }
   };
   
   return (
-    <div className="flex flex-col h-full border-l border-border bg-background">
-      <div className="p-3 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-medium">Multiplayer</h2>
-        
-        <div className="flex items-center space-x-1">
+    <div 
+      className={cn(
+        "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+        config[status].color
+      )}
+      title={config[status].label}
+    />
+  );
+});
+
+StatusIndicator.displayName = 'StatusIndicator';
+
+const ActivityIcon = memo(({ activity }: { activity?: string }) => {
+  switch (activity?.toLowerCase()) {
+    case 'editing': return <Code2 className="h-3 w-3 text-blue-500" />;
+    case 'viewing': return <Eye className="h-3 w-3 text-green-500" />;
+    case 'terminal': return <Terminal className="h-3 w-3 text-purple-500" />;
+    default: return <Circle className="h-3 w-3 text-muted-foreground" />;
+  }
+});
+
+ActivityIcon.displayName = 'ActivityIcon';
+
+const CollaboratorListItem = memo(({ 
+  collaborator, 
+  isFollowing,
+  onFollow 
+}: { 
+  collaborator: Collaborator;
+  isFollowing: boolean;
+  onFollow: () => void;
+}) => {
+  return (
+    <div 
+      className={cn(
+        "flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer",
+        isFollowing ? "bg-muted border border-border" : "hover:bg-muted"
+      )}
+      onClick={onFollow}
+      data-testid={`collaborator-${collaborator.odUserId}`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <Avatar 
+            className="h-8 w-8 border-2"
+            style={{ borderColor: collaborator.color }}
+          >
+            <AvatarImage src={collaborator.avatar} />
+            <AvatarFallback 
+              className="text-[11px] font-medium text-white"
+              style={{ backgroundColor: collaborator.color }}
+            >
+              {collaborator.username.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <StatusIndicator status={collaborator.status} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-[13px] font-medium truncate">{collaborator.username}</p>
+            {isFollowing && (
+              <Badge variant="secondary" className="text-[11px] px-1.5 py-0">
+                Following
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <ActivityIcon activity={collaborator.activity} />
+            <span className="truncate">
+              {collaborator.activity || 'Online'}
+              {collaborator.currentFile && ` · ${collaborator.currentFile}`}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        {collaborator.status === 'active' && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0" 
-                  onClick={onInviteClick}
+                <Button
+                  size="icon"
+                  variant={isFollowing ? "secondary" : "ghost"}
+                  className="h-7 w-7"
+                  onClick={(e) => { e.stopPropagation(); onFollow(); }}
                 >
-                  <UserPlus className="h-4 w-4" />
+                  <MousePointer className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Invite collaborators</p>
+                {isFollowing ? 'Stop following' : 'Follow cursor'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        )}
+      </div>
+    </div>
+  );
+});
+
+CollaboratorListItem.displayName = 'CollaboratorListItem';
+
+const ChatMessageBubble = memo(({ message, isOwn }: { message: ChatMessage; isOwn: boolean }) => {
+  if (message.type === 'system' || message.type === 'file-change') {
+    return (
+      <div className="flex justify-center my-2">
+        <span className="text-[11px] text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={cn("flex gap-2 my-2", isOwn && "flex-row-reverse")}>
+      <div 
+        className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-medium text-white shrink-0"
+        style={{ backgroundColor: message.senderColor }}
+      >
+        {message.senderName.slice(0, 1).toUpperCase()}
+      </div>
+      <div className={cn("max-w-[75%]", isOwn && "text-right")}>
+        <div className="flex items-baseline gap-2 mb-0.5">
+          <span className="text-[11px] font-medium">{message.senderName}</span>
+          <span className="text-[10px] text-muted-foreground">
+            {format(new Date(message.timestamp), 'HH:mm')}
+          </span>
+        </div>
+        <div 
+          className={cn(
+            "text-[13px] px-3 py-1.5 rounded-lg",
+            isOwn 
+              ? "bg-primary text-primary-foreground rounded-br-sm" 
+              : "bg-muted rounded-bl-sm"
+          )}
+        >
+          {message.content}
         </div>
       </div>
+    </div>
+  );
+});
+
+ChatMessageBubble.displayName = 'ChatMessageBubble';
+
+const InviteDialog = memo(({ 
+  projectId, 
+  projectName,
+  open,
+  onOpenChange 
+}: { 
+  projectId: number;
+  projectName?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) => {
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'editor' | 'viewer'>('editor');
+  const [copied, setCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const shareLink = `${window.location.origin}/ide/${projectId}?join=true`;
+  
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ description: 'Link copied to clipboard!' });
+    } catch {
+      toast({ description: 'Failed to copy link', variant: 'destructive' });
+    }
+  };
+  
+  const handleInvite = async () => {
+    if (!email.trim()) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/collaboration/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, email: email.trim(), role })
+      });
       
-      <Tabs defaultValue="chat" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="px-1 pt-2">
-          <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="chat" className="text-xs">
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Chat
-            </TabsTrigger>
-            <TabsTrigger value="users" className="text-xs">
-              <Users className="h-4 w-4 mr-2" />
-              Users {collaborators.length > 0 && `(${collaborators.length + 1})`}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      if (!response.ok) throw new Error('Failed to send invitation');
+      
+      toast({ description: `Invitation sent to ${email}` });
+      setEmail('');
+    } catch {
+      toast({ description: 'Failed to send invitation', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" data-testid="invite-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Invite Collaborators
+          </DialogTitle>
+          <DialogDescription>
+            Share {projectName || 'this project'} with others to collaborate in real-time.
+          </DialogDescription>
+        </DialogHeader>
         
-        <TabsContent value="chat" className="flex-1 flex flex-col p-0 m-0">
-          <ScrollArea className="flex-1 p-3">
-            {chatMessages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-4">
-                <Info className="h-8 w-8 mb-2" />
-                <p className="text-sm">No messages yet. Start the conversation!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {chatMessages.map((message) => (
-                  <div key={message.id} className="flex items-start gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className={getColorForUser(message.username)}>
-                        {getInitials(message.username)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center mb-1">
-                        <span className="text-xs font-medium">{message.username}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
-                          {formatTimestamp(message.timestamp)}
-                        </span>
-                      </div>
-                      <p className="text-sm">{message.text}</p>
-                    </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </ScrollArea>
-          
-          <div className="p-3 border-t border-border mt-auto">
-            <div className="flex items-center space-x-2">
-              <Input
-                ref={inputRef}
-                placeholder="Type a message..."
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="flex-1"
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>Share Link</Label>
+            <div className="flex gap-2">
+              <Input 
+                value={shareLink} 
+                readOnly 
+                className="text-[11px] font-mono"
+                data-testid="share-link-input"
               />
               <Button 
-                onClick={handleSendMessage}
-                size="sm"
-                disabled={!messageText.trim()}
+                size="icon" 
+                variant="outline" 
+                onClick={handleCopyLink}
+                data-testid="copy-link-button"
               >
-                <Send className="h-4 w-4" />
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="users" className="flex-1 p-3 m-0">
-          {collaborators.length === 0 && !user ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-              <AlertCircle className="h-8 w-8 mb-2" />
-              <p className="text-sm">No users connected</p>
+          
+          <Separator />
+          
+          <div className="space-y-2">
+            <Label>Invite by Email</Label>
+            <div className="flex gap-2">
+              <Input 
+                type="email"
+                placeholder="colleague@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                data-testid="invite-email-input"
+              />
+              <Select value={role} onValueChange={(v: 'editor' | 'viewer') => setRole(v)}>
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Current user */}
-              {user && (
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-8 w-8">
-                    {user.avatarUrl ? (
-                      <AvatarImage src={user.avatarUrl} alt={user.username} />
-                    ) : (
-                      <AvatarFallback className={getColorForUser(user.username)}>
-                        {getInitials(user.username)}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">{user.username} (you)</p>
-                    <p className="text-xs text-muted-foreground">Active now</p>
-                  </div>
-                </div>
-              )}
-              
-              {/* Other collaborators */}
-              {collaborators.length > 0 && (
-                <>
-                  <Separator />
-                  {collaborators.map((collab) => (
-                    <div key={collab.userId} className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className={getColorForUser(collab.username)}>
-                          {getInitials(collab.username)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">{collab.username}</p>
-                        <p className="text-xs text-muted-foreground">Active now</p>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-              
-              {/* Invite button for empty state */}
-              {collaborators.length === 0 && (
-                <div className="mt-6">
-                  <Button 
-                    onClick={onInviteClick} 
-                    variant="outline" 
-                    className="w-full"
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button 
+            onClick={handleInvite} 
+            disabled={!email.trim() || isLoading}
+            data-testid="send-invite-button"
+          >
+            {isLoading ? 'Sending...' : 'Send Invitation'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
+InviteDialog.displayName = 'InviteDialog';
+
+export function CollaborationPanel({
+  projectId,
+  projectName,
+  currentUser,
+  currentFile,
+  onFollowUser,
+  onFollowCursor,
+  onStartCall,
+  className,
+}: CollaborationPanelProps) {
+  const { toast } = useToast();
+  const {
+    isConnected,
+    collaborators,
+    chatMessages,
+    typingUsers,
+    followingUserId,
+    activeCount,
+    totalCount,
+    error,
+    sendChatMessage,
+    setTyping,
+    followUser,
+    updateActivity,
+    getCollaboratorCursor
+  } = useRealTimeCollaboration({ projectId });
+  
+  const [activeTab, setActiveTab] = useState<'collaborators' | 'chat'>('collaborators');
+  const [chatInput, setChatInput] = useState('');
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [isInCall, setIsInCall] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOn, setIsVideoOn] = useState(true);
+  const [shareLink, setShareLink] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
+  
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const token = btoa(`${projectId}-${Date.now()}`).replace(/[^a-zA-Z0-9]/g, '').substr(0, 9);
+    setShareLink(`${window.location.origin}/ide/${projectId}?token=${token}`);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (currentFile) {
+      updateActivity('viewing', currentFile);
+    }
+  }, [currentFile, updateActivity]);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  useEffect(() => {
+    if (followingUserId && onFollowCursor) {
+      const cursor = getCollaboratorCursor(followingUserId);
+      if (cursor) {
+        onFollowCursor(cursor);
+      }
+    }
+  }, [followingUserId, collaborators, onFollowCursor, getCollaboratorCursor]);
+
+  const copyShareLink = useCallback(() => {
+    navigator.clipboard.writeText(shareLink);
+    setLinkCopied(true);
+    toast({
+      title: "Link copied!",
+      description: "Share this link to invite collaborators",
+    });
+    setTimeout(() => setLinkCopied(false), 2000);
+  }, [shareLink, toast]);
+
+  const handleFollowUser = useCallback((userId: string) => {
+    const newFollowing = followingUserId === userId ? null : userId;
+    followUser(newFollowing);
+    
+    if (newFollowing) {
+      const user = collaborators.find(c => c.odUserId.toString() === userId);
+      if (user) {
+        toast({
+          title: `Following ${user.username}`,
+          description: `You're now following ${user.username}'s cursor`,
+        });
+        onFollowUser?.(userId);
+        
+        if (onFollowCursor) {
+          const cursor = getCollaboratorCursor(userId);
+          if (cursor) {
+            onFollowCursor(cursor);
+          }
+        }
+      }
+    } else if (onFollowCursor) {
+      onFollowCursor(null);
+    }
+  }, [followingUserId, followUser, collaborators, toast, onFollowUser, onFollowCursor, getCollaboratorCursor]);
+
+  const handleSendMessage = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (chatInput.trim()) {
+      sendChatMessage(chatInput);
+      setChatInput('');
+      setTyping(false);
+    }
+  }, [chatInput, sendChatMessage, setTyping]);
+
+  const handleChatInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setChatInput(e.target.value);
+    setTyping(e.target.value.length > 0);
+  }, [setTyping]);
+
+  const toggleCall = useCallback(() => {
+    if (!isInCall) {
+      setIsInCall(true);
+      toast({
+        title: "Call started",
+        description: "Voice & video call is now active",
+      });
+      onStartCall?.();
+    } else {
+      setIsInCall(false);
+      toast({
+        title: "Call ended",
+        description: "You've left the call",
+      });
+    }
+  }, [isInCall, toast, onStartCall]);
+
+  return (
+    <Card className={cn("h-full flex flex-col", className)}>
+      <CardHeader className="pb-3 shrink-0">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-medium flex items-center gap-2">
+            <div className={cn(
+              "h-2 w-2 rounded-full",
+              isConnected ? "bg-green-500" : "bg-red-500"
+            )} />
+            <Users className="h-4 w-4" />
+            Collaboration
+            <Badge variant="secondary" className="ml-1" data-testid="active-count">
+              {activeCount} active
+            </Badge>
+          </CardTitle>
+          <div className="flex items-center gap-1">
+            {isInCall && (
+              <>
+                <Button
+                  size="icon"
+                  variant={isMuted ? "destructive" : "ghost"}
+                  className="h-8 w-8"
+                  onClick={() => setIsMuted(!isMuted)}
+                >
+                  {isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  size="icon"
+                  variant={!isVideoOn ? "destructive" : "ghost"}
+                  className="h-8 w-8"
+                  onClick={() => setIsVideoOn(!isVideoOn)}
+                >
+                  {isVideoOn ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5" />}
+                </Button>
+              </>
+            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant={isInCall ? "destructive" : "ghost"}
+                    className="h-8 w-8"
+                    onClick={toggleCall}
+                    data-testid="call-button"
                   >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite collaborators
+                    <Video className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isInCall ? 'End call' : 'Start video call'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="p-0 flex-1 flex flex-col min-h-0">
+        <Tabs 
+          value={activeTab} 
+          onValueChange={(v) => setActiveTab(v as 'collaborators' | 'chat')}
+          className="flex-1 flex flex-col min-h-0"
+        >
+          <TabsList className="grid w-full grid-cols-2 mx-4 mt-1" style={{ width: 'calc(100% - 32px)' }}>
+            <TabsTrigger value="collaborators" className="text-[11px]" data-testid="tab-people">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              People ({totalCount})
+            </TabsTrigger>
+            <TabsTrigger value="chat" className="text-[11px] relative" data-testid="tab-chat">
+              <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+              Chat
+              {chatMessages.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                  {chatMessages.length > 99 ? '99+' : chatMessages.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="collaborators" className="flex-1 mt-2 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="px-4 pb-4 space-y-3">
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                  <Share2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <input
+                    type="text"
+                    value={shareLink}
+                    readOnly
+                    className="flex-1 bg-transparent text-[11px] text-muted-foreground outline-none min-w-0"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 shrink-0"
+                    onClick={copyShareLink}
+                    data-testid="copy-share-link"
+                  >
+                    {linkCopied ? (
+                      <Check className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 </div>
+
+                <Separator />
+
+                {collaborators.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p className="text-[13px]">No other collaborators yet</p>
+                    <p className="text-[11px] mt-1">Invite someone to collaborate!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {collaborators.map((collaborator) => (
+                      <CollaboratorListItem
+                        key={collaborator.id}
+                        collaborator={collaborator}
+                        isFollowing={followingUserId === collaborator.odUserId.toString()}
+                        onFollow={() => handleFollowUser(collaborator.odUserId.toString())}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                  onClick={() => setInviteOpen(true)}
+                  data-testid="invite-button"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite Collaborator
+                </Button>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+          
+          <TabsContent value="chat" className="flex-1 mt-2 flex flex-col min-h-0">
+            <ScrollArea className="flex-1 px-4" ref={chatScrollRef}>
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-[13px]">No messages yet</p>
+                  <p className="text-[11px] mt-1">Start the conversation!</p>
+                </div>
+              ) : (
+                <div className="pb-2">
+                  {chatMessages.map((msg) => (
+                    <ChatMessageBubble 
+                      key={msg.id} 
+                      message={msg} 
+                      isOwn={false}
+                    />
+                  ))}
+                  {typingUsers.length > 0 && (
+                    <div className="text-[11px] text-muted-foreground italic px-2 py-1">
+                      {typingUsers.map(u => u.username).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                    </div>
+                  )}
+                </div>
               )}
+            </ScrollArea>
+            
+            <form onSubmit={handleSendMessage} className="p-4 border-t mt-auto shrink-0">
+              <div className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  value={chatInput}
+                  onChange={handleChatInputChange}
+                  placeholder="Type a message..."
+                  className="flex-1 h-9 text-[13px]"
+                  data-testid="chat-input"
+                />
+                <Button 
+                  type="submit" 
+                  size="icon" 
+                  className="h-9 w-9 shrink-0"
+                  disabled={!chatInput.trim()}
+                  data-testid="send-chat-button"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+        </Tabs>
+        
+        {error && (
+          <div className="p-3 border-t bg-destructive/10 text-destructive text-[11px] shrink-0">
+            {error}
+          </div>
+        )}
+        
+        {isInCall && (
+          <div className="p-4 bg-background border-t shrink-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] text-muted-foreground">
+                In call with {activeCount} people
+              </span>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={toggleCall}
+                data-testid="end-call-button"
+              >
+                End Call
+              </Button>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+          </div>
+        )}
+      </CardContent>
+      
+      <InviteDialog
+        projectId={projectId}
+        projectName={projectName}
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+      />
+    </Card>
   );
 }
