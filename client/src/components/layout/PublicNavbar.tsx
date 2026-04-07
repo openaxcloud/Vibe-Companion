@@ -249,8 +249,9 @@ export function PublicNavbar() {
                 className="text-[var(--ecode-text)] dark:text-slate-200 hover:text-[var(--ecode-accent)] dark:hover:text-white min-h-[44px] px-3 sm:px-4"
                 onClick={() => navigate('/login')}
                 data-testid="link-login"
+                aria-label="Log in"
               >
-                <LogIn className="mr-1 sm:mr-2 h-4 w-4" />
+                <LogIn className="mr-1 sm:mr-2 h-4 w-4" aria-hidden="true" />
                 <span className="hidden xs:inline">Log in</span>
               </Button>
               {primaryCta}

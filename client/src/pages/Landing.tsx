@@ -631,12 +631,13 @@ export default function Landing() {
                       setIsPlaying(!isPlaying);
                     }
                   }}
+                  aria-label={isPlaying ? 'Pause video' : 'Play video'}
                 >
                   <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                     {isPlaying ? (
-                      <Pause className="h-8 w-8 text-white ml-0" />
+                      <Pause className="h-8 w-8 text-white ml-0" aria-hidden="true" />
                     ) : (
-                      <Play className="h-8 w-8 text-white ml-1" />
+                      <Play className="h-8 w-8 text-white ml-1" aria-hidden="true" />
                     )}
                   </div>
                 </button>
@@ -652,8 +653,9 @@ export default function Landing() {
                         videoRef.current.muted = !isMuted;
                       }
                     }}
+                    aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                   >
-                    {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                    {isMuted ? <VolumeX className="h-5 w-5" aria-hidden="true" /> : <Volume2 className="h-5 w-5" aria-hidden="true" />}
                   </button>
                   
                   <div className="flex-1" />
@@ -666,8 +668,9 @@ export default function Landing() {
                         videoRef.current.requestFullscreen();
                       }
                     }}
+                    aria-label="Enter fullscreen"
                   >
-                    <Maximize className="h-5 w-5" />
+                    <Maximize className="h-5 w-5" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1052,7 +1055,7 @@ export default function Landing() {
                   transition={{ delay: index * 0.05 }}
                   data-testid={`language-${name.toLowerCase().replace(/\./g, '')}`}
                 >
-                  <Icon className={`h-12 w-12 ${color}`} />
+                  <Icon className={`h-12 w-12 ${color}`} aria-label={name} />
                   <span className="text-[13px] font-medium text-[var(--ecode-text)]">{name}</span>
                 </LazyMotionDiv>
               ))}
@@ -1136,7 +1139,7 @@ export default function Landing() {
               Trusted by Fortune 500 companies and startups alike
             </p>
             <div className="flex flex-wrap justify-center items-center gap-12 opacity-60 grayscale hover:grayscale-0 transition-all duration-300 hover:opacity-100 text-[var(--ecode-text)]">
-              <SiGoogle className="h-8 w-auto" />
+              <SiGoogle className="h-8 w-auto" aria-label="Google" />
               <span className="text-2xl font-bold">Microsoft</span>
               {/* Amazon icon removed */}
               <span className="text-2xl font-bold">IBM</span>

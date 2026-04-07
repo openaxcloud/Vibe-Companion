@@ -69,3 +69,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 - **Acorn, Acorn-Walk**: For JavaScript AST analysis.
 - **esbuild**: For TypeScript transpilation.
 - **pdfkit, docx, exceljs, pptxgenjs**: For generating various document formats.
+- **@axe-core/playwright, @playwright/test**: For automated WCAG 2.1 AA accessibility testing.
+
+## Accessibility Testing
+Automated accessibility tests using axe-core run via Playwright against 5 key public pages (Landing, Login, Accessibility, Pricing, Features). Tests assert zero critical/serious WCAG 2.1 AA violations (color-contrast excluded as a known limitation of the brand color). Run with: `CHROMIUM_PATH=$(which chromium) npx playwright test e2e/accessibility.spec.ts`. Config: `playwright.config.ts`.

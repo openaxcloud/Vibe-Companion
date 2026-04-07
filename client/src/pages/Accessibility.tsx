@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle, Eye, Keyboard, Monitor, Volume2,
-  MousePointer, Contrast, Type, Globe, Mail
+  MousePointer, Contrast, Type, Globe, Mail, AlertTriangle, ShieldCheck
 } from "lucide-react";
 import { Link } from "wouter";
 import PublicLayout from "@/components/layout/PublicLayout";
@@ -26,7 +26,7 @@ const accessibilityFeatures = [
   {
     icon: <Contrast className="h-6 w-6" />,
     title: "High Contrast Mode",
-    description: "Built-in high contrast themes that meet WCAG 2.1 AAA color contrast requirements."
+    description: "Built-in dark mode and theme options to improve readability for users with low vision."
   },
   {
     icon: <Type className="h-6 w-6" />,
@@ -39,18 +39,17 @@ const accessibilityFeatures = [
     description: "Minimum 44x44 pixel touch targets for all interactive elements, exceeding WCAG requirements."
   },
   {
-    icon: <Volume2 className="h-6 w-6" />,
-    title: "Audio Alternatives",
-    description: "All audio and video content includes captions and transcripts."
+    icon: <Monitor className="h-6 w-6" />,
+    title: "Reduced Motion Support",
+    description: "Respects the prefers-reduced-motion media query to disable animations for users who need it."
   }
 ];
 
 const wcagCompliance = [
-  { level: "WCAG 2.1 Level A", status: "Compliant", description: "All Level A criteria are met" },
-  { level: "WCAG 2.1 Level AA", status: "Compliant", description: "All Level AA criteria are met" },
-  { level: "WCAG 2.1 Level AAA", status: "Partial", description: "Many Level AAA criteria are met" },
-  { level: "Section 508", status: "Compliant", description: "US federal accessibility standards" },
-  { level: "EN 301 549", status: "Compliant", description: "EU accessibility requirements" }
+  { level: "WCAG 2.1 Level A", status: "Tested", description: "Automated axe-core scans verify Level A compliance on key pages" },
+  { level: "WCAG 2.1 Level AA", status: "Tested", description: "Automated axe-core scans verify Level AA compliance (excluding color contrast)" },
+  { level: "WCAG 2.1 Level AAA", status: "Partial", description: "Some Level AAA criteria are met; not a formal compliance target" },
+  { level: "Color Contrast (AA)", status: "In Progress", description: "Brand color (#F26207) on light backgrounds is being evaluated for AA compliance" }
 ];
 
 export default function Accessibility() {
@@ -87,12 +86,40 @@ export default function Accessibility() {
                 who rely on assistive technologies.
               </p>
               <p className="text-muted-foreground">
-                Our development team follows WCAG 2.1 guidelines and conducts regular accessibility audits
-                to ensure our platform meets the highest standards of accessibility.
+                Our development team follows WCAG 2.1 guidelines and uses automated accessibility testing
+                with axe-core to verify compliance on key pages. We continuously work to identify and fix
+                accessibility barriers.
               </p>
             </div>
           </div>
         </Card>
+
+        {/* Automated Testing Section */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <h2 className="text-2xl font-bold text-center mb-8">Automated Accessibility Testing</h2>
+          <Card className="p-6 border-2 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
+                <ShieldCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold mb-2">axe-core WCAG 2.1 AA Scans</h3>
+                <p className="text-[13px] text-muted-foreground mb-3">
+                  We run automated accessibility tests using axe-core (via Playwright) on our most critical pages.
+                  These tests check for WCAG 2.1 Level A and AA violations and run as part of our development process.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["Landing", "Login", "Pricing", "Features", "Accessibility"].map((page) => (
+                    <Badge key={page} className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      {page}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
 
         {/* Accessibility Features */}
         <div className="max-w-4xl mx-auto mb-16">
@@ -135,9 +162,11 @@ export default function Accessibility() {
                       <td className="p-4 font-medium">{item.level}</td>
                       <td className="p-4">
                         <Badge className={
-                          item.status === "Compliant"
+                          item.status === "Tested"
                             ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : item.status === "In Progress"
+                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                         }>
                           {item.status}
                         </Badge>
@@ -202,24 +231,32 @@ export default function Accessibility() {
             </p>
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0" />
+                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <strong>Color contrast:</strong> The brand accent color may not meet WCAG AA contrast
+                  requirements (4.5:1) for small text on light backgrounds. We are evaluating adjustments
+                  that balance brand identity with accessibility.
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <strong>Third-party integrations:</strong> Some embedded content from third parties
                   may not be fully accessible. We are working with vendors to improve this.
                 </div>
               </li>
               <li className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0" />
+                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <strong>Code editor:</strong> The Monaco code editor has some accessibility limitations
                   we are actively addressing in collaboration with Microsoft.
                 </div>
               </li>
               <li className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0" />
+                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <strong>Legacy content:</strong> Some older documentation pages are being updated
-                  to meet current accessibility standards.
+                  <strong>Automated testing scope:</strong> Automated axe-core tests cover 5 key pages.
+                  Pages behind authentication (Dashboard, IDE, Settings) are not yet included in automated scans.
                 </div>
               </li>
             </ul>
@@ -251,7 +288,7 @@ export default function Accessibility() {
 
         {/* Last Updated */}
         <div className="max-w-4xl mx-auto mt-8 text-center text-[13px] text-muted-foreground">
-          <p>This accessibility statement was last updated on November 2024.</p>
+          <p>This accessibility statement was last updated on April 2026.</p>
         </div>
       </div>
     </PublicLayout>

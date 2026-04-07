@@ -50,12 +50,13 @@ export default function LandingVideo() {
                   }
                 }}
                 data-testid="button-video-play-toggle"
+                aria-label={isPlaying ? 'Pause video' : 'Play video'}
               >
                 <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                   {isPlaying ? (
-                    <Pause className="h-8 w-8 text-white" />
+                    <Pause className="h-8 w-8 text-white" aria-hidden="true" />
                   ) : (
-                    <Play className="h-8 w-8 text-white ml-1" />
+                    <Play className="h-8 w-8 text-white ml-1" aria-hidden="true" />
                   )}
                 </div>
               </button>
@@ -71,8 +72,9 @@ export default function LandingVideo() {
                     }
                   }}
                   data-testid="button-video-mute-toggle"
+                  aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                 >
-                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                  {isMuted ? <VolumeX className="h-5 w-5" aria-hidden="true" /> : <Volume2 className="h-5 w-5" aria-hidden="true" />}
                 </button>
                 <div className="flex-1" />
                 <button
@@ -82,8 +84,9 @@ export default function LandingVideo() {
                     videoRef.current?.requestFullscreen();
                   }}
                   data-testid="button-video-fullscreen"
+                  aria-label="Enter fullscreen"
                 >
-                  <Maximize className="h-5 w-5" />
+                  <Maximize className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
             </div>

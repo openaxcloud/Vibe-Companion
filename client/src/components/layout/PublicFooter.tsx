@@ -173,7 +173,7 @@ export function PublicFooter() {
                     <p className="text-[13px] font-semibold text-[var(--ecode-text)] dark:text-white">Compare platforms</p>
                     <p className="text-[11px] text-[var(--ecode-text-secondary)] dark:text-slate-300">See how E-Code stacks up against other development clouds.</p>
                   </div>
-                  <div className="flex flex-wrap gap-3" role="list" aria-label="Platform comparisons">
+                  <nav className="flex flex-wrap gap-3" aria-label="Platform comparisons">
                     {footerLinks.compare.map((link) => (
                       <Link
                         key={link.href}
@@ -183,7 +183,7 @@ export function PublicFooter() {
                         {link.label}
                       </Link>
                     ))}
-                  </div>
+                  </nav>
                 </div>
               </div>
             </div>
