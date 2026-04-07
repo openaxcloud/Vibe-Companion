@@ -292,6 +292,15 @@ export const AI_MODELS: AIModel[] = [
 
   // ── Moonshot AI / Kimi ───────────────────────────────────────────────────────
   {
+    id: 'kimi-k2',
+    name: 'Kimi K2',
+    provider: 'moonshot',
+    description: 'Flagship Kimi model — state-of-the-art reasoning and coding with 131K context',
+    maxTokens: 131072,
+    supportsStreaming: true,
+    costPer1kTokens: 0.002
+  },
+  {
     id: 'moonshot-v1-8k',
     name: 'Kimi 8K',
     provider: 'moonshot',
@@ -1251,8 +1260,8 @@ export class AIProviderManager {
       'OpenAI': ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3', 'o3-mini'],
       'Claude': ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
       'Anthropic': ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-      'Gemini': ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-      'Moonshot': ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+      'Gemini': ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+      'Moonshot': ['kimi-k2', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
       'xAI': ['grok-3', 'grok-3-mini', 'grok-3-fast']
     };
     
@@ -1276,7 +1285,7 @@ export class AIProviderManager {
       'Claude 3.5 Sonnet': 'claude-3-5-sonnet-20241022',
       'Anthropic': 'claude-sonnet-4-20250514',
       'Gemini': 'gemini-2.5-flash',
-      'Moonshot': 'moonshot-v1-32k',
+      'Moonshot': 'kimi-k2',
       'xAI': 'grok-3'
     };
     

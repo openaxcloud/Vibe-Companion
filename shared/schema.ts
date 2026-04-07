@@ -725,11 +725,24 @@ export const AUTONOMOUS_TIER_CONFIG = {
 } as const;
 
 export const MODEL_TOKEN_PRICING: Record<string, { input: number; output: number; label: string; creditsPerMillionInput: number; creditsPerMillionOutput: number }> = {
-  "gpt-4o-mini": { input: 0.00015, output: 0.0006, label: "GPT-4o Mini", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
   "gpt-4o": { input: 0.0025, output: 0.01, label: "GPT-4o", creditsPerMillionInput: 250, creditsPerMillionOutput: 1000 },
-  "claude-sonnet-4-6": { input: 0.003, output: 0.015, label: "Claude Sonnet 4", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
-  "gemini-2.0-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.0 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "gpt-4o-mini": { input: 0.00015, output: 0.0006, label: "GPT-4o Mini", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "gpt-4.1": { input: 0.002, output: 0.008, label: "GPT-4.1", creditsPerMillionInput: 200, creditsPerMillionOutput: 800 },
+  "gpt-4.1-mini": { input: 0.0004, output: 0.0016, label: "GPT-4.1 Mini", creditsPerMillionInput: 40, creditsPerMillionOutput: 160 },
+  "gpt-4.1-nano": { input: 0.0001, output: 0.0004, label: "GPT-4.1 Nano", creditsPerMillionInput: 10, creditsPerMillionOutput: 40 },
+  "o3": { input: 0.01, output: 0.04, label: "o3", creditsPerMillionInput: 1000, creditsPerMillionOutput: 4000 },
+  "o3-mini": { input: 0.0011, output: 0.0044, label: "o3-mini", creditsPerMillionInput: 110, creditsPerMillionOutput: 440 },
+  "o4-mini": { input: 0.0011, output: 0.0044, label: "o4-mini", creditsPerMillionInput: 110, creditsPerMillionOutput: 440 },
+  "claude-sonnet-4-20250514": { input: 0.003, output: 0.015, label: "Claude Sonnet 4", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
+  "claude-opus-4-20250514": { input: 0.015, output: 0.075, label: "Claude Opus 4", creditsPerMillionInput: 1500, creditsPerMillionOutput: 7500 },
+  "claude-3-5-haiku-20241022": { input: 0.0008, output: 0.004, label: "Claude 3.5 Haiku", creditsPerMillionInput: 80, creditsPerMillionOutput: 400 },
+  "gemini-2.5-pro": { input: 0.00125, output: 0.01, label: "Gemini 2.5 Pro", creditsPerMillionInput: 125, creditsPerMillionOutput: 1000 },
   "gemini-2.5-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.5 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "gemini-2.0-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.0 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
+  "grok-3": { input: 0.003, output: 0.015, label: "Grok 3", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
+  "grok-3-mini": { input: 0.0003, output: 0.0005, label: "Grok 3 Mini", creditsPerMillionInput: 30, creditsPerMillionOutput: 50 },
+  "grok-3-fast": { input: 0.005, output: 0.025, label: "Grok 3 Fast", creditsPerMillionInput: 500, creditsPerMillionOutput: 2500 },
+  "kimi-k2": { input: 0.002, output: 0.008, label: "Kimi K2", creditsPerMillionInput: 200, creditsPerMillionOutput: 800 },
   "mistral-small-latest": { input: 0.001, output: 0.003, label: "Mistral Small", creditsPerMillionInput: 100, creditsPerMillionOutput: 300 },
   "mistral-large-latest": { input: 0.002, output: 0.006, label: "Mistral Large", creditsPerMillionInput: 200, creditsPerMillionOutput: 600 },
   "sonar": { input: 0.001, output: 0.005, label: "Perplexity Sonar", creditsPerMillionInput: 100, creditsPerMillionOutput: 500 },
@@ -768,15 +781,15 @@ export function getProviderPricing(provider: string): { input: number; output: n
 }
 
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
-  economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },
-  power: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
-  turbo: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
+  economy: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.0-flash", xai: "grok-3-fast", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },
+  power: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.5-pro", xai: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
+  turbo: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro", xai: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
 };
 
 export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
-  lite: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.0-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },
-  autonomous: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
-  max: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
+  lite: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.0-flash", xai: "grok-3-fast", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },
+  autonomous: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.5-pro", xai: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
+  max: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro", xai: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
 };
 
 export const customDomains = pgTable("custom_domains", {

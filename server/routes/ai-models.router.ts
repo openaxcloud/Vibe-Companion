@@ -90,14 +90,6 @@ router.get('/preferred', async (req, res) => {
       preferredModel = availableModels.length > 0 ? availableModels[0].id : null;
     }
 
-    const LEGACY_UPGRADES: Record<string, string> = {
-      'gpt-4o-mini': 'gpt-4.1',
-      'gpt-4o':      'gpt-4.1',
-    };
-    if (preferredModel && LEGACY_UPGRADES[preferredModel]) {
-      preferredModel = LEGACY_UPGRADES[preferredModel];
-    }
-    
     res.json({
       success: true,
       preferredModel,

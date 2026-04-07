@@ -171,7 +171,7 @@ export async function generateProjectSuggestions(req: Request, res: Response) {
 export async function generateAI(req: Request, res: Response) {
   try {
     const { prompt, model, maxTokens, systemPrompt } = req.body;
-    const result = await callAI(prompt, model || 'claude-3-5-sonnet-20241022', systemPrompt, maxTokens);
+    const result = await callAI(prompt, model || 'claude-sonnet-4-20250514', systemPrompt, maxTokens);
     res.json({ response: result.text, model: result.model, provider: result.provider });
   } catch (error: any) {
     logger.error(`Generate AI error: ${error.message}`);
