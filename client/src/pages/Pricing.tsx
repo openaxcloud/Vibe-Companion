@@ -810,7 +810,7 @@ export default function Pricing() {
               <Button 
                 size="lg"
                 variant="ghost"
-                className="text-gray-900 border-2 border-gray-900 bg-white/20 hover:bg-white/40 px-8 py-6 text-[15px] font-semibold transition-all duration-200"
+                className="text-white border-2 border-white/60 bg-white/20 hover:bg-white/40 px-8 py-6 text-[15px] font-semibold transition-all duration-200"
                 onClick={() => navigate('/demo')}
                 data-testid="button-cta-watch-demo"
               >

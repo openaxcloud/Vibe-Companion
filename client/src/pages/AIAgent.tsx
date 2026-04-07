@@ -207,7 +207,7 @@ export default function AIAgent() {
       <PublicNavbar />
 
       {/* Hero Section - Fortune 500 Style */}
-      <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-950 dark:to-gray-950">
+      <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-gradient-to-br from-muted/30 to-background dark:from-background dark:to-muted/10">
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
           <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />

@@ -134,10 +134,10 @@ export default function APISDKPage() {
     return (
       <div className="container mx-auto p-6">
         <div className="space-y-6">
-          <div className="h-8 bg-gray-200 rounded animate-pulse" />
+          <div className="h-8 bg-muted rounded animate-pulse" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded animate-pulse" />
+              <div key={i} className="h-32 bg-muted rounded animate-pulse" />
             ))}
           </div>
         </div>
@@ -152,7 +152,7 @@ export default function APISDKPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">API & SDK</h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-muted-foreground mt-2">
               Integrate E-Code into your applications with our powerful API and SDKs
             </p>
           </div>
@@ -170,7 +170,7 @@ export default function APISDKPage() {
                 <div className="flex items-center gap-3">
                   <Key className="h-8 w-8 text-blue-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Active Keys</p>
+                    <p className="text-[13px] text-muted-foreground">Active Keys</p>
                     <p className="text-2xl font-bold">{analytics.activeKeys || 0}</p>
                   </div>
                 </div>
@@ -181,7 +181,7 @@ export default function APISDKPage() {
                 <div className="flex items-center gap-3">
                   <BarChart3 className="h-8 w-8 text-green-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">API Calls (30d)</p>
+                    <p className="text-[13px] text-muted-foreground">API Calls (30d)</p>
                     <p className="text-2xl font-bold">{analytics.apiCalls || 0}</p>
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export default function APISDKPage() {
                 <div className="flex items-center gap-3">
                   <Code className="h-8 w-8 text-purple-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Success Rate</p>
+                    <p className="text-[13px] text-muted-foreground">Success Rate</p>
                     <p className="text-2xl font-bold">{analytics.successRate || 99}%</p>
                   </div>
                 </div>
@@ -203,7 +203,7 @@ export default function APISDKPage() {
                 <div className="flex items-center gap-3">
                   <ExternalLink className="h-8 w-8 text-orange-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Rate Limit</p>
+                    <p className="text-[13px] text-muted-foreground">Rate Limit</p>
                     <p className="text-2xl font-bold">{analytics.rateLimit || 1000}/hr</p>
                   </div>
                 </div>
@@ -301,7 +301,7 @@ export default function APISDKPage() {
                             </Badge>
                           ))}
                         </div>
-                        <div className="text-[13px] text-gray-500">
+                        <div className="text-[13px] text-muted-foreground">
                           Created: {formatDate(key.createdAt)}
                           {key.lastUsed && ` • Last used: ${formatDate(key.lastUsed)}`}
                         </div>
@@ -321,9 +321,9 @@ export default function APISDKPage() {
 
               {!apiKeys?.length && (
                 <div className="text-center py-12">
-                  <Key className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-[15px] font-medium text-gray-900 mb-2">No API keys found</h3>
-                  <p className="text-gray-500 mb-4">
+                  <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-[15px] font-medium text-foreground mb-2">No API keys found</h3>
+                  <p className="text-muted-foreground mb-4">
                     Create your first API key to start using the E-Code API.
                   </p>
                 </div>
@@ -342,8 +342,8 @@ export default function APISDKPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-[13px] text-gray-600">{example.description}</p>
-                    <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-[13px] text-muted-foreground">{example.description}</p>
+                    <div className="bg-muted p-4 rounded-lg">
                       <pre className="text-[13px] overflow-x-auto">
                         <code>{example.code}</code>
                       </pre>
@@ -363,11 +363,11 @@ export default function APISDKPage() {
               {['JavaScript', 'Python', 'Go', 'Java', 'Ruby', 'PHP'].map(language => (
                 <Card key={language}>
                   <CardContent className="p-6 text-center">
-                    <div className="h-16 w-16 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mx-auto mb-4">
                       <Code className="h-8 w-8 text-blue-600" />
                     </div>
                     <h3 className="font-semibold mb-2">{language} SDK</h3>
-                    <p className="text-[13px] text-gray-600 mb-4">
+                    <p className="text-[13px] text-muted-foreground mb-4">
                       Official E-Code SDK for {language} applications
                     </p>
                     <div className="flex gap-2">

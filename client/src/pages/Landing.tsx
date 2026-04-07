@@ -527,7 +527,7 @@ export default function Landing() {
           animate={{ y: [0, 10, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          <ChevronRight className="h-8 w-8 text-gray-400 rotate-90" />
+          <ChevronRight className="h-8 w-8 text-muted-foreground rotate-90" />
         </LazyMotionDiv>
       </LazyMotionDiv>
 
@@ -672,7 +672,7 @@ export default function Landing() {
             {/* Video Description */}
             <div className="mt-8 text-center">
               <h3 className="text-[15px] font-semibold mb-2">Live Platform Demo</h3>
-              <p className="text-[13px] text-gray-600 dark:text-gray-400">
+              <p className="text-[13px] text-muted-foreground">
                 Watch how E-Code Platform's AI agent builds a complete full-stack application with database, authentication, 
                 and deployment - all from a single prompt
               </p>
@@ -1184,7 +1184,7 @@ export default function Landing() {
               <Button 
                 size="lg"
                 variant="ghost"
-                className="text-gray-900 border-2 border-gray-900 bg-white/20 hover:bg-white/40 px-8 py-6 text-[15px] font-semibold transition-all duration-300"
+                className="text-white border-2 border-white/80 bg-white/20 hover:bg-white/40 px-8 py-6 text-[15px] font-semibold transition-all duration-300"
                 onClick={() => navigate('/contact-sales')}
                 data-testid="button-contact-sales"
               >

@@ -100,7 +100,7 @@ const getTypeIcon = (type: string) => {
     case 'improvement': return <Zap className="h-4 w-4 text-blue-500" />;
     case 'fix': return <Bug className="h-4 w-4 text-orange-500" />;
     case 'security': return <Shield className="h-4 w-4 text-green-500" />;
-    default: return <CheckCircle className="h-4 w-4 text-gray-500" />;
+    default: return <CheckCircle className="h-4 w-4 text-muted-foreground" />;
   }
 };
 

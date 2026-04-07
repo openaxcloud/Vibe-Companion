@@ -639,7 +639,7 @@ export default function Account() {
                   <Label htmlFor="bio">Bio</Label>
                   <textarea
                     id="bio"
-                    className="w-full min-h-[100px] px-3 py-2 text-[13px] rounded-md border bg-background"
+                    className="w-full min-h-[100px] px-3 py-2 text-[13px] rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary/40 focus:outline-none transition-all duration-200"
                     value={profile.bio}
                     onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
                     placeholder="Tell us about yourself..."
@@ -811,7 +811,7 @@ export default function Account() {
                   <div className="p-4 border rounded-lg bg-muted/50" data-testid="current-plan">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <Crown className="h-5 w-5 text-yellow-600" />
+                        <Crown className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                         <h3 className="font-semibold">{billingData?.plan || user?.subscriptionTier || 'Free'} Plan</h3>
                       </div>
                       <Badge>Active</Badge>
@@ -878,7 +878,7 @@ export default function Account() {
                           </span>
                         </div>
                         <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-green-600" style={{ width: '100%' }} />
+                          <div className="h-full bg-green-600 dark:bg-green-500" style={{ width: '100%' }} />
                         </div>
                       </div>
                     </div>

@@ -189,7 +189,7 @@ export default function Partners() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8 max-w-6xl mx-auto">
               {partnerLogos.map((partner, index) => (
                 <div key={index} className="flex flex-col items-center group">
-                  <div className="w-20 h-20 bg-white dark:bg-card border border-border/40 rounded-xl shadow-sm flex items-center justify-center mb-3 group-hover:shadow-md group-hover:border-border transition-all">
+                  <div className="w-20 h-20 bg-card border border-border/40 rounded-xl shadow-sm flex items-center justify-center mb-3 group-hover:shadow-md group-hover:border-border transition-all">
                     <img
                       src={partner.logo.src}
                       alt={partner.logo.alt}
@@ -221,7 +221,7 @@ export default function Partners() {
               {partnershipTypes.map((type, index) => (
                 <Card
                   key={index}
-                  className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-white/90 dark:bg-card/90 backdrop-blur"
+                  className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-card/90 backdrop-blur"
                 >
                   <CardHeader>
                     <div className="p-3 bg-primary/10 rounded-lg w-fit mb-4">
@@ -258,7 +258,7 @@ export default function Partners() {
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
               {partnerBenefits.map((benefit, index) => (
-                <Card key={index} className="border border-border/50 shadow-sm text-center bg-white/90 dark:bg-card/90 backdrop-blur">
+                <Card key={index} className="border border-border/50 shadow-sm text-center bg-card/90 backdrop-blur">
                   <CardContent className="pt-6 space-y-3">
                     <div className="p-3 bg-primary/10 rounded-lg w-fit mx-auto mb-4">
                       {benefit.icon}
@@ -284,10 +284,10 @@ export default function Partners() {
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {successStories.map((story, index) => (
-                <Card key={index} className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-white dark:bg-card/95">
+                <Card key={index} className="border border-border/50 shadow-sm hover:shadow-lg transition-shadow bg-card">
                   <CardHeader>
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-14 h-14 bg-white dark:bg-background/80 border border-border/40 rounded-xl shadow-sm flex items-center justify-center">
+                      <div className="w-14 h-14 bg-background border border-border/40 rounded-xl shadow-sm flex items-center justify-center">
                         <img
                           src={story.logo.src}
                           alt={story.logo.alt}

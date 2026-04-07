@@ -146,10 +146,10 @@ export default function PreviewWithDevTools() {
         </Card>
 
         {/* Preview Container */}
-        <div className="flex-1 relative bg-gray-100 dark:bg-gray-900">
+        <div className="flex-1 relative bg-muted">
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div
-              className="bg-white dark:bg-gray-800 shadow-2xl rounded-lg overflow-hidden transition-all duration-300"
+              className="bg-card shadow-2xl rounded-lg overflow-hidden transition-all duration-300"
               style={{
                 width: `${customWidth}px`,
                 maxWidth: '100%',

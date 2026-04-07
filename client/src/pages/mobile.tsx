@@ -832,7 +832,7 @@ session.share({ team: "Field Ops" });
                       <div className="relative flex items-center gap-3 bg-black px-6 py-3 rounded-lg">
                         <Apple className="h-8 w-8 text-white" />
                         <div className="text-left">
-                          <p className="text-[11px] text-gray-300">Download on the</p>
+                          <p className="text-[11px] text-white/70">Download on the</p>
                           <p className="text-[15px] font-semibold text-white">App Store</p>
                         </div>
                       </div>
@@ -848,7 +848,7 @@ session.share({ team: "Field Ops" });
                       <div className="relative flex items-center gap-3 bg-black px-6 py-3 rounded-lg">
                         <Chrome className="h-8 w-8 text-white" />
                         <div className="text-left">
-                          <p className="text-[11px] text-gray-300">Get it on</p>
+                          <p className="text-[11px] text-white/70">Get it on</p>
                           <p className="text-[15px] font-semibold text-white">Google Play</p>
                         </div>
                       </div>
@@ -869,7 +869,7 @@ session.share({ team: "Field Ops" });
                 <div className="relative">
                   <div className="relative mx-auto w-[320px] h-[640px]">
                     {/* Phone frame */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800 rounded-[3rem] shadow-2xl">
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-800 dark:to-gray-900 rounded-[3rem] shadow-2xl">
                       {/* Screen */}
                       <div className="absolute inset-[14px] bg-black rounded-[2.5rem] overflow-hidden">
                         {/* Dynamic content based on active feature */}
@@ -894,7 +894,7 @@ session.share({ team: "Field Ops" });
                                 </div>
                                 <h3 className="text-xl font-semibold">{activeFeature.title}</h3>
                               </div>
-                              <p className="text-[13px] text-gray-300 leading-relaxed">
+                              <p className="text-[13px] text-white/70 leading-relaxed">
                                 {activeFeature.description}
                               </p>
                               <div className="mt-2 bg-black/30 rounded-lg p-4 flex-1 overflow-hidden">
@@ -907,9 +907,9 @@ session.share({ team: "Field Ops" });
                     </div>
 
                     {/* Phone details */}
-                    <div className="absolute -left-[2px] top-[120px] w-[3px] h-[60px] bg-gray-700 rounded-r-lg"></div>
-                    <div className="absolute -left-[2px] top-[200px] w-[3px] h-[60px] bg-gray-700 rounded-r-lg"></div>
-                    <div className="absolute -right-[2px] top-[160px] w-[3px] h-[80px] bg-gray-700 rounded-l-lg"></div>
+                    <div className="absolute -left-[2px] top-[120px] w-[3px] h-[60px] bg-gray-700 dark:bg-gray-600 rounded-r-lg"></div>
+                    <div className="absolute -left-[2px] top-[200px] w-[3px] h-[60px] bg-gray-700 dark:bg-gray-600 rounded-r-lg"></div>
+                    <div className="absolute -right-[2px] top-[160px] w-[3px] h-[80px] bg-gray-700 dark:bg-gray-600 rounded-l-lg"></div>
                   </div>
 
                   {/* Feature selector dots */}
@@ -986,7 +986,7 @@ session.share({ team: "Field Ops" });
                     {/* Feature mockup */}
                     <div className="relative">
                       <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} blur-3xl opacity-20`} />
-                      <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-white/10">
+                      <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-6 shadow-2xl border border-white/10">
                         <div className="bg-black/60 rounded-lg p-4 min-h-[400px] text-white">
                           {renderFeatureDemo(feature.id)}
                         </div>
@@ -1167,7 +1167,7 @@ session.share({ team: "Field Ops" });
                 <div className="relative flex items-center gap-3 bg-black px-8 py-4 rounded-lg">
                   <Apple className="h-10 w-10 text-white" />
                   <div className="text-left">
-                    <p className="text-[13px] text-gray-300">Download on the</p>
+                    <p className="text-[13px] text-white/70">Download on the</p>
                     <p className="text-xl font-semibold text-white">App Store</p>
                   </div>
                 </div>
@@ -1183,7 +1183,7 @@ session.share({ team: "Field Ops" });
                 <div className="relative flex items-center gap-3 bg-black px-8 py-4 rounded-lg">
                   <Chrome className="h-10 w-10 text-white" />
                   <div className="text-left">
-                    <p className="text-[13px] text-gray-300">Get it on</p>
+                    <p className="text-[13px] text-white/70">Get it on</p>
                     <p className="text-xl font-semibold text-white">Google Play</p>
                   </div>
                 </div>

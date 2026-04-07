@@ -157,9 +157,9 @@ export default function MobileAppsPage() {
       case 'testing':
         return 'bg-yellow-100 text-yellow-800';
       case 'archived':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -170,9 +170,9 @@ export default function MobileAppsPage() {
       case 'beta':
         return 'bg-blue-100 text-blue-800';
       case 'coming-soon':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -180,10 +180,10 @@ export default function MobileAppsPage() {
     return (
       <div className="container mx-auto p-6">
         <div className="space-y-6">
-          <div className="h-8 bg-gray-200 rounded animate-pulse" />
+          <div className="h-8 bg-muted rounded animate-pulse" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded animate-pulse" />
+              <div key={i} className="h-32 bg-muted rounded animate-pulse" />
             ))}
           </div>
         </div>
@@ -198,7 +198,7 @@ export default function MobileAppsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Mobile Apps</h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-muted-foreground mt-2">
               Manage your mobile applications and stay connected on the go
             </p>
           </div>
@@ -222,7 +222,7 @@ export default function MobileAppsPage() {
                 <div className="flex items-center gap-3">
                   <Smartphone className="h-8 w-8 text-blue-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Total Downloads</p>
+                    <p className="text-[13px] text-muted-foreground">Total Downloads</p>
                     <p className="text-2xl font-bold">{stats.totalDownloads || 0}</p>
                   </div>
                 </div>
@@ -233,7 +233,7 @@ export default function MobileAppsPage() {
                 <div className="flex items-center gap-3">
                   <Users className="h-8 w-8 text-green-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Active Users</p>
+                    <p className="text-[13px] text-muted-foreground">Active Users</p>
                     <p className="text-2xl font-bold">{stats.activeUsers || 0}</p>
                   </div>
                 </div>
@@ -244,7 +244,7 @@ export default function MobileAppsPage() {
                 <div className="flex items-center gap-3">
                   <Bell className="h-8 w-8 text-purple-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Notifications Sent</p>
+                    <p className="text-[13px] text-muted-foreground">Notifications Sent</p>
                     <p className="text-2xl font-bold">{stats.notificationsSent || 0}</p>
                   </div>
                 </div>
@@ -255,7 +255,7 @@ export default function MobileAppsPage() {
                 <div className="flex items-center gap-3">
                   <RefreshCw className="h-8 w-8 text-orange-600" />
                   <div>
-                    <p className="text-[13px] text-gray-600">Sync Rate</p>
+                    <p className="text-[13px] text-muted-foreground">Sync Rate</p>
                     <p className="text-2xl font-bold">{stats.syncRate || 99}%</p>
                   </div>
                 </div>
@@ -284,25 +284,25 @@ export default function MobileAppsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="text-2xl">📱</div>
                       <div>
                         <p className="font-medium">Download the App</p>
-                        <p className="text-[13px] text-gray-600">Available for iOS and Android</p>
+                        <p className="text-[13px] text-muted-foreground">Available for iOS and Android</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="text-2xl">🔐</div>
                       <div>
                         <p className="font-medium">Sign In</p>
-                        <p className="text-[13px] text-gray-600">Use your E-Code credentials</p>
+                        <p className="text-[13px] text-muted-foreground">Use your E-Code credentials</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="text-2xl">🚀</div>
                       <div>
                         <p className="font-medium">Start Coding</p>
-                        <p className="text-[13px] text-gray-600">Access all your projects on mobile</p>
+                        <p className="text-[13px] text-muted-foreground">Access all your projects on mobile</p>
                       </div>
                     </div>
                   </div>
@@ -357,7 +357,7 @@ export default function MobileAppsPage() {
                         <div className="text-3xl">{getPlatformIcon(app.platform)}</div>
                         <div>
                           <h3 className="font-semibold text-[15px]">{app.name}</h3>
-                          <div className="flex items-center gap-4 mt-1 text-[13px] text-gray-600">
+                          <div className="flex items-center gap-4 mt-1 text-[13px] text-muted-foreground">
                             <span>Version {app.version}</span>
                             <span>{app.downloads.toLocaleString()} downloads</span>
                             <span>★ {app.rating}/5.0</span>
@@ -381,9 +381,9 @@ export default function MobileAppsPage() {
 
               {!apps?.length && (
                 <div className="text-center py-12">
-                  <Smartphone className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-[15px] font-medium text-gray-900 mb-2">No mobile apps found</h3>
-                  <p className="text-gray-500 mb-4">
+                  <Smartphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-[15px] font-medium text-foreground mb-2">No mobile apps found</h3>
+                  <p className="text-muted-foreground mb-4">
                     Download the E-Code mobile app to get started.
                   </p>
                   <div className="flex gap-3 justify-center">
@@ -419,7 +419,7 @@ export default function MobileAppsPage() {
                           </Badge>
                         </div>
                       </div>
-                      <p className="text-[13px] text-gray-600 mb-4">{feature.description}</p>
+                      <p className="text-[13px] text-muted-foreground mb-4">{feature.description}</p>
                       <div className="flex flex-wrap gap-1">
                         {feature.platforms.map(platform => (
                           <Badge key={platform} variant="outline" className="text-[11px]">
@@ -444,7 +444,7 @@ export default function MobileAppsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Push Notifications</p>
-                      <p className="text-[13px] text-gray-600">Receive notifications on your mobile device</p>
+                      <p className="text-[13px] text-muted-foreground">Receive notifications on your mobile device</p>
                     </div>
                     <Switch 
                       checked={settings?.notifications?.push || false}
@@ -457,7 +457,7 @@ export default function MobileAppsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Project Updates</p>
-                      <p className="text-[13px] text-gray-600">Get notified when projects are updated</p>
+                      <p className="text-[13px] text-muted-foreground">Get notified when projects are updated</p>
                     </div>
                     <Switch 
                       checked={settings?.notifications?.updates || false}
@@ -470,7 +470,7 @@ export default function MobileAppsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Mentions & Comments</p>
-                      <p className="text-[13px] text-gray-600">Get notified when someone mentions you</p>
+                      <p className="text-[13px] text-muted-foreground">Get notified when someone mentions you</p>
                     </div>
                     <Switch 
                       checked={settings?.notifications?.mentions || false}
@@ -510,7 +510,7 @@ export default function MobileAppsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Auto Sync</p>
-                      <p className="text-[13px] text-gray-600">Automatically sync projects across devices</p>
+                      <p className="text-[13px] text-muted-foreground">Automatically sync projects across devices</p>
                     </div>
                     <Switch 
                       checked={settings?.autoSync || true}
@@ -523,7 +523,7 @@ export default function MobileAppsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Offline Mode</p>
-                      <p className="text-[13px] text-gray-600">Enable offline editing capabilities</p>
+                      <p className="text-[13px] text-muted-foreground">Enable offline editing capabilities</p>
                     </div>
                     <Switch 
                       checked={settings?.offlineMode || false}
@@ -536,7 +536,7 @@ export default function MobileAppsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">Mobile Data Sync</p>
-                      <p className="text-[13px] text-gray-600">Allow syncing over mobile data</p>
+                      <p className="text-[13px] text-muted-foreground">Allow syncing over mobile data</p>
                     </div>
                     <Switch 
                       checked={settings?.mobileDataSync || false}

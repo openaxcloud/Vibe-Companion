@@ -356,8 +356,8 @@ export default function Marketplace() {
               ].map((theme, index) => (
                 <Card key={index} data-testid={`card-theme-${index}`}>
                   <CardContent className="p-4">
-                    <div className={`h-32 rounded-lg mb-3 ${theme.preview === 'dark' ? 'bg-gray-900' : 'bg-gray-100'} flex items-center justify-center`}>
-                      <Code className={`h-8 w-8 ${theme.preview === 'dark' ? 'text-white' : 'text-gray-600'}`} />
+                    <div className={`h-32 rounded-lg mb-3 ${theme.preview === 'dark' ? 'bg-gray-900' : 'bg-muted'} flex items-center justify-center`}>
+                      <Code className={`h-8 w-8 ${theme.preview === 'dark' ? 'text-white' : 'text-muted-foreground'}`} />
                     </div>
                     <h3 className="font-semibold mb-1" data-testid={`text-theme-name-${index}`}>{theme.name}</h3>
                     <div className="flex items-center justify-between text-[13px] text-muted-foreground">

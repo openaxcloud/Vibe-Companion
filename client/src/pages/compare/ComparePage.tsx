@@ -341,7 +341,7 @@ export default function ComparePage() {
               </div>
 
               <div className="flex w-full sm:w-auto items-center gap-4 rounded-2xl sm:rounded-3xl border border-white/15 bg-white/5 p-4 sm:p-5 backdrop-blur-xl transition-all hover:bg-white/10 hover:border-white/25" data-testid="card-competitor">
-                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl sm:rounded-2xl bg-white">
+                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl sm:rounded-2xl bg-background">
                   <img src={content.platform.logo} alt={`${content.platform.name} logo`} className="h-8 w-8 sm:h-10 sm:w-10" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 </div>
                 <div className="text-left">

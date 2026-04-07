@@ -233,9 +233,9 @@ export default function CodeSearchPage() {
       python: 'bg-green-500',
       css: 'bg-purple-500',
       html: 'bg-orange-500',
-      json: 'bg-gray-500',
+      json: 'bg-slate-500',
     };
-    return colors[lang] || 'bg-gray-400';
+    return colors[lang] || 'bg-slate-400';
   };
 
   const cardClassName = "border border-border bg-card shadow-sm";

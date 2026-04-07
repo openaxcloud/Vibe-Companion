@@ -284,17 +284,17 @@ export default function Deployments() {
             <AlertDescription className="mt-4 space-y-4">
               <div>
                 <p className="font-semibold">Your deployment attempt had the following errors:</p>
-                <div className="mt-3 rounded-md bg-gray-900 p-4 font-mono text-sm text-gray-100">
+                <div className="mt-3 rounded-md bg-gray-900 dark:bg-black/60 p-4 font-mono text-sm text-gray-100">
                   <p className="mb-2 text-red-400">
                     Monaco Editor worker module resolution failed during Vite build in client/src/lib/monaco-config.ts
                   </p>
-                  <p className="text-gray-300">
+                  <p className="text-gray-300 dark:text-gray-400">
                     Vite cannot resolve the entry module for monaco-editor/esm/vs/editor/editor.worker
                   </p>
-                  <p className="text-gray-300">
+                  <p className="text-gray-300 dark:text-gray-400">
                     Vite cannot resolve the entry module for monaco-editor/esm/vs/language/json/json.worker
                   </p>
-                  <p className="text-gray-300">
+                  <p className="text-gray-300 dark:text-gray-400">
                     Build process failed preventing deployment due to missing worker dependencies
                   </p>
                 </div>
@@ -316,7 +316,7 @@ export default function Deployments() {
                     variant="default"
                     size="sm"
                     onClick={handleDebugWithAgent}
-                    className="bg-[#0074d9] hover:bg-[#0058b3]"
+                    className="bg-primary hover:bg-primary/90"
                   >
                     <Bot className="mr-2 h-4 w-4" />
                     Debug with Agent

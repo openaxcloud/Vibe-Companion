@@ -403,7 +403,7 @@ const languages = [
   },
   {
     name: 'Crystal',
-    icon: <Sparkles className="h-8 w-8 text-black" />,
+    icon: <Sparkles className="h-8 w-8 text-foreground" />,
     category: 'web',
     popularity: 'Growing',
     description: 'Ruby-like syntax with C performance',

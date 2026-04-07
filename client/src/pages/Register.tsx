@@ -47,7 +47,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: 'bg-gray-300' });
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: 'bg-muted-foreground/30' });
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -68,7 +68,7 @@ export default function Register() {
     if (formData.password) {
       setPasswordStrength(calculatePasswordStrength(formData.password));
     } else {
-      setPasswordStrength({ score: 0, label: '', color: 'bg-gray-300' });
+      setPasswordStrength({ score: 0, label: '', color: 'bg-muted-foreground/30' });
     }
   }, [formData.password]);
 
@@ -181,7 +181,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-gray-50/50 to-background dark:from-background dark:via-gray-900/50 dark:to-background flex">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/50 to-background flex">
       {/* Left Side - Form - Mobile Optimized */}
       <LazyMotionDiv 
         className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-16 overflow-y-auto"
@@ -193,7 +193,7 @@ export default function Register() {
           {/* Back to Home */}
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ChevronLeft className="h-4 w-4" />
             <span className="text-[13px]">Back to home</span>
@@ -202,13 +202,13 @@ export default function Register() {
           {/* Logo */}
           <div className="flex flex-col items-center justify-center mb-2">
             <ECodeLogo size="lg" showText={true} />
-            <p className="text-[13px] text-gray-600 dark:text-gray-400 mt-2">Enterprise Development Platform</p>
+            <p className="text-[13px] text-muted-foreground mt-2">Enterprise Development Platform</p>
           </div>
 
           {/* Welcome Message - Responsive Typography */}
           <div className="space-y-2">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Create your account</h2>
-            <p className="text-[13px] sm:text-base text-gray-600 dark:text-gray-400">
+            <p className="text-[13px] sm:text-base text-muted-foreground">
               Get started with a free account. No credit card required.
             </p>
           </div>
@@ -243,7 +243,7 @@ export default function Register() {
                   Username *
                 </Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="username"
                     name="username"
@@ -282,7 +282,7 @@ export default function Register() {
                 Email Address *
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   name="email"
@@ -303,7 +303,7 @@ export default function Register() {
                 Password *
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   name="password"
@@ -319,7 +319,7 @@ export default function Register() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 -mr-2 sm:mr-0 flex items-center justify-center"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 -mr-2 sm:mr-0 flex items-center justify-center"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   data-testid="button-toggle-password"
                 >
@@ -331,7 +331,7 @@ export default function Register() {
               <div className={`collapsible-content ${formData.password ? 'expanded' : ''}`}>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-gray-500">Password strength</span>
+                    <span className="text-[11px] text-muted-foreground">Password strength</span>
                     <span className={`text-[11px] font-medium ${
                       passwordStrength.color.replace('bg-', 'text-')
                     }`}>
@@ -346,9 +346,9 @@ export default function Register() {
                         {req.met ? (
                           <CheckCircle2 className="h-3 w-3 text-green-500" />
                         ) : (
-                          <X className="h-3 w-3 text-gray-300" />
+                          <X className="h-3 w-3 text-muted-foreground/40" />
                         )}
-                        <span className={req.met ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}>
+                        <span className={req.met ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
                           {req.text}
                         </span>
                       </div>
@@ -363,7 +363,7 @@ export default function Register() {
                 Confirm Password *
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -379,7 +379,7 @@ export default function Register() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 -mr-2 sm:mr-0 flex items-center justify-center"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 -mr-2 sm:mr-0 flex items-center justify-center"
                   aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                   data-testid="button-toggle-confirm-password"
                 >
@@ -399,7 +399,7 @@ export default function Register() {
               />
               <label 
                 htmlFor="terms" 
-                className="text-[13px] text-gray-600 dark:text-gray-400 cursor-pointer"
+                className="text-[13px] text-muted-foreground cursor-pointer"
               >
                 I agree to the{' '}
                 <Link href="/terms" className="text-orange-600 dark:text-orange-400 hover:underline">
@@ -446,7 +446,7 @@ export default function Register() {
                 <Separator />
               </div>
               <div className="relative flex justify-center text-[11px] uppercase">
-                <span className="bg-background px-2 text-gray-500">Or sign up with</span>
+                <span className="bg-background px-2 text-muted-foreground">Or sign up with</span>
               </div>
             </div>
 
@@ -455,7 +455,7 @@ export default function Register() {
               <Button 
                 type="button"
                 variant="outline" 
-                className="h-12 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="h-12 hover:bg-muted"
                 onClick={() => handleSocialSignup('GitHub')}
               >
                 <Github className="h-5 w-5" />
@@ -463,7 +463,7 @@ export default function Register() {
               <Button 
                 type="button"
                 variant="outline" 
-                className="h-12 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="h-12 hover:bg-muted"
                 onClick={() => handleSocialSignup('Google')}
               >
                 <Chrome className="h-5 w-5" />
@@ -471,7 +471,7 @@ export default function Register() {
               <Button 
                 type="button"
                 variant="outline" 
-                className="h-12 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="h-12 hover:bg-muted"
                 onClick={() => handleSocialSignup('Twitter')}
               >
                 <Twitter className="h-5 w-5" />
@@ -480,7 +480,7 @@ export default function Register() {
           </form>
 
           {/* Sign In Link */}
-          <p className="text-center text-[13px] text-gray-600 dark:text-gray-400">
+          <p className="text-center text-[13px] text-muted-foreground">
             Already have an account?{' '}
             <Link href="/login" className="font-semibold text-orange-600 dark:text-orange-400 hover:underline" data-testid="link-login">
               Sign in
@@ -488,13 +488,13 @@ export default function Register() {
           </p>
 
           {/* Terms */}
-          <p className="text-center text-[11px] text-gray-500">
+          <p className="text-center text-[11px] text-muted-foreground">
             By signing up, you agree to our{' '}
-            <Link href="/terms" className="underline hover:text-gray-700 dark:hover:text-gray-300">
+            <Link href="/terms" className="underline hover:text-foreground">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="underline hover:text-gray-700 dark:hover:text-gray-300">
+            <Link href="/privacy" className="underline hover:text-foreground">
               Privacy Policy
             </Link>
           </p>

@@ -141,24 +141,24 @@ export default function SolarTechCRMApp() {
 
   const getStatusColor = (status: Customer['status']) => {
     switch (status) {
-      case 'lead': return 'bg-gray-500';
+      case 'lead': return 'bg-slate-500';
       case 'qualified': return 'bg-blue-500';
       case 'proposal': return 'bg-yellow-500';
       case 'customer': return 'bg-green-500';
       case 'inactive': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      default: return 'bg-slate-500';
     }
   };
 
   const getDealStageColor = (stage: Deal['stage']) => {
     switch (stage) {
-      case 'lead': return 'bg-gray-500';
+      case 'lead': return 'bg-slate-500';
       case 'qualified': return 'bg-blue-500';
       case 'proposal': return 'bg-yellow-500';
       case 'negotiation': return 'bg-orange-500';
       case 'closed-won': return 'bg-green-500';
       case 'closed-lost': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      default: return 'bg-slate-500';
     }
   };
 

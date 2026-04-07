@@ -357,7 +357,7 @@ export default function AdminDashboard() {
                         activity?.type === 'user' ? 'bg-blue-100 dark:bg-blue-900' :
                         activity?.type === 'project' ? 'bg-green-100 dark:bg-green-900' :
                         activity?.type === 'system' ? 'bg-purple-100 dark:bg-purple-900' :
-                        'bg-gray-100 dark:bg-gray-800'
+                        'bg-muted'
                       }`}>
                         {activity?.type === 'user' ? <Users className="h-4 w-4" /> :
                          activity?.type === 'project' ? <FileText className="h-4 w-4" /> :

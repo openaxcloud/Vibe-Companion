@@ -218,7 +218,7 @@ export default function FeaturePlaceholder({ featureKey }: FeaturePlaceholderPro
   };
 
   return (
-    <div className="px-responsive py-12 text-slate-100">
+    <div className="px-responsive py-12 text-foreground">
       <div className="mx-auto max-w-5xl space-y-10">
         <header className="text-center space-y-4">
           <Badge className={`${statusInfo.bgColor} ${statusInfo.color} border`} data-testid="badge-feature-status">
@@ -226,8 +226,8 @@ export default function FeaturePlaceholder({ featureKey }: FeaturePlaceholderPro
             {copy.estimatedDate && copy.status !== 'available' && ` - ${copy.estimatedDate}`}
           </Badge>
           <h1 className="text-4xl font-semibold text-white" data-testid="text-feature-title">{copy.title}</h1>
-          <p className="text-[15px] text-slate-300">{copy.subtitle}</p>
-          <p className="mx-auto max-w-3xl text-slate-300 leading-relaxed">{copy.summary}</p>
+          <p className="text-[15px] text-muted-foreground">{copy.subtitle}</p>
+          <p className="mx-auto max-w-3xl text-muted-foreground leading-relaxed">{copy.summary}</p>
           
           {copy.status === 'available' && copy.alternativeRoute && (
             <div className="pt-4">
@@ -278,7 +278,7 @@ export default function FeaturePlaceholder({ featureKey }: FeaturePlaceholderPro
                       </Button>
                     </Link>
                     <Link href="/enterprise">
-                      <Button variant="outline" className="w-full border-white/20 text-slate-100 hover:text-white" data-testid="button-enterprise-info">
+                      <Button variant="outline" className="w-full border-white/20 text-white hover:text-white" data-testid="button-enterprise-info">
                         Learn about Enterprise
                       </Button>
                     </Link>
@@ -310,7 +310,7 @@ export default function FeaturePlaceholder({ featureKey }: FeaturePlaceholderPro
                     </div>
                     {copy.status === 'beta' && (
                       <Link href="/contact-sales">
-                        <Button variant="outline" className="w-full border-white/20 text-slate-100 hover:text-white" data-testid="button-request-beta">
+                        <Button variant="outline" className="w-full border-white/20 text-white hover:text-white" data-testid="button-request-beta">
                           Request beta access
                         </Button>
                       </Link>
@@ -342,13 +342,13 @@ export default function FeaturePlaceholder({ featureKey }: FeaturePlaceholderPro
           ))}
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-[13px] text-slate-300">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-[13px] text-slate-400">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 text-slate-200">
+            <div className="flex items-center gap-3 text-white">
               <ShieldCheck className="h-5 w-5 text-emerald-300" />
               <span>Enterprise roadmap partner program</span>
             </div>
-            <div className="flex items-center gap-3 text-slate-200">
+            <div className="flex items-center gap-3 text-white">
               <Clock3 className="h-5 w-5 text-sky-300" />
               <span>Priority onboarding and support SLAs</span>
             </div>

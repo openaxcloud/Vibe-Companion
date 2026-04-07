@@ -231,19 +231,19 @@ export default function Startups() {
               </Link>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-card">
                 <div className="text-3xl font-bold text-orange-600">90%</div>
                 <div className="text-[13px] text-muted-foreground">Discount</div>
               </Card>
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-card">
                 <div className="text-3xl font-bold text-orange-600">$10K</div>
                 <div className="text-[13px] text-muted-foreground">Credits</div>
               </Card>
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-card">
                 <div className="text-3xl font-bold text-orange-600">1:1</div>
                 <div className="text-[13px] text-muted-foreground">Mentorship</div>
               </Card>
-              <Card className="p-6 text-center bg-white dark:bg-slate-900">
+              <Card className="p-6 text-center bg-card">
                 <div className="text-3xl font-bold text-orange-600">VIP</div>
                 <div className="text-[13px] text-muted-foreground">Support</div>
               </Card>

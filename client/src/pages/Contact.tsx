@@ -301,8 +301,8 @@ export default function Contact() {
                 {offices.map((office) => (
                   <Card key={office.city} className="p-4">
                     <div className="flex items-start gap-4">
-                      <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                        <MapPin className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                      <div className="p-3 bg-muted rounded-lg">
+                        <MapPin className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-1">

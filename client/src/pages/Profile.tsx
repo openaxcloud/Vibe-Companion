@@ -75,7 +75,7 @@ export default function Profile() {
       'Go': 'bg-cyan-600',
       'Rust': 'bg-red-500',
     };
-    return colors[language] || 'bg-gray-500';
+    return colors[language] || 'bg-muted-foreground';
   };
 
   // Fetch user activity data

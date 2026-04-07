@@ -31,14 +31,14 @@ export default function PitchDeck() {
           <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             E-Code Platform
           </h1>
-          <p className="text-3xl text-gray-600 mb-8">The Future of Cloud Development</p>
-          <p className="text-xl text-gray-500 italic">Building applications has never been this intelligent</p>
+          <p className="text-3xl text-muted-foreground mb-8">The Future of Cloud Development</p>
+          <p className="text-xl text-muted-foreground/70 italic">Building applications has never been this intelligent</p>
           <div className="mt-12 p-6 bg-blue-50 rounded-lg">
             <p className="text-2xl font-semibold text-blue-900">
               "From Idea to Production in Minutes, Not Months"
             </p>
           </div>
-          <p className="mt-8 text-[15px] text-gray-600">Platform: <span className="text-blue-600 font-semibold">e-code.ai</span></p>
+          <p className="mt-8 text-[15px] text-muted-foreground">Platform: <span className="text-blue-600 font-semibold">e-code.ai</span></p>
         </div>
       )
     },
@@ -50,25 +50,25 @@ export default function PitchDeck() {
         <div className="h-full flex flex-col justify-center">
           <h2 className="text-4xl font-bold mb-12 text-center">Current Development Pain Points</h2>
           <div className="grid grid-cols-2 gap-8 mb-12">
-            <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-              <h3 className="text-xl font-semibold text-red-800 mb-3">⏰ Slow Setup</h3>
-              <p className="text-gray-700">Hours spent configuring environments</p>
+            <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-lg border border-red-200 dark:border-red-800">
+              <h3 className="text-xl font-semibold text-red-800 dark:text-red-400 mb-3">⏰ Slow Setup</h3>
+              <p className="text-foreground/80">Hours spent configuring environments</p>
             </div>
-            <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-              <h3 className="text-xl font-semibold text-red-800 mb-3">👥 Limited Collaboration</h3>
-              <p className="text-gray-700">Fragmented team workflows</p>
+            <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-lg border border-red-200 dark:border-red-800">
+              <h3 className="text-xl font-semibold text-red-800 dark:text-red-400 mb-3">👥 Limited Collaboration</h3>
+              <p className="text-foreground/80">Fragmented team workflows</p>
             </div>
-            <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-              <h3 className="text-xl font-semibold text-red-800 mb-3">🚀 Deployment Complexity</h3>
-              <p className="text-gray-700">Manual, error-prone processes</p>
+            <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-lg border border-red-200 dark:border-red-800">
+              <h3 className="text-xl font-semibold text-red-800 dark:text-red-400 mb-3">🚀 Deployment Complexity</h3>
+              <p className="text-foreground/80">Manual, error-prone processes</p>
             </div>
-            <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-              <h3 className="text-xl font-semibold text-red-800 mb-3">💰 Resource Constraints</h3>
-              <p className="text-gray-700">Expensive compute for AI/ML workloads</p>
+            <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-lg border border-red-200 dark:border-red-800">
+              <h3 className="text-xl font-semibold text-red-800 dark:text-red-400 mb-3">💰 Resource Constraints</h3>
+              <p className="text-foreground/80">Expensive compute for AI/ML workloads</p>
             </div>
-            <div className="bg-red-50 p-6 rounded-lg border border-red-200 col-span-2">
-              <h3 className="text-xl font-semibold text-red-800 mb-3">🔧 Tool Fragmentation</h3>
-              <p className="text-gray-700">10+ tools for simple projects</p>
+            <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-lg border border-red-200 dark:border-red-800 col-span-2">
+              <h3 className="text-xl font-semibold text-red-800 dark:text-red-400 mb-3">🔧 Tool Fragmentation</h3>
+              <p className="text-foreground/80">10+ tools for simple projects</p>
             </div>
           </div>
           <div className="text-center p-8 bg-gray-900 text-white rounded-lg">
@@ -122,35 +122,35 @@ export default function PitchDeck() {
             </div>
           </div>
           
-          <div className="bg-gray-100 p-6 rounded-lg">
+          <div className="bg-muted p-6 rounded-lg">
             <h3 className="text-2xl font-bold mb-4">Target Audience Segments</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center space-x-3">
                 <Users className="w-8 h-8 text-blue-600" />
                 <div>
                   <p className="font-semibold">Individual Developers</p>
-                  <p className="text-[13px] text-gray-600">28M users</p>
+                  <p className="text-[13px] text-muted-foreground">28M users</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 <Building className="w-8 h-8 text-purple-600" />
                 <div>
                   <p className="font-semibold">Small-Medium Teams</p>
-                  <p className="text-[13px] text-gray-600">4.2M teams</p>
+                  <p className="text-[13px] text-muted-foreground">4.2M teams</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 <Award className="w-8 h-8 text-green-600" />
                 <div>
                   <p className="font-semibold">Educational Institutions</p>
-                  <p className="text-[13px] text-gray-600">180K institutions</p>
+                  <p className="text-[13px] text-muted-foreground">180K institutions</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 <Target className="w-8 h-8 text-red-600" />
                 <div>
                   <p className="font-semibold">Enterprise Teams</p>
-                  <p className="text-[13px] text-gray-600">15K organizations</p>
+                  <p className="text-[13px] text-muted-foreground">15K organizations</p>
                 </div>
               </div>
             </div>
@@ -165,7 +165,7 @@ export default function PitchDeck() {
       content: (
         <div className="h-full flex flex-col justify-center">
           <h2 className="text-4xl font-bold mb-6 text-center">AI-First Cloud Development Platform</h2>
-          <p className="text-xl text-center mb-10 text-gray-600">
+          <p className="text-xl text-center mb-10 text-muted-foreground">
             E-Code is the fastest way to go from idea to app. Create and deploy full-stack applications 
             from your browser with AI at your fingertips—no installation or setup required.
           </p>
@@ -178,7 +178,7 @@ export default function PitchDeck() {
                 </div>
               </div>
               <h3 className="font-bold text-[15px] mb-2">AI Agent</h3>
-              <p className="text-[13px] text-gray-600">Build complete apps from natural language (Claude 4 Sonnet)</p>
+              <p className="text-[13px] text-muted-foreground">Build complete apps from natural language (Claude 4 Sonnet)</p>
             </div>
             <div className="text-center p-6 bg-green-50 rounded-lg">
               <div className="mb-4 flex justify-center">
@@ -187,7 +187,7 @@ export default function PitchDeck() {
                 </div>
               </div>
               <h3 className="font-bold text-[15px] mb-2">Instant Setup</h3>
-              <p className="text-[13px] text-gray-600">Zero-config development environments</p>
+              <p className="text-[13px] text-muted-foreground">Zero-config development environments</p>
             </div>
             <div className="text-center p-6 bg-purple-50 rounded-lg">
               <div className="mb-4 flex justify-center">
@@ -196,7 +196,7 @@ export default function PitchDeck() {
                 </div>
               </div>
               <h3 className="font-bold text-[15px] mb-2">Global Infrastructure</h3>
-              <p className="text-[13px] text-gray-600">5 regions, edge deployment</p>
+              <p className="text-[13px] text-muted-foreground">5 regions, edge deployment</p>
             </div>
             <div className="text-center p-6 bg-orange-50 rounded-lg">
               <div className="mb-4 flex justify-center">
@@ -205,7 +205,7 @@ export default function PitchDeck() {
                 </div>
               </div>
               <h3 className="font-bold text-[15px] mb-2">One-Click Deploy</h3>
-              <p className="text-[13px] text-gray-600">From code to production instantly</p>
+              <p className="text-[13px] text-muted-foreground">From code to production instantly</p>
             </div>
             <div className="text-center p-6 bg-pink-50 rounded-lg">
               <div className="mb-4 flex justify-center">
@@ -214,7 +214,7 @@ export default function PitchDeck() {
                 </div>
               </div>
               <h3 className="font-bold text-[15px] mb-2">Real-Time Collaboration</h3>
-              <p className="text-[13px] text-gray-600">Up to 4 developers simultaneously</p>
+              <p className="text-[13px] text-muted-foreground">Up to 4 developers simultaneously</p>
             </div>
             <div className="text-center p-6 bg-indigo-50 rounded-lg">
               <div className="mb-4 flex justify-center">
@@ -223,7 +223,7 @@ export default function PitchDeck() {
                 </div>
               </div>
               <h3 className="font-bold text-[15px] mb-2">Advanced Features</h3>
-              <p className="text-[13px] text-gray-600">GPU computing, database hosting, object storage</p>
+              <p className="text-[13px] text-muted-foreground">GPU computing, database hosting, object storage</p>
             </div>
           </div>
           
@@ -244,7 +244,7 @@ export default function PitchDeck() {
           <div className="mb-8 overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-gray-100">
+                <tr className="bg-muted">
                   <th className="border p-3 text-left">Feature</th>
                   <th className="border p-3 text-center">E-Code</th>
                   <th className="border p-3 text-center">Replit</th>
@@ -260,7 +260,7 @@ export default function PitchDeck() {
                   <td className="border p-3 text-center bg-red-50">❌ Limited</td>
                   <td className="border p-3 text-center bg-red-50">❌ None</td>
                 </tr>
-                <tr className="bg-gray-50">
+                <tr className="bg-muted/50">
                   <td className="border p-3 font-semibold">GPU Computing</td>
                   <td className="border p-3 text-center bg-green-50">✅ 6 Types</td>
                   <td className="border p-3 text-center bg-yellow-50">⚠️ 2-3 Types</td>
@@ -274,7 +274,7 @@ export default function PitchDeck() {
                   <td className="border p-3 text-center bg-green-50">✅ Most</td>
                   <td className="border p-3 text-center bg-yellow-50">⚠️ Limited</td>
                 </tr>
-                <tr className="bg-gray-50">
+                <tr className="bg-muted/50">
                   <td className="border p-3 font-semibold">Real-time Collaboration</td>
                   <td className="border p-3 text-center bg-green-50">✅ 4 users</td>
                   <td className="border p-3 text-center bg-green-50">✅ Limited</td>
@@ -288,7 +288,7 @@ export default function PitchDeck() {
                   <td className="border p-3 text-center bg-green-50">✅ Good</td>
                   <td className="border p-3 text-center bg-yellow-50">⚠️ Limited</td>
                 </tr>
-                <tr className="bg-gray-50">
+                <tr className="bg-muted/50">
                   <td className="border p-3 font-semibold">Authentication Providers</td>
                   <td className="border p-3 text-center bg-green-50">✅ 7 OAuth</td>
                   <td className="border p-3 text-center bg-yellow-50">⚠️ 3-4</td>
@@ -309,21 +309,21 @@ export default function PitchDeck() {
           <div className="bg-blue-50 p-6 rounded-lg">
             <h3 className="text-2xl font-bold mb-4">Recent Funding Activity (Competitive Landscape)</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white p-4 rounded">
+              <div className="bg-card p-4 rounded">
                 <p className="font-semibold">Replit: $97.4M Series B</p>
-                <p className="text-[13px] text-gray-600">April 2022 - $1.16B valuation</p>
+                <p className="text-[13px] text-muted-foreground">April 2022 - $1.16B valuation</p>
               </div>
-              <div className="bg-white p-4 rounded">
+              <div className="bg-card p-4 rounded">
                 <p className="font-semibold">Cursor: $60M Series A</p>
-                <p className="text-[13px] text-gray-600">July 2024 - $400M valuation</p>
+                <p className="text-[13px] text-muted-foreground">July 2024 - $400M valuation</p>
               </div>
-              <div className="bg-white p-4 rounded">
+              <div className="bg-card p-4 rounded">
                 <p className="font-semibold">v0 (Vercel): $250M Series E</p>
-                <p className="text-[13px] text-gray-600">May 2024 - $2.25B valuation</p>
+                <p className="text-[13px] text-muted-foreground">May 2024 - $2.25B valuation</p>
               </div>
-              <div className="bg-white p-4 rounded">
+              <div className="bg-card p-4 rounded">
                 <p className="font-semibold">Bolt.new: $450M Series D</p>
-                <p className="text-[13px] text-gray-600">October 2024 - $6B valuation</p>
+                <p className="text-[13px] text-muted-foreground">October 2024 - $6B valuation</p>
               </div>
             </div>
           </div>
@@ -362,22 +362,22 @@ export default function PitchDeck() {
             </div>
             
             <div className="space-y-6">
-              <div className="bg-gray-100 p-4 rounded-lg">
-                <h4 className="font-bold mb-2 text-gray-800">Frontend Stack</h4>
+              <div className="bg-muted p-4 rounded-lg">
+                <h4 className="font-bold mb-2 text-foreground">Frontend Stack</h4>
                 <p className="text-[13px]">React.js + TypeScript + Tailwind CSS</p>
                 <p className="text-[13px]">Monaco Editor (VS Code engine)</p>
                 <p className="text-[13px]">Real-time WebSocket collaboration</p>
               </div>
               
-              <div className="bg-gray-100 p-4 rounded-lg">
-                <h4 className="font-bold mb-2 text-gray-800">Backend Stack</h4>
+              <div className="bg-muted p-4 rounded-lg">
+                <h4 className="font-bold mb-2 text-foreground">Backend Stack</h4>
                 <p className="text-[13px]">Node.js + Express + PostgreSQL</p>
                 <p className="text-[13px]">Drizzle ORM + Docker containerization</p>
                 <p className="text-[13px]">Kubernetes orchestration</p>
               </div>
               
-              <div className="bg-gray-100 p-4 rounded-lg">
-                <h4 className="font-bold mb-2 text-gray-800">AI/ML Integration</h4>
+              <div className="bg-muted p-4 rounded-lg">
+                <h4 className="font-bold mb-2 text-foreground">AI/ML Integration</h4>
                 <p className="text-[13px]">Anthropic Claude 4 Sonnet</p>
                 <p className="text-[13px]">Advanced context awareness</p>
                 <p className="text-[13px]">Multi-modal code generation</p>
@@ -391,17 +391,17 @@ export default function PitchDeck() {
               <div className="text-center">
                 <Globe className="w-12 h-12 mx-auto mb-2 text-green-600" />
                 <p className="font-semibold">Multi-region deployment</p>
-                <p className="text-[13px] text-gray-600">5 regions globally</p>
+                <p className="text-[13px] text-muted-foreground">5 regions globally</p>
               </div>
               <div className="text-center">
                 <Shield className="w-12 h-12 mx-auto mb-2 text-green-600" />
                 <p className="font-semibold">Enterprise Security</p>
-                <p className="text-[13px] text-gray-600">SOC2, GDPR compliant</p>
+                <p className="text-[13px] text-muted-foreground">SOC2, GDPR compliant</p>
               </div>
               <div className="text-center">
                 <Rocket className="w-12 h-12 mx-auto mb-2 text-green-600" />
                 <p className="font-semibold">Edge Computing</p>
-                <p className="text-[13px] text-gray-600">Sub-50ms latency</p>
+                <p className="text-[13px] text-muted-foreground">Sub-50ms latency</p>
               </div>
             </div>
           </div>
@@ -460,20 +460,20 @@ export default function PitchDeck() {
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-green-50 p-4 rounded-lg text-center">
               <p className="text-3xl font-bold text-green-600">30 sec</p>
-              <p className="text-[13px] text-gray-600">Setup time</p>
-              <p className="text-[11px] text-gray-500">(vs 2+ hours)</p>
+              <p className="text-[13px] text-muted-foreground">Setup time</p>
+              <p className="text-[11px] text-muted-foreground/70">(vs 2+ hours)</p>
             </div>
             <div className="bg-blue-50 p-4 rounded-lg text-center">
               <p className="text-3xl font-bold text-blue-600">2,000+</p>
-              <p className="text-[13px] text-gray-600">Lines generated</p>
+              <p className="text-[13px] text-muted-foreground">Lines generated</p>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg text-center">
               <p className="text-3xl font-bold text-purple-600">3 min</p>
-              <p className="text-[13px] text-gray-600">To deployment</p>
+              <p className="text-[13px] text-muted-foreground">To deployment</p>
             </div>
             <div className="bg-orange-50 p-4 rounded-lg text-center">
               <p className="text-3xl font-bold text-orange-600">&lt;50ms</p>
-              <p className="text-[13px] text-gray-600">Collab latency</p>
+              <p className="text-[13px] text-muted-foreground">Collab latency</p>
             </div>
           </div>
         </div>
@@ -523,7 +523,7 @@ export default function PitchDeck() {
               <div className="bg-blue-50 p-6 rounded-lg">
                 <h3 className="text-xl font-bold mb-3 text-blue-900">Enhanced Authentication</h3>
                 <p className="text-[13px] mb-2"><strong>7 OAuth Providers:</strong></p>
-                <p className="text-[13px] text-gray-600">GitHub, Google, GitLab, Bitbucket, Discord, Slack, Azure AD</p>
+                <p className="text-[13px] text-muted-foreground">GitHub, Google, GitLab, Bitbucket, Discord, Slack, Azure AD</p>
                 <ul className="mt-3 space-y-1 text-[13px]">
                   <li>• Hardware security key support (YubiKey)</li>
                   <li>• Advanced session management</li>
@@ -552,20 +552,20 @@ export default function PitchDeck() {
           </div>
           
           <div className="mt-8 grid grid-cols-3 gap-4">
-            <div className="bg-gray-100 p-4 rounded-lg text-center">
-              <Database className="w-8 h-8 mx-auto mb-2 text-gray-700" />
+            <div className="bg-muted p-4 rounded-lg text-center">
+              <Database className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
               <p className="font-semibold">Database Hosting</p>
-              <p className="text-[13px] text-gray-600">PostgreSQL, MySQL, Redis</p>
+              <p className="text-[13px] text-muted-foreground">PostgreSQL, MySQL, Redis</p>
             </div>
-            <div className="bg-gray-100 p-4 rounded-lg text-center">
-              <Cloud className="w-8 h-8 mx-auto mb-2 text-gray-700" />
+            <div className="bg-muted p-4 rounded-lg text-center">
+              <Cloud className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
               <p className="font-semibold">Object Storage</p>
-              <p className="text-[13px] text-gray-600">S3-compatible APIs</p>
+              <p className="text-[13px] text-muted-foreground">S3-compatible APIs</p>
             </div>
-            <div className="bg-gray-100 p-4 rounded-lg text-center">
-              <Lock className="w-8 h-8 mx-auto mb-2 text-gray-700" />
+            <div className="bg-muted p-4 rounded-lg text-center">
+              <Lock className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
               <p className="font-semibold">Secret Management</p>
-              <p className="text-[13px] text-gray-600">Encrypted vault</p>
+              <p className="text-[13px] text-muted-foreground">Encrypted vault</p>
             </div>
           </div>
         </div>
@@ -630,19 +630,19 @@ export default function PitchDeck() {
             <div className="grid grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-3xl font-bold text-purple-600">150K+</p>
-                <p className="text-[13px] text-gray-600">Total projects</p>
+                <p className="text-[13px] text-muted-foreground">Total projects</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-purple-600">2.5M+</p>
-                <p className="text-[13px] text-gray-600">AI-generated lines</p>
+                <p className="text-[13px] text-muted-foreground">AI-generated lines</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-purple-600">50K+</p>
-                <p className="text-[13px] text-gray-600">Deployments</p>
+                <p className="text-[13px] text-muted-foreground">Deployments</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-purple-600">99.9%</p>
-                <p className="text-[13px] text-gray-600">Uptime SLA</p>
+                <p className="text-[13px] text-muted-foreground">Uptime SLA</p>
               </div>
             </div>
           </div>
@@ -661,33 +661,33 @@ export default function PitchDeck() {
             <div className="bg-blue-50 p-6 rounded-lg">
               <h3 className="text-2xl font-bold mb-4 text-blue-900">Subscription Tiers</h3>
               <div className="space-y-3">
-                <div className="bg-white p-3 rounded">
+                <div className="bg-card p-3 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Free</span>
-                    <span className="text-gray-600">Basic features</span>
+                    <span className="text-muted-foreground">Basic features</span>
                   </div>
-                  <p className="text-[13px] text-gray-500 mt-1">Public projects only</p>
+                  <p className="text-[13px] text-muted-foreground/70 mt-1">Public projects only</p>
                 </div>
-                <div className="bg-white p-3 rounded">
+                <div className="bg-card p-3 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Core</span>
                     <span className="text-blue-600 font-bold">$20/mo</span>
                   </div>
-                  <p className="text-[13px] text-gray-500 mt-1">Private projects, AI features, $25 credits</p>
+                  <p className="text-[13px] text-muted-foreground/70 mt-1">Private projects, AI features, $25 credits</p>
                 </div>
-                <div className="bg-white p-3 rounded">
+                <div className="bg-card p-3 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Teams</span>
                     <span className="text-blue-600 font-bold">$40/user/mo</span>
                   </div>
-                  <p className="text-[13px] text-gray-500 mt-1">Team management, $40 credits, advanced</p>
+                  <p className="text-[13px] text-muted-foreground/70 mt-1">Team management, $40 credits, advanced</p>
                 </div>
-                <div className="bg-white p-3 rounded">
+                <div className="bg-card p-3 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Enterprise</span>
                     <span className="text-blue-600 font-bold">Custom</span>
                   </div>
-                  <p className="text-[13px] text-gray-500 mt-1">SSO, compliance, dedicated support</p>
+                  <p className="text-[13px] text-muted-foreground/70 mt-1">SSO, compliance, dedicated support</p>
                 </div>
               </div>
             </div>
@@ -724,21 +724,21 @@ export default function PitchDeck() {
                     <span className="font-semibold">Year 1</span>
                     <div className="text-right">
                       <p className="text-xl font-bold text-purple-600">$2.4M ARR</p>
-                      <p className="text-[11px] text-gray-600">6,000 users, 0.024% market</p>
+                      <p className="text-[11px] text-muted-foreground">6,000 users, 0.024% market</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">Year 2</span>
                     <div className="text-right">
                       <p className="text-xl font-bold text-purple-600">$12M ARR</p>
-                      <p className="text-[11px] text-gray-600">25,000 users, 0.10% market</p>
+                      <p className="text-[11px] text-muted-foreground">25,000 users, 0.10% market</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">Year 3</span>
                     <div className="text-right">
                       <p className="text-xl font-bold text-purple-600">$48M ARR</p>
-                      <p className="text-[11px] text-gray-600">100,000 users, 0.35% market</p>
+                      <p className="text-[11px] text-muted-foreground">100,000 users, 0.35% market</p>
                     </div>
                   </div>
                 </div>
@@ -749,14 +749,14 @@ export default function PitchDeck() {
                     <span className="font-semibold">Year 4</span>
                     <div className="text-right">
                       <p className="text-xl font-bold text-purple-600">$180M ARR</p>
-                      <p className="text-[11px] text-gray-600">300,000 users, 1.2% market</p>
+                      <p className="text-[11px] text-muted-foreground">300,000 users, 1.2% market</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">Year 5</span>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-purple-600">$240M ARR</p>
-                      <p className="text-[11px] text-gray-600">500,000 users, 1.8% market</p>
+                      <p className="text-[11px] text-muted-foreground">500,000 users, 1.8% market</p>
                     </div>
                   </div>
                 </div>
@@ -775,7 +775,7 @@ export default function PitchDeck() {
           <h2 className="text-4xl font-bold mb-8 text-center">Path to $240M ARR by Year 5</h2>
           
           <div className="mb-8 overflow-x-auto">
-            <table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
+            <table className="w-full border-collapse bg-card rounded-lg overflow-hidden shadow-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                   <th className="p-3 text-left">Metric</th>
@@ -795,7 +795,7 @@ export default function PitchDeck() {
                   <td className="p-3 text-center">1M</td>
                   <td className="p-3 text-center font-bold">2M</td>
                 </tr>
-                <tr className="border-b bg-gray-50">
+                <tr className="border-b bg-muted/50">
                   <td className="p-3 font-semibold">Paying Users</td>
                   <td className="p-3 text-center">6K</td>
                   <td className="p-3 text-center">25K</td>
@@ -811,7 +811,7 @@ export default function PitchDeck() {
                   <td className="p-3 text-center">30%</td>
                   <td className="p-3 text-center font-bold">25%</td>
                 </tr>
-                <tr className="border-b bg-gray-50">
+                <tr className="border-b bg-muted/50">
                   <td className="p-3 font-semibold">ARPU (Annual)</td>
                   <td className="p-3 text-center">$400</td>
                   <td className="p-3 text-center">$480</td>
@@ -835,7 +835,7 @@ export default function PitchDeck() {
                   <td className="p-3 text-center">87%</td>
                   <td className="p-3 text-center font-bold">88%</td>
                 </tr>
-                <tr className="bg-gray-50">
+                <tr className="bg-muted/50">
                   <td className="p-3 font-semibold">Burn Rate</td>
                   <td className="p-3 text-center">$800K/mo</td>
                   <td className="p-3 text-center">$1.8M/mo</td>
@@ -854,28 +854,28 @@ export default function PitchDeck() {
                 <Building className="w-6 h-6 mt-1 mr-3 text-green-600 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Enterprise adoption</p>
-                  <p className="text-[13px] text-gray-600">Higher ARPU, longer contracts</p>
+                  <p className="text-[13px] text-muted-foreground">Higher ARPU, longer contracts</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <Cpu className="w-6 h-6 mt-1 mr-3 text-green-600 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">GPU usage expansion</p>
-                  <p className="text-[13px] text-gray-600">High margin compute revenue</p>
+                  <p className="text-[13px] text-muted-foreground">High margin compute revenue</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <Globe className="w-6 h-6 mt-1 mr-3 text-green-600 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">International markets</p>
-                  <p className="text-[13px] text-gray-600">EU, APAC expansion</p>
+                  <p className="text-[13px] text-muted-foreground">EU, APAC expansion</p>
                 </div>
               </div>
               <div className="flex items-start">
                 <GitBranch className="w-6 h-6 mt-1 mr-3 text-green-600 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Platform ecosystem</p>
-                  <p className="text-[13px] text-gray-600">Marketplace revenue share</p>
+                  <p className="text-[13px] text-muted-foreground">Marketplace revenue share</p>
                 </div>
               </div>
             </div>
@@ -1031,23 +1031,23 @@ export default function PitchDeck() {
             <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-lg">
               <h3 className="text-2xl font-bold mb-6 text-blue-900">Core Leadership</h3>
               <div className="space-y-4">
-                <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="bg-card p-4 rounded-lg shadow-sm">
                   <p className="font-bold text-[15px]">CEO/CTO</p>
-                  <p className="text-gray-600">Former Google Cloud Platform architect</p>
-                  <p className="text-[13px] text-gray-500">15+ years experience</p>
+                  <p className="text-muted-foreground">Former Google Cloud Platform architect</p>
+                  <p className="text-[13px] text-muted-foreground/70">15+ years experience</p>
                 </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="bg-card p-4 rounded-lg shadow-sm">
                   <p className="font-bold text-[15px]">VP Engineering</p>
-                  <p className="text-gray-600">Ex-Microsoft Azure, AI/ML research background</p>
+                  <p className="text-muted-foreground">Ex-Microsoft Azure, AI/ML research background</p>
                 </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="bg-card p-4 rounded-lg shadow-sm">
                   <p className="font-bold text-[15px]">Head of Product</p>
-                  <p className="text-gray-600">Former GitHub product lead, developer tools expert</p>
+                  <p className="text-muted-foreground">Former GitHub product lead, developer tools expert</p>
                 </div>
-                <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="bg-card p-4 rounded-lg shadow-sm">
                   <p className="font-bold text-[15px]">VP Sales</p>
-                  <p className="text-gray-600">Ex-Salesforce enterprise sales</p>
-                  <p className="text-[13px] text-gray-500">$100M+ ARR experience</p>
+                  <p className="text-muted-foreground">Ex-Salesforce enterprise sales</p>
+                  <p className="text-[13px] text-muted-foreground/70">$100M+ ARR experience</p>
                 </div>
               </div>
             </div>
@@ -1060,25 +1060,25 @@ export default function PitchDeck() {
                     <span className="font-semibold">Senior Engineers</span>
                     <span className="bg-green-100 px-3 py-1 rounded-full text-[13px]">12 people</span>
                   </div>
-                  <p className="text-[13px] text-gray-600 ml-4">Average 12 years experience, top-tier companies</p>
+                  <p className="text-[13px] text-muted-foreground ml-4">Average 12 years experience, top-tier companies</p>
                   
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">AI/ML Engineers</span>
                     <span className="bg-green-100 px-3 py-1 rounded-full text-[13px]">4 people</span>
                   </div>
-                  <p className="text-[13px] text-gray-600 ml-4">PhD-level expertise, published researchers</p>
+                  <p className="text-[13px] text-muted-foreground ml-4">PhD-level expertise, published researchers</p>
                   
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">DevOps/Infrastructure</span>
                     <span className="bg-green-100 px-3 py-1 rounded-full text-[13px]">3 people</span>
                   </div>
-                  <p className="text-[13px] text-gray-600 ml-4">Kubernetes and cloud architecture specialists</p>
+                  <p className="text-[13px] text-muted-foreground ml-4">Kubernetes and cloud architecture specialists</p>
                   
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Security Engineers</span>
                     <span className="bg-green-100 px-3 py-1 rounded-full text-[13px]">2 people</span>
                   </div>
-                  <p className="text-[13px] text-gray-600 ml-4">Enterprise compliance and cybersecurity</p>
+                  <p className="text-[13px] text-muted-foreground ml-4">Enterprise compliance and cybersecurity</p>
                 </div>
               </div>
               
@@ -1135,7 +1135,7 @@ export default function PitchDeck() {
                   <div className="bg-blue-200 rounded-full h-4 overflow-hidden">
                     <div className="bg-blue-600 h-full" style={{width: '50%'}}></div>
                   </div>
-                  <p className="text-[13px] text-gray-600 mt-1">Scale team, enhance AI capabilities</p>
+                  <p className="text-[13px] text-muted-foreground mt-1">Scale team, enhance AI capabilities</p>
                 </div>
                 
                 <div>
@@ -1146,7 +1146,7 @@ export default function PitchDeck() {
                   <div className="bg-green-200 rounded-full h-4 overflow-hidden">
                     <div className="bg-green-600 h-full" style={{width: '30%'}}></div>
                   </div>
-                  <p className="text-[13px] text-gray-600 mt-1">Enterprise go-to-market execution</p>
+                  <p className="text-[13px] text-muted-foreground mt-1">Enterprise go-to-market execution</p>
                 </div>
                 
                 <div>
@@ -1157,7 +1157,7 @@ export default function PitchDeck() {
                   <div className="bg-purple-200 rounded-full h-4 overflow-hidden">
                     <div className="bg-purple-600 h-full" style={{width: '15%'}}></div>
                   </div>
-                  <p className="text-[13px] text-gray-600 mt-1">Global expansion, compute capacity</p>
+                  <p className="text-[13px] text-muted-foreground mt-1">Global expansion, compute capacity</p>
                 </div>
                 
                 <div>
@@ -1168,7 +1168,7 @@ export default function PitchDeck() {
                   <div className="bg-orange-200 rounded-full h-4 overflow-hidden">
                     <div className="bg-orange-600 h-full" style={{width: '5%'}}></div>
                   </div>
-                  <p className="text-[13px] text-gray-600 mt-1">Legal, security, enterprise readiness</p>
+                  <p className="text-[13px] text-muted-foreground mt-1">Legal, security, enterprise readiness</p>
                 </div>
               </div>
             </div>
@@ -1193,21 +1193,21 @@ export default function PitchDeck() {
                     <Building className="w-5 h-5 mt-1 mr-3 text-green-600 flex-shrink-0" />
                     <div>
                       <p className="font-semibold">100+ enterprise customers</p>
-                      <p className="text-[13px] text-gray-600">Fortune 5000 companies</p>
+                      <p className="text-[13px] text-muted-foreground">Fortune 5000 companies</p>
                     </div>
                   </li>
                   <li className="flex items-start">
                     <Globe className="w-5 h-5 mt-1 mr-3 text-green-600 flex-shrink-0" />
                     <div>
                       <p className="font-semibold">International expansion</p>
-                      <p className="text-[13px] text-gray-600">EU and APAC operations</p>
+                      <p className="text-[13px] text-muted-foreground">EU and APAC operations</p>
                     </div>
                   </li>
                   <li className="flex items-start">
                     <TrendingUp className="w-5 h-5 mt-1 mr-3 text-green-600 flex-shrink-0" />
                     <div>
                       <p className="font-semibold">Next-stage growth optionality</p>
-                      <p className="text-[13px] text-gray-600">Profitability milestones with a path toward $200M+ valuation</p>
+                      <p className="text-[13px] text-muted-foreground">Profitability milestones with a path toward $200M+ valuation</p>
                     </div>
                   </li>
                 </ul>
@@ -1259,9 +1259,9 @@ export default function PitchDeck() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 print:bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-muted/50 to-muted print:bg-white">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b print:hidden">
+      <div className="bg-background shadow-sm border-b print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
@@ -1280,7 +1280,7 @@ export default function PitchDeck() {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-[13px] text-gray-500">
+              <span className="text-[13px] text-muted-foreground">
                 Slide {currentSlide + 1} of {slides.length}
               </span>
               <Button onClick={handlePrint} variant="outline" size="sm" data-testid="button-export-pdf">
@@ -1301,7 +1301,7 @@ export default function PitchDeck() {
           </div>
 
           {/* Navigation */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-100 to-transparent p-6 flex items-center justify-between print:hidden">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-muted to-transparent p-6 flex items-center justify-between print:hidden">
             <Button
               onClick={prevSlide}
               variant="outline"
@@ -1320,7 +1320,7 @@ export default function PitchDeck() {
                   className={`w-2 h-2 rounded-full transition-all ${
                     index === currentSlide
                       ? 'bg-blue-600 w-8'
-                      : 'bg-gray-300 hover:bg-gray-400'
+                      : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
                   }`}
                   data-testid={`button-slide-${index}`}
                 />

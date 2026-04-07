@@ -14,7 +14,7 @@ export default function PublicTeamPage() {
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
             Build Together, Ship Faster
           </h1>
-          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
+          <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
             Real-time collaboration that feels like magic. Code, debug, and deploy with your team in perfect sync.
           </p>
           <div className="flex gap-4 justify-center">
@@ -42,42 +42,42 @@ export default function PublicTeamPage() {
             <div className="p-6 rounded-lg border bg-card">
               <Users className="w-12 h-12 text-blue-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Real-time Multiplayer</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 See teammates' cursors, selections, and edits in real-time. It's like being in the same room.
               </p>
             </div>
             <div className="p-6 rounded-lg border bg-card">
               <GitBranch className="w-12 h-12 text-purple-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Advanced Version Control</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 Built-in Git with visual branching, merge conflict resolution, and code review tools.
               </p>
             </div>
             <div className="p-6 rounded-lg border bg-card">
               <MessageSquare className="w-12 h-12 text-green-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Integrated Communication</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 Voice chat, video calls, and threaded discussions right in your workspace.
               </p>
             </div>
             <div className="p-6 rounded-lg border bg-card">
               <Shield className="w-12 h-12 text-red-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Enterprise Security</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 SSO, 2FA, audit logs, and granular permissions to keep your code secure.
               </p>
             </div>
             <div className="p-6 rounded-lg border bg-card">
               <Zap className="w-12 h-12 text-yellow-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Instant Environments</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 Spin up identical development environments for every team member in seconds.
               </p>
             </div>
             <div className="p-6 rounded-lg border bg-card">
               <Globe className="w-12 h-12 text-indigo-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Global Performance</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 Low-latency collaboration from anywhere with our global edge network.
               </p>
             </div>
@@ -86,7 +86,7 @@ export default function PublicTeamPage() {
       </section>
 
       {/* Use Cases */}
-      <section className="py-20 px-4 bg-gray-50 dark:bg-gray-900">
+      <section className="py-20 px-4 bg-muted/50">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-4xl font-bold text-center mb-12">
             Built for Modern Teams
@@ -94,7 +94,7 @@ export default function PublicTeamPage() {
           <div className="grid md:grid-cols-2 gap-12">
             <div>
               <h3 className="text-2xl font-semibold mb-4">Remote Teams</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-muted-foreground mb-4">
                 Bridge the distance with real-time collaboration that makes remote feel local. Share screens, pair program, and ship code together from anywhere in the world.
               </p>
               <ul className="space-y-2">
@@ -114,7 +114,7 @@ export default function PublicTeamPage() {
             </div>
             <div>
               <h3 className="text-2xl font-semibold mb-4">Educational Institutions</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-muted-foreground mb-4">
                 Transform how students learn to code. Teachers can jump into any student's project, provide real-time feedback, and track progress effortlessly.
               </p>
               <ul className="space-y-2">
@@ -144,38 +144,38 @@ export default function PublicTeamPage() {
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="p-6 rounded-lg border bg-card">
-              <p className="text-gray-600 dark:text-gray-400 mb-4 italic">
+              <p className="text-muted-foreground mb-4 italic">
                 "E-Code transformed how our distributed team works. We ship 3x faster and onboard new developers in hours, not weeks."
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
                 <div>
                   <p className="font-semibold">Sarah Chen</p>
-                  <p className="text-[13px] text-gray-500">CTO, TechStart</p>
+                  <p className="text-[13px] text-muted-foreground">CTO, TechStart</p>
                 </div>
               </div>
             </div>
             <div className="p-6 rounded-lg border bg-card">
-              <p className="text-gray-600 dark:text-gray-400 mb-4 italic">
+              <p className="text-muted-foreground mb-4 italic">
                 "The real-time collaboration features are game-changing. Our team feels more connected than ever, despite being across 5 time zones."
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-500"></div>
                 <div>
                   <p className="font-semibold">Marcus Johnson</p>
-                  <p className="text-[13px] text-gray-500">Engineering Lead, CloudScale</p>
+                  <p className="text-[13px] text-muted-foreground">Engineering Lead, CloudScale</p>
                 </div>
               </div>
             </div>
             <div className="p-6 rounded-lg border bg-card">
-              <p className="text-gray-600 dark:text-gray-400 mb-4 italic">
+              <p className="text-muted-foreground mb-4 italic">
                 "Teaching programming has never been easier. I can help students debug in real-time and the whole class can learn together."
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500"></div>
                 <div>
                   <p className="font-semibold">Dr. Emily Rodriguez</p>
-                  <p className="text-[13px] text-gray-500">CS Professor, Tech University</p>
+                  <p className="text-[13px] text-muted-foreground">CS Professor, Tech University</p>
                 </div>
               </div>
             </div>

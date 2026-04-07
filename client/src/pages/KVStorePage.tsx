@@ -297,7 +297,7 @@ export default function KVStorePage() {
       case 'boolean': return 'text-purple-600 bg-purple-50 dark:bg-purple-950 border-purple-200';
       case 'json': return 'text-orange-600 bg-orange-50 dark:bg-orange-950 border-orange-200';
       case 'binary': return 'text-pink-600 bg-pink-50 dark:bg-pink-950 border-pink-200';
-      default: return 'text-gray-600 bg-gray-50 dark:bg-gray-950 border-gray-200';
+      default: return 'text-muted-foreground bg-muted/50 dark:bg-muted border-border';
     }
   };
 

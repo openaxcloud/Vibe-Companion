@@ -184,7 +184,7 @@ export default function PublicDeploymentsPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Link href="/contact-sales">
-                <Button size="lg" className="bg-white text-slate-900 hover:bg-slate-200" data-testid="button-contact-sales">
+                <Button size="lg" className="bg-white text-slate-900 hover:bg-white/90" data-testid="button-contact-sales">
                   Talk to an expert
                 </Button>
               </Link>

@@ -17,7 +17,7 @@ interface UserSub {
 }
 
 const TIER_COLORS: Record<string, string> = {
-  free: 'bg-gray-100 text-gray-700',
+  free: 'bg-muted text-muted-foreground',
   core: 'bg-blue-100 text-blue-700',
   pro: 'bg-purple-100 text-purple-700',
   teams: 'bg-indigo-100 text-indigo-700',
@@ -147,7 +147,7 @@ export default function AdminSubscriptions() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={`text-xs ${TIER_COLORS[u.subscriptionTier] || 'bg-gray-100 text-gray-700'}`}>
+                        <Badge className={`text-xs ${TIER_COLORS[u.subscriptionTier] || 'bg-muted text-muted-foreground'}`}>
                           {u.subscriptionTier || 'free'}
                         </Badge>
                       </TableCell>

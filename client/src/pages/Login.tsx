@@ -217,7 +217,7 @@ export default function Login() {
 
   if (twoFactorChallenge) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-gray-50/50 to-background dark:from-background dark:via-gray-900/50 dark:to-background flex items-center justify-center p-4 sm:p-6 md:p-8">
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/50 to-background flex items-center justify-center p-4 sm:p-6 md:p-8">
         <LazyMotionDiv
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -236,14 +236,14 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-gray-50/50 to-background dark:from-background dark:via-gray-900/50 dark:to-background flex">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/50 to-background flex">
       {/* Left Side - Form - Mobile Optimized */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-16">
         <div className="w-full max-w-md space-y-6 sm:space-y-8">
           {/* Back to Home */}
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Back to home page"
             data-testid="button-back-home"
           >
@@ -254,13 +254,13 @@ export default function Login() {
           {/* Logo */}
           <div className="flex flex-col items-center justify-center mb-2">
             <ECodeLogo size="lg" showText={true} />
-            <p className="text-[13px] text-gray-600 dark:text-gray-400 mt-2">Enterprise Development Platform</p>
+            <p className="text-[13px] text-muted-foreground mt-2">Enterprise Development Platform</p>
           </div>
 
           {/* Welcome Message - Responsive Typography */}
           <div className="space-y-2">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Welcome back</h2>
-            <p className="text-[13px] sm:text-base text-gray-600 dark:text-gray-400">
+            <p className="text-[13px] sm:text-base text-muted-foreground">
               Sign in to continue building amazing applications
             </p>
           </div>
@@ -273,7 +273,7 @@ export default function Login() {
                   Username or Email
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
                     name="email"
@@ -299,7 +299,7 @@ export default function Login() {
                   </Link>
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
                     name="password"
@@ -315,7 +315,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 -mr-2 sm:mr-0 flex items-center justify-center"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 -mr-2 sm:mr-0 flex items-center justify-center"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     data-testid="button-toggle-password"
                   >
@@ -333,7 +333,7 @@ export default function Login() {
                   />
                   <label 
                     htmlFor="remember" 
-                    className="text-[13px] text-gray-600 dark:text-gray-400 cursor-pointer"
+                    className="text-[13px] text-muted-foreground cursor-pointer"
                   >
                     Remember me for 30 days
                   </label>
@@ -373,7 +373,7 @@ export default function Login() {
           </form>
 
           {/* Sign Up Link */}
-          <p className="text-center text-[13px] text-gray-600 dark:text-gray-400">
+          <p className="text-center text-[13px] text-muted-foreground">
             Don't have an account?{' '}
             <Link href="/register" className="font-semibold text-violet-600 dark:text-violet-400 hover:underline" data-testid="link-register">
               Sign up for free
@@ -404,13 +404,13 @@ export default function Login() {
           )}
 
           {/* Terms */}
-          <p className="text-center text-[11px] text-gray-500">
+          <p className="text-center text-[11px] text-muted-foreground">
             By signing in, you agree to our{' '}
-            <Link href="/terms" className="underline hover:text-gray-700 dark:hover:text-gray-300">
+            <Link href="/terms" className="underline hover:text-foreground">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/privacy" className="underline hover:text-gray-700 dark:hover:text-gray-300">
+            <Link href="/privacy" className="underline hover:text-foreground">
               Privacy Policy
             </Link>
           </p>

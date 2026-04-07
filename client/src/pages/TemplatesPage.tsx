@@ -37,7 +37,7 @@ interface Template {
 
 // Template categories
 const categories = [
-  { id: 'all', name: 'All Templates', icon: Code2, color: 'bg-gray-500' },
+  { id: 'all', name: 'All Templates', icon: Code2, color: 'bg-muted-foreground' },
   { id: 'webapp', name: 'Web Apps', icon: Globe, color: 'bg-blue-500' },
   { id: 'api', name: 'APIs & Backend', icon: Server, color: 'bg-green-500' },
   { id: 'data', name: 'Data Science', icon: Database, color: 'bg-purple-500' },

@@ -168,8 +168,8 @@ export default function Notifications() {
       case 'team_invite': return <Users className="h-4 w-4 text-orange-500" />;
       case 'deployment': return <Zap className="h-4 w-4 text-yellow-500" />;
       case 'security': return <Shield className="h-4 w-4 text-red-600" />;
-      case 'system': return <Info className="h-4 w-4 text-gray-500" />;
-      default: return <Bell className="h-4 w-4 text-gray-500" />;
+      case 'system': return <Info className="h-4 w-4 text-muted-foreground" />;
+      default: return <Bell className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -182,7 +182,7 @@ export default function Notifications() {
       case 'like': return 'border-l-red-500';
       case 'follow': return 'border-l-green-500';
       case 'mention': return 'border-l-purple-500';
-      default: return 'border-l-gray-300';
+      default: return 'border-l-border';
     }
   };
 
@@ -242,11 +242,11 @@ export default function Notifications() {
     return (
       <div className="container mx-auto max-w-4xl py-8 px-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-8 bg-muted rounded w-1/4"></div>
+          <div className="h-4 bg-muted rounded w-1/2"></div>
           <div className="space-y-3">
             {[1,2,3,4,5].map(i => (
-              <div key={i} className="h-20 bg-gray-200 rounded"></div>
+              <div key={i} className="h-20 bg-muted rounded"></div>
             ))}
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function Notifications() {
         {settingsLoading ? (
           <div className="animate-pulse space-y-4">
             {[1,2,3].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+              <div key={i} className="h-32 bg-muted rounded"></div>
             ))}
           </div>
         ) : (
@@ -481,7 +481,7 @@ export default function Notifications() {
                             </AvatarFallback>
                           </Avatar>
                         ) : (
-                          <div className="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
                             {getNotificationIcon(notification.type)}
                           </div>
                         )}

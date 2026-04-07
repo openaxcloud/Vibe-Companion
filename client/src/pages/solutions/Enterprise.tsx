@@ -81,10 +81,10 @@ export default function Enterprise() {
       <div className="container mx-auto px-4 py-12 sm:py-16 md:py-20">
         {/* Hero Section */}
         <div className="text-center max-w-4xl mx-auto mb-12 sm:mb-16 md:mb-20">
-          <Badge className="mb-4 px-4 py-1.5 text-[13px] font-medium bg-gradient-to-r from-slate-700 to-slate-900 text-white border-0">
+          <Badge className="mb-4 px-4 py-1.5 text-[13px] font-medium bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-700 text-white border-0">
             Enterprise-Grade Platform
           </Badge>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-slate-800 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
             Enterprise Solutions
           </h1>
           <p className="text-[15px] sm:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
@@ -110,7 +110,7 @@ export default function Enterprise() {
         {/* Stats Section */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16 md:mb-20">
           {stats.map((stat) => (
-            <Card key={stat.label} className="p-6 text-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+            <Card key={stat.label} className="p-6 text-center bg-muted/50">
               <div className="text-3xl sm:text-4xl font-bold text-primary mb-2">{stat.value}</div>
               <div className="text-[13px] text-muted-foreground">{stat.label}</div>
             </Card>

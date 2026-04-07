@@ -241,7 +241,7 @@ export default function HealthDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3 bg-white dark:bg-amber-950/40 rounded-lg">
+                <div className="flex items-start gap-3 p-3 bg-card dark:bg-amber-950/40 rounded-lg">
                   <div className="w-2 h-2 bg-amber-500 rounded-full mt-2" />
                   <div className="flex-1">
                     <h4 className="font-medium text-[13px]">Database Connection Pool</h4>
@@ -254,7 +254,7 @@ export default function HealthDashboard() {
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3 p-3 bg-white dark:bg-amber-950/40 rounded-lg">
+                <div className="flex items-start gap-3 p-3 bg-card dark:bg-amber-950/40 rounded-lg">
                   <div className="w-2 h-2 bg-amber-500 rounded-full mt-2" />
                   <div className="flex-1">
                     <h4 className="font-medium text-[13px]">Memory Usage</h4>
@@ -267,7 +267,7 @@ export default function HealthDashboard() {
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3 p-3 bg-white dark:bg-amber-950/40 rounded-lg">
+                <div className="flex items-start gap-3 p-3 bg-card dark:bg-amber-950/40 rounded-lg">
                   <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
                   <div className="flex-1">
                     <h4 className="font-medium text-[13px]">SSL Certificate</h4>

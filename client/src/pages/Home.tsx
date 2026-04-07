@@ -267,7 +267,7 @@ export default function Home() {
             </div>
 
             <div className="bg-white/10 backdrop-blur-sm p-2 rounded-lg border border-white/20 shadow-xl">
-              <div className="flex items-center gap-2 bg-white dark:bg-black rounded-md p-1">
+              <div className="flex items-center gap-2 bg-background rounded-md p-1">
                 <Input 
                   placeholder="Décrivez votre idée d'application en langage naturel..."
                   className="border-0 shadow-none focus-visible:ring-0 bg-transparent text-foreground"

@@ -67,7 +67,7 @@ export function AuditLogs() {
     if (action.includes('delete')) return 'bg-red-500/10 text-red-600';
     if (action.includes('update')) return 'bg-blue-500/10 text-blue-600';
     if (action.includes('login')) return 'bg-purple-500/10 text-purple-600';
-    return 'bg-gray-500/10 text-gray-600';
+    return 'bg-muted text-muted-foreground';
   };
 
   return (

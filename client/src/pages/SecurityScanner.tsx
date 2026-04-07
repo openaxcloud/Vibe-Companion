@@ -127,7 +127,7 @@ export default function SecurityScanner() {
       case 'high': return 'bg-orange-500 text-white';
       case 'medium': return 'bg-yellow-500 text-white';
       case 'low': return 'bg-blue-500 text-white';
-      default: return 'bg-gray-500 text-white';
+      default: return 'bg-muted-foreground text-white';
     }
   };
 

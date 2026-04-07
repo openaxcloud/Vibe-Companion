@@ -115,12 +115,12 @@ export default function ReferralsPage() {
   const getTierColor = (tier: string) => {
     const colors: Record<string, string> = {
       bronze: 'text-orange-600 bg-orange-100',
-      silver: 'text-gray-600 bg-gray-100',
+      silver: 'text-muted-foreground bg-muted',
       gold: 'text-yellow-600 bg-yellow-100',
       platinum: 'text-purple-600 bg-purple-100',
       diamond: 'text-blue-600 bg-blue-100',
     };
-    return colors[tier] || 'text-gray-600 bg-gray-100';
+    return colors[tier] || 'text-muted-foreground bg-muted';
   };
 
   const getTierIcon = (tier: string) => {

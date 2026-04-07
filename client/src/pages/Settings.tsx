@@ -758,19 +758,19 @@ export default function Settings() {
                         </div>
                         <ul className="space-y-2 text-[13px]">
                           <li className="flex items-center gap-2 text-foreground">
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                             Unlimited public repls
                           </li>
                           <li className="flex items-center gap-2 text-foreground">
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                             500MB storage
                           </li>
                           <li className="flex items-center gap-2 text-muted-foreground">
-                            <X className="h-4 w-4 text-red-500" />
+                            <X className="h-4 w-4 text-red-500 dark:text-red-400" />
                             Private repls
                           </li>
                           <li className="flex items-center gap-2 text-muted-foreground">
-                            <X className="h-4 w-4 text-red-500" />
+                            <X className="h-4 w-4 text-red-500 dark:text-red-400" />
                             Always-on repls
                           </li>
                         </ul>
@@ -840,7 +840,7 @@ export default function Settings() {
 
                   <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/30 transition-all duration-200">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 bg-blue-500 rounded flex items-center justify-center text-white font-bold">
+                      <div className="h-8 w-8 bg-blue-500 dark:bg-blue-600 rounded flex items-center justify-center text-white font-bold">
                         G
                       </div>
                       <div>
@@ -852,7 +852,7 @@ export default function Settings() {
                     </div>
                     <Badge 
                       variant="secondary" 
-                      className="gap-1 bg-green-500/10 text-green-600 border-0"
+                      className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border-0"
                     >
                       <Check className="h-3 w-3" />
                       Connected
@@ -887,7 +887,7 @@ export default function Settings() {
                   data-testid="card-danger-zone"
                 >
                   <CardHeader>
-                    <CardTitle className="text-red-500">Danger Zone</CardTitle>
+                    <CardTitle className="text-red-500 dark:text-red-400">Danger Zone</CardTitle>
                     <CardDescription className="text-muted-foreground">
                       Irreversible actions
                     </CardDescription>

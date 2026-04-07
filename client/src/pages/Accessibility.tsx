@@ -237,7 +237,7 @@ export default function Accessibility() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-teal-600 hover:bg-teal-50" data-testid="button-accessibility-contact">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-teal-600 hover:bg-teal-50 dark:bg-white dark:text-teal-600 dark:hover:bg-teal-50" data-testid="button-accessibility-contact">
                   <Mail className="h-5 w-5" />
                   Contact Accessibility Team
                 </Button>

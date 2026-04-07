@@ -537,14 +537,14 @@ export default function PreviewPage() {
           )}>
             {showRulers && (
               <>
-                <div className="absolute top-0 left-12 right-0 h-6 bg-gray-800 flex items-end text-[10px] text-gray-500 overflow-hidden">
+                <div className="absolute top-0 left-12 right-0 h-6 bg-muted-foreground/20 flex items-end text-[10px] text-muted-foreground overflow-hidden">
                   {Array.from({ length: Math.ceil(width / 100) }, (_, i) => (
                     <div key={i} className="relative" style={{ marginLeft: i === 0 ? 0 : 100 }}>
                       <span>{i * 100}</span>
                     </div>
                   ))}
                 </div>
-                <div className="absolute left-0 top-12 bottom-0 w-6 bg-gray-800 flex flex-col text-[10px] text-gray-500 overflow-hidden">
+                <div className="absolute left-0 top-12 bottom-0 w-6 bg-muted-foreground/20 flex flex-col text-[10px] text-muted-foreground overflow-hidden">
                   {Array.from({ length: Math.ceil(height / 100) }, (_, i) => (
                     <div key={i} className="relative" style={{ marginTop: i === 0 ? 0 : 100 }}>
                       <span className="transform -rotate-90 origin-left translate-x-4">{i * 100}</span>
@@ -555,7 +555,7 @@ export default function PreviewPage() {
             )}
 
             <div 
-              className="bg-white dark:bg-black rounded-lg shadow-2xl overflow-hidden transition-all duration-300 relative"
+              className="bg-background rounded-lg shadow-2xl overflow-hidden transition-all duration-300 relative"
               style={{ 
                 width: `${width * (zoomLevel / 100)}px`,
                 height: `${height * (zoomLevel / 100)}px`,

@@ -98,7 +98,7 @@ export default function Explore() {
       'C++': 'bg-purple-500',
       'Ruby': 'bg-pink-500',
     };
-    return colors[language] || 'bg-gray-500';
+    return colors[language] || 'bg-slate-500';
   };
 
 

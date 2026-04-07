@@ -114,7 +114,7 @@ export default function Blog() {
       'Tutorial': 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400',
       'Community': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
     };
-    return colors[category] || 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    return colors[category] || 'bg-muted text-muted-foreground';
   };
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {

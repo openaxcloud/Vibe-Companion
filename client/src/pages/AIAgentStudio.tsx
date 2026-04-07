@@ -277,7 +277,7 @@ export default function AIAgentStudio() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(88,86,214,0.08),_transparent_45%)] py-12">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.08),_transparent_45%)] py-12">
       <div className="container-responsive max-w-7xl space-y-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-4">

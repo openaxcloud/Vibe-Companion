@@ -95,7 +95,7 @@ const languageColors: Record<string, string> = {
   python: 'bg-green-600',
   java: 'bg-red-600',
   cpp: 'bg-pink-600',
-  c: 'bg-gray-600',
+  c: 'bg-muted-foreground',
   csharp: 'bg-purple-600',
   go: 'bg-cyan-600',
   rust: 'bg-orange-600',
@@ -106,8 +106,8 @@ const languageColors: Record<string, string> = {
   html: 'bg-orange-400',
   css: 'bg-blue-400',
   sql: 'bg-blue-700',
-  bash: 'bg-gray-700',
-  other: 'bg-gray-500',
+  bash: 'bg-muted-foreground',
+  other: 'bg-muted-foreground',
 };
 
 const containerVariants = {
@@ -853,7 +853,7 @@ const ProjectsPage = () => {
                           <Checkbox
                             checked={selectedProjects.includes(project.id)}
                             onCheckedChange={() => toggleProjectSelection(project.id)}
-                            className="bg-white/90 backdrop-blur-sm border-[var(--ecode-border)] data-[state=checked]:bg-[var(--ecode-accent)] data-[state=checked]:border-[var(--ecode-accent)]"
+                            className="bg-background/90 backdrop-blur-sm border-[var(--ecode-border)] data-[state=checked]:bg-[var(--ecode-accent)] data-[state=checked]:border-[var(--ecode-accent)]"
                             data-testid={`checkbox-project-${project.id}`}
                           />
                         </div>

@@ -72,7 +72,7 @@ export default function AdminActivityLogs() {
                 <div className="space-y-2">
                   {filtered.map(item => (
                     <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${TYPE_COLOR[item.type] || 'bg-gray-100'}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${TYPE_COLOR[item.type] || 'bg-muted'}`}>
                         {TYPE_ICON[item.type] || <Activity className="w-3.5 h-3.5" />}
                       </div>
                       <div className="flex-1 min-w-0">

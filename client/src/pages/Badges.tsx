@@ -130,11 +130,11 @@ export default function Badges() {
 
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
-      case 'common': return 'bg-gray-500';
+      case 'common': return 'bg-muted-foreground';
       case 'rare': return 'bg-blue-500';
       case 'epic': return 'bg-purple-500';
       case 'legendary': return 'bg-yellow-500';
-      default: return 'bg-gray-400';
+      default: return 'bg-muted-foreground';
     }
   };
 
@@ -224,7 +224,7 @@ export default function Badges() {
                         <div className={`p-3 rounded-full ${
                           badge.earned 
                             ? getRarityColor(badge.rarity) 
-                            : 'bg-gray-300'
+                            : 'bg-muted'
                         }`}>
                           <BadgeIcon className="h-6 w-6 text-white" />
                         </div>

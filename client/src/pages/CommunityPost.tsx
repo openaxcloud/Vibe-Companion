@@ -140,7 +140,7 @@ export default function CommunityPost() {
       discussion: 'bg-purple-500/10 text-purple-500',
       challenges: 'bg-red-500/10 text-red-500',
     };
-    return colors[category] || 'bg-gray-500/10 text-gray-500';
+    return colors[category] || 'bg-muted text-muted-foreground';
   };
 
   if (isLoading) {
