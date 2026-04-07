@@ -193,6 +193,9 @@ app.use(
   })
 );
 
+import { setupPassportAuth } from "./middleware/passport-setup";
+setupPassportAuth(app);
+
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
     status: "healthy",
@@ -285,15 +288,9 @@ app.use((req, res, next) => {
 
 // Always-available CSRF token endpoint (registered before routes.ts so it
 // works even when the full route loader is still initialising).
-function handleCsrf(req: Request, res: Response) {
-  const token = crypto.randomBytes(32).toString("hex");
-  if (req.session) {
-    req.session.csrfToken = token;
-  }
-  res.json({ csrfToken: token });
-}
-app.get("/api/csrf-token", handleCsrf);
-app.get("/api/auth/csrf", handleCsrf);
+import { csrfTokenEndpoint } from "./middleware/csrf";
+app.get("/api/csrf-token", csrfTokenEndpoint);
+app.get("/api/auth/csrf", csrfTokenEndpoint);
 
 // Always-available workspace bootstrap – creates a real project regardless of
 // whether the full routes.ts bundle loads. Registered early so it is never
