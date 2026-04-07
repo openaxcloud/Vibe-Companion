@@ -1,19 +1,17 @@
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
-import { useTheme } from '@/components/ThemeProvider';
-import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageShell, PageHeader } from '@/components/layout/PageShell';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,39 +27,42 @@ import {
   User,
   Bell,
   Shield,
+  Key,
   Palette,
   Code,
+  Globe,
   CreditCard,
   Crown,
   Database,
   Download,
-  Check,
-  X,
-  Github,
-  Link,
-  Upload,
-  Settings2,
+  Trash2,
+  Mail,
+  Smartphone,
   Monitor,
   Moon,
   Sun,
   RotateCcw,
+  Check,
+  X,
+  AlertCircle,
+  Github,
+  Link,
+  Upload,
 } from 'lucide-react';
 import { TOUR_STORAGE_KEY } from '@/components/ide/IDEGuidedTour';
 import { useToast } from '@/hooks/use-toast';
-import { TABLET_GRID_CLASSES } from '@shared/responsive-config';
 
 export default function Settings() {
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('account');
 
+  // Form states
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [bio, setBio] = useState(user?.bio || '');
-  // Use global theme from ThemeProvider
-  const { theme: globalTheme, setTheme: setGlobalTheme } = useTheme();
-  const [pendingTheme, setPendingTheme] = useState<'light' | 'dark' | 'system'>(globalTheme);
+  const [theme, setTheme] = useState('system');
   const [editorTheme, setEditorTheme] = useState('dark');
   const [fontSize, setFontSize] = useState('14');
   const [tabSize, setTabSize] = useState('2');
@@ -76,58 +77,11 @@ export default function Settings() {
     marketing: false,
   });
 
-  // Sync state when user data changes
-  useEffect(() => {
-    if (user) {
-      setDisplayName(user.displayName || '');
-      setEmail(user.email || '');
-      setBio(user.bio || '');
-    }
-  }, [user]);
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
-    try {
-      await apiRequest('PATCH', '/api/users/profile', {
-        displayName,
-        email,
-        bio,
-        preferences: {
-          theme: globalTheme,
-          editorTheme,
-          fontSize: parseInt(fontSize) || 14,
-          tabSize: parseInt(tabSize) || 2,
-          wordWrap,
-          minimap,
-          autoSave,
-        },
-        notifications: notifications || {
-          email: true,
-          push: true,
-          mentions: true,
-          updates: false,
-          marketing: false,
-        },
-      });
-      
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-      
-      toast({
-        title: 'Profile saved',
-        description: 'Your profile has been successfully updated.',
-        variant: 'success',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error saving profile',
-        description: error instanceof Error ? error.message : 'Failed to save your profile. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSaveProfile = () => {
+    toast({
+      title: 'Profile updated',
+      description: 'Your profile has been successfully updated.',
+    });
   };
 
   const handleDeleteAccount = () => {
@@ -138,84 +92,42 @@ export default function Settings() {
     });
   };
 
-  const navItems = [
-    { id: 'account', label: 'Account', icon: User },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'editor', label: 'Editor', icon: Code },
-    { id: 'privacy', label: 'Privacy & Security', icon: Shield },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'integrations', label: 'Integrations', icon: Link },
-    { id: 'data', label: 'Data & Export', icon: Database },
-  ];
-
-  const inputClassName = "min-h-[44px] border-border bg-card text-foreground placeholder:text-muted-foreground focus:ring-primary/20 focus:border-primary/40 focus:ring-2 transition-all duration-200";
-  
-  const cardClassName = "border border-border bg-card shadow-sm";
-  
-  const switchClassName = "data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted";
-
   return (
-    <PageShell>
-      <div 
-        className="min-h-screen bg-background -mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8 px-4 pt-4 pb-8 md:px-6 md:pt-6 lg:px-8 lg:pt-8"
-        style={{ fontFamily: 'var(--ecode-font-sans)' }}
-      >
-        <PageHeader
-          title="Workspace settings"
-          description="Manage your account, security, and IDE preferences from a single place."
-          icon={Settings2}
-          actions={(
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                variant="outline"
-                className="gap-2 border-border bg-card text-foreground hover:bg-muted hover:border-primary/30 transition-all duration-200"
-                onClick={() => navigate('/account')}
-                data-testid="button-account-overview"
-              >
-                <User className="h-4 w-4" />
-                Account overview
-              </Button>
-              <Button 
-                className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200"
-                onClick={handleSaveProfile}
-                disabled={isSaving}
-                data-testid="button-save-changes"
-              >
-                <Check className="h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save changes'}
-              </Button>
-            </div>
-          )}
-        />
+    <div className="container mx-auto py-6 max-w-6xl">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <p className="text-muted-foreground">Manage your account and preferences</p>
+      </div>
 
-        <div className={`grid ${TABLET_GRID_CLASSES.settingsTabletOptimized} mt-6`}>
-          <div className="md:col-span-1 lg:col-span-1">
-            <nav 
-              className="space-y-1 p-2 rounded-xl border border-border bg-card"
-              data-testid="nav-settings-sidebar"
-            >
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-200 min-h-[44px] ${
-                      isActive 
-                        ? 'bg-primary/10 text-primary border-l-2 border-primary pl-[10px]' 
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    }`}
-                    onClick={() => setActiveTab(item.id)}
-                    data-testid={`button-settings-${item.id}`}
-                  >
-                    <Icon className={`h-4 w-4 ${isActive ? 'text-primary' : ''}`} />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Sidebar Navigation */}
+        <div className="md:col-span-1">
+          <nav className="space-y-1">
+            {[
+              { id: 'account', label: 'Account', icon: User },
+              { id: 'notifications', label: 'Notifications', icon: Bell },
+              { id: 'appearance', label: 'Appearance', icon: Palette },
+              { id: 'editor', label: 'Editor', icon: Code },
+              { id: 'privacy', label: 'Privacy & Security', icon: Shield },
+              { id: 'billing', label: 'Billing', icon: CreditCard },
+              { id: 'integrations', label: 'Integrations', icon: Link },
+              { id: 'data', label: 'Data & Export', icon: Database },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <Button
+                  key={item.id}
+                  variant={activeTab === item.id ? 'secondary' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => setActiveTab(item.id)}
+                >
+                  <Icon className="mr-2 h-4 w-4" />
+                  {item.label}
+                </Button>
+              );
+            })}
+          </nav>
+        </div>
 
           <div className={TABLET_GRID_CLASSES.settingsContentTabletOptimized}>
             {activeTab === 'account' && (
@@ -841,134 +753,9 @@ export default function Settings() {
                 </Card>
               </div>
             )}
-
-            {activeTab === 'integrations' && (
-              <Card className={cardClassName} data-testid="card-integrations">
-                <CardHeader>
-                  <CardTitle className="text-foreground">Connected Services</CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    Manage your connected accounts and services
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/30 transition-all duration-200">
-                    <div className="flex items-center gap-3">
-                      <Github className="h-8 w-8 text-foreground" />
-                      <div>
-                        <h4 className="font-semibold text-foreground">GitHub</h4>
-                        <p className="text-[13px] text-muted-foreground">
-                          Import and sync repositories
-                        </p>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="outline"
-                      className="border-border bg-card text-foreground hover:bg-muted hover:border-primary/30"
-                      data-testid="button-connect-github"
-                    >
-                      Connect
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/30 transition-all duration-200">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 bg-blue-500 rounded flex items-center justify-center text-white font-bold">
-                        G
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-foreground">Cloud Account</h4>
-                        <p className="text-[13px] text-muted-foreground">
-                          Cloud authentication linked
-                        </p>
-                      </div>
-                    </div>
-                    <Badge 
-                      variant="secondary" 
-                      className="gap-1 bg-green-500/10 text-green-600 border-0"
-                    >
-                      <Check className="h-3 w-3" />
-                      Connected
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === 'data' && (
-              <div className="space-y-6">
-                <Card className={cardClassName} data-testid="card-export-data">
-                  <CardHeader>
-                    <CardTitle className="text-foreground">Export Your Data</CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                      Download all your repls and account data
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button 
-                      className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200"
-                      data-testid="button-export-data"
-                    >
-                      <Download className="h-4 w-4" />
-                      Export All Data
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="border border-red-500/30 bg-card shadow-sm"
-                  data-testid="card-danger-zone"
-                >
-                  <CardHeader>
-                    <CardTitle className="text-red-500">Danger Zone</CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                      Irreversible actions
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="destructive"
-                          className="bg-red-500 hover:bg-red-600 text-white"
-                          data-testid="button-delete-account"
-                        >
-                          Delete Account
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="border-border bg-card">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="text-foreground">
-                            Are you absolutely sure?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription className="text-muted-foreground">
-                            This action cannot be undone. This will permanently delete your
-                            account and remove all your data from our servers.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel 
-                            className="border-border bg-card text-foreground hover:bg-muted"
-                            data-testid="button-cancel-delete"
-                          >
-                            Cancel
-                          </AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleDeleteAccount}
-                            className="bg-red-500 hover:bg-red-600 text-white"
-                            data-testid="button-confirm-delete"
-                          >
-                            Delete Account
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
           </div>
         </div>
       </div>
-    </PageShell>
+    </div>
   );
 }

@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 // Define types locally to avoid circular dependencies
-// Full 29-language support for Fortune 500 production parity with Replit
 export type Language = 
   | 'nodejs'
   | 'python'
@@ -29,18 +28,7 @@ export type Language =
   | 'bash'
   | 'html-css-js'
   | 'nix'
-  | 'deno'
-  | 'lua'
-  | 'perl'
-  | 'r'
-  | 'haskell'
-  | 'scala'
-  | 'clojure'
-  | 'elixir'
-  | 'julia'
-  | 'ocaml'
-  | 'fortran'
-  | 'zig';
+  | 'deno';
 
 export interface LanguageConfig {
   name: string;
@@ -181,87 +169,9 @@ export const languageConfigs: Record<Language, LanguageConfig> = {
     fileExtensions: ['.ts', '.js'],
     defaultFile: 'index.ts',
     runCommand: 'deno run --allow-net index.ts'
-  },
-  lua: {
-    name: 'lua',
-    displayName: 'Lua',
-    fileExtensions: ['.lua'],
-    defaultFile: 'main.lua',
-    runCommand: 'lua main.lua'
-  },
-  perl: {
-    name: 'perl',
-    displayName: 'Perl',
-    fileExtensions: ['.pl', '.pm'],
-    defaultFile: 'main.pl',
-    runCommand: 'perl main.pl'
-  },
-  r: {
-    name: 'r',
-    displayName: 'R',
-    fileExtensions: ['.r', '.R'],
-    defaultFile: 'main.R',
-    runCommand: 'Rscript main.R'
-  },
-  haskell: {
-    name: 'haskell',
-    displayName: 'Haskell',
-    fileExtensions: ['.hs', '.lhs'],
-    defaultFile: 'Main.hs',
-    runCommand: 'runhaskell Main.hs'
-  },
-  scala: {
-    name: 'scala',
-    displayName: 'Scala',
-    fileExtensions: ['.scala', '.sc'],
-    defaultFile: 'Main.scala',
-    runCommand: 'scala Main'
-  },
-  clojure: {
-    name: 'clojure',
-    displayName: 'Clojure',
-    fileExtensions: ['.clj', '.cljs'],
-    defaultFile: 'main.clj',
-    runCommand: 'clojure main.clj'
-  },
-  elixir: {
-    name: 'elixir',
-    displayName: 'Elixir',
-    fileExtensions: ['.ex', '.exs'],
-    defaultFile: 'main.exs',
-    runCommand: 'elixir main.exs'
-  },
-  julia: {
-    name: 'julia',
-    displayName: 'Julia',
-    fileExtensions: ['.jl'],
-    defaultFile: 'main.jl',
-    runCommand: 'julia main.jl'
-  },
-  ocaml: {
-    name: 'ocaml',
-    displayName: 'OCaml',
-    fileExtensions: ['.ml', '.mli'],
-    defaultFile: 'main.ml',
-    runCommand: 'ocaml main.ml'
-  },
-  fortran: {
-    name: 'fortran',
-    displayName: 'Fortran',
-    fileExtensions: ['.f90', '.f95', '.f'],
-    defaultFile: 'main.f90',
-    runCommand: './main'
-  },
-  zig: {
-    name: 'zig',
-    displayName: 'Zig',
-    fileExtensions: ['.zig'],
-    defaultFile: 'main.zig',
-    runCommand: 'zig run main.zig'
   }
 };
 import { Loader2 } from 'lucide-react';
-import { FaJava } from 'react-icons/fa';
 
 // Importing language icons - using simpler set of icons that are guaranteed to exist
 import {
@@ -269,6 +179,7 @@ import {
   SiNodedotjs,
   SiJavascript,
   SiTypescript,
+  SiOracle, // Using as Java icon
   SiGo,
   SiRuby,
   SiRust,
@@ -282,26 +193,15 @@ import {
   SiLinux, // Using as Bash icon
   SiHtml5,
   SiNixos,
-  SiDeno,
-  SiLua,
-  SiPerl,
-  SiR,
-  SiHaskell,
-  SiScala,
-  SiClojure,
-  SiElixir,
-  SiJulia,
-  SiOcaml,
-  SiFortran,
-  SiZig
+  SiDeno
 } from 'react-icons/si';
 
-// Map of language icons - Full 29-language support
+// Map of language icons
 const languageIcons: Record<string, React.ReactNode> = {
   nodejs: <SiNodedotjs className="h-6 w-6 text-green-600" />,
   typescript: <SiTypescript className="h-6 w-6 text-blue-600" />,
   python: <SiPython className="h-6 w-6 text-blue-500" />,
-  java: <FaJava className="h-6 w-6 text-red-600" />,
+  java: <SiOracle className="h-6 w-6 text-red-600" />,  // Using Oracle icon for Java
   go: <SiGo className="h-6 w-6 text-blue-400" />,
   ruby: <SiRuby className="h-6 w-6 text-red-500" />,
   rust: <SiRust className="h-6 w-6 text-orange-700" />,
@@ -315,18 +215,7 @@ const languageIcons: Record<string, React.ReactNode> = {
   bash: <SiLinux className="h-6 w-6 text-gray-800" />,  // Using Linux icon for Bash
   'html-css-js': <SiHtml5 className="h-6 w-6 text-orange-600" />,
   nix: <SiNixos className="h-6 w-6 text-blue-500" />,
-  deno: <SiDeno className="h-6 w-6 text-black" />,
-  lua: <SiLua className="h-6 w-6 text-blue-600" />,
-  perl: <SiPerl className="h-6 w-6 text-blue-500" />,
-  r: <SiR className="h-6 w-6 text-blue-400" />,
-  haskell: <SiHaskell className="h-6 w-6 text-purple-600" />,
-  scala: <SiScala className="h-6 w-6 text-red-500" />,
-  clojure: <SiClojure className="h-6 w-6 text-green-600" />,
-  elixir: <SiElixir className="h-6 w-6 text-purple-500" />,
-  julia: <SiJulia className="h-6 w-6 text-green-500" />,
-  ocaml: <SiOcaml className="h-6 w-6 text-orange-500" />,
-  fortran: <SiFortran className="h-6 w-6 text-purple-700" />,
-  zig: <SiZig className="h-6 w-6 text-orange-400" />
+  deno: <SiDeno className="h-6 w-6 text-black" />
 };
 
 interface LanguageEnvironmentsProps {
@@ -403,7 +292,7 @@ export function LanguageEnvironments({ onSelectLanguage, selectedLanguage }: Lan
                             </div>
                           </div>
                         </CardHeader>
-                        <CardFooter className="pt-0 pb-3 text-[11px] text-muted-foreground">
+                        <CardFooter className="pt-0 pb-3 text-xs text-muted-foreground">
                           {config.fileExtensions.join(', ')}
                         </CardFooter>
                       </Card>

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { storage } from '../storage';
 import * as path from 'path';
 

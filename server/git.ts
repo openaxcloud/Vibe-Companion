@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -34,7 +33,7 @@ interface RepoStatus {
 }
 
 // Create project workspace directory
-async function getProjectWorkspace(projectId: string): Promise<string> {
+async function getProjectWorkspace(projectId: number): Promise<string> {
   const workspaceDir = path.join(os.tmpdir(), `plot-workspace-${projectId}`);
   
   try {
@@ -47,20 +46,20 @@ async function getProjectWorkspace(projectId: string): Promise<string> {
 }
 
 // Initialize project files in workspace
-async function initializeWorkspace(projectId: string, workspaceDir: string): Promise<void> {
+async function initializeWorkspace(projectId: number, workspaceDir: string): Promise<void> {
   try {
     // Get all project files
     const files = await storage.getFilesByProject(projectId);
     
     // Process folders first to create directory structure
-    const folders = files.filter(file => file.isDirectory);
+    const folders = files.filter(file => file.isFolder);
     for (const folder of folders) {
       const folderPath = path.join(workspaceDir, folder.name);
       await fs.promises.mkdir(folderPath, { recursive: true });
     }
     
     // Process files
-    const nonFolders = files.filter(file => !file.isDirectory);
+    const nonFolders = files.filter(file => !file.isFolder);
     for (const file of nonFolders) {
       const filePath = path.join(workspaceDir, file.name);
       await fs.promises.writeFile(filePath, file.content || '', 'utf8');
@@ -111,7 +110,7 @@ async function execGit(
 }
 
 // Initialize a Git repository in the project workspace
-export async function initRepo(projectId: string): Promise<GitResult> {
+export async function initRepo(projectId: number): Promise<GitResult> {
   try {
     // Get project
     const project = await storage.getProject(projectId);
@@ -147,7 +146,7 @@ export async function initRepo(projectId: string): Promise<GitResult> {
       'commit', 
       '-m', 
       'Initial commit',
-      '--author="E-CODE <system@e-code.ai>"'
+      '--author="PLOT <plot@replit.clone>"'
     ]);
     
     return { 
@@ -161,7 +160,7 @@ export async function initRepo(projectId: string): Promise<GitResult> {
 }
 
 // Check if the project is a Git repository
-export async function isGitRepo(projectId: string): Promise<GitResult> {
+export async function isGitRepo(projectId: number): Promise<GitResult> {
   try {
     // Get workspace
     const workspaceDir = await getProjectWorkspace(projectId);
@@ -191,7 +190,7 @@ export async function isGitRepo(projectId: string): Promise<GitResult> {
 }
 
 // Get repository status (current branch, changes, etc.)
-export async function getRepoStatus(projectId: string): Promise<GitResult> {
+export async function getRepoStatus(projectId: number): Promise<GitResult> {
   try {
     // Check if repo
     const isRepo = await isGitRepo(projectId);
@@ -275,7 +274,7 @@ export async function getRepoStatus(projectId: string): Promise<GitResult> {
 
 // Add files to staging area
 export async function addFiles(
-  projectId: string, 
+  projectId: number, 
   files: string[]
 ): Promise<GitResult> {
   try {
@@ -313,7 +312,7 @@ export async function addFiles(
 
 // Commit changes
 export async function commit(
-  projectId: string, 
+  projectId: number, 
   message: string,
   author?: { name: string; email: string }
 ): Promise<GitResult> {
@@ -367,7 +366,7 @@ export async function commit(
 
 // Add remote repository
 export async function addRemote(
-  projectId: string, 
+  projectId: number, 
   name: string, 
   url: string
 ): Promise<GitResult> {
@@ -406,7 +405,7 @@ export async function addRemote(
 
 // Push to remote repository
 export async function push(
-  projectId: string, 
+  projectId: number, 
   remote: string = 'origin', 
   branch: string = 'main',
   credentials?: { username: string; password: string }
@@ -425,7 +424,7 @@ export async function push(
     const workspaceDir = await getProjectWorkspace(projectId);
     
     // Prepare env with credentials if provided
-    let env: Record<string, string> = {};
+    let env: NodeJS.ProcessEnv = {};
     if (credentials) {
       env.GIT_ASKPASS = 'echo';
       env.GIT_USERNAME = credentials.username;
@@ -459,7 +458,7 @@ export async function push(
 
 // Pull from remote repository
 export async function pull(
-  projectId: string, 
+  projectId: number, 
   remote: string = 'origin', 
   branch: string = 'main',
   credentials?: { username: string; password: string }
@@ -478,7 +477,7 @@ export async function pull(
     const workspaceDir = await getProjectWorkspace(projectId);
     
     // Prepare env with credentials if provided
-    let env: Record<string, string> = {};
+    let env: NodeJS.ProcessEnv = {};
     if (credentials) {
       env.GIT_ASKPASS = 'echo';
       env.GIT_USERNAME = credentials.username;
@@ -514,7 +513,7 @@ export async function pull(
 
 // Clone a repository into a project
 export async function cloneRepo(
-  projectId: string,
+  projectId: number,
   url: string,
   credentials?: { username: string; password: string }
 ): Promise<GitResult> {
@@ -565,7 +564,7 @@ export async function cloneRepo(
 }
 
 // Sync workspace files to project
-async function syncWorkspaceToProject(projectId: string, workspaceDir: string): Promise<void> {
+async function syncWorkspaceToProject(projectId: number, workspaceDir: string): Promise<void> {
   try {
     // Get existing project files
     const existingFiles = await storage.getFilesByProject(projectId);
@@ -592,9 +591,9 @@ async function syncWorkspaceToProject(projectId: string, workspaceDir: string): 
           await storage.createFile({
             name: relativePath,
             content: '',
-            isDirectory: true,
+            isFolder: true,
             projectId,
-            path: relativePath
+            parentId: null
           });
           
           // Recursively process subdirectories
@@ -615,9 +614,9 @@ async function syncWorkspaceToProject(projectId: string, workspaceDir: string): 
       await storage.createFile({
         name: filePath,
         content,
-        isDirectory: false,
+        isFolder: false,
         projectId,
-        path: filePath
+        parentId: null
       });
     }
   } catch (error) {
@@ -643,7 +642,7 @@ function mapStatus(code: string): string {
 
 // Get commit history
 export async function getCommitHistory(
-  projectId: string, 
+  projectId: number, 
   limit: number = 20
 ): Promise<GitResult> {
   try {

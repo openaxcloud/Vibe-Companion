@@ -13,14 +13,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { apiRequest } from '@/lib/queryClient';
 
 interface ReplitDBProps {
   projectId: number;
@@ -76,7 +75,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
   const loadEntries = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/database/${projectId}/replitdb`);
+      const response = await fetch(`/api/projects/${projectId}/db`);
       if (response.ok) {
         const data = await response.json();
           // Get all keys and their values
@@ -84,7 +83,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
         const entries: DBEntry[] = [];
         
         for (const key of keys) {
-          const valueResponse = await fetch(`/api/database/${projectId}/replitdb/${key}`);
+          const valueResponse = await fetch(`/api/projects/${projectId}/db/${key}`);
           if (valueResponse.ok) {
             const { value } = await valueResponse.json();
             entries.push({
@@ -113,7 +112,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
 
   const loadStats = async () => {
     try {
-      const response = await fetch(`/api/database/${projectId}/replitdb/stats`);
+      const response = await fetch(`/api/projects/${projectId}/db/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -157,7 +156,11 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
         parsedValue = null;
       }
 
-      const response = await apiRequest('POST', `/api/database/${projectId}/replitdb`, { key: newKey, value: parsedValue });
+      const response = await fetch(`/api/projects/${projectId}/db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: newKey, value: parsedValue })
+      });
 
       if (response.ok) {
         await loadEntries();
@@ -193,7 +196,11 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
         parsedValue = JSON.parse(editValue);
       }
 
-      const response = await apiRequest('PUT', `/api/database/${projectId}/replitdb/${selectedEntry.key}`, { value: parsedValue });
+      const response = await fetch(`/api/projects/${projectId}/db/${selectedEntry.key}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: parsedValue })
+      });
 
       if (response.ok) {
         await loadEntries();
@@ -214,7 +221,9 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
 
   const handleDelete = async (key: string) => {
     try {
-      const response = await apiRequest('DELETE', `/api/database/${projectId}/replitdb/${key}`, {});
+      const response = await fetch(`/api/projects/${projectId}/db/${key}`, {
+        method: 'DELETE'
+      });
 
       if (response.ok) {
         await loadEntries();
@@ -271,7 +280,11 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      const response = await apiRequest('POST', `/api/database/${projectId}/replitdb/import`, { data });
+      const response = await fetch(`/api/projects/${projectId}/db/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data })
+      });
 
       if (response.ok) {
         await loadEntries();
@@ -292,10 +305,10 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
   const getValuePreview = (value: any, type: DBEntry['type']) => {
     if (type === 'null') return <span className="text-muted-foreground">null</span>;
     if (type === 'boolean') return <Badge variant={value ? 'default' : 'secondary'}>{String(value)}</Badge>;
-    if (type === 'number') return <code className="text-[13px]">{value}</code>;
-    if (type === 'string') return <span className="text-[13px] truncate max-w-[200px] inline-block">{value}</span>;
-    if (type === 'array') return <span className="text-[13px] text-muted-foreground">[{value.length} items]</span>;
-    if (type === 'object') return <span className="text-[13px] text-muted-foreground">{Object.keys(value).length} properties</span>;
+    if (type === 'number') return <code className="text-sm">{value}</code>;
+    if (type === 'string') return <span className="text-sm truncate max-w-[200px] inline-block">{value}</span>;
+    if (type === 'array') return <span className="text-sm text-muted-foreground">[{value.length} items]</span>;
+    if (type === 'object') return <span className="text-sm text-muted-foreground">{Object.keys(value).length} properties</span>;
   };
 
   const getValueType = (value: any): DBEntry['type'] => {
@@ -331,7 +344,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center">
               <Database className="h-4 w-4 mr-2" />
-              E-Code DB
+              Replit DB
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Button
@@ -382,26 +395,26 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
 
         <CardContent className="p-0">
           {/* Search and Stats */}
-          <div className="px-2.5 py-2 border-b border-[var(--ecode-border)] space-y-2">
+          <div className="p-4 border-b space-y-3">
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--ecode-text-muted)]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search keys or values..."
-                className="pl-7 h-7 text-xs bg-[var(--ecode-sidebar-hover)] border-[var(--ecode-border)]"
+                className="pl-9 h-8"
               />
             </div>
             
             {stats && (
-              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-[var(--ecode-text-muted)]">Total Keys:</span>
-                  <span className="font-medium text-[var(--ecode-text)]">{stats.totalKeys}</span>
+                  <span className="text-muted-foreground">Total Keys:</span>
+                  <span className="font-medium">{stats.totalKeys}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[var(--ecode-text-muted)]">Total Size:</span>
-                  <span className="font-medium text-[var(--ecode-text)]">{stats.totalSize}</span>
+                  <span className="text-muted-foreground">Total Size:</span>
+                  <span className="font-medium">{stats.totalSize}</span>
                 </div>
               </div>
             )}
@@ -418,7 +431,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
                       className={`p-2 rounded cursor-pointer transition-colors ${
                         selectedEntry?.key === entry.key 
                           ? 'bg-accent' 
-                          : 'hover:bg-surface-hover-solid'
+                          : 'hover:bg-accent/50'
                       }`}
                       onClick={() => {
                         setSelectedEntry(entry);
@@ -430,13 +443,13 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-1 mb-1">
                             {getTypeIcon(entry.type)}
-                            <span className="text-[13px] font-medium truncate">{entry.key}</span>
+                            <span className="text-sm font-medium truncate">{entry.key}</span>
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-xs text-muted-foreground">
                             {getValuePreview(entry.value, entry.type)}
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[11px] ml-2">
+                        <Badge variant="outline" className="text-xs ml-2">
                           {formatSize(entry.size)}
                         </Badge>
                       </div>
@@ -457,10 +470,10 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
                         <span className="ml-2">{selectedEntry.key}</span>
                       </h3>
                       <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="secondary" className="text-[11px]">
+                        <Badge variant="secondary" className="text-xs">
                           {selectedEntry.type}
                         </Badge>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {formatSize(selectedEntry.size)}
                         </span>
                       </div>
@@ -525,12 +538,12 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
                       <Textarea
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        className="h-full font-mono text-[11px] resize-none"
+                        className="h-full font-mono text-xs resize-none"
                         placeholder="Enter value..."
                       />
                     ) : (
                       <ScrollArea className="h-full">
-                        <pre className="text-[11px] p-3 bg-muted rounded">
+                        <pre className="text-xs p-3 bg-muted rounded">
                           <code>{JSON.stringify(selectedEntry.value, null, 2)}</code>
                         </pre>
                       </ScrollArea>
@@ -541,7 +554,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
                 <div className="h-full flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-[13px]">Select a key to view its value</p>
+                    <p className="text-sm">Select a key to view its value</p>
                   </div>
                 </div>
               )}
@@ -555,9 +568,6 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Database Entry</DialogTitle>
-            <DialogDescription>
-              Create a new key-value pair in your E-Code database.
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -610,7 +620,7 @@ export function ReplitDB({ projectId, className }: ReplitDBProps) {
                     newValueType === 'number' ? '42' :
                     'Enter value...'
                   }
-                  className="font-mono text-[13px]"
+                  className="font-mono text-sm"
                 />
               )}
             </div>

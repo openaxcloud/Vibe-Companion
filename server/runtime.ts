@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Runtime service for PLOT projects
  * This module handles project runtime management, execution, and monitoring
@@ -15,7 +14,7 @@ import { log } from './vite';
 import { WebSocket } from 'ws';
 
 // Map of active project processes
-const activeProjects = new Map<string, {
+const activeProjects = new Map<number, {
   process: ChildProcess;
   logs: string[];
   status: 'starting' | 'running' | 'stopped' | 'error';
@@ -28,7 +27,7 @@ const activeProjects = new Map<string, {
 /**
  * Start a project's runtime
  */
-export async function startProject(projectId: string): Promise<{
+export async function startProject(projectId: number): Promise<{
   success: boolean;
   url?: string;
   error?: string;
@@ -54,36 +53,12 @@ export async function startProject(projectId: string): Promise<{
     }
     
     // Get project files
-    let files = await storage.getFilesByProject(projectId);
-    
-    // If no files exist, create default files based on project language
+    const files = await storage.getFilesByProject(projectId);
     if (!files.length) {
-      const language = (project.language || 'javascript') as Language;
-      const defaultFiles = getDefaultProjectFiles(language);
-      
-      // Create default files in storage
-      for (const file of defaultFiles) {
-        if (!file.isFolder) {
-          await storage.createFile({
-            projectId: projectId,
-            path: file.name,
-            content: file.content || ''
-          });
-        }
-      }
-      
-      // Reload files after creation
-      files = await storage.getFilesByProject(projectId);
-      
-      // If still no files, return error
-      if (!files.length) {
-        return {
-          success: false,
-          error: 'Failed to create default project files'
-        };
-      }
-      
-      log(`Created default files for project ${projectId}`, 'runtime');
+      return {
+        success: false,
+        error: 'No files found in project'
+      };
     }
 
     // Init logs if not existing
@@ -185,7 +160,7 @@ export async function startProject(projectId: string): Promise<{
 /**
  * Stop a project's runtime
  */
-export async function stopProject(projectId: string): Promise<{
+export async function stopProject(projectId: number): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -229,7 +204,7 @@ export async function stopProject(projectId: string): Promise<{
 /**
  * Get the status of a project's runtime
  */
-export function getProjectStatus(projectId: string): {
+export function getProjectStatus(projectId: number): {
   isRunning: boolean;
   status: 'starting' | 'running' | 'stopped' | 'error' | 'unknown';
   logs: string[];
@@ -257,7 +232,7 @@ export function getProjectStatus(projectId: string): {
  * Attach to project logs stream
  */
 export function attachToProjectLogs(
-  projectId: string,
+  projectId: number,
   client: WebSocket,
   sendMessage: (message: string) => void
 ): void {
@@ -290,7 +265,7 @@ export function attachToProjectLogs(
 /**
  * Broadcast log messages to all connected clients
  */
-function broadcastLogsToClients(projectId: string, message: string): void {
+function broadcastLogsToClients(projectId: number, message: string): void {
   if (!activeProjects.has(projectId)) return;
   
   const projectData = activeProjects.get(projectId)!;
@@ -364,7 +339,7 @@ export function getDefaultProjectFiles(language: Language): { name: string, cont
 /**
  * Execute a command in a project runtime
  */
-export async function executeProjectCommand(projectId: string, command: string): Promise<{
+export async function executeProjectCommand(projectId: number, command: string): Promise<{
   success: boolean;
   output: string;
 }> {

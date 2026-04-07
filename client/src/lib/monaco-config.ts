@@ -1,28 +1,54 @@
 // Monaco Editor Configuration and Worker Setup
-// Use CDN for production-ready worker loading
-const MONACO_VERSION = '0.52.2';
-const CDN_BASE = `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VERSION}/min/vs`;
-
-// Configure Monaco environment to use CDN workers
-(self as any).MonacoEnvironment = {
-  getWorkerUrl: function(moduleId: string, label: string) {
+self.MonacoEnvironment = {
+  getWorker: function (_: any, label: string) {
     if (label === 'json') {
-      return `${CDN_BASE}/language/json/json.worker.js`;
+      return new Worker(
+        new URL(
+          'monaco-editor/esm/vs/language/json/json.worker?worker',
+          import.meta.url
+        ),
+        { type: 'module' }
+      );
     }
     if (label === 'css' || label === 'scss' || label === 'less') {
-      return `${CDN_BASE}/language/css/css.worker.js`;
+      return new Worker(
+        new URL(
+          'monaco-editor/esm/vs/language/css/css.worker?worker',
+          import.meta.url
+        ),
+        { type: 'module' }
+      );
     }
     if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return `${CDN_BASE}/language/html/html.worker.js`;
+      return new Worker(
+        new URL(
+          'monaco-editor/esm/vs/language/html/html.worker?worker',
+          import.meta.url
+        ),
+        { type: 'module' }
+      );
     }
     if (label === 'typescript' || label === 'javascript') {
-      return `${CDN_BASE}/language/typescript/ts.worker.js`;
+      return new Worker(
+        new URL(
+          'monaco-editor/esm/vs/language/typescript/ts.worker?worker',
+          import.meta.url
+        ),
+        { type: 'module' }
+      );
     }
-    return `${CDN_BASE}/editor/editor.worker.js`;
+    return new Worker(
+      new URL(
+        'monaco-editor/esm/vs/editor/editor.worker?worker',
+        import.meta.url
+      ),
+      { type: 'module' }
+    );
   }
 };
 
 // Configure Monaco settings
 export const configureMonaco = () => {
   // Additional Monaco configurations can be added here
+  console.log('Monaco Editor configured');
 };

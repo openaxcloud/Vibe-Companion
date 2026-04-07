@@ -34,18 +34,6 @@ export class GitManager {
     this.projectsPath = path.join(process.cwd(), 'projects');
   }
 
-  async isGitInitialized(projectId: number): Promise<boolean> {
-    const projectPath = await this.getProjectPath(projectId);
-    
-    try {
-      // Check if .git directory exists
-      await fs.access(path.join(projectPath, '.git'));
-      return true;
-    } catch (err: any) { console.error("[catch]", err?.message || err);
-      return false;
-    }
-  }
-
   async initRepository(projectId: number): Promise<boolean> {
     const projectPath = await this.getProjectPath(projectId);
     
@@ -150,7 +138,7 @@ temp/
         const [ahead, behind] = aheadBehind.trim().split('\t').map(n => parseInt(n, 10));
         status.ahead = ahead || 0;
         status.behind = behind || 0;
-      } catch (err: any) { console.error("[catch]", err?.message || err);
+      } catch {
         // No upstream branch
       }
       

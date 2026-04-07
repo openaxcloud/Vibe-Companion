@@ -4,12 +4,8 @@
  */
 
 import { pgEnum } from 'drizzle-orm/pg-core';
-import { createLogger } from '../utils/logger';
-
-const logger = createLogger('languages');
 
 // Language type for the database schema
-// Comprehensive list of languages for Fortune 500 production use (Replit parity)
 export const languageRuntimeEnum = pgEnum('language_runtime', [
   'nodejs',
   'python',
@@ -28,19 +24,7 @@ export const languageRuntimeEnum = pgEnum('language_runtime', [
   'bash',
   'html-css-js',
   'nix',
-  'deno',
-  // Additional mainstream languages (Replit parity)
-  'lua',
-  'perl',
-  'r',
-  'haskell',
-  'scala',
-  'clojure',
-  'elixir',
-  'julia',
-  'ocaml',
-  'fortran',
-  'zig'
+  'deno'
 ]);
 
 export type Language = typeof languageRuntimeEnum.enumValues[number];
@@ -155,9 +139,8 @@ func main() {
     displayName: 'PHP',
     fileExtensions: ['.php', '.phtml', '.php7'],
     defaultFile: 'index.php',
-    defaultContent: `<?php
-echo "Hello, world!\\n";`,
-    runCommand: 'php index.php',
+    defaultContent: `<?php echo "Hello, world!"; ?>`,
+    runCommand: 'php -S 0.0.0.0:8080',
     installCommand: 'composer install',
     packageManager: 'composer',
     packageFile: 'composer.json',
@@ -200,11 +183,19 @@ int main() {
     displayName: 'C#',
     fileExtensions: ['.cs'],
     defaultFile: 'Program.cs',
-    defaultContent: `Console.WriteLine("Hello, world!");`,
-    runCommand: 'dotnet run --project app.csproj',
+    defaultContent: 
+`using System;
+
+class Program {
+  static void Main(string[] args) {
+    Console.WriteLine("Hello, world!");
+  }
+}`,
+    compilerCommand: 'dotnet build',
+    runCommand: 'dotnet run',
     installCommand: 'dotnet restore',
     packageManager: 'dotnet',
-    packageFile: 'app.csproj',
+    packageFile: '*.csproj',
     icon: 'csharp'
   },
   swift: {
@@ -252,7 +243,8 @@ int main() {
     fileExtensions: ['.ts', '.tsx'],
     defaultFile: 'index.ts',
     defaultContent: `console.log('Hello, world!');`,
-    runCommand: 'tsx index.ts',  // tsx is faster than ts-node, no compilation needed
+    compilerCommand: 'tsc',
+    runCommand: 'ts-node index.ts',
     installCommand: 'npm install',
     packageManager: 'npm',
     packageFile: 'package.json',
@@ -329,130 +321,6 @@ pkgs.stdenv.mkDerivation {
     runCommand: 'deno run --allow-net index.ts',
     icon: 'deno'
   },
-  
-  // Additional mainstream languages for Fortune 500 production use
-  lua: {
-    name: 'lua',
-    displayName: 'Lua',
-    fileExtensions: ['.lua'],
-    defaultFile: 'main.lua',
-    defaultContent: `print("Hello, world!")`,
-    runCommand: 'lua main.lua',
-    icon: 'lua'
-  },
-  perl: {
-    name: 'perl',
-    displayName: 'Perl',
-    fileExtensions: ['.pl', '.pm', '.cgi'],
-    defaultFile: 'main.pl',
-    defaultContent: `#!/usr/bin/perl
-use strict;
-use warnings;
-
-print "Hello, world!\\n";`,
-    runCommand: 'perl main.pl',
-    icon: 'perl'
-  },
-  r: {
-    name: 'r',
-    displayName: 'R',
-    fileExtensions: ['.r', '.R', '.rmd'],
-    defaultFile: 'main.R',
-    defaultContent: `print("Hello, world!")`,
-    runCommand: 'Rscript main.R',
-    icon: 'r'
-  },
-  haskell: {
-    name: 'haskell',
-    displayName: 'Haskell',
-    fileExtensions: ['.hs', '.lhs'],
-    defaultFile: 'Main.hs',
-    defaultContent: `main :: IO ()
-main = putStrLn "Hello, world!"`,
-    compilerCommand: 'ghc Main.hs -o main',
-    runCommand: './main',
-    icon: 'haskell'
-  },
-  scala: {
-    name: 'scala',
-    displayName: 'Scala',
-    fileExtensions: ['.scala', '.sc'],
-    defaultFile: 'Main.scala',
-    defaultContent: `object Main extends App {
-  println("Hello, world!")
-}`,
-    compilerCommand: 'scalac Main.scala',
-    runCommand: 'scala Main',
-    icon: 'scala'
-  },
-  clojure: {
-    name: 'clojure',
-    displayName: 'Clojure',
-    fileExtensions: ['.clj', '.cljs', '.cljc', '.edn'],
-    defaultFile: 'main.clj',
-    defaultContent: `(println "Hello, world!")`,
-    runCommand: 'clojure -M main.clj',
-    packageManager: 'leiningen',
-    packageFile: 'project.clj',
-    icon: 'clojure'
-  },
-  elixir: {
-    name: 'elixir',
-    displayName: 'Elixir',
-    fileExtensions: ['.ex', '.exs'],
-    defaultFile: 'main.exs',
-    defaultContent: `IO.puts("Hello, world!")`,
-    runCommand: 'elixir main.exs',
-    packageManager: 'mix',
-    packageFile: 'mix.exs',
-    icon: 'elixir'
-  },
-  julia: {
-    name: 'julia',
-    displayName: 'Julia',
-    fileExtensions: ['.jl'],
-    defaultFile: 'main.jl',
-    defaultContent: `println("Hello, world!")`,
-    runCommand: 'julia main.jl',
-    packageManager: 'Pkg',
-    packageFile: 'Project.toml',
-    icon: 'julia'
-  },
-  ocaml: {
-    name: 'ocaml',
-    displayName: 'OCaml',
-    fileExtensions: ['.ml', '.mli'],
-    defaultFile: 'main.ml',
-    defaultContent: `let () = print_endline "Hello, world!"`,
-    runCommand: 'ocaml main.ml',
-    packageManager: 'opam',
-    icon: 'ocaml'
-  },
-  fortran: {
-    name: 'fortran',
-    displayName: 'Fortran',
-    fileExtensions: ['.f', '.f90', '.f95', '.f03'],
-    defaultFile: 'main.f90',
-    defaultContent: `program hello
-    print *, "Hello, world!"
-end program hello`,
-    compilerCommand: 'gfortran main.f90 -o main',
-    runCommand: './main',
-    icon: 'fortran'
-  },
-  zig: {
-    name: 'zig',
-    displayName: 'Zig',
-    fileExtensions: ['.zig'],
-    defaultFile: 'main.zig',
-    defaultContent: `const std = @import("std");
-
-pub fn main() void {
-    std.debug.print("Hello, world!\\n", .{});
-}`,
-    runCommand: 'zig run main.zig',
-    icon: 'zig'
-  },
 };
 
 /**
@@ -505,31 +373,6 @@ export function getDefaultFiles(language: Language): { name: string, content: st
       files.push({
         name: 'requirements.txt',
         content: '# Add your dependencies here\n',
-        isFolder: false
-      });
-    } else if (language === 'csharp') {
-      files.push({
-        name: 'app.csproj',
-        content: `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-</Project>`,
-        isFolder: false
-      });
-    } else if (language === 'rust') {
-      files.push({
-        name: 'Cargo.toml',
-        content: `[package]
-name = "my-project"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-`,
         isFolder: false
       });
     }

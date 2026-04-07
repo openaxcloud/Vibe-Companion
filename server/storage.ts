@@ -5949,7 +5949,7 @@ Constraints: {{constraints}}`,
     let fingerprint: string;
     try {
       fingerprint = 'SHA256:' + createHash('sha256').update(Buffer.from(keyBody, 'base64')).digest('base64').replace(/=+$/, '');
-    } catch (err: any) { console.error("[catch]", err?.message || err);
+    } catch {
       fingerprint = 'SHA256:' + createHash('sha256').update(publicKey).digest('base64').replace(/=+$/, '');
     }
     const id = crypto.randomUUID();
@@ -6085,6 +6085,71 @@ Constraints: {{constraints}}`,
       .where(eq(userConnections.userId, userId));
     return rows;
   }
+
+  private generateSlug(name: string, projectId: string | number): string {
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project';
+    return `${base}-${String(projectId).slice(0, 8)}`;
+  }
+
+  async publishProject(projectId: string | number, userId: string | number): Promise<Project | undefined> {
+    const pid = String(projectId);
+    const uid = String(userId);
+    const ownerFilter = and(eq(projects.id, pid), eq(projects.userId, uid));
+
+    const [project] = await this.db.select().from(projects).where(ownerFilter);
+    if (!project) return undefined;
+
+    const slug = project.publishedSlug || this.generateSlug(project.name, projectId);
+
+    const [updated] = await this.db
+      .update(projects)
+      .set({ isPublished: true, publishedSlug: slug, updatedAt: new Date() })
+      .where(ownerFilter)
+      .returning();
+    return updated;
+  }
+
+  async publishAsFramework(projectId: string | number, userId: string | number, opts: { description?: string; category?: string; coverUrl?: string }): Promise<Project | undefined> {
+    const pid = String(projectId);
+    const uid = String(userId);
+    const ownerFilter = and(eq(projects.id, pid), eq(projects.userId, uid));
+
+    const [project] = await this.db.select().from(projects).where(ownerFilter);
+    if (!project) return undefined;
+
+    const slug = project.publishedSlug || this.generateSlug(project.name, projectId);
+
+    const [updated] = await this.db
+      .update(projects)
+      .set({
+        isPublished: true,
+        publishedSlug: slug,
+        isDevFramework: true,
+        frameworkDescription: opts.description ?? project.frameworkDescription,
+        frameworkCategory: opts.category ?? project.frameworkCategory,
+        frameworkCoverUrl: opts.coverUrl ?? project.frameworkCoverUrl,
+        updatedAt: new Date(),
+      })
+      .where(ownerFilter)
+      .returning();
+    return updated;
+  }
+
+  async unpublishFramework(projectId: string | number, userId: string | number): Promise<Project | undefined> {
+    const pid = String(projectId);
+    const uid = String(userId);
+    const ownerFilter = and(eq(projects.id, pid), eq(projects.userId, uid));
+
+    const [project] = await this.db.select().from(projects).where(ownerFilter);
+    if (!project) return undefined;
+
+    const [updated] = await this.db
+      .update(projects)
+      .set({ isDevFramework: false, updatedAt: new Date() })
+      .where(ownerFilter)
+      .returning();
+    return updated;
+  }
 }
 
 // Initialize storage
@@ -6186,7 +6251,7 @@ async function initSessionStore() {
       } catch (tlsErr) {
         if (isTls) {
           console.warn('[Session Store] TLS connection failed, retrying without TLS');
-          try { redisClient.removeAllListeners(); redisClient.disconnect(); } catch (_err: any) { console.error('[catch]', _err?.message || _err); }
+          try { redisClient.removeAllListeners(); redisClient.disconnect(); } catch (_) {}
           const plainUrl = redisUrl.replace('rediss://', 'redis://');
           const { tls, ...plainOpts } = redisOpts;
           redisClient = new ioredis.default(plainUrl, plainOpts);

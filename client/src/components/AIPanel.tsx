@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAI } from '@/hooks/useAI';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,7 +22,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Sparkles, MessageSquare, Code, GitCompare, FileText, TestTube } from 'lucide-react';
-import { LightSyntaxHighlighter, darkStyle } from '@/components/ui/LightSyntaxHighlighter';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Markdown } from '@/components/ui/markdown';
 
 interface AIToolProps {
@@ -203,23 +204,23 @@ const AIPanel: React.FC<AIToolProps> = ({
       >
         <div className="px-4 py-2 border-b">
           <TabsList className="grid grid-cols-5 w-full">
-            <TabsTrigger value="completion" className="text-[11px] py-1 flex flex-col items-center gap-1">
+            <TabsTrigger value="completion" className="text-xs py-1 flex flex-col items-center gap-1">
               <Sparkles className="h-4 w-4" />
               <span>Complete</span>
             </TabsTrigger>
-            <TabsTrigger value="explain" className="text-[11px] py-1 flex flex-col items-center gap-1">
+            <TabsTrigger value="explain" className="text-xs py-1 flex flex-col items-center gap-1">
               <MessageSquare className="h-4 w-4" />
               <span>Explain</span>
             </TabsTrigger>
-            <TabsTrigger value="convert" className="text-[11px] py-1 flex flex-col items-center gap-1">
+            <TabsTrigger value="convert" className="text-xs py-1 flex flex-col items-center gap-1">
               <GitCompare className="h-4 w-4" />
               <span>Convert</span>
             </TabsTrigger>
-            <TabsTrigger value="document" className="text-[11px] py-1 flex flex-col items-center gap-1">
+            <TabsTrigger value="document" className="text-xs py-1 flex flex-col items-center gap-1">
               <FileText className="h-4 w-4" />
               <span>Document</span>
             </TabsTrigger>
-            <TabsTrigger value="test" className="text-[11px] py-1 flex flex-col items-center gap-1">
+            <TabsTrigger value="test" className="text-xs py-1 flex flex-col items-center gap-1">
               <TestTube className="h-4 w-4" />
               <span>Test</span>
             </TabsTrigger>
@@ -233,9 +234,9 @@ const AIPanel: React.FC<AIToolProps> = ({
               <div className="flex items-center justify-between">
                 <Label htmlFor="completion-code">Code to Complete</Label>
                 <div className="flex items-center space-x-2">
-                  <Label htmlFor="language" className="text-[11px]">Language:</Label>
+                  <Label htmlFor="language" className="text-xs">Language:</Label>
                   <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -252,7 +253,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                 id="completion-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="font-mono text-[13px] h-32"
+                className="font-mono text-sm h-32"
                 placeholder="Enter your code here..."
               />
               <Button 
@@ -282,7 +283,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                     variant="outline" 
                     size="sm"
                     onClick={handleInsertCode}
-                    className="h-7 text-[11px]"
+                    className="h-7 text-xs"
                   >
                     <Code className="mr-1 h-3 w-3" /> Insert into Editor
                   </Button>
@@ -291,15 +292,15 @@ const AIPanel: React.FC<AIToolProps> = ({
               <ScrollArea className="flex-1 border rounded-md">
                 <div className="p-4">
                   {result ? (
-                    <LightSyntaxHighlighter
+                    <SyntaxHighlighter
                       language={language}
-                      style={darkStyle}
+                      style={vscDarkPlus}
                       customStyle={{ margin: 0, background: 'transparent' }}
                     >
                       {result}
-                    </LightSyntaxHighlighter>
+                    </SyntaxHighlighter>
                   ) : (
-                    <p className="text-[13px] text-muted-foreground italic">
+                    <p className="text-sm text-muted-foreground italic">
                       Code completion will appear here...
                     </p>
                   )}
@@ -314,9 +315,9 @@ const AIPanel: React.FC<AIToolProps> = ({
               <div className="flex items-center justify-between">
                 <Label htmlFor="explain-code">Code to Explain</Label>
                 <div className="flex items-center space-x-2">
-                  <Label htmlFor="language" className="text-[11px]">Language:</Label>
+                  <Label htmlFor="language" className="text-xs">Language:</Label>
                   <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -333,7 +334,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                 id="explain-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="font-mono text-[13px] h-32"
+                className="font-mono text-sm h-32"
                 placeholder="Enter your code here..."
               />
               <Button 
@@ -362,7 +363,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                   {result ? (
                     <Markdown>{result}</Markdown>
                   ) : (
-                    <p className="text-[13px] text-muted-foreground italic">
+                    <p className="text-sm text-muted-foreground italic">
                       Code explanation will appear here...
                     </p>
                   )}
@@ -377,9 +378,9 @@ const AIPanel: React.FC<AIToolProps> = ({
               <div className="flex items-center justify-between">
                 <Label htmlFor="convert-code">Code to Convert</Label>
                 <div className="flex items-center space-x-2">
-                  <Label className="text-[11px]">From:</Label>
+                  <Label className="text-xs">From:</Label>
                   <Select value={fromLanguage} onValueChange={setFromLanguage}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Source language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -391,9 +392,9 @@ const AIPanel: React.FC<AIToolProps> = ({
                     </SelectContent>
                   </Select>
                   
-                  <Label className="text-[11px]">To:</Label>
+                  <Label className="text-xs">To:</Label>
                   <Select value={toLanguage} onValueChange={setToLanguage}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Target language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -410,7 +411,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                 id="convert-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="font-mono text-[13px] h-32"
+                className="font-mono text-sm h-32"
                 placeholder="Enter your code here..."
               />
               <Button 
@@ -440,7 +441,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                     variant="outline" 
                     size="sm"
                     onClick={handleInsertCode}
-                    className="h-7 text-[11px]"
+                    className="h-7 text-xs"
                   >
                     <Code className="mr-1 h-3 w-3" /> Insert into Editor
                   </Button>
@@ -449,15 +450,15 @@ const AIPanel: React.FC<AIToolProps> = ({
               <ScrollArea className="flex-1 border rounded-md">
                 <div className="p-4">
                   {result ? (
-                    <LightSyntaxHighlighter
+                    <SyntaxHighlighter
                       language={toLanguage}
-                      style={darkStyle}
+                      style={vscDarkPlus}
                       customStyle={{ margin: 0, background: 'transparent' }}
                     >
                       {result}
-                    </LightSyntaxHighlighter>
+                    </SyntaxHighlighter>
                   ) : (
-                    <p className="text-[13px] text-muted-foreground italic">
+                    <p className="text-sm text-muted-foreground italic">
                       Converted code will appear here...
                     </p>
                   )}
@@ -472,9 +473,9 @@ const AIPanel: React.FC<AIToolProps> = ({
               <div className="flex items-center justify-between">
                 <Label htmlFor="document-code">Code to Document</Label>
                 <div className="flex items-center space-x-2">
-                  <Label htmlFor="language" className="text-[11px]">Language:</Label>
+                  <Label htmlFor="language" className="text-xs">Language:</Label>
                   <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -486,9 +487,9 @@ const AIPanel: React.FC<AIToolProps> = ({
                     </SelectContent>
                   </Select>
                   
-                  <Label htmlFor="docStyle" className="text-[11px]">Style:</Label>
+                  <Label htmlFor="docStyle" className="text-xs">Style:</Label>
                   <Select value={docStyle} onValueChange={setDocStyle}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Doc style" />
                     </SelectTrigger>
                     <SelectContent>
@@ -504,7 +505,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                 id="document-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="font-mono text-[13px] h-32"
+                className="font-mono text-sm h-32"
                 placeholder="Enter your code here..."
               />
               <Button 
@@ -534,7 +535,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                     variant="outline" 
                     size="sm"
                     onClick={handleInsertCode}
-                    className="h-7 text-[11px]"
+                    className="h-7 text-xs"
                   >
                     <Code className="mr-1 h-3 w-3" /> Insert into Editor
                   </Button>
@@ -543,15 +544,15 @@ const AIPanel: React.FC<AIToolProps> = ({
               <ScrollArea className="flex-1 border rounded-md">
                 <div className="p-4">
                   {result ? (
-                    <LightSyntaxHighlighter
+                    <SyntaxHighlighter
                       language={language}
-                      style={darkStyle}
+                      style={vscDarkPlus}
                       customStyle={{ margin: 0, background: 'transparent' }}
                     >
                       {result}
-                    </LightSyntaxHighlighter>
+                    </SyntaxHighlighter>
                   ) : (
-                    <p className="text-[13px] text-muted-foreground italic">
+                    <p className="text-sm text-muted-foreground italic">
                       Documented code will appear here...
                     </p>
                   )}
@@ -566,9 +567,9 @@ const AIPanel: React.FC<AIToolProps> = ({
               <div className="flex items-center justify-between">
                 <Label htmlFor="test-code">Code to Test</Label>
                 <div className="flex items-center space-x-2">
-                  <Label htmlFor="language" className="text-[11px]">Language:</Label>
+                  <Label htmlFor="language" className="text-xs">Language:</Label>
                   <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -580,13 +581,13 @@ const AIPanel: React.FC<AIToolProps> = ({
                     </SelectContent>
                   </Select>
                   
-                  <Label htmlFor="framework" className="text-[11px]">Framework:</Label>
+                  <Label htmlFor="framework" className="text-xs">Framework:</Label>
                   <Select 
                     value={framework} 
                     onValueChange={setFramework}
                     disabled={!(language in frameworkOptions)}
                   >
-                    <SelectTrigger className="w-32 h-7 text-[11px]">
+                    <SelectTrigger className="w-32 h-7 text-xs">
                       <SelectValue placeholder="Test framework" />
                     </SelectTrigger>
                     <SelectContent>
@@ -609,7 +610,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                 id="test-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="font-mono text-[13px] h-32"
+                className="font-mono text-sm h-32"
                 placeholder="Enter your code here..."
               />
               <Button 
@@ -639,7 +640,7 @@ const AIPanel: React.FC<AIToolProps> = ({
                     variant="outline" 
                     size="sm"
                     onClick={handleInsertCode}
-                    className="h-7 text-[11px]"
+                    className="h-7 text-xs"
                   >
                     <Code className="mr-1 h-3 w-3" /> Insert into Editor
                   </Button>
@@ -648,15 +649,15 @@ const AIPanel: React.FC<AIToolProps> = ({
               <ScrollArea className="flex-1 border rounded-md">
                 <div className="p-4">
                   {result ? (
-                    <LightSyntaxHighlighter
+                    <SyntaxHighlighter
                       language={language}
-                      style={darkStyle}
+                      style={vscDarkPlus}
                       customStyle={{ margin: 0, background: 'transparent' }}
                     >
                       {result}
-                    </LightSyntaxHighlighter>
+                    </SyntaxHighlighter>
                   ) : (
-                    <p className="text-[13px] text-muted-foreground italic">
+                    <p className="text-sm text-muted-foreground italic">
                       Test code will appear here...
                     </p>
                   )}

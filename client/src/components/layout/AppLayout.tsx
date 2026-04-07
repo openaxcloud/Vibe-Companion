@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { ECodeLoading } from "@/components/ECodeLoading";
+import { Loader2 } from "lucide-react";
 import Sidebar from "./Sidebar";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -10,7 +10,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
-          <ECodeLoading size="lg" />
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );

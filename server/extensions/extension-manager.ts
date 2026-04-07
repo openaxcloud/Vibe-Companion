@@ -1,9 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { storage } from '../storage';
-import { createLogger } from '../utils/logger';
-
-const logger = createLogger('extension-manager');
 
 export interface Extension {
   id: string;
@@ -71,7 +68,7 @@ export class ExtensionManager {
       await fs.mkdir(this.extensionsPath, { recursive: true });
       this.loadBuiltInExtensions();
     } catch (error) {
-      logger.error('Failed to initialize extensions:', error);
+      console.error('Failed to initialize extensions:', error);
     }
   }
 
@@ -80,17 +77,17 @@ export class ExtensionManager {
     const builtInExtensions: Extension[] = [
       {
         id: 'replit.dark-theme',
-        name: 'E-Code Dark Theme',
+        name: 'Replit Dark Theme',
         version: '1.0.0',
-        description: 'Official E-Code dark theme',
-        author: 'E-Code',
+        description: 'Official Replit dark theme',
+        author: 'Replit',
         category: 'theme',
         enabled: true,
         permissions: [],
         contributes: {
           themes: [{
             id: 'replit-dark',
-            label: 'E-Code Dark',
+            label: 'Replit Dark',
             uiTheme: 'vs-dark',
             path: './themes/replit-dark.json'
           }]
@@ -101,7 +98,7 @@ export class ExtensionManager {
         name: 'Python Language Support',
         version: '1.0.0',
         description: 'Python language support with IntelliSense',
-        author: 'E-Code',
+        author: 'Replit',
         category: 'language',
         enabled: true,
         permissions: ['workspace', 'language-server'],
@@ -118,7 +115,7 @@ export class ExtensionManager {
         name: 'Prettier Formatter',
         version: '1.0.0',
         description: 'Code formatter using Prettier',
-        author: 'E-Code',
+        author: 'Replit',
         category: 'formatter',
         enabled: true,
         permissions: ['workspace'],
@@ -135,7 +132,7 @@ export class ExtensionManager {
         name: 'ESLint',
         version: '1.0.0',
         description: 'JavaScript linter',
-        author: 'E-Code',
+        author: 'Replit',
         category: 'linter',
         enabled: true,
         permissions: ['workspace'],
@@ -152,7 +149,7 @@ export class ExtensionManager {
         name: 'Code Snippets',
         version: '1.0.0',
         description: 'Common code snippets',
-        author: 'E-Code',
+        author: 'Replit',
         category: 'snippet',
         enabled: true,
         permissions: [],
@@ -214,7 +211,7 @@ export class ExtensionManager {
 
       return true;
     } catch (error) {
-      logger.error('Failed to install extension:', error);
+      console.error('Failed to install extension:', error);
       return false;
     }
   }
@@ -224,7 +221,7 @@ export class ExtensionManager {
       await this.removeUserExtension(userId, extensionId);
       return true;
     } catch (error) {
-      logger.error('Failed to uninstall extension:', error);
+      console.error('Failed to uninstall extension:', error);
       return false;
     }
   }
@@ -254,7 +251,7 @@ export class ExtensionManager {
       await this.saveUserExtension(userId, extensionId, userExt);
       return true;
     } catch (error) {
-      logger.error('Failed to configure extension:', error);
+      console.error('Failed to configure extension:', error);
       return false;
     }
   }
@@ -398,7 +395,7 @@ export class ExtensionManager {
       await this.saveUserExtension(userId, extensionId, userExt);
       return true;
     } catch (error) {
-      logger.error('Failed to update extension status:', error);
+      console.error('Failed to update extension status:', error);
       return false;
     }
   }

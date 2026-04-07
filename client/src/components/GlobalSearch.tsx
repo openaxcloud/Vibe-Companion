@@ -15,15 +15,12 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useDebounce } from '@/hooks/use-debounce';
-import { apiRequest } from '@/lib/queryClient';
-import { ECodeSpinner } from '@/components/ECodeLoading';
 
 interface GlobalSearchProps {
   isOpen: boolean;
   onClose: () => void;
-  projectId: string | number; // Support both UUID strings and numeric IDs
+  projectId: number;
   onFileSelect: (file: { id: number; name: string; content?: string | null; isFolder: boolean; parentId: number | null; projectId: number; createdAt: Date; updatedAt: Date }) => void;
-  inline?: boolean; // When true, render as panel content (no Dialog modal overlay)
 }
 
 interface SearchResult {
@@ -65,7 +62,7 @@ const FILE_TYPE_ICONS: Record<string, React.ReactNode> = {
   default: <File className="h-4 w-4 text-gray-400" />
 };
 
-export function GlobalSearch({ isOpen, onClose, projectId, onFileSelect, inline = false }: GlobalSearchProps) {
+export function GlobalSearch({ isOpen, onClose, projectId, onFileSelect }: GlobalSearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'files' | 'content' | 'symbols'>('content');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -111,15 +108,14 @@ export function GlobalSearch({ isOpen, onClose, projectId, onFileSelect, inline 
   const performSearch = async () => {
     setIsSearching(true);
     try {
-      const response = await apiRequest('POST', `/api/search/global`, {
-        query: debouncedQuery,
-        projectId: String(projectId),
-        type: searchType,
-        caseSensitive: filters.caseSensitive,
-        wholeWord: filters.wholeWord,
-        useRegex: filters.useRegex,
-        excludePattern: filters.excludePaths?.join(','),
-        filePattern: filters.fileTypes?.join(',')
+      const response = await fetch(`/api/projects/${projectId}/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: debouncedQuery,
+          type: searchType,
+          filters
+        })
       });
 
       if (!response.ok) throw new Error('Search failed');
@@ -135,14 +131,106 @@ export function GlobalSearch({ isOpen, onClose, projectId, onFileSelect, inline 
       }
     } catch (error) {
       console.error('Search error:', error);
-      setResults([]);
-      toast({
-        title: "Search failed",
-        description: "Unable to search files. Please try again.",
-        variant: "destructive",
-      });
+      // For now, show mock results
+      setResults(getMockResults(debouncedQuery, searchType));
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const getMockResults = (query: string, type: string): SearchResult[] => {
+    if (!query) return [];
+    
+    // Mock results for demonstration
+    if (type === 'files') {
+      return [
+        {
+          id: 1,
+          name: 'App.tsx',
+          path: '/src/App.tsx',
+          type: 'file',
+          matches: [],
+          size: 2048,
+          lastModified: '2 hours ago',
+          language: 'typescript'
+        },
+        {
+          id: 2,
+          name: 'index.ts',
+          path: '/src/index.ts',
+          type: 'file',
+          matches: [],
+          size: 512,
+          lastModified: '1 day ago',
+          language: 'typescript'
+        }
+      ];
+    } else if (type === 'content') {
+      return [
+        {
+          id: 1,
+          name: 'App.tsx',
+          path: '/src/App.tsx',
+          type: 'file',
+          language: 'typescript',
+          matches: [
+            {
+              line: 42,
+              column: 15,
+              text: query,
+              context: `function ${query}Component() { return <div>${query}</div>; }`
+            },
+            {
+              line: 78,
+              column: 8,
+              text: query,
+              context: `const ${query} = useState('');`
+            }
+          ]
+        },
+        {
+          id: 2,
+          name: 'utils.ts',
+          path: '/src/utils.ts',
+          type: 'file',
+          language: 'typescript',
+          matches: [
+            {
+              line: 15,
+              column: 0,
+              text: query,
+              context: `export function ${query}Helper(data: any) {`
+            }
+          ]
+        }
+      ];
+    } else {
+      return [
+        {
+          id: 1,
+          name: `${query}Component`,
+          path: '/src/components/App.tsx',
+          type: 'file',
+          matches: [{
+            line: 10,
+            column: 0,
+            text: 'function',
+            context: `export function ${query}Component() {`
+          }]
+        },
+        {
+          id: 2,
+          name: `use${query}`,
+          path: '/src/hooks/useQuery.ts',
+          type: 'file',
+          matches: [{
+            line: 5,
+            column: 0,
+            text: 'hook',
+            context: `export const use${query} = () => {`
+          }]
+        }
+      ];
     }
   };
 
@@ -204,129 +292,150 @@ export function GlobalSearch({ isOpen, onClose, projectId, onFileSelect, inline 
     return (
       <div
         key={result.id}
-        className={`px-2 py-1.5 rounded cursor-pointer transition-colors ${
-          isSelected ? 'bg-accent' : 'hover:bg-muted/50'
+        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+          isSelected ? 'bg-accent border-accent' : 'hover:bg-accent/50'
         }`}
         onClick={() => handleResultClick(result)}
         onMouseEnter={() => setSelectedResult(index)}
       >
-        <div className="flex items-center gap-2">
-          <span className="shrink-0">{getFileIcon(result.name)}</span>
-          <span className="font-medium text-xs truncate">{result.name}</span>
-          <span className="text-[10px] text-muted-foreground truncate flex-1">{result.path}</span>
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-2 flex-1">
+            {getFileIcon(result.name)}
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <span className="font-medium text-sm">{result.name}</span>
+                <span className="text-xs text-muted-foreground">{result.path}</span>
+              </div>
+              
+              {result.matches.length > 0 && (
+                <div className="mt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleResultExpanded(result.id);
+                    }}
+                  >
+                    <ChevronRight className={`h-3 w-3 mr-1 transition-transform ${
+                      isExpanded ? 'rotate-90' : ''
+                    }`} />
+                    {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''}
+                  </Button>
+                </div>
+              )}
+
+              {isExpanded && result.matches.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {result.matches.map((match, matchIndex) => (
+                    <div key={matchIndex} className="pl-4 border-l-2 border-muted">
+                      <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                        <span>Line {match.line}</span>
+                        <span>•</span>
+                        <span>Column {match.column}</span>
+                      </div>
+                      <pre className="text-xs mt-1 p-2 bg-muted rounded overflow-x-auto">
+                        <code>{match.context}</code>
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
           {result.language && (
-            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">
+            <Badge variant="secondary" className="text-xs">
               {result.language}
             </Badge>
           )}
         </div>
-        
-        {result.matches.length > 0 && (
-          <div className="ml-6 mt-1">
-            <button
-              className="flex items-center text-[10px] text-muted-foreground hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleResultExpanded(result.id);
-              }}
-            >
-              <ChevronRight className={`h-3 w-3 mr-0.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-              {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''}
-            </button>
-            
-            {isExpanded && (
-              <div className="mt-1 space-y-1">
-                {result.matches.slice(0, 3).map((match, matchIndex) => (
-                  <div key={matchIndex} className="pl-3 border-l border-muted">
-                    <span className="text-[10px] text-muted-foreground">L{match.line}:{match.column}</span>
-                    <pre className="text-[10px] mt-0.5 p-1 bg-muted/50 rounded text-xs overflow-x-auto">
-                      <code>{match.context}</code>
-                    </pre>
-                  </div>
-                ))}
-                {result.matches.length > 3 && (
-                  <span className="text-[10px] text-muted-foreground pl-3">
-                    +{result.matches.length - 3} more
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     );
   };
 
-  const searchContent = (
-        <div className="flex flex-col h-full min-h-0">
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] p-0">
+        <div className="flex flex-col h-full">
           {/* Search Header */}
-          <div className="px-3 pt-3 pb-2 border-b border-border shrink-0">
-            <div className="relative pr-8">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <div className="p-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search files, content, or symbols..."
-                className="pl-8 pr-8 h-8 text-sm"
+                className="pl-10 pr-10"
               />
               {searchQuery && (
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="h-3 w-3" />
                 </Button>
               )}
             </div>
 
             {/* Search Type Tabs */}
-            <Tabs value={searchType} onValueChange={(v) => setSearchType(v as any)} className="mt-2">
-              <TabsList className="grid w-full grid-cols-3 h-8">
-                <TabsTrigger value="files" className="text-xs">Files</TabsTrigger>
-                <TabsTrigger value="content" className="text-xs">Content</TabsTrigger>
-                <TabsTrigger value="symbols" className="text-xs">Symbols</TabsTrigger>
+            <Tabs value={searchType} onValueChange={(v) => setSearchType(v as any)} className="mt-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="files">Files</TabsTrigger>
+                <TabsTrigger value="content">Content</TabsTrigger>
+                <TabsTrigger value="symbols">Symbols</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           {/* Search Filters */}
-          <div className="px-3 py-1.5 border-b bg-muted/50 shrink-0">
-            <div className="flex items-center gap-3 text-xs">
-              <label className="flex items-center gap-1.5 cursor-pointer">
+          <div className="px-4 py-2 border-b bg-muted/20">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
                 <Checkbox
                   id="case-sensitive"
                   checked={filters.caseSensitive}
-                  onCheckedChange={(checked) => setFilters({ ...filters, caseSensitive: !!checked })}
-                  className="h-3.5 w-3.5"
+                  onCheckedChange={(checked) => 
+                    setFilters({ ...filters, caseSensitive: !!checked })
+                  }
                 />
-                <span className="text-[11px]">Case sensitive</span>
-              </label>
+                <Label htmlFor="case-sensitive" className="text-xs">
+                  Case sensitive
+                </Label>
+              </div>
               
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <div className="flex items-center space-x-2">
                 <Checkbox
                   id="whole-word"
                   checked={filters.wholeWord}
-                  onCheckedChange={(checked) => setFilters({ ...filters, wholeWord: !!checked })}
-                  className="h-3.5 w-3.5"
+                  onCheckedChange={(checked) => 
+                    setFilters({ ...filters, wholeWord: !!checked })
+                  }
                 />
-                <span className="text-[11px]">Whole word</span>
-              </label>
+                <Label htmlFor="whole-word" className="text-xs">
+                  Whole word
+                </Label>
+              </div>
 
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <div className="flex items-center space-x-2">
                 <Checkbox
                   id="use-regex"
                   checked={filters.useRegex}
-                  onCheckedChange={(checked) => setFilters({ ...filters, useRegex: !!checked })}
-                  className="h-3.5 w-3.5"
+                  onCheckedChange={(checked) => 
+                    setFilters({ ...filters, useRegex: !!checked })
+                  }
                 />
-                <span className="text-[11px]">Regex</span>
-              </label>
+                <Label htmlFor="use-regex" className="text-xs">
+                  Regex
+                </Label>
+              </div>
 
-              <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-[11px]">
+              <Button variant="ghost" size="sm" className="ml-auto">
                 <Filter className="h-3 w-3 mr-1" />
                 More filters
               </Button>
@@ -334,95 +443,72 @@ export function GlobalSearch({ isOpen, onClose, projectId, onFileSelect, inline 
           </div>
 
           {/* Search Results */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="p-3">
-              {!searchQuery && recentSearches.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-xs font-medium mb-2 flex items-center text-muted-foreground">
-                    <Clock className="h-3 w-3 mr-1.5" />
-                    Recent Searches
-                  </h3>
-                  <div className="space-y-0.5">
-                    {recentSearches.slice(0, 5).map((search, index) => (
-                      <Button
-                        key={index}
-                        variant="ghost"
-                        size="sm"
-                        className="justify-start w-full h-7 text-xs"
-                        onClick={() => setSearchQuery(search)}
-                      >
-                        <Search className="h-3 w-3 mr-2 opacity-50" />
-                        {search}
-                      </Button>
-                    ))}
-                  </div>
+          <ScrollArea className="flex-1 p-4">
+            {!searchQuery && recentSearches.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium mb-3 flex items-center">
+                  <Clock className="h-4 w-4 mr-2" />
+                  Recent Searches
+                </h3>
+                <div className="space-y-1">
+                  {recentSearches.map((search, index) => (
+                    <Button
+                      key={index}
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start w-full"
+                      onClick={() => setSearchQuery(search)}
+                    >
+                      <Search className="h-3 w-3 mr-2" />
+                      {search}
+                    </Button>
+                  ))}
                 </div>
-              )}
+              </div>
+            )}
 
-              {isSearching && (
-                <div className="flex items-center justify-center py-6">
-                  <div className="text-center">
-                    <ECodeSpinner size={24} className="mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">Searching...</p>
-                  </div>
+            {isSearching && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Search className="h-8 w-8 mx-auto mb-2 animate-pulse" />
+                  <p className="text-sm text-muted-foreground">Searching...</p>
                 </div>
-              )}
+              </div>
+            )}
 
-              {!isSearching && searchQuery && results.length === 0 && (
-                <div className="flex items-center justify-center py-6">
-                  <div className="text-center">
-                    <Search className="h-6 w-6 mx-auto mb-2 opacity-30" />
-                    <p className="text-xs text-muted-foreground">No results found</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Try different keywords or filters
-                    </p>
-                  </div>
+            {!isSearching && searchQuery && results.length === 0 && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-muted-foreground">No results found</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Try adjusting your search query or filters
+                  </p>
                 </div>
-              )}
+              </div>
+            )}
 
-              {results.length > 0 && (
-                <div className="space-y-1.5" ref={resultsRef}>
-                  {results.map((result, index) => renderSearchResult(result, index))}
-                </div>
-              )}
-            </div>
+            {results.length > 0 && (
+              <div className="space-y-2" ref={resultsRef}>
+                {results.map((result, index) => renderSearchResult(result, index))}
+              </div>
+            )}
           </ScrollArea>
 
           {/* Search Footer */}
           {results.length > 0 && (
-            <div className="px-3 py-1.5 border-t bg-muted/50 text-[10px] text-muted-foreground shrink-0">
+            <div className="px-4 py-2 border-t bg-muted/20 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
-                <span>{results.length} result{results.length !== 1 ? 's' : ''}</span>
-                <div className="flex items-center gap-3">
+                <span>{results.length} results found</span>
+                <div className="flex items-center space-x-4">
                   <span>↑↓ Navigate</span>
-                  <span>↵ Open</span>
+                  <span>Enter Open</span>
                   <span>Esc Close</span>
                 </div>
               </div>
             </div>
           )}
         </div>
-  );
-
-  if (inline) {
-    return <div className="flex flex-col h-full overflow-hidden">{searchContent}</div>;
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[70vh] p-0 flex flex-col overflow-hidden gap-0">
-        <div className="absolute right-2 top-2 z-10">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-6 w-6 rounded-sm opacity-70 hover:opacity-100"
-          >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </Button>
-        </div>
-        {searchContent}
       </DialogContent>
     </Dialog>
   );

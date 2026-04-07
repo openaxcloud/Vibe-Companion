@@ -21,170 +21,78 @@ import {
   Star,
   Settings,
   X,
-  Heart,
-  Code,
-  DollarSign,
-  TrendingUp,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
-import { useLocation } from 'wouter';
-import { apiRequest } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
-// Notification interface
-interface Notification {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  actionUrl?: string;
-  read: boolean;
-  timestamp: string;
-  metadata?: Record<string, any>;
-}
-
-// Icon mapping for notification types
-const notificationIcons: Record<string, any> = {
-  comment: MessageSquare,
-  follow: UserPlus,
-  deploy: Rocket,
-  star: Star,
-  like: Heart,
-  pr: GitPullRequest,
-  collaboration: UserPlus,
-  project_update: Code,
-  bounty: DollarSign,
-  system: AlertCircle,
-  trending: TrendingUp,
-  default: Bell,
-};
-
-// Color mapping for notification types
-const notificationColors: Record<string, string> = {
-  comment: 'text-blue-500',
-  follow: 'text-green-500',
-  deploy: 'text-purple-500',
-  star: 'text-yellow-500',
-  like: 'text-pink-500',
-  pr: 'text-orange-500',
-  collaboration: 'text-teal-500',
-  project_update: 'text-indigo-500',
-  bounty: 'text-emerald-500',
-  system: 'text-red-500',
-  trending: 'text-cyan-500',
-  default: 'text-gray-500',
-};
 
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
+  const [unreadCount, setUnreadCount] = useState(5);
 
-  // Fetch notifications from API
-  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: ['/api/notifications'],
-    refetchInterval: 60000, // Refetch every minute
-  });
-
-  const formatRelativeTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) {
-      return 'Just now';
-    }
-    return formatDistanceToNow(date, { addSuffix: true });
-  };
-
-  // Mark notification as read mutation
-  const markAsReadMutation = useMutation({
-    mutationFn: async (notificationId: number) => {
-      await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
+  // Mock notifications data
+  const notifications = [
+    {
+      id: 1,
+      type: 'comment',
+      title: 'New comment on your Repl',
+      message: 'alex_dev commented on "ChatGPT Clone"',
+      time: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
+      read: false,
+      icon: MessageSquare,
+      color: 'text-blue-500',
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+    {
+      id: 2,
+      type: 'follow',
+      title: 'New follower',
+      message: 'sarah_coder started following you',
+      time: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
+      read: false,
+      icon: UserPlus,
+      color: 'text-green-500',
     },
-  });
-
-  // Mark all notifications as read mutation
-  const markAllAsReadMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest('PATCH', '/api/notifications/read-all');
+    {
+      id: 3,
+      type: 'deploy',
+      title: 'Deployment successful',
+      message: 'Your app "E-commerce Platform" is now live',
+      time: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
+      read: false,
+      icon: Rocket,
+      color: 'text-purple-500',
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-      toast({
-        title: 'Success',
-        description: 'All notifications marked as read',
-      });
+    {
+      id: 4,
+      type: 'star',
+      title: 'Your Repl was starred',
+      message: 'dev_mike starred "Real-time Chat App"',
+      time: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+      read: true,
+      icon: Star,
+      color: 'text-yellow-500',
     },
-  });
-
-  // Delete notification mutation
-  const deleteNotificationMutation = useMutation({
-    mutationFn: async (notificationId: number) => {
-      await apiRequest('DELETE', `/api/notifications/${notificationId}`);
+    {
+      id: 5,
+      type: 'pr',
+      title: 'Pull request merged',
+      message: 'PR #23 was merged into main branch',
+      time: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+      read: true,
+      icon: GitPullRequest,
+      color: 'text-orange-500',
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-    },
-  });
-
-  // Clear all notifications mutation
-  const clearAllMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest('DELETE', '/api/notifications');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-      toast({
-        title: 'Success',
-        description: 'All notifications cleared',
-      });
-    },
-  });
-
-  // Ensure notifications is always an array (API may return null on 401)
-  const safeNotifications = notifications ?? [];
-  const unreadNotifications = safeNotifications.filter((n: Notification) => !n.read);
-  const unreadCount = unreadNotifications.length;
-
-  const handleNotificationClick = async (notification: Notification) => {
-    // Mark as read if unread
-    if (!notification.read) {
-      await markAsReadMutation.mutateAsync(notification.id);
-    }
-
-    // Navigate to link if provided
-    if (notification.actionUrl) {
-      setIsOpen(false);
-      navigate(notification.actionUrl);
-    }
-  };
-
-  const getNotificationIcon = (type: string) => {
-    return notificationIcons[type] || notificationIcons.default;
-  };
-
-  const getNotificationColor = (type: string) => {
-    return notificationColors[type] || notificationColors.default;
-  };
-
-  const handleSettingsClick = () => {
-    setIsOpen(false);
-    navigate('/settings/notifications');
-  };
+  ];
 
   const markAllAsRead = () => {
-    markAllAsReadMutation.mutate(undefined);
+    setUnreadCount(0);
+    // In real app, update backend
   };
 
   const clearAll = () => {
-    clearAllMutation.mutate(undefined);
+    // In real app, clear notifications
   };
 
-  // Use safe notifications array (handles null from 401 responses)
-  const allNotifications = safeNotifications;
-
+  const unreadNotifications = notifications.filter(n => !n.read);
+  const allNotifications = notifications;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -194,7 +102,7 @@ export function NotificationCenter() {
           {unreadCount > 0 && (
             <Badge 
               variant="destructive" 
-              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[11px]"
+              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
             >
               {unreadCount}
             </Badge>
@@ -202,24 +110,22 @@ export function NotificationCenter() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0" align="end">
-        <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
-          <span className="text-xs font-medium text-[var(--ecode-text)]">Notifications</span>
-          <div className="flex items-center gap-0.5">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold">Notifications</h3>
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-[var(--ecode-text-muted)]"
-              onClick={handleSettingsClick}
+              onClick={() => setIsOpen(false)}
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-[var(--ecode-text-muted)]"
               onClick={() => setIsOpen(false)}
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -244,28 +150,26 @@ export function NotificationCenter() {
               <>
                 <ScrollArea className="h-[300px]">
                   <div className="divide-y">
-                    {unreadNotifications.map((notification: Notification) => {
-                      const Icon = getNotificationIcon(notification.type);
-                      const color = getNotificationColor(notification.type);
+                    {unreadNotifications.map((notification) => {
+                      const Icon = notification.icon;
                       return (
                         <div
                           key={notification.id}
-                          className="p-4 hover:bg-surface-hover-solid cursor-pointer transition-colors"
-                          onClick={() => handleNotificationClick(notification)}
+                          className="p-4 hover:bg-accent/50 cursor-pointer transition-colors"
                         >
                           <div className="flex gap-3">
-                            <div className={`mt-0.5 ${color}`}>
+                            <div className={`mt-0.5 ${notification.color}`}>
                               <Icon className="h-5 w-5" />
                             </div>
                             <div className="flex-1 space-y-1">
-                              <p className="text-[13px] font-medium">
+                              <p className="text-sm font-medium">
                                 {notification.title}
                               </p>
-                              <p className="text-[13px] text-muted-foreground">
+                              <p className="text-sm text-muted-foreground">
                                 {notification.message}
                               </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {formatRelativeTime(notification.timestamp)}
+                              <p className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(notification.time, { addSuffix: true })}
                               </p>
                             </div>
                             <div className="opacity-0 hover:opacity-100">
@@ -283,7 +187,6 @@ export function NotificationCenter() {
                     variant="ghost"
                     className="w-full justify-center gap-2"
                     onClick={markAllAsRead}
-                    disabled={markAllAsReadMutation.isPending}
                   >
                     <CheckCheck className="h-4 w-4" />
                     Mark all as read
@@ -296,30 +199,28 @@ export function NotificationCenter() {
           <TabsContent value="all" className="mt-0">
             <ScrollArea className="h-[300px]">
               <div className="divide-y">
-                {allNotifications.map((notification: Notification) => {
-                  const Icon = getNotificationIcon(notification.type);
-                  const color = getNotificationColor(notification.type);
+                {allNotifications.map((notification) => {
+                  const Icon = notification.icon;
                   return (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-surface-hover-solid cursor-pointer transition-colors ${
+                      className={`p-4 hover:bg-accent/50 cursor-pointer transition-colors ${
                         notification.read ? 'opacity-60' : ''
                       }`}
-                      onClick={() => handleNotificationClick(notification)}
                     >
                       <div className="flex gap-3">
-                        <div className={`mt-0.5 ${color}`}>
+                        <div className={`mt-0.5 ${notification.color}`}>
                           <Icon className="h-5 w-5" />
                         </div>
                         <div className="flex-1 space-y-1">
-                          <p className="text-[13px] font-medium">
+                          <p className="text-sm font-medium">
                             {notification.title}
                           </p>
-                          <p className="text-[13px] text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
                             {notification.message}
                           </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {formatRelativeTime(notification.timestamp)}
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(notification.time, { addSuffix: true })}
                           </p>
                         </div>
                         {notification.read && (
@@ -337,7 +238,6 @@ export function NotificationCenter() {
                 variant="ghost"
                 className="w-full justify-center"
                 onClick={clearAll}
-                disabled={clearAllMutation.isPending}
               >
                 Clear all notifications
               </Button>

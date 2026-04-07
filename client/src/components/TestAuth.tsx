@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,7 @@ export function TestAuth() {
           </div>
         ) : user ? (
           <div className="space-y-4">
-            <div className="text-[13px]">
+            <div className="text-sm">
               <p><strong>User ID:</strong> {user.id}</p>
               <p><strong>Username:</strong> {user.username}</p>
               {user.email && <p><strong>Email:</strong> {user.email}</p>}
@@ -73,7 +72,7 @@ export function TestAuth() {
             )}
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <label htmlFor="username" className="text-[13px] font-medium">Username</label>
+                <label htmlFor="username" className="text-sm font-medium">Username</label>
                 <Input 
                   id="username"
                   value={username}
@@ -82,7 +81,7 @@ export function TestAuth() {
                 />
               </div>
               <div className="grid gap-2">
-                <label htmlFor="password" className="text-[13px] font-medium">Password</label>
+                <label htmlFor="password" className="text-sm font-medium">Password</label>
                 <Input 
                   id="password"
                   type="password"
@@ -115,7 +114,7 @@ export function TestAuth() {
           </div>
         )}
       </CardContent>
-      <CardFooter className="text-[11px] text-muted-foreground">
+      <CardFooter className="text-xs text-muted-foreground">
         This component is for testing authentication during development.
       </CardFooter>
     </Card>

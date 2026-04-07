@@ -4,7 +4,6 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useTheme } from '@/components/ThemeProvider';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,7 +29,6 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ECodeLoading } from '@/components/ECodeLoading';
 
 // Form schemas
 const profileFormSchema = z.object({
@@ -63,14 +61,16 @@ export default function UserSettings() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('profile');
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [language, setLanguage] = useState('en');
 
   // Fetch user settings
   const { data: settings, isLoading } = useQuery({
     queryKey: ['/api/user/settings'],
     queryFn: async () => {
-      return await apiRequest('GET', '/api/user/settings');
+      const res = await apiRequest('GET', '/api/user/settings');
+      if (!res.ok) throw new Error('Failed to fetch settings');
+      return res.json();
     },
     enabled: !!user
   });
@@ -178,37 +178,34 @@ export default function UserSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-background" data-testid="user-settings-page">
+    <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container-responsive py-4 flex items-center justify-between">
-          <Link href="/" className="text-responsive-lg font-bold" data-testid="link-home">E-Code</Link>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/projects" className="text-responsive-xs" data-testid="link-projects">Projects</Link>
-            <Link href={`/user/${user.username}`} className="text-responsive-xs" data-testid="link-profile">Profile</Link>
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="text-xl font-bold">Replit Clone</Link>
+          <div className="flex items-center gap-4">
+            <Link href="/projects" className="text-sm">Projects</Link>
+            <Link href={`/user/${user.username}`} className="text-sm">Profile</Link>
           </div>
         </div>
       </header>
 
-      <div className="container-responsive py-responsive max-w-4xl mb-16 md:mb-0">
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-responsive-xl font-bold mb-1 sm:mb-2" data-testid="text-settings-title">Settings</h1>
-          <p className="text-muted-foreground text-responsive-sm">Manage your account settings and preferences</p>
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Settings</h1>
+          <p className="text-muted-foreground">Manage your account settings and preferences</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} data-testid="settings-tabs">
-          {/* Scrollable tabs on mobile */}
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 sm:pb-0">
-            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-5 gap-1 bg-muted/50 p-1 rounded-lg">
-              <TabsTrigger value="profile" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-profile">Profile</TabsTrigger>
-              <TabsTrigger value="account" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-account">Account</TabsTrigger>
-              <TabsTrigger value="appearance" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-appearance">Appearance</TabsTrigger>
-              <TabsTrigger value="notifications" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-notifications">Notifications</TabsTrigger>
-              <TabsTrigger value="security" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-security">Security</TabsTrigger>
-            </TabsList>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="account">Account</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="security">Security</TabsTrigger>
+          </TabsList>
 
-          <TabsContent value="profile" className="space-y-6" data-testid="content-profile">
-            <Card data-testid="card-public-profile">
+          <TabsContent value="profile" className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle>Public Profile</CardTitle>
                 <CardDescription>
@@ -219,18 +216,18 @@ export default function UserSettings() {
                 <Form {...profileForm}>
                   <form onSubmit={profileForm.handleSubmit((data) => updateProfileMutation.mutate(data))} className="space-y-6">
                     <div className="flex items-center space-x-4 mb-6">
-                      <Avatar className="h-20 w-20" data-testid="avatar-profile">
+                      <Avatar className="h-20 w-20">
                         <AvatarImage src={settings?.avatarUrl} />
                         <AvatarFallback>
                           {user.displayName?.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <Button type="button" variant="outline" size="sm" data-testid="button-change-avatar">
+                        <Button type="button" variant="outline" size="sm">
                           <Upload className="h-4 w-4 mr-2" />
                           Change Avatar
                         </Button>
-                        <p className="text-[11px] text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                           JPG, PNG or GIF. Max size 2MB
                         </p>
                       </div>
@@ -243,7 +240,7 @@ export default function UserSettings() {
                         <FormItem>
                           <FormLabel>Display Name</FormLabel>
                           <FormControl>
-                            <Input {...field} data-testid="input-display-name" />
+                            <Input {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -261,7 +258,6 @@ export default function UserSettings() {
                               {...field} 
                               placeholder="Tell us about yourself"
                               rows={4}
-                              data-testid="input-bio"
                             />
                           </FormControl>
                           <FormDescription>
@@ -280,7 +276,7 @@ export default function UserSettings() {
                           <FormItem>
                             <FormLabel>Location</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="San Francisco, CA" data-testid="input-location" />
+                              <Input {...field} placeholder="San Francisco, CA" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -294,7 +290,7 @@ export default function UserSettings() {
                           <FormItem>
                             <FormLabel>Website</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="https://example.com" data-testid="input-website" />
+                              <Input {...field} placeholder="https://example.com" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -311,10 +307,10 @@ export default function UserSettings() {
                             <FormLabel>GitHub Username</FormLabel>
                             <FormControl>
                               <div className="flex">
-                                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-[13px] text-muted-foreground">
+                                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
                                   <Github className="h-4 w-4" />
                                 </span>
-                                <Input {...field} className="rounded-l-none" placeholder="username" data-testid="input-github" />
+                                <Input {...field} className="rounded-l-none" placeholder="username" />
                               </div>
                             </FormControl>
                             <FormMessage />
@@ -330,10 +326,10 @@ export default function UserSettings() {
                             <FormLabel>Twitter Handle</FormLabel>
                             <FormControl>
                               <div className="flex">
-                                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-[13px] text-muted-foreground">
+                                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-sm text-muted-foreground">
                                   <Twitter className="h-4 w-4" />
                                 </span>
-                                <Input {...field} className="rounded-l-none" placeholder="username" data-testid="input-twitter" />
+                                <Input {...field} className="rounded-l-none" placeholder="username" />
                               </div>
                             </FormControl>
                             <FormMessage />
@@ -343,7 +339,7 @@ export default function UserSettings() {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button type="submit" disabled={updateProfileMutation.isPending} data-testid="button-save-profile">
+                      <Button type="submit" disabled={updateProfileMutation.isPending}>
                         {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
                       </Button>
                     </div>
@@ -353,8 +349,8 @@ export default function UserSettings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="account" className="space-y-6" data-testid="content-account">
-            <Card data-testid="card-email-address">
+          <TabsContent value="account" className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle>Email Address</CardTitle>
                 <CardDescription>
@@ -371,7 +367,7 @@ export default function UserSettings() {
                         <FormItem>
                           <FormLabel>New Email Address</FormLabel>
                           <FormControl>
-                            <Input {...field} type="email" data-testid="input-email" />
+                            <Input {...field} type="email" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -385,7 +381,7 @@ export default function UserSettings() {
                         <FormItem>
                           <FormLabel>Current Password</FormLabel>
                           <FormControl>
-                            <Input {...field} type="password" data-testid="input-email-password" />
+                            <Input {...field} type="password" />
                           </FormControl>
                           <FormDescription>
                             Enter your password to confirm the change
@@ -395,7 +391,7 @@ export default function UserSettings() {
                       )}
                     />
 
-                    <Button type="submit" disabled={updateEmailMutation.isPending} data-testid="button-update-email">
+                    <Button type="submit" disabled={updateEmailMutation.isPending}>
                       {updateEmailMutation.isPending ? 'Updating...' : 'Update Email'}
                     </Button>
                   </form>
@@ -403,7 +399,7 @@ export default function UserSettings() {
               </CardContent>
             </Card>
 
-            <Card data-testid="card-export-data">
+            <Card>
               <CardHeader>
                 <CardTitle>Export Account Data</CardTitle>
                 <CardDescription>
@@ -411,14 +407,14 @@ export default function UserSettings() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" data-testid="button-export-data">
+                <Button variant="outline">
                   <Download className="h-4 w-4 mr-2" />
                   Export Data
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="border-destructive" data-testid="card-delete-account">
+            <Card className="border-destructive">
               <CardHeader>
                 <CardTitle className="text-destructive">Delete Account</CardTitle>
                 <CardDescription>
@@ -436,7 +432,6 @@ export default function UserSettings() {
                   variant="destructive" 
                   className="mt-4"
                   onClick={() => setDeleteAccountOpen(true)}
-                  data-testid="button-delete-account"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Account
@@ -445,8 +440,8 @@ export default function UserSettings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="appearance" className="space-y-6" data-testid="content-appearance">
-            <Card data-testid="card-theme">
+          <TabsContent value="appearance" className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle>Theme</CardTitle>
                 <CardDescription>
@@ -458,32 +453,29 @@ export default function UserSettings() {
                   <button
                     onClick={() => setTheme('light')}
                     className={`p-4 border rounded-lg text-center hover:bg-accent ${theme === 'light' ? 'border-primary bg-accent' : ''}`}
-                    data-testid="button-theme-light"
                   >
                     <Sun className="h-8 w-8 mx-auto mb-2" />
-                    <p className="text-[13px] font-medium">Light</p>
+                    <p className="text-sm font-medium">Light</p>
                   </button>
                   <button
                     onClick={() => setTheme('dark')}
                     className={`p-4 border rounded-lg text-center hover:bg-accent ${theme === 'dark' ? 'border-primary bg-accent' : ''}`}
-                    data-testid="button-theme-dark"
                   >
                     <Moon className="h-8 w-8 mx-auto mb-2" />
-                    <p className="text-[13px] font-medium">Dark</p>
+                    <p className="text-sm font-medium">Dark</p>
                   </button>
                   <button
                     onClick={() => setTheme('system')}
                     className={`p-4 border rounded-lg text-center hover:bg-accent ${theme === 'system' ? 'border-primary bg-accent' : ''}`}
-                    data-testid="button-theme-system"
                   >
                     <Monitor className="h-8 w-8 mx-auto mb-2" />
-                    <p className="text-[13px] font-medium">System</p>
+                    <p className="text-sm font-medium">System</p>
                   </button>
                 </div>
               </CardContent>
             </Card>
 
-            <Card data-testid="card-language">
+            <Card>
               <CardHeader>
                 <CardTitle>Language</CardTitle>
                 <CardDescription>
@@ -492,22 +484,22 @@ export default function UserSettings() {
               </CardHeader>
               <CardContent>
                 <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger className="w-full" data-testid="select-language">
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="en" data-testid="select-lang-en">English</SelectItem>
-                    <SelectItem value="es" data-testid="select-lang-es">Español</SelectItem>
-                    <SelectItem value="fr" data-testid="select-lang-fr">Français</SelectItem>
-                    <SelectItem value="de" data-testid="select-lang-de">Deutsch</SelectItem>
-                    <SelectItem value="ja" data-testid="select-lang-ja">日本語</SelectItem>
-                    <SelectItem value="zh" data-testid="select-lang-zh">中文</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="es">Español</SelectItem>
+                    <SelectItem value="fr">Français</SelectItem>
+                    <SelectItem value="de">Deutsch</SelectItem>
+                    <SelectItem value="ja">日本語</SelectItem>
+                    <SelectItem value="zh">中文</SelectItem>
                   </SelectContent>
                 </Select>
               </CardContent>
             </Card>
 
-            <Card data-testid="card-editor-preferences">
+            <Card>
               <CardHeader>
                 <CardTitle>Editor Preferences</CardTitle>
                 <CardDescription>
@@ -518,17 +510,17 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Font Size</p>
-                    <p className="text-[13px] text-muted-foreground">Editor font size in pixels</p>
+                    <p className="text-sm text-muted-foreground">Editor font size in pixels</p>
                   </div>
                   <Select defaultValue="14">
-                    <SelectTrigger className="w-24" data-testid="select-font-size">
+                    <SelectTrigger className="w-24">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="12" data-testid="select-font-12">12px</SelectItem>
-                      <SelectItem value="14" data-testid="select-font-14">14px</SelectItem>
-                      <SelectItem value="16" data-testid="select-font-16">16px</SelectItem>
-                      <SelectItem value="18" data-testid="select-font-18">18px</SelectItem>
+                      <SelectItem value="12">12px</SelectItem>
+                      <SelectItem value="14">14px</SelectItem>
+                      <SelectItem value="16">16px</SelectItem>
+                      <SelectItem value="18">18px</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -536,16 +528,16 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Tab Size</p>
-                    <p className="text-[13px] text-muted-foreground">Number of spaces per tab</p>
+                    <p className="text-sm text-muted-foreground">Number of spaces per tab</p>
                   </div>
                   <Select defaultValue="2">
-                    <SelectTrigger className="w-24" data-testid="select-tab-size">
+                    <SelectTrigger className="w-24">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="2" data-testid="select-tab-2">2</SelectItem>
-                      <SelectItem value="4" data-testid="select-tab-4">4</SelectItem>
-                      <SelectItem value="8" data-testid="select-tab-8">8</SelectItem>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="4">4</SelectItem>
+                      <SelectItem value="8">8</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -553,24 +545,24 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Word Wrap</p>
-                    <p className="text-[13px] text-muted-foreground">Wrap long lines in editor</p>
+                    <p className="text-sm text-muted-foreground">Wrap long lines in editor</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-word-wrap" />
+                  <Switch defaultChecked />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Minimap</p>
-                    <p className="text-[13px] text-muted-foreground">Show code minimap in editor</p>
+                    <p className="text-sm text-muted-foreground">Show code minimap in editor</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-minimap" />
+                  <Switch defaultChecked />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="notifications" className="space-y-6" data-testid="content-notifications">
-            <Card data-testid="card-email-notifications">
+          <TabsContent value="notifications" className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle>Email Notifications</CardTitle>
                 <CardDescription>
@@ -581,9 +573,9 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Project Updates</p>
-                    <p className="text-[13px] text-muted-foreground">Get notified when someone stars or forks your projects</p>
+                    <p className="text-sm text-muted-foreground">Get notified when someone stars or forks your projects</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-project-updates" />
+                  <Switch defaultChecked />
                 </div>
 
                 <Separator />
@@ -591,9 +583,9 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Collaboration Invites</p>
-                    <p className="text-[13px] text-muted-foreground">Receive emails when invited to collaborate</p>
+                    <p className="text-sm text-muted-foreground">Receive emails when invited to collaborate</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-collaboration-invites" />
+                  <Switch defaultChecked />
                 </div>
 
                 <Separator />
@@ -601,9 +593,9 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Security Alerts</p>
-                    <p className="text-[13px] text-muted-foreground">Important security updates and alerts</p>
+                    <p className="text-sm text-muted-foreground">Important security updates and alerts</p>
                   </div>
-                  <Switch defaultChecked disabled data-testid="switch-security-alerts" />
+                  <Switch defaultChecked disabled />
                 </div>
 
                 <Separator />
@@ -611,14 +603,14 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Newsletter</p>
-                    <p className="text-[13px] text-muted-foreground">Product updates and announcements</p>
+                    <p className="text-sm text-muted-foreground">Product updates and announcements</p>
                   </div>
-                  <Switch data-testid="switch-newsletter" />
+                  <Switch />
                 </div>
               </CardContent>
             </Card>
 
-            <Card data-testid="card-push-notifications">
+            <Card>
               <CardHeader>
                 <CardTitle>Push Notifications</CardTitle>
                 <CardDescription>
@@ -629,9 +621,9 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Comments & Mentions</p>
-                    <p className="text-[13px] text-muted-foreground">When someone mentions you or comments</p>
+                    <p className="text-sm text-muted-foreground">When someone mentions you or comments</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-comments-mentions" />
+                  <Switch defaultChecked />
                 </div>
 
                 <Separator />
@@ -639,9 +631,9 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Deploy Status</p>
-                    <p className="text-[13px] text-muted-foreground">Updates on deployment status</p>
+                    <p className="text-sm text-muted-foreground">Updates on deployment status</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-deploy-status" />
+                  <Switch defaultChecked />
                 </div>
 
                 <Separator />
@@ -649,16 +641,16 @@ export default function UserSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">System Notifications</p>
-                    <p className="text-[13px] text-muted-foreground">Important system updates</p>
+                    <p className="text-sm text-muted-foreground">Important system updates</p>
                   </div>
-                  <Switch defaultChecked data-testid="switch-system-notifications" />
+                  <Switch defaultChecked />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="security" className="space-y-6" data-testid="content-security">
-            <Card data-testid="card-change-password">
+          <TabsContent value="security" className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle>Change Password</CardTitle>
                 <CardDescription>
@@ -675,7 +667,7 @@ export default function UserSettings() {
                         <FormItem>
                           <FormLabel>Current Password</FormLabel>
                           <FormControl>
-                            <Input {...field} type="password" data-testid="input-current-password" />
+                            <Input {...field} type="password" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -689,7 +681,7 @@ export default function UserSettings() {
                         <FormItem>
                           <FormLabel>New Password</FormLabel>
                           <FormControl>
-                            <Input {...field} type="password" data-testid="input-new-password" />
+                            <Input {...field} type="password" />
                           </FormControl>
                           <FormDescription>
                             At least 8 characters long
@@ -706,14 +698,14 @@ export default function UserSettings() {
                         <FormItem>
                           <FormLabel>Confirm New Password</FormLabel>
                           <FormControl>
-                            <Input {...field} type="password" data-testid="input-confirm-password" />
+                            <Input {...field} type="password" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <Button type="submit" disabled={updatePasswordMutation.isPending} data-testid="button-update-password">
+                    <Button type="submit" disabled={updatePasswordMutation.isPending}>
                       {updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
                     </Button>
                   </form>
@@ -721,7 +713,7 @@ export default function UserSettings() {
               </CardContent>
             </Card>
 
-            <Card data-testid="card-two-factor">
+            <Card>
               <CardHeader>
                 <CardTitle>Two-Factor Authentication</CardTitle>
                 <CardDescription>
@@ -735,14 +727,14 @@ export default function UserSettings() {
                     Two-factor authentication adds an extra layer of security by requiring a code from your phone in addition to your password.
                   </AlertDescription>
                 </Alert>
-                <Button variant="outline" data-testid="button-enable-2fa">
+                <Button variant="outline">
                   <Shield className="h-4 w-4 mr-2" />
                   Enable 2FA
                 </Button>
               </CardContent>
             </Card>
 
-            <Card data-testid="card-active-sessions">
+            <Card>
               <CardHeader>
                 <CardTitle>Active Sessions</CardTitle>
                 <CardDescription>
@@ -751,12 +743,12 @@ export default function UserSettings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border rounded-lg" data-testid="session-current">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center space-x-3">
                       <Monitor className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <p className="font-medium">Chrome on Windows</p>
-                        <p className="text-[13px] text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           Current session · San Francisco, CA
                         </p>
                       </div>
@@ -764,23 +756,23 @@ export default function UserSettings() {
                     <Badge variant="secondary">Current</Badge>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 border rounded-lg" data-testid="session-other">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center space-x-3">
                       <Globe className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <p className="font-medium">Safari on iPhone</p>
-                        <p className="text-[13px] text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           Last active 2 hours ago · New York, NY
                         </p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" data-testid="button-revoke-session">
+                    <Button variant="ghost" size="sm">
                       <LogOut className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
-                <Button variant="outline" className="w-full" data-testid="button-signout-all">
+                <Button variant="outline" className="w-full">
                   Sign out all other sessions
                 </Button>
               </CardContent>
@@ -791,7 +783,7 @@ export default function UserSettings() {
 
       {/* Delete Account Dialog */}
       <Dialog open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen}>
-        <DialogContent data-testid="dialog-delete-account">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Account</DialogTitle>
             <DialogDescription>
@@ -807,14 +799,13 @@ export default function UserSettings() {
             </Alert>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteAccountOpen(false)} data-testid="button-cancel-delete">
+            <Button variant="outline" onClick={() => setDeleteAccountOpen(false)}>
               Cancel
             </Button>
             <Button 
               variant="destructive" 
-              onClick={() => deleteAccountMutation.mutate(undefined)}
+              onClick={() => deleteAccountMutation.mutate()}
               disabled={deleteAccountMutation.isPending}
-              data-testid="button-confirm-delete"
             >
               {deleteAccountMutation.isPending ? 'Deleting...' : 'Delete Account'}
             </Button>

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Worker } from 'worker_threads';
 import * as vm from 'vm';
 import * as path from 'path';
@@ -113,32 +112,18 @@ export class Sandbox {
       // Create VM context
       const context = vm.createContext(sandbox);
 
-      // 8.7 FIX: Support async code execution
-      // Wrap code to handle both sync and async patterns
-      const wrappedCode = `
-        (async () => {
-          ${code}
-        })()
-      `;
-      
-      const script = new vm.Script(wrappedCode);
-      await new Promise(async (resolve, reject) => {
+      // Run the code with timeout
+      const script = new vm.Script(code);
+      await new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new Error('Execution timed out'));
         }, timeout);
 
         try {
-          // 8.7 FIX: Run as async and await the result
-          const result = script.runInContext(context, {
+          script.runInContext(context, {
             timeout,
             displayErrors: true
           });
-          
-          // If result is a Promise, await it
-          if (result && typeof result.then === 'function') {
-            await result;
-          }
-          
           clearTimeout(timeoutId);
           resolve(undefined);
         } catch (error) {

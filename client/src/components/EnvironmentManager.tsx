@@ -83,7 +83,7 @@ const formSchema = z.object({
 
 export function EnvironmentManager({ project, isOpen, onClose }: EnvironmentManagerProps) {
   const [variables, setVariables] = useState<EnvVariable[]>([
-    { id: 1, key: "PORT", value: "5000", isSecret: false },
+    { id: 1, key: "PORT", value: "3000", isSecret: false },
     { id: 2, key: "NODE_ENV", value: "development", isSecret: false },
     { id: 3, key: "API_KEY", value: "sk_test_123456789", isSecret: true },
     { id: 4, key: "DATABASE_URL", value: "postgres://user:password@localhost:5432/db", isSecret: true },
@@ -262,7 +262,7 @@ export function EnvironmentManager({ project, isOpen, onClose }: EnvironmentMana
                           <div className="flex flex-wrap items-center gap-1">
                             <span className="break-all">{variable.key}</span>
                             {variable.isSecret && (
-                              <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded whitespace-nowrap">
+                              <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded whitespace-nowrap">
                                 Secret
                               </span>
                             )}
@@ -272,12 +272,12 @@ export function EnvironmentManager({ project, isOpen, onClose }: EnvironmentMana
                           <div className="max-w-[150px] sm:max-w-[200px] md:max-w-full overflow-hidden text-ellipsis">
                             {variable.isSecret ? (
                               showSecrets[variable.id] ? (
-                                <span className="font-mono text-[13px] break-all">{variable.value}</span>
+                                <span className="font-mono text-sm break-all">{variable.value}</span>
                               ) : (
                                 "••••••••••••••••••"
                               )
                             ) : (
-                              <span className="font-mono text-[13px] break-all">{variable.value}</span>
+                              <span className="font-mono text-sm break-all">{variable.value}</span>
                             )}
                           </div>
                         </TableCell>
@@ -322,7 +322,7 @@ export function EnvironmentManager({ project, isOpen, onClose }: EnvironmentMana
               </Table>
             </div>
             
-            <div className="bg-muted p-4 rounded-md text-[13px] space-y-2">
+            <div className="bg-muted p-4 rounded-md text-sm space-y-2">
               <h4 className="font-medium flex items-center">
                 <Settings2 className="h-4 w-4 mr-2" /> Environment variables take effect on next deployment
               </h4>
@@ -370,19 +370,19 @@ export function EnvironmentManager({ project, isOpen, onClose }: EnvironmentMana
           
           <div className="space-y-6 mt-6">
             <div>
-              <h3 className="text-[15px] font-medium">What are environment variables?</h3>
-              <p className="text-muted-foreground mt-1 text-[13px]">
+              <h3 className="text-lg font-medium">What are environment variables?</h3>
+              <p className="text-muted-foreground mt-1 text-sm">
                 Environment variables are a set of key-value pairs that can be accessed by your application.
                 They're typically used to store configuration values like API keys, database credentials, and other settings.
               </p>
             </div>
             
             <div>
-              <h3 className="text-[15px] font-medium">Security</h3>
-              <p className="text-muted-foreground mt-1 text-[13px]">
+              <h3 className="text-lg font-medium">Security</h3>
+              <p className="text-muted-foreground mt-1 text-sm">
                 Mark sensitive information like API keys and passwords as "Secret". Secret variables are:
               </p>
-              <ul className="list-disc ml-6 mt-2 text-muted-foreground text-[13px]">
+              <ul className="list-disc ml-6 mt-2 text-muted-foreground text-sm">
                 <li>Never displayed in logs</li>
                 <li>Not exposed to the browser</li>
                 <li>Hidden from other users</li>
@@ -390,8 +390,8 @@ export function EnvironmentManager({ project, isOpen, onClose }: EnvironmentMana
             </div>
             
             <div>
-              <h3 className="text-[15px] font-medium">Accessing Variables</h3>
-              <div className="bg-muted p-3 rounded-md mt-2 font-mono text-[11px] sm:text-[13px] overflow-x-auto">
+              <h3 className="text-lg font-medium">Accessing Variables</h3>
+              <div className="bg-muted p-3 rounded-md mt-2 font-mono text-xs sm:text-sm overflow-x-auto">
                 <p className="py-1">// Node.js</p>
                 <p className="py-1">const apiKey = process.env.API_KEY;</p>
                 <div className="border-t my-2"></div>

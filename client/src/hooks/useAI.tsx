@@ -20,7 +20,8 @@ export function useAI() {
       language: string;
       maxTokens?: number;
     }): Promise<string> => {
-      const data = await apiRequest('POST', '/api/ai/completion', { code, language, maxTokens });
+      const res = await apiRequest('POST', '/api/ai/completion', { code, language, maxTokens });
+      const data = await res.json();
       return data.completion;
     },
     onError: (error: Error) => {
@@ -38,7 +39,8 @@ export function useAI() {
       code: string; 
       language: string;
     }): Promise<string> => {
-      const data = await apiRequest('POST', '/api/ai/explanation', { code, language });
+      const res = await apiRequest('POST', '/api/ai/explanation', { code, language });
+      const data = await res.json();
       return data.explanation;
     },
     onError: (error: Error) => {
@@ -61,7 +63,8 @@ export function useAI() {
       fromLanguage: string;
       toLanguage: string;
     }): Promise<string> => {
-      const data = await apiRequest('POST', '/api/ai/convert', { code, fromLanguage, toLanguage });
+      const res = await apiRequest('POST', '/api/ai/convert', { code, fromLanguage, toLanguage });
+      const data = await res.json();
       return data.convertedCode;
     },
     onError: (error: Error) => {
@@ -84,7 +87,8 @@ export function useAI() {
       language: string;
       style?: 'standard' | 'jsdoc' | 'google' | 'numpy';
     }): Promise<string> => {
-      const data = await apiRequest('POST', '/api/ai/document', { code, language, style });
+      const res = await apiRequest('POST', '/api/ai/document', { code, language, style });
+      const data = await res.json();
       return data.documentedCode;
     },
     onError: (error: Error) => {
@@ -107,7 +111,8 @@ export function useAI() {
       language: string;
       framework?: string;
     }): Promise<string> => {
-      const data = await apiRequest('POST', '/api/ai/tests', { code, language, framework });
+      const res = await apiRequest('POST', '/api/ai/tests', { code, language, framework });
+      const data = await res.json();
       return data.testCode;
     },
     onError: (error: Error) => {

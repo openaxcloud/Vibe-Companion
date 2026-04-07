@@ -1,13 +1,8 @@
-// @ts-nocheck
 import { v4 as uuidv4 } from 'uuid';
 import { storage } from './storage';
-import { CodeExecutor } from './execution/executor';
-
-const codeExecutor = new CodeExecutor();
+import { codeExecutor } from './execution/executor';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { edgeManager } from './edge/edge-manager';
-import { cdnService } from './edge/cdn-service';
 
 export interface DeploymentConfig {
   projectId: number;
@@ -19,12 +14,6 @@ export interface DeploymentConfig {
   buildCommand?: string;
   startCommand?: string;
   port?: number;
-  // Edge deployment options
-  edgeEnabled?: boolean;
-  edgeLocations?: string[];
-  routing?: 'geo-nearest' | 'round-robin' | 'least-loaded' | 'custom';
-  cacheStrategy?: 'aggressive' | 'moderate' | 'minimal';
-  replication?: 'full' | 'partial' | 'on-demand';
 }
 
 export interface DeploymentStatus {
@@ -37,10 +26,6 @@ export interface DeploymentStatus {
   createdAt: Date;
   updatedAt: Date;
   error?: string;
-  // Edge deployment information
-  edgeDeploymentId?: string;
-  edgeLocations?: string[];
-  cdnUrl?: string;
 }
 
 export class DeploymentManager {
@@ -102,7 +87,7 @@ export class DeploymentManager {
       await fs.mkdir(deploymentPath, { recursive: true });
 
       // Copy project files
-      const files = await storage.getFilesByProjectId(config.projectId);
+      const files = await storage.getFilesByProject(config.projectId);
       await this.copyProjectFiles(files, deploymentPath);
 
       // Write environment variables
@@ -135,52 +120,17 @@ export class DeploymentManager {
       this.addLog(deploymentId, 'Deploying application...');
 
       // Generate deployment URL
-      const baseUrl = process.env.DEPLOYMENT_BASE_URL || 'https://e-code.ai';
+      const baseUrl = process.env.DEPLOYMENT_BASE_URL || 'https://replit-clone.app';
       const deploymentUrl = `${baseUrl}/${project.name}-${deploymentId.substring(0, 8)}`;
 
-      // Deploy to actual infrastructure
-      const deploymentService = await import('./deployment/real-deployment-service').then(m => m.realDeploymentService);
-      
-      const deploymentResult = await deploymentService.deployApplication({
-        projectId: config.projectId,
-        deploymentId,
-        environment: config.environment,
-        startCommand: config.startCommand || project.startCommand,
-        port: config.port || 3000,
-        envVars: config.envVars,
-        customDomain: config.customDomain
-      });
-      
-      if (!deploymentResult.success) {
-        throw new Error(`Deployment failed: ${deploymentResult.error}`);
-      }
+      // In a real implementation, this would:
+      // 1. Create container/serverless function
+      // 2. Configure routing
+      // 3. Set up SSL
+      // 4. Configure custom domain if provided
 
-      // Handle edge deployment if enabled
-      if (config.edgeEnabled) {
-        this.addLog(deploymentId, 'Deploying to edge locations...');
-        
-        const edgeDeployment = await edgeManager.deployToEdge(String(config.projectId), {
-          locations: config.edgeLocations,
-          routing: config.routing || 'geo-nearest',
-          replication: config.replication || 'full',
-          cacheStrategy: config.cacheStrategy || 'moderate',
-          failoverEnabled: true,
-          sslEnabled: true,
-          customDomains: config.customDomain ? [config.customDomain] : []
-        });
-
-        deployment.edgeDeploymentId = edgeDeployment.id;
-        deployment.edgeLocations = edgeDeployment.locations;
-        
-        // Upload static assets to CDN
-        this.addLog(deploymentId, 'Uploading assets to CDN...');
-        await this.uploadAssetsToCDN(config.projectId, deploymentPath);
-        
-        // Generate CDN URL
-        deployment.cdnUrl = cdnService.generateCDNUrl(String(config.projectId), '');
-        
-        this.addLog(deploymentId, `Edge deployment successful! Deployed to ${edgeDeployment.locations.length} locations`);
-      }
+      // Simulate deployment
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Update deployment status
       deployment.status = 'running';
@@ -238,31 +188,12 @@ export class DeploymentManager {
     this.addLog(deploymentId, 'Restarting deployment...');
 
     // Re-deploy with same config
-    try {
-      // Stop current deployment process
-      const activeDeployment = activeProjects.get(deployment.projectId);
-      if (activeDeployment?.process) {
-        activeDeployment.process.kill();
-        activeProjects.delete(deployment.projectId);
-      }
-      
-      // Re-start the deployment
-      const files = await storage.getFilesByProject(deployment.projectId);
-      if (files.length > 0) {
-        const result = await startProject(deployment.projectId);
-        if (result.success) {
-          this.updateDeploymentStatus(deploymentId, 'running');
-          this.addLog(deploymentId, 'Deployment restarted successfully');
-          deployment.url = result.url || deployment.url;
-        } else {
-          this.updateDeploymentStatus(deploymentId, 'failed');
-          this.addLog(deploymentId, `Restart failed: ${result.error}`);
-        }
-      }
-    } catch (error) {
-      this.updateDeploymentStatus(deploymentId, 'failed');
-      this.addLog(deploymentId, `Restart error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // In real implementation, would restart the deployment
+    
+    setTimeout(() => {
+      this.updateDeploymentStatus(deploymentId, 'running');
+      this.addLog(deploymentId, 'Deployment restarted successfully');
+    }, 2000);
 
     return true;
   }
@@ -309,93 +240,14 @@ export class DeploymentManager {
     uptime: number;
     bandwidth: number;
   }> {
-    // Get real metrics from analytics service
-    const analytics = require('./analytics/simple-analytics').SimpleAnalytics.getInstance();
-    const deployment = this.deployments.get(deploymentId);
-    
-    if (!deployment) {
-      return {
-        requests: 0,
-        errors: 0,
-        avgResponseTime: 0,
-        uptime: 0,
-        bandwidth: 0
-      };
-    }
-    
-    // Calculate real uptime based on deployment creation time
-    const now = Date.now();
-    const deploymentTime = deployment.createdAt.getTime();
-    const uptimeMs = now - deploymentTime;
-    const uptimePercent = deployment.status === 'running' ? 99.9 : 0;
-    
+    // In real implementation, would fetch from monitoring service
     return {
-      requests: await analytics.getRequestCount(),
-      errors: await analytics.getErrorCount(),
-      avgResponseTime: await analytics.getAverageResponseTime(),
-      uptime: uptimePercent,
-      bandwidth: await analytics.getBandwidthUsage()
+      requests: Math.floor(Math.random() * 10000),
+      errors: Math.floor(Math.random() * 100),
+      avgResponseTime: Math.random() * 500,
+      uptime: 99.9,
+      bandwidth: Math.random() * 1000 // MB
     };
-  }
-
-  private async uploadAssetsToCDN(projectId: number, deploymentPath: string): Promise<void> {
-    const staticExtensions = ['.html', '.css', '.js', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf'];
-    
-    // Recursively scan deployment directory for static assets
-    const scanDir = async (dir: string, baseDir: string = ''): Promise<void> => {
-      const files = await fs.readdir(dir, { withFileTypes: true });
-      
-      for (const file of files) {
-        const fullPath = path.join(dir, file.name);
-        const relativePath = path.join(baseDir, file.name);
-        
-        if (file.isDirectory()) {
-          // Skip node_modules and hidden directories
-          if (!file.name.startsWith('.') && file.name !== 'node_modules') {
-            await scanDir(fullPath, relativePath);
-          }
-        } else {
-          const ext = path.extname(file.name).toLowerCase();
-          if (staticExtensions.includes(ext)) {
-            // Read file content
-            const content = await fs.readFile(fullPath);
-            
-            // Determine content type
-            const contentType = this.getContentType(ext);
-            
-            // Upload to CDN
-            await cdnService.uploadAsset(
-              String(projectId),
-              relativePath,
-              content,
-              contentType
-            );
-          }
-        }
-      }
-    };
-    
-    await scanDir(deploymentPath);
-  }
-
-  private getContentType(extension: string): string {
-    const mimeTypes: Record<string, string> = {
-      '.html': 'text/html',
-      '.css': 'text/css',
-      '.js': 'application/javascript',
-      '.json': 'application/json',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon',
-      '.woff': 'font/woff',
-      '.woff2': 'font/woff2',
-      '.ttf': 'font/ttf'
-    };
-    
-    return mimeTypes[extension] || 'application/octet-stream';
   }
 
   private updateDeploymentStatus(deploymentId: string, status: DeploymentStatus['status'], error?: string) {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useState, useRef } from 'react';
 import { User } from '@shared/schema';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -12,7 +11,7 @@ import { cn, getInitials, getRandomColor } from '@/lib/utils';
 
 // Types for collaboration
 export type CollaboratorInfo = {
-  userId: string;
+  userId: number;
   username: string;
   color: string;
   position?: {
@@ -23,7 +22,7 @@ export type CollaboratorInfo = {
 };
 
 export type ChatMessage = {
-  userId: string;
+  userId: number;
   username: string;
   content: string;
   timestamp: number;
@@ -56,165 +55,134 @@ export default function Collaboration({
   const [userColor] = useState(() => getRandomColor());
   const webSocketRef = useRef<WebSocket | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
-  const isMountedRef = useRef(true);
 
-  // Connect to WebSocket server with auto-reconnection
+  // Connect to WebSocket server
   useEffect(() => {
     if (!projectId || !currentUser) return;
-    isMountedRef.current = true;
 
-    const connect = () => {
-      if (!isMountedRef.current) return;
+    // Determine the WebSocket URL
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
+    // Create WebSocket connection
+    const ws = new WebSocket(wsUrl);
+    webSocketRef.current = ws;
+    
+    // Connection opened
+    ws.addEventListener('open', () => {
+      console.log('Connected to collaboration server');
+      setIsConnected(true);
       
-      // Determine the WebSocket URL
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
-      // Create WebSocket connection
-      const ws = new WebSocket(wsUrl);
-      webSocketRef.current = ws;
-      
-      // Connection opened
-      ws.addEventListener('open', () => {
-        if (!isMountedRef.current) return;
-        setIsConnected(true);
-        reconnectAttemptsRef.current = 0;
+      // Send join message
+      ws.send(JSON.stringify({
+        type: 'user_joined',
+        userId: currentUser.id,
+        username: currentUser.username || currentUser.displayName || `User ${currentUser.id}`,
+        projectId,
+        fileId,
+        timestamp: Date.now(),
+        data: {
+          color: userColor
+        }
+      }));
+    });
+    
+    // Listen for messages
+    ws.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse(event.data);
         
-        // Send join message
-        ws.send(JSON.stringify({
-          type: 'user_joined',
-          userId: currentUser.id,
-          username: currentUser.username || currentUser.displayName || `User ${currentUser.id}`,
-          projectId,
-          fileId,
-          timestamp: Date.now(),
-          data: {
-            color: userColor
-          }
-        }));
-      });
-      
-      // Listen for messages
-      ws.addEventListener('message', (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          
-          switch (message.type) {
-            case 'user_joined':
-              // Add new collaborator
-              setCollaborators(prev => {
-                // Don't add if already in the list
-                if (prev.some(col => col.userId === message.userId)) {
-                  return prev;
-                }
-                return [...prev, {
-                  userId: message.userId,
-                  username: message.username,
-                  color: message.data.color
-                }];
-              });
-              
-              // Add system message to chat
-              setChatMessages(prev => [...prev, {
-                userId: '0',
-                username: 'System',
-                content: `${message.username} joined the project`,
-                timestamp: message.timestamp,
-                isSystem: true
-              }]);
-              break;
-              
-            case 'user_left':
-              // Remove collaborator
-              setCollaborators(prev => prev.filter(col => col.userId !== message.userId));
-              
-              // Add system message to chat
-              setChatMessages(prev => [...prev, {
-                userId: '0',
-                username: 'System',
-                content: `${message.username} left the project`,
-                timestamp: message.timestamp,
-                isSystem: true
-              }]);
-              break;
-              
-            case 'cursor_move':
-              // Update collaborator position
-              setCollaborators(prev => 
-                prev.map(col => 
-                  col.userId === message.userId 
-                    ? { ...col, position: message.data.position, lastActivity: new Date() } 
-                    : col
-                )
-              );
-              break;
-              
-            case 'chat_message':
-              // Add new chat message
-              setChatMessages(prev => [...prev, {
+        switch (message.type) {
+          case 'user_joined':
+            // Add new collaborator
+            setCollaborators(prev => {
+              // Don't add if already in the list
+              if (prev.some(col => col.userId === message.userId)) {
+                return prev;
+              }
+              return [...prev, {
                 userId: message.userId,
                 username: message.username,
-                content: message.data.content,
-                timestamp: message.data.timestamp
-              }]);
-              break;
-              
-            case 'current_collaborators':
-              // Set initial collaborators list
-              setCollaborators(message.data.collaborators);
-              break;
-              
-            case 'ping':
-              // Respond to ping with pong
-              ws.send(JSON.stringify({ type: 'pong' }));
-              break;
-          }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+                color: message.data.color
+              }];
+            });
+            
+            // Add system message to chat
+            setChatMessages(prev => [...prev, {
+              userId: 0,
+              username: 'System',
+              content: `${message.username} joined the project`,
+              timestamp: message.timestamp,
+              isSystem: true
+            }]);
+            break;
+            
+          case 'user_left':
+            // Remove collaborator
+            setCollaborators(prev => prev.filter(col => col.userId !== message.userId));
+            
+            // Add system message to chat
+            setChatMessages(prev => [...prev, {
+              userId: 0,
+              username: 'System',
+              content: `${message.username} left the project`,
+              timestamp: message.timestamp,
+              isSystem: true
+            }]);
+            break;
+            
+          case 'cursor_move':
+            // Update collaborator position
+            setCollaborators(prev => 
+              prev.map(col => 
+                col.userId === message.userId 
+                  ? { ...col, position: message.data.position, lastActivity: new Date() } 
+                  : col
+              )
+            );
+            break;
+            
+          case 'chat_message':
+            // Add new chat message
+            setChatMessages(prev => [...prev, {
+              userId: message.userId,
+              username: message.username,
+              content: message.data.content,
+              timestamp: message.data.timestamp
+            }]);
+            break;
+            
+          case 'current_collaborators':
+            // Set initial collaborators list
+            setCollaborators(message.data.collaborators);
+            break;
+            
+          case 'ping':
+            // Respond to ping with pong
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
         }
-      });
-      
-      // Handle connection close with auto-reconnection
-      ws.addEventListener('close', () => {
-        if (!isMountedRef.current) return;
-        setIsConnected(false);
-        
-        // Attempt reconnection with exponential backoff
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          reconnectAttemptsRef.current++;
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              connect();
-            }
-          }, delay);
-        }
-      });
-      
-      // Handle errors
-      ws.addEventListener('error', (error) => {
-        console.error('WebSocket error:', error);
-        if (isMountedRef.current) {
-          setIsConnected(false);
-        }
-      });
-    };
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    });
     
-    // Initial connection
-    connect();
+    // Handle connection close
+    ws.addEventListener('close', () => {
+      console.log('Disconnected from collaboration server');
+      setIsConnected(false);
+    });
+    
+    // Handle errors
+    ws.addEventListener('error', (error) => {
+      console.error('WebSocket error:', error);
+      setIsConnected(false);
+    });
     
     // Cleanup on unmount
     return () => {
-      isMountedRef.current = false;
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (webSocketRef.current && webSocketRef.current.readyState === WebSocket.OPEN) {
-        webSocketRef.current.close();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
       }
     };
   }, [projectId, currentUser, fileId, userColor]);
@@ -268,7 +236,7 @@ export default function Collaboration({
       {/* Header */}
       <div className="h-12 flex items-center justify-between px-4 border-b border-border bg-muted/30">
         <div className="flex items-center space-x-2">
-          <h3 className="text-[13px] font-medium">Collaboration</h3>
+          <h3 className="text-sm font-medium">Collaboration</h3>
           {isConnected ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
               Connected
@@ -317,11 +285,11 @@ export default function Collaboration({
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <div className="text-[13px] font-medium flex items-center">
+                  <div className="text-sm font-medium flex items-center">
                     {currentUser.username || currentUser.displayName || `User ${currentUser.id}`}
-                    <Badge className="ml-2 text-[11px]" variant="secondary">You</Badge>
+                    <Badge className="ml-2 text-xs" variant="secondary">You</Badge>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">Active now</div>
+                  <div className="text-xs text-muted-foreground">Active now</div>
                 </div>
               </div>
               
@@ -334,8 +302,8 @@ export default function Collaboration({
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <div className="text-[13px] font-medium">{collaborator.username}</div>
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-sm font-medium">{collaborator.username}</div>
+                    <div className="text-xs text-muted-foreground">
                       {collaborator.lastActivity
                         ? `Active ${Math.round((Date.now() - collaborator.lastActivity.getTime()) / 1000)}s ago`
                         : 'Joined recently'}
@@ -348,8 +316,8 @@ export default function Collaboration({
               {collaborators.length === 0 && (
                 <div className="text-center p-4 text-muted-foreground">
                   <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-[13px]">No other collaborators yet</p>
-                  <p className="text-[11px] mt-1">Share your project to invite others</p>
+                  <p className="text-sm">No other collaborators yet</p>
+                  <p className="text-xs mt-1">Share your project to invite others</p>
                 </div>
               )}
             </div>
@@ -363,8 +331,8 @@ export default function Collaboration({
             {chatMessages.length === 0 && (
               <div className="text-center p-4 text-muted-foreground h-full flex flex-col justify-center">
                 <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p className="text-[13px]">No messages yet</p>
-                <p className="text-[11px] mt-1">Start the conversation!</p>
+                <p className="text-sm">No messages yet</p>
+                <p className="text-xs mt-1">Start the conversation!</p>
               </div>
             )}
             
@@ -378,18 +346,18 @@ export default function Collaboration({
                 )}
               >
                 {message.isSystem ? (
-                  <div className="bg-muted/30 text-muted-foreground text-[11px] py-1 px-3 rounded-full">
+                  <div className="bg-muted/30 text-muted-foreground text-xs py-1 px-3 rounded-full">
                     {message.content}
                   </div>
                 ) : (
                   <>
                     <div className="flex items-center space-x-2">
-                      <span className="text-[11px] font-medium">{message.username}</span>
-                      <span className="text-[11px] text-muted-foreground">{formatTimestamp(message.timestamp)}</span>
+                      <span className="text-xs font-medium">{message.username}</span>
+                      <span className="text-xs text-muted-foreground">{formatTimestamp(message.timestamp)}</span>
                     </div>
                     <div 
                       className={cn(
-                        "py-2 px-3 rounded-lg text-[13px]",
+                        "py-2 px-3 rounded-lg text-sm",
                         message.userId === currentUser.id 
                           ? "bg-primary text-primary-foreground" 
                           : "bg-muted"

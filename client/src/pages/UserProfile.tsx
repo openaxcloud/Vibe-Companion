@@ -20,7 +20,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Link } from 'wouter';
-import { ECodeLoading } from '@/components/ECodeLoading';
+import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface UserProfile {
@@ -78,10 +78,12 @@ export default function UserProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
 
   // Fetch user profile
-  const { data: profile, isLoading, error} = useQuery<UserProfile>({
+  const { data: profile, isLoading, error } = useQuery<UserProfile>({
     queryKey: ['/api/users', username],
     queryFn: async () => {
-      return await apiRequest('GET', `/api/users/username/${username}`);
+      const res = await apiRequest('GET', `/api/users/${username}`);
+      if (!res.ok) throw new Error('Failed to fetch user profile');
+      return res.json();
     },
     enabled: !!username
   });
@@ -89,8 +91,9 @@ export default function UserProfile() {
   // Follow/unfollow mutation
   const followMutation = useMutation({
     mutationFn: async (action: 'follow' | 'unfollow') => {
-      // apiRequest already returns parsed JSON and throws on !ok
-      return await apiRequest('POST', `/api/users/${username}/${action}`);
+      const res = await apiRequest('POST', `/api/users/${username}/${action}`);
+      if (!res.ok) throw new Error(`Failed to ${action} user`);
+      return res.json();
     },
     onSuccess: (_, action) => {
       setIsFollowing(action === 'follow');
@@ -109,15 +112,29 @@ export default function UserProfile() {
       <div className="min-h-screen bg-background">
         <header className="border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold">E-Code Clone</Link>
+            <Link href="/" className="text-xl font-bold">Replit Clone</Link>
             <div className="flex items-center gap-4">
-              <Link href="/projects" className="text-[13px]">Projects</Link>
-              <Link href="/settings" className="text-[13px]">Settings</Link>
+              <Link href="/projects" className="text-sm">Projects</Link>
+              <Link href="/settings" className="text-sm">Settings</Link>
             </div>
           </div>
         </header>
         <div className="container mx-auto px-4 py-8">
-          <ECodeLoading centered size="lg" text="Loading user profile..." />
+          <Card>
+            <CardContent className="p-8">
+              <div className="flex items-start space-x-6">
+                <Skeleton className="h-32 w-32 rounded-full" />
+                <div className="flex-1 space-y-4">
+                  <Skeleton className="h-8 w-64" />
+                  <Skeleton className="h-4 w-96" />
+                  <div className="flex space-x-4">
+                    <Skeleton className="h-10 w-24" />
+                    <Skeleton className="h-10 w-24" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -128,10 +145,10 @@ export default function UserProfile() {
       <div className="min-h-screen bg-background">
         <header className="border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold">E-Code Clone</Link>
+            <Link href="/" className="text-xl font-bold">Replit Clone</Link>
             <div className="flex items-center gap-4">
-              <Link href="/projects" className="text-[13px]">Projects</Link>
-              <Link href="/settings" className="text-[13px]">Settings</Link>
+              <Link href="/projects" className="text-sm">Projects</Link>
+              <Link href="/settings" className="text-sm">Settings</Link>
             </div>
           </div>
         </header>
@@ -143,7 +160,7 @@ export default function UserProfile() {
               <p className="text-muted-foreground mb-4">
                 The user @{username} could not be found.
               </p>
-              <Button onClick={() => navigate('/')} data-testid="button-go-home">
+              <Button onClick={() => navigate('/')}>
                 Go to Homepage
               </Button>
             </CardContent>
@@ -156,21 +173,21 @@ export default function UserProfile() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container-responsive py-4 flex items-center justify-between">
-          <Link href="/" className="text-responsive-lg font-bold">E-Code</Link>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link href="/projects" className="text-responsive-xs">Projects</Link>
-            <Link href="/settings" className="text-responsive-xs">Settings</Link>
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="text-xl font-bold">Replit Clone</Link>
+          <div className="flex items-center gap-4">
+            <Link href="/projects" className="text-sm">Projects</Link>
+            <Link href="/settings" className="text-sm">Settings</Link>
           </div>
         </div>
       </header>
-      <div className="container-responsive py-responsive max-w-7xl mb-16 md:mb-0">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Profile Header */}
-        <Card className="mb-4 sm:mb-6">
-          <CardContent className="p-4 sm:p-6 lg:p-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 sm:mb-6">
-              <div className="flex flex-col sm:flex-row items-start sm:space-x-6 mb-4 md:mb-0">
-                <Avatar className="h-32 w-32" data-testid="avatar-user-profile">
+        <Card className="mb-6">
+          <CardContent className="p-8">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6">
+              <div className="flex items-start space-x-6 mb-4 md:mb-0">
+                <Avatar className="h-32 w-32">
                   <AvatarImage src={profile.avatarUrl} alt={profile.displayName} />
                   <AvatarFallback className="text-3xl">
                     {profile.displayName.slice(0, 2).toUpperCase()}
@@ -182,7 +199,7 @@ export default function UserProfile() {
                   {profile.bio && (
                     <p className="text-muted-foreground mb-4 max-w-2xl">{profile.bio}</p>
                   )}
-                  <div className="flex flex-wrap gap-3 text-[13px] text-muted-foreground">
+                  <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                     {profile.location && (
                       <span className="flex items-center">
                         <MapPin className="h-4 w-4 mr-1" />
@@ -220,7 +237,7 @@ export default function UserProfile() {
               
               <div className="flex items-center space-x-3">
                 {isOwnProfile ? (
-                  <Button onClick={() => navigate('/settings')} data-testid="button-edit-profile">
+                  <Button onClick={() => navigate('/settings')}>
                     <Settings className="h-4 w-4 mr-2" />
                     Edit Profile
                   </Button>
@@ -229,22 +246,21 @@ export default function UserProfile() {
                     <Button 
                       variant={isFollowing ? 'outline' : 'default'}
                       onClick={() => followMutation.mutate(isFollowing ? 'unfollow' : 'follow')}
-                      data-testid="button-follow"
                     >
                       {isFollowing ? 'Following' : 'Follow'}
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" data-testid="button-share-menu">
+                        <Button variant="outline" size="icon">
                           <Share2 className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        <DropdownMenuItem data-testid="menu-item-copy-link">
+                        <DropdownMenuItem>
                           <LinkIcon className="h-4 w-4 mr-2" />
                           Copy profile link
                         </DropdownMenuItem>
-                        <DropdownMenuItem data-testid="menu-item-send-message">
+                        <DropdownMenuItem>
                           <MessageSquare className="h-4 w-4 mr-2" />
                           Send message
                         </DropdownMenuItem>
@@ -255,47 +271,44 @@ export default function UserProfile() {
               </div>
             </div>
 
-            {/* Stats - Responsive Grid */}
-            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4">
-              <div className="text-center p-2 sm:p-4 bg-muted/50 rounded-lg">
-                <div className="text-[15px] sm:text-2xl font-bold">{profile.stats.projects}</div>
-                <div className="text-[11px] sm:text-[13px] text-muted-foreground">Projects</div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{profile.stats.projects}</div>
+                <div className="text-sm text-muted-foreground">Projects</div>
               </div>
-              <div className="text-center p-2 sm:p-4 bg-muted/50 rounded-lg">
-                <div className="text-[15px] sm:text-2xl font-bold">{profile.stats.stars}</div>
-                <div className="text-[11px] sm:text-[13px] text-muted-foreground">Stars</div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{profile.stats.stars}</div>
+                <div className="text-sm text-muted-foreground">Stars</div>
               </div>
-              <div className="text-center p-2 sm:p-4 bg-muted/50 rounded-lg">
-                <div className="text-[15px] sm:text-2xl font-bold">{profile.stats.followers}</div>
-                <div className="text-[11px] sm:text-[13px] text-muted-foreground">Followers</div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{profile.stats.followers}</div>
+                <div className="text-sm text-muted-foreground">Followers</div>
               </div>
-              <div className="text-center p-2 sm:p-4 bg-muted/50 rounded-lg">
-                <div className="text-[15px] sm:text-2xl font-bold">{profile.stats.following}</div>
-                <div className="text-[11px] sm:text-[13px] text-muted-foreground">Following</div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{profile.stats.following}</div>
+                <div className="text-sm text-muted-foreground">Following</div>
               </div>
-              <div className="text-center p-2 sm:p-4 bg-muted/50 rounded-lg">
-                <div className="text-[15px] sm:text-2xl font-bold">{profile.stats.contributions}</div>
-                <div className="text-[11px] sm:text-[13px] text-muted-foreground">Contrib.</div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{profile.stats.contributions}</div>
+                <div className="text-sm text-muted-foreground">Contributions</div>
               </div>
-              <div className="text-center p-2 sm:p-4 bg-muted/50 rounded-lg">
-                <div className="text-[15px] sm:text-2xl font-bold">{profile.stats.deployments}</div>
-                <div className="text-[11px] sm:text-[13px] text-muted-foreground">Deploys</div>
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-2xl font-bold">{profile.stats.deployments}</div>
+                <div className="text-sm text-muted-foreground">Deployments</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Main Content */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} data-testid="tabs-user-profile">
-          {/* Scrollable tabs on mobile */}
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 sm:pb-0 mb-4 sm:mb-6">
-            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-4 gap-1 bg-muted/50 p-1 rounded-lg">
-              <TabsTrigger value="overview" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-overview">Overview</TabsTrigger>
-              <TabsTrigger value="projects" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-projects">Projects</TabsTrigger>
-              <TabsTrigger value="activity" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-activity">Activity</TabsTrigger>
-              <TabsTrigger value="achievements" className="flex-shrink-0 px-4 sm:px-3 text-[13px] whitespace-nowrap" data-testid="tab-achievements">Achievements</TabsTrigger>
-            </TabsList>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4 mb-6">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="achievements">Achievements</TabsTrigger>
+          </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
             <div className="grid md:grid-cols-2 gap-6">
@@ -310,14 +323,14 @@ export default function UserProfile() {
                     <div 
                       key={project.id}
                       className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent cursor-pointer transition-colors"
-                      onClick={() => navigate(`/ide/${project.id}`)}
+                      onClick={() => navigate(`/editor/${project.id}`)}
                     >
                       <div className="flex-1">
                         <h4 className="font-medium">{project.name}</h4>
-                        <p className="text-[13px] text-muted-foreground line-clamp-1">
+                        <p className="text-sm text-muted-foreground line-clamp-1">
                           {project.description}
                         </p>
-                        <div className="flex items-center gap-4 mt-2 text-[13px] text-muted-foreground">
+                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                           <span className="flex items-center">
                             <Code className="h-3 w-3 mr-1" />
                             {project.language}
@@ -357,8 +370,8 @@ export default function UserProfile() {
                             {activity.type === 'deployment' && <Rocket className="h-4 w-4" />}
                           </div>
                           <div className="flex-1">
-                            <p className="text-[13px]">{activity.description}</p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-sm">{activity.description}</p>
+                            <p className="text-xs text-muted-foreground">
                               {new Date(activity.timestamp).toLocaleString()}
                             </p>
                           </div>
@@ -395,13 +408,13 @@ export default function UserProfile() {
                 <div className="grid md:grid-cols-2 gap-4">
                   {profile.topProjects.map(project => (
                     <Card key={project.id} className="hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => navigate(`/ide/${project.id}`)}>
+                          onClick={() => navigate(`/editor/${project.id}`)}>
                       <CardContent className="p-4">
                         <h3 className="font-semibold mb-2">{project.name}</h3>
-                        <p className="text-[13px] text-muted-foreground mb-3 line-clamp-2">
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                           {project.description}
                         </p>
-                        <div className="flex items-center justify-between text-[13px]">
+                        <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-3">
                             <span className="flex items-center">
                               <Code className="h-3 w-3 mr-1" />
@@ -451,13 +464,13 @@ export default function UserProfile() {
                         {activity.projectName && (
                           <Button 
                             variant="link" 
-                            className="p-0 h-auto text-[13px]"
-                            onClick={() => navigate(`/ide/${activity.projectId}`)}
+                            className="p-0 h-auto text-sm"
+                            onClick={() => navigate(`/editor/${activity.projectId}`)}
                           >
                             {activity.projectName}
                           </Button>
                         )}
-                        <p className="text-[13px] text-muted-foreground mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           {new Date(activity.timestamp).toLocaleString()}
                         </p>
                       </div>
@@ -479,8 +492,8 @@ export default function UserProfile() {
                   {profile.badges.map(badge => (
                     <Card key={badge.id} className="text-center p-4">
                       <div className="text-4xl mb-2">{badge.icon}</div>
-                      <h4 className="font-medium text-[13px]">{badge.name}</h4>
-                      <p className="text-[11px] text-muted-foreground mt-1">
+                      <h4 className="font-medium text-sm">{badge.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
                         {new Date(badge.earnedAt).toLocaleDateString()}
                       </p>
                     </Card>

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -19,7 +20,6 @@ import {
   Activity,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { cn } from "@/lib/utils";
 
 interface SystemStatus {
   connection: "online" | "offline" | "connecting";
@@ -45,10 +45,6 @@ export function ReplitFooter() {
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  const itemClass = "replit-footer__item";
-  const valueClass = "replit-footer__value";
-  const statusDotClass = "replit-footer__status-dot";
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -87,156 +83,158 @@ export function ReplitFooter() {
     };
     
     const threshold = thresholds[type];
-    if (value >= threshold.danger) return "text-[var(--ecode-danger)]";
-    if (value >= threshold.warning) return "text-[var(--ecode-warning)]";
-    return "text-[var(--ecode-green)]";
+    if (value >= threshold.danger) return "text-[var(--replit-danger)]";
+    if (value >= threshold.warning) return "text-[var(--replit-warning)]";
+    return "text-[var(--replit-green)]";
   };
 
   return (
     <TooltipProvider>
-      <footer className="replit-footer">
-        <div className="replit-footer__inner">
-          {/* Section gauche - Status système */}
-          <div className="replit-footer__section">
-            {/* Status de connexion */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  {status.connection === "online" ? (
-                    <Wifi className="h-3 w-3 text-[var(--ecode-green)]" />
-                  ) : status.connection === "offline" ? (
-                    <WifiOff className="h-3 w-3 text-[var(--ecode-danger)]" />
-                  ) : (
-                    <Wifi className="h-3 w-3 text-[var(--ecode-warning)] animate-pulse" />
-                  )}
-                  <span className={valueClass}>
-                    {status.connection === "online"
-                      ? "Online"
-                      : status.connection === "offline"
-                      ? "Offline"
-                      : "Connecting..."}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Connection Status</TooltipContent>
-            </Tooltip>
-
-            {/* Utilisateurs actifs */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  <Users className="h-3 w-3 text-[var(--ecode-blue)]" />
-                  <span className={valueClass}>{status.activeUsers}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Active Users</TooltipContent>
-            </Tooltip>
-
-            {/* Git branch */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  <GitBranch className="h-3 w-3 text-[var(--ecode-purple)]" />
-                  <span className={valueClass}>{status.gitBranch}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Current Branch</TooltipContent>
-            </Tooltip>
-
-            {/* Statut de sauvegarde */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  {status.hasErrors ? (
-                    <AlertCircle className="h-3 w-3 text-[var(--ecode-danger)]" />
-                  ) : (
-                    <CheckCircle className="h-3 w-3 text-[var(--ecode-green)]" />
-                  )}
-                  <span className={valueClass}>{formatLastSaved(status.lastSaved)}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Last Saved</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {/* Section centre - Métriques système */}
-          <div className="replit-footer__section">
-            {/* CPU */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  <Cpu className="h-3 w-3 text-[var(--ecode-text-secondary)]" />
-                  <span className={cn(valueClass, getStatusColor(status.cpu, "cpu"))}>
-                    {status.cpu}%
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>CPU Usage</TooltipContent>
-            </Tooltip>
-
-            {/* Memory */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  <Activity className="h-3 w-3 text-[var(--ecode-text-secondary)]" />
-                  <span className={cn(valueClass, getStatusColor(status.memory, "memory"))}>
-                    {status.memory}%
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Memory Usage</TooltipContent>
-            </Tooltip>
-
-            {/* Storage */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  <HardDrive className="h-3 w-3 text-[var(--ecode-text-secondary)]" />
-                  <span className={cn(valueClass, getStatusColor(status.storage, "storage"))}>
-                    {status.storage}%
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Storage Usage</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {/* Section droite - Actions et info */}
-          <div className="replit-footer__section">
-            {/* Plan actuel */}
-            <Badge variant="outline" className="replit-footer__plan">
-              <Zap className="h-3 w-3 mr-1" />
-              Free Plan
-            </Badge>
-
-            {/* Heure actuelle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={itemClass}>
-                  <Clock className="h-3 w-3 text-[var(--ecode-text-secondary)]" />
-                  <span className={cn(valueClass, "replit-footer__value--mono")}>
-                    {formatTime(currentTime)}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Current Time</TooltipContent>
-            </Tooltip>
-
-            {/* Status général */}
-            <div className={itemClass}>
-              <div
-                className={cn(
-                  statusDotClass,
-                  status.hasErrors
-                    ? "bg-[var(--ecode-danger)]"
-                    : status.connection === "online"
-                    ? "bg-[var(--ecode-green)]"
-                    : "bg-[var(--ecode-warning)]",
-                  "animate-pulse"
+      <footer className="h-6 bg-[var(--replit-surface)] border-t border-[var(--replit-border)] flex items-center justify-between px-3 text-xs">
+        {/* Section gauche - Status système */}
+        <div className="flex items-center space-x-4">
+          {/* Status de connexion */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                {status.connection === "online" ? (
+                  <Wifi className="h-3 w-3 text-[var(--replit-green)]" />
+                ) : status.connection === "offline" ? (
+                  <WifiOff className="h-3 w-3 text-[var(--replit-danger)]" />
+                ) : (
+                  <Wifi className="h-3 w-3 text-[var(--replit-warning)] animate-pulse" />
                 )}
-              ></div>
-              <span className={valueClass}>{status.hasErrors ? "Error" : "Ready"}</span>
-            </div>
+                <span className="text-[var(--replit-text-secondary)]">
+                  {status.connection === "online" ? "Online" : 
+                   status.connection === "offline" ? "Offline" : "Connecting..."}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Connection Status</TooltipContent>
+          </Tooltip>
+
+          {/* Utilisateurs actifs */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                <Users className="h-3 w-3 text-[var(--replit-blue)]" />
+                <span className="text-[var(--replit-text-secondary)]">
+                  {status.activeUsers}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Active Users</TooltipContent>
+          </Tooltip>
+
+          {/* Git branch */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                <GitBranch className="h-3 w-3 text-[var(--replit-purple)]" />
+                <span className="text-[var(--replit-text-secondary)]">
+                  {status.gitBranch}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Current Branch</TooltipContent>
+          </Tooltip>
+
+          {/* Statut de sauvegarde */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                {status.hasErrors ? (
+                  <AlertCircle className="h-3 w-3 text-[var(--replit-danger)]" />
+                ) : (
+                  <CheckCircle className="h-3 w-3 text-[var(--replit-green)]" />
+                )}
+                <span className="text-[var(--replit-text-secondary)]">
+                  {formatLastSaved(status.lastSaved)}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Last Saved</TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Section centre - Métriques système */}
+        <div className="flex items-center space-x-4">
+          {/* CPU */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                <Cpu className="h-3 w-3 text-[var(--replit-text-secondary)]" />
+                <span className={getStatusColor(status.cpu, "cpu")}>
+                  {status.cpu}%
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>CPU Usage</TooltipContent>
+          </Tooltip>
+
+          {/* Memory */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                <Activity className="h-3 w-3 text-[var(--replit-text-secondary)]" />
+                <span className={getStatusColor(status.memory, "memory")}>
+                  {status.memory}%
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Memory Usage</TooltipContent>
+          </Tooltip>
+
+          {/* Storage */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                <HardDrive className="h-3 w-3 text-[var(--replit-text-secondary)]" />
+                <span className={getStatusColor(status.storage, "storage")}>
+                  {status.storage}%
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Storage Usage</TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Section droite - Actions et info */}
+        <div className="flex items-center space-x-4">
+          {/* Plan actuel */}
+          <Badge
+            variant="outline"
+            className="text-xs border-[var(--replit-warning)] text-[var(--replit-warning)] bg-[var(--replit-warning)]/10"
+          >
+            <Zap className="h-3 w-3 mr-1" />
+            Free Plan
+          </Badge>
+
+          {/* Heure actuelle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center space-x-1 cursor-default">
+                <Clock className="h-3 w-3 text-[var(--replit-text-secondary)]" />
+                <span className="text-[var(--replit-text-secondary)] font-mono">
+                  {formatTime(currentTime)}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Current Time</TooltipContent>
+          </Tooltip>
+
+          {/* Status général */}
+          <div className="flex items-center space-x-1">
+            <div className={`h-2 w-2 rounded-full ${
+              status.hasErrors 
+                ? "bg-[var(--replit-danger)]" 
+                : status.connection === "online"
+                ? "bg-[var(--replit-green)]"
+                : "bg-[var(--replit-warning)]"
+            } animate-pulse`}></div>
+            <span className="text-[var(--replit-text-secondary)]">
+              {status.hasErrors ? "Error" : "Ready"}
+            </span>
           </div>
         </div>
       </footer>

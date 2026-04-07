@@ -1,773 +1,110 @@
-/* Replit Exact Design System - E-Code Branded */
-/* RUI Design Token System */
+/* Thème exact de Replit - Variables CSS personnalisées */
 :root {
-  color-scheme: light;
-
-  /* ========================================
-   * RUI Design Tokens - Light Mode
-   * Naming: foreground (default/dimmer/dimmest)
-   *         background (root/default/higher/highest)
-   * ======================================== */
+  /* Couleurs de base Replit */
+  --replit-background: #0e1117;
+  --replit-surface: #161b22;
+  --replit-surface-secondary: #21262d;
+  --replit-border: #30363d;
+  --replit-text: #e6edf3;
+  --replit-text-secondary: #7d8590;
+  --replit-accent: #238636;
+  --replit-accent-hover: #2ea043;
+  --replit-danger: #da3633;
+  --replit-warning: #d29922;
+  --replit-info: #0969da;
   
-  /* RUI Foreground Colors */
-  --foreground-default: #1A1A1A;
-  --foreground-dimmer: #666666;
-  --foreground-dimmest: #999999;
+  /* Couleurs spécifiques Replit */
+  --replit-green: #56f39a;
+  --replit-blue: #58a6ff;
+  --replit-purple: #a5a5ff;
+  --replit-orange: #ffab40;
+  --replit-red: #ff6b6b;
   
-  /* RUI Background Colors */
-  --background-root: #FFFFFF;
-  --background-default: #F8F9FA;
-  --background-higher: #F0F1F3;
-  --background-highest: #E5E7EB;
+  /* Navigation et sidebar */
+  --replit-sidebar-bg: #161b22;
+  --replit-sidebar-hover: #21262d;
+  --replit-sidebar-active: #238636;
   
-  /* RUI Accent Colors */
-  --accent-default: #F26207;
-  --accent-dimmer: #D04E00;
-  --accent-dimmest: #FFE4D3;
-  --accent-stronger: #FF7A2B;
+  /* Éditeur */
+  --replit-editor-bg: #0d1117;
+  --replit-editor-gutter: #161b22;
+  --replit-editor-selection: #264f78;
+  --replit-editor-line-highlight: #2f3349;
   
-  /* RUI Border Colors */
-  --border-default: #E0E0E0;
-  --border-dimmer: #F0F1F3;
-  --border-stronger: #C1C8CD;
+  /* Terminal */
+  --replit-terminal-bg: #0d1117;
+  --replit-terminal-text: #e6edf3;
+  --replit-terminal-cursor: #56f39a;
   
-  /* RUI Status Colors */
-  --status-success: #22C55E;
-  --status-warning: #F59E0B;
-  --status-error: #EF4444;
-  --status-info: #3B82F6;
+  /* Boutons et contrôles */
+  --replit-button-primary: #238636;
+  --replit-button-primary-hover: #2ea043;
+  --replit-button-secondary: #21262d;
+  --replit-button-secondary-hover: #30363d;
   
-  /* RUI Typography */
-  --fontSizeSmall: 12px;
-  --fontSizeDefault: 14px;
-  --fontSizeMedium: 16px;
-  --fontSizeLarge: 18px;
-  --fontSizeXLarge: 24px;
+  /* Shadows et elevations */
+  --replit-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --replit-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.15);
+  --replit-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.2);
   
-  /* RUI Spacing */
-  --space4: 4px;
-  --space8: 8px;
-  --space12: 12px;
-  --space16: 16px;
-  --space24: 24px;
-  --space32: 32px;
+  /* Spacing système Replit */
+  --replit-space-1: 4px;
+  --replit-space-2: 8px;
+  --replit-space-3: 12px;
+  --replit-space-4: 16px;
+  --replit-space-5: 20px;
+  --replit-space-6: 24px;
+  --replit-space-8: 32px;
+  --replit-space-10: 40px;
+  --replit-space-12: 48px;
   
-  /* RUI Border Radius */
-  --borderRadius4: 4px;
-  --borderRadius8: 8px;
-  --borderRadius12: 12px;
-  --borderRadiusFull: 9999px;
+  /* Typography Replit */
+  --replit-font-mono: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  --replit-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
-  /* RUI Shadows */
-  --shadow1: 0 1px 2px color-mix(in srgb, var(--foreground-default) 5%, transparent);
-  --shadow2: 0 2px 4px color-mix(in srgb, var(--foreground-default) 8%, transparent);
-  --shadow3: 0 4px 8px color-mix(in srgb, var(--foreground-default) 12%, transparent);
-  --shadow4: 0 8px 16px color-mix(in srgb, var(--foreground-default) 16%, transparent);
-
-  /* Design tokens used by the Tailwind theme */
-  --background: 0 0% 99%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --primary: 24 96 49;  /* E-Code Orange #F26207 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 39 96 56;  /* E-Code Yellow-Orange #F99D25 */
-  --secondary-foreground: 0 0% 0%;
-  --muted: 210 17% 96%;
-  --muted-foreground: 215 16% 40%;
-  --accent: 39 96 56;  /* E-Code Yellow-Orange #F99D25 */
-  --accent-foreground: 0 0% 0%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 214 32% 88%;
-  --input: 214 32% 90%;
-  --ring: 24 96 49;  /* E-Code Orange #F26207 */
-  --chart-1: 24 96 49;  /* E-Code Orange #F26207 */
-  --chart-2: 39 96 56;  /* E-Code Yellow-Orange #F99D25 */
-  --chart-3: 142 71% 45%;
-  --chart-4: 38 92% 50%;
-  --chart-5: 280 87% 65%;
-  --sidebar-background: 0 0% 98%;
-  --sidebar-foreground: 222 47% 11%;
-  --sidebar-primary: 24 96 49;  /* E-Code Orange #F26207 */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 39 96 56;  /* E-Code Yellow-Orange #F99D25 */
-  --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-border: 220 13% 88%;
-  --sidebar-ring: 24 96 49;  /* E-Code Orange #F26207 */
-  --background-rgb: 252, 252, 253;
-
-  /* E-Code corporate light palette - Pure White Design */
-  --ecode-background: #ffffff;
-  --ecode-surface: #ffffff;
-  --ecode-surface-secondary: #ffffff;
-  --ecode-surface-tertiary: #f8f9fa;
-  --ecode-border: #e0e0e0;
-  --ecode-border-strong: #c1c8cd;
-  --ecode-text: #1a1a1a;
-  --ecode-text-secondary: #333333;
-  --ecode-text-muted: #666666;
-  --ecode-accent: #F26207;  /* E-Code Orange */
-  --ecode-accent-hover: #D04E00;
-  /* Status Colors - HSL channels for Tailwind opacity support */
-  --ecode-danger: 354 70% 54%;
-  --ecode-warning: 37 92% 50%;
-  --ecode-info: 219 91% 60%;
-  --ecode-green: 159 64% 39%;
-
-  --ecode-surface-hover: #f5f5f5;
-  --ecode-surface-elevated: #ffffff;
-  --ecode-blue: #3b82f6;  /* Keep blue for certain elements */
-  --ecode-purple: #7c3aed;
-  --ecode-orange: #F26207;  /* E-Code Orange */
-  --ecode-orange-light: #FF7A2B;
-  --ecode-orange-tint: #ffe4d3;
-  --ecode-yellow: #F99D25;
-  --ecode-secondary-accent: #F99D25;
-  --ecode-red: #dc3545;
-
-  --ecode-sidebar-bg: #f7f8fa;
-  --ecode-sidebar-hover: #eef0f3;
-  --ecode-sidebar-active: #F26207;  /* E-Code Orange */
-  --ecode-sidebar-border: #dfe3e8;
-
-  --ecode-editor-bg: #ffffff;
-  --ecode-editor-gutter: #f7f8fa;
-  --ecode-editor-selection: #ffe4d3;  /* Light orange tint */
-  --ecode-editor-line-highlight: #f7f8fa;
-
-  --ecode-terminal-bg: #f8f9fa;
-  --ecode-terminal-text: #24292e;
-  --ecode-terminal-cursor: #F26207;  /* E-Code Orange */
-  --ecode-terminal-selection: rgba(242, 98, 7, 0.2);
-  --ecode-terminal-black: #24292e;
-  --ecode-terminal-red: #c0392b;
-  --ecode-terminal-green: #27ae60;
-  --ecode-terminal-yellow: #d68910;
-  --ecode-terminal-blue: #2980b9;
-  --ecode-terminal-magenta: #8e44ad;
-  --ecode-terminal-cyan: #16a085;
-  --ecode-terminal-white: #f8f9fa;
-  --ecode-terminal-bright-black: #586069;
-  --ecode-terminal-bright-red: #e74c3c;
-  --ecode-terminal-bright-green: #2ecc71;
-  --ecode-terminal-bright-yellow: #f39c12;
-  --ecode-terminal-bright-blue: #3498db;
-  --ecode-terminal-bright-magenta: #9b59b6;
-  --ecode-terminal-bright-cyan: #1abc9c;
-  --ecode-terminal-bright-white: #ffffff;
-
-  /* Mobile IDE surfaces - Light mode */
-  --mobile-ide-bg: var(--ecode-background);
-  --mobile-ide-surface: var(--ecode-surface);
-  --mobile-ide-toolbar: var(--ecode-surface);
-  --mobile-ide-border: var(--ecode-border);
-  --mobile-ide-hover: var(--ecode-surface-hover);
-  --mobile-ide-active: var(--ecode-sidebar-active);
-
-  --ecode-button-primary: #F26207;  /* E-Code Orange */
-  --ecode-button-primary-hover: #D04E00;
-  --ecode-button-secondary: #f7f8fa;
-  --ecode-button-secondary-hover: #eef0f3;
-
-  --ecode-shadow-sm: 0 1px 3px 0 color-mix(in srgb, var(--foreground-default) 10%, transparent);
-  --ecode-shadow-md: 0 4px 8px -2px color-mix(in srgb, var(--foreground-default) 10%, transparent);
-  --ecode-shadow-lg: 0 12px 24px -6px color-mix(in srgb, var(--foreground-default) 12%, transparent);
-
-  /* Marketing surfaces - Clean and professional */
-  --marketing-surface-bg: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
-  --marketing-surface-text: #212529;
-  --marketing-backdrop: linear-gradient(180deg, color-mix(in srgb, var(--background-default) 95%, transparent), color-mix(in srgb, var(--background-higher) 95%, transparent));
-  --marketing-gradient: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--ecode-blue) 5%, transparent), transparent 50%),
-    radial-gradient(circle at 80% 15%, color-mix(in srgb, var(--status-success) 5%, transparent), transparent 50%),
-    radial-gradient(circle at 50% 75%, color-mix(in srgb, var(--ecode-purple) 5%, transparent), transparent 45%);
-  --marketing-grid-line: color-mix(in srgb, var(--border-stronger) 60%, transparent);
-  --marketing-divider: linear-gradient(90deg, transparent, var(--border-stronger), transparent);
-  --marketing-glass-bg: color-mix(in srgb, var(--background-root) 90%, transparent);
-  --marketing-glass-border: color-mix(in srgb, var(--border-default) 80%, transparent);
-  --marketing-glass-shadow: 0 4px 16px color-mix(in srgb, var(--foreground-default) 8%, transparent);
-
-  /* Spacing - Replit system */
-  --ecode-space-1: 4px;
-  --ecode-space-2: 8px;
-  --ecode-space-3: 12px;
-  --ecode-space-4: 16px;
-  --ecode-space-5: 20px;
-  --ecode-space-6: 24px;
-  --ecode-space-8: 32px;
-  --ecode-space-10: 40px;
-  --ecode-space-12: 48px;
-
-  /* Typography - Replit exact */
-  --ecode-font-mono: 'IBM Plex Mono', 'SF Mono', Monaco, 'Inconsolata', 'Fira Mono', 'Droid Sans Mono', 'Source Code Pro', monospace;
-  --ecode-font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-
-  /* Border radius - Replit values */
-  --ecode-radius-sm: 4px;
-  --ecode-radius-md: 8px;
-  --ecode-radius-lg: 12px;
-
+  /* Border radius */
+  --replit-radius-sm: 0px;
+  --replit-radius-md: 0px;
+  --replit-radius-lg: 0px;
+  
   /* Z-index layers */
-  --ecode-z-dropdown: 1000;
-  --ecode-z-modal: 1100;
-  --ecode-z-tooltip: 1200;
-  --ecode-z-notification: 1300;
-
-  /* Fortune 500 Mobile Navigation - Solid Design (Light Mode) */
-  --mobile-nav-height: 72px;
-  --mobile-nav-bg: #FFFFFF;
-  --mobile-nav-bg-elevated: #FFFFFF;
-  --mobile-nav-blur: 0;
-  --mobile-nav-border: #E5E7EB;
-  --mobile-nav-border-top: #E5E7EB;
-  --mobile-nav-shadow: 0 -1px 3px color-mix(in srgb, var(--foreground-default) 8%, transparent), 0 -4px 16px -4px color-mix(in srgb, var(--foreground-default) 6%, transparent);
-  --mobile-nav-shadow-elevated: 0 -2px 24px -4px color-mix(in srgb, var(--foreground-default) 10%, transparent);
-  --mobile-nav-glow: color-mix(in srgb, var(--accent-default) 20%, transparent);
-  --mobile-nav-glow-strong: color-mix(in srgb, var(--accent-default) 35%, transparent);
-  --mobile-nav-radius: 20px;
-  --mobile-nav-item-radius: 14px;
-  --mobile-nav-active-bg: #FEF3E8;
-  --mobile-nav-active-border: #FDCAA8;
-  --mobile-nav-inactive-opacity: 0.55;
-  --mobile-nav-label-size: 11px;
-  --mobile-nav-icon-size: 22px;
-  --mobile-nav-gradient: #FFFFFF;
-  --mobile-nav-inner-shadow: inset 0 1px 0 0 #F8F9FA;
+  --replit-z-dropdown: 1000;
+  --replit-z-modal: 1100;
+  --replit-z-tooltip: 1200;
+  --replit-z-notification: 1300;
 }
 
-.dark {
-  color-scheme: dark;
-
-  /* ========================================
-   * RUI Design Tokens - Dark Mode
-   * Naming: foreground (default/dimmer/dimmest)
-   *         background (root/default/higher/highest)
-   * ======================================== */
+/* Mode clair Replit */
+[data-theme="light"] {
+  --replit-background: #ffffff;
+  --replit-surface: #f6f8fa;
+  --replit-surface-secondary: #f1f3f4;
+  --replit-border: #d0d7de;
+  --replit-text: #24292f;
+  --replit-text-secondary: #656d76;
+  --replit-accent: #1f883d;
+  --replit-accent-hover: #1a7f37;
   
-  /* RUI Foreground Colors */
-  --foreground-default: #F5F9FC;
-  --foreground-dimmer: #9BA3B3;
-  --foreground-dimmest: #6B7280;
+  --replit-sidebar-bg: #f6f8fa;
+  --replit-sidebar-hover: #eef1f3;
+  --replit-sidebar-active: #1f883d;
   
-  /* RUI Background Colors */
-  --background-root: #0E1525;
-  --background-default: #1C2333;
-  --background-higher: #262C3B;
-  --background-highest: #313744;
+  --replit-editor-bg: #ffffff;
+  --replit-editor-gutter: #f6f8fa;
+  --replit-editor-selection: #b6d7ff;
+  --replit-editor-line-highlight: #f6f8fa;
   
-  /* RUI Accent Colors */
-  --accent-default: #F26207;
-  --accent-dimmer: #D04E00;
-  --accent-dimmest: #7C2D12;
-  --accent-stronger: #FF7A2B;
+  --replit-terminal-bg: #ffffff;
+  --replit-terminal-text: #24292f;
+  --replit-terminal-cursor: #1f883d;
   
-  /* RUI Border Colors */
-  --border-default: #313744;
-  --border-dimmer: #262C3B;
-  --border-stronger: #3A4358;
-  
-  /* RUI Status Colors */
-  --status-success: #22C55E;
-  --status-warning: #F59E0B;
-  --status-error: #EF4444;
-  --status-info: #3B82F6;
-  
-  /* RUI Shadows (darker for dark mode) */
-  --shadow1: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow2: 0 2px 4px rgba(0, 0, 0, 0.25);
-  --shadow3: 0 4px 8px rgba(0, 0, 0, 0.3);
-  --shadow4: 0 8px 16px rgba(0, 0, 0, 0.35);
-
-  --background: 221.7 45.1% 10%;
-  --foreground: 205.7 53.8% 97.5%;
-  --card: 221.7 29.1% 15.5%;
-  --card-foreground: 205.7 53.8% 97.5%;
-  --popover: 221.7 29.1% 15.5%;
-  --popover-foreground: 205.7 53.8% 97.5%;
-  --primary: 24 96 49;  /* E-Code Orange #F26207 */
-  --primary-foreground: 210 40% 98%;
-  --secondary: 222.9 21.6% 19%;
-  --secondary-foreground: 205.7 53.8% 97.5%;
-  --muted: 222.9 21.6% 19%;
-  --muted-foreground: 220 13.6% 65.5%;
-  --accent: 222.9 21.6% 19%;
-  --accent-foreground: 205.7 53.8% 97.5%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 221.1 16.2% 22.9%;
-  --input: 221.1 16.2% 22.9%;
-  --ring: 24 96 49;  /* E-Code Orange #F26207 */
-  --chart-1: 24 96 49;  /* E-Code Orange #F26207 */
-  --chart-2: 160.1 84.1% 39.4%;
-  --chart-3: 24.6 95% 61%;
-  --chart-4: 258.3 89.5% 70.3%;
-  --chart-5: 0 84.2% 65.2%;
-  --sidebar-background: 221.7 29.1% 15.5%;
-  --sidebar-foreground: 205.7 53.8% 97.5%;
-  --sidebar-primary: 24 96 49;  /* E-Code Orange #F26207 */
-  --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 222.9 21.6% 19%;
-  --sidebar-accent-foreground: 205.7 53.8% 97.5%;
-  --sidebar-border: 221.1 16.2% 22.9%;
-  --sidebar-ring: 24 96 49;  /* E-Code Orange #F26207 */
-  --background-rgb: 14, 21, 37;
-
-  --ecode-background: #0e1525;
-  --ecode-surface: #1c2333;
-  --ecode-surface-secondary: #262c3b;
-  --ecode-border: #313744;
-  --ecode-border-strong: #3a4358;
-  --ecode-text: #f5f9fc;
-  --ecode-text-secondary: #9ba3b3;
-  --ecode-text-muted: #8b95a7;
-  --ecode-accent: #F26207;  /* E-Code Orange */
-  --ecode-accent-hover: #FF7A2B;
-  /* Status Colors - HSL channels for Tailwind opacity support (Dark Mode) */
-  --ecode-danger: 0 84% 60%;
-  --ecode-warning: 37 92% 50%;
-  --ecode-info: 199 89% 48%;
-  --ecode-green: 158 64% 52%;
-
-  --ecode-surface-hover: rgba(59, 130, 246, 0.16);
-  --ecode-surface-elevated: rgba(28, 35, 51, 0.92);
-  --ecode-blue: #3b82f6;
-  --ecode-purple: #a78bfa;
-  --ecode-orange: #fb923c;
-  --ecode-orange-light: #fdba74;
-  --ecode-orange-tint: #7c2d12;
-  --ecode-yellow: #fbbf24;
-  --ecode-secondary-accent: #fbbf24;
-  --ecode-red: #f87171;
-
-  --ecode-sidebar-bg: #1c2333;
-  --ecode-sidebar-hover: #262c3b;
-  --ecode-sidebar-active: #F26207;  /* E-Code Orange */
-  --ecode-sidebar-border: #313744;
-
-  --ecode-editor-bg: #0e1525;
-  --ecode-editor-gutter: #1c2333;
-  --ecode-editor-selection: #2d4a7c;
-  --ecode-editor-line-highlight: #1a2332;
-
-  --ecode-terminal-bg: #0e1525;
-  --ecode-terminal-text: #d4d8dd;
-  --ecode-terminal-cursor: #F26207;  /* E-Code Orange */
-  --ecode-terminal-selection: rgba(0, 121, 242, 0.3);
-  --ecode-terminal-black: #0e1525;
-  --ecode-terminal-red: #ff6b6b;
-  --ecode-terminal-green: #4ecdc4;
-  --ecode-terminal-yellow: #ffe66d;
-  --ecode-terminal-blue: #0079f2;
-  --ecode-terminal-magenta: #c792ea;
-  --ecode-terminal-cyan: #89ddff;
-  --ecode-terminal-white: #d4d8dd;
-  --ecode-terminal-bright-black: #3d4452;
-  --ecode-terminal-bright-red: #ff8a80;
-  --ecode-terminal-bright-green: #69f0ae;
-  --ecode-terminal-bright-yellow: #ffff8d;
-  --ecode-terminal-bright-blue: #40c4ff;
-  --ecode-terminal-bright-magenta: #ff80ab;
-  --ecode-terminal-bright-cyan: #a7fdeb;
-  --ecode-terminal-bright-white: #ffffff;
-
-  /* Mobile IDE surfaces - Dark mode */
-  --mobile-ide-bg: var(--ecode-background);
-  --mobile-ide-surface: var(--ecode-surface);
-  --mobile-ide-toolbar: var(--ecode-surface);
-  --mobile-ide-border: var(--ecode-border);
-  --mobile-ide-hover: var(--ecode-surface-hover);
-  --mobile-ide-active: var(--ecode-sidebar-active);
-
-  /* Fortune 500 Mobile Navigation - Solid Design (Dark Mode) */
-  --mobile-nav-height: 72px;
-  --mobile-nav-bg: #1C2333;
-  --mobile-nav-bg-elevated: #1C2333;
-  --mobile-nav-blur: 0;
-  --mobile-nav-border: #313744;
-  --mobile-nav-border-top: #3D4455;
-  --mobile-nav-shadow: 0 -1px 3px rgba(0, 0, 0, 0.25), 0 -4px 20px -4px rgba(0, 0, 0, 0.35);
-  --mobile-nav-shadow-elevated: 0 -2px 32px -4px rgba(0, 0, 0, 0.45);
-  --mobile-nav-glow: rgba(242, 98, 7, 0.25);
-  --mobile-nav-glow-strong: rgba(242, 98, 7, 0.45);
-  --mobile-nav-radius: 20px;
-  --mobile-nav-item-radius: 14px;
-  --mobile-nav-active-bg: #3D2A1A;
-  --mobile-nav-active-border: #6B4423;
-  --mobile-nav-inactive-opacity: 0.5;
-  --mobile-nav-label-size: 11px;
-  --mobile-nav-icon-size: 22px;
-  --mobile-nav-gradient: #1C2333;
-  --mobile-nav-inner-shadow: inset 0 1px 0 0 #262C3B;
-
-  --ecode-button-primary: #F26207;  /* E-Code Orange */
-  --ecode-button-primary-hover: #FF7A2B;
-  --ecode-button-secondary: #262c3b;
-  --ecode-button-secondary-hover: #313744;
-
-  --ecode-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --ecode-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --ecode-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
-
-  /* Marketing surfaces */
-  --marketing-surface-bg: linear-gradient(180deg, #020617 0%, #0f172a 100%);
-  --marketing-surface-text: #e2e8f0;
-  --marketing-backdrop: radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 55%),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 50%),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.92));
-  --marketing-gradient: radial-gradient(circle at 20% 20%, rgba(125, 211, 252, 0.12), transparent 45%),
-    radial-gradient(circle at 80% 20%, rgba(147, 197, 253, 0.12), transparent 50%),
-    radial-gradient(circle at 50% 70%, rgba(129, 140, 248, 0.1), transparent 40%);
-  --marketing-grid-line: rgba(148, 163, 184, 0.07);
-  --marketing-divider: linear-gradient(90deg, rgba(59, 130, 246, 0), rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0));
-  --marketing-glass-bg: rgba(15, 23, 42, 0.6);
-  --marketing-glass-border: rgba(148, 163, 184, 0.2);
-  --marketing-glass-shadow: 0 20px 45px -25px rgba(15, 23, 42, 0.6);
+  --replit-button-primary: #1f883d;
+  --replit-button-primary-hover: #1a7f37;
+  --replit-button-secondary: #f6f8fa;
+  --replit-button-secondary-hover: #eef1f3;
 }
 
-/* Keeping light mode selector for compatibility */
-.light {
-  color-scheme: light;
-
-  --background: 0 0% 99%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 210 17% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 17% 96%;
-  --muted-foreground: 215 16% 40%;
-  --accent: 210 17% 93%;
-  --accent-foreground: 222 47% 11%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 214 32% 88%;
-  --input: 214 32% 90%;
-  --ring: 221 83% 53%;
-  --chart-1: 221 83% 53%;
-  --chart-2: 142 71% 45%;
-  --chart-3: 38 92% 50%;
-  --chart-4: 280 87% 65%;
-  --chart-5: 340 82% 52%;
-  --sidebar-background: 0 0% 98%;
-  --sidebar-foreground: 222 47% 11%;
-  --sidebar-primary: 24 96 49;  /* E-Code Orange #F26207 */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 39 96 56;  /* E-Code Yellow-Orange #F99D25 */
-  --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-border: 220 13% 88%;
-  --sidebar-ring: 24 96 49;  /* E-Code Orange #F26207 */
-  --background-rgb: 252, 252, 253;
-
-  --ecode-background: #ffffff;
-  --ecode-surface: #ffffff;
-  --ecode-surface-secondary: #ffffff;
-  --ecode-surface-tertiary: #f8f9fa;
-  --ecode-border: #e0e0e0;
-  --ecode-border-strong: #c1c8cd;
-  --ecode-text: #1a1a1a;
-  --ecode-text-secondary: #333333;
-  --ecode-text-muted: #666666;
-  --ecode-accent: #F26207;  /* E-Code Orange */
-  --ecode-accent-hover: #D04E00;
-  /* Status Colors - HSL channels for Tailwind opacity support */
-  --ecode-danger: 354 70% 54%;
-  --ecode-warning: 37 92% 50%;
-  --ecode-info: 219 91% 60%;
-  --ecode-green: 159 64% 39%;
-  --ecode-blue: #3b82f6;  /* Keep blue for certain elements */
-  --ecode-purple: #7c3aed;
-  --ecode-orange: #F26207;  /* E-Code Orange */
-  --ecode-orange-light: #FF7A2B;
-  --ecode-orange-tint: #ffe4d3;
-  --ecode-yellow: #F99D25;
-  --ecode-secondary-accent: #F99D25;
-  --ecode-red: #dc3545;
-
-  --ecode-sidebar-bg: #ffffff;
-  --ecode-sidebar-hover: #f5f5f5;
-  --ecode-sidebar-active: #F26207;  /* E-Code Orange */
-  --ecode-sidebar-border: #e0e0e0;
-
-  --ecode-editor-bg: #ffffff;
-  --ecode-editor-gutter: #f8f9fa;
-  --ecode-editor-selection: #ffe4d3;  /* Light orange tint */
-  --ecode-editor-line-highlight: #f8f9fa;
-
-  --ecode-terminal-bg: #f8f9fa;
-  --ecode-terminal-text: #24292e;
-  --ecode-terminal-cursor: #F26207;  /* E-Code Orange */
-  --ecode-terminal-selection: rgba(242, 98, 7, 0.2);
-  --ecode-terminal-black: #24292e;
-  --ecode-terminal-red: #c0392b;
-  --ecode-terminal-green: #27ae60;
-  --ecode-terminal-yellow: #d68910;
-  --ecode-terminal-blue: #2980b9;
-  --ecode-terminal-magenta: #8e44ad;
-  --ecode-terminal-cyan: #16a085;
-  --ecode-terminal-white: #f8f9fa;
-  --ecode-terminal-bright-black: #586069;
-  --ecode-terminal-bright-red: #e74c3c;
-  --ecode-terminal-bright-green: #2ecc71;
-  --ecode-terminal-bright-yellow: #f39c12;
-  --ecode-terminal-bright-blue: #3498db;
-  --ecode-terminal-bright-magenta: #9b59b6;
-  --ecode-terminal-bright-cyan: #1abc9c;
-  --ecode-terminal-bright-white: #ffffff;
-
-  --ecode-button-primary: #F26207;  /* E-Code Orange */
-  --ecode-button-primary-hover: #D04E00;
-  --ecode-button-secondary: #ffffff;
-  --ecode-button-secondary-hover: #f5f5f5;
-
-  --ecode-surface-hover: #f5f5f5;
-  --ecode-surface-elevated: #ffffff;
-
-  --ecode-shadow-sm: 0 1px 3px 0 color-mix(in srgb, var(--foreground-default) 10%, transparent);
-  --ecode-shadow-md: 0 4px 8px -2px color-mix(in srgb, var(--foreground-default) 10%, transparent);
-  --ecode-shadow-lg: 0 12px 24px -6px color-mix(in srgb, var(--foreground-default) 12%, transparent);
-
-  /* Marketing surfaces - Clean and professional */
-  --marketing-surface-bg: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
-  --marketing-surface-text: #212529;
-  --marketing-backdrop: linear-gradient(180deg, color-mix(in srgb, var(--background-default) 95%, transparent), color-mix(in srgb, var(--background-higher) 95%, transparent));
-  --marketing-gradient: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--ecode-blue) 5%, transparent), transparent 50%),
-    radial-gradient(circle at 80% 15%, color-mix(in srgb, var(--status-success) 5%, transparent), transparent 50%),
-    radial-gradient(circle at 50% 75%, color-mix(in srgb, var(--ecode-purple) 5%, transparent), transparent 45%);
-  --marketing-grid-line: color-mix(in srgb, var(--border-stronger) 60%, transparent);
-  --marketing-divider: linear-gradient(90deg, transparent, var(--border-stronger), transparent);
-  --marketing-glass-bg: color-mix(in srgb, var(--background-root) 90%, transparent);
-  --marketing-glass-border: color-mix(in srgb, var(--border-default) 80%, transparent);
-  --marketing-glass-shadow: 0 4px 16px color-mix(in srgb, var(--foreground-default) 8%, transparent);
-}
-
-/* Header refinements */
-.replit-header {
-  background: var(--ecode-surface-elevated);
-  border-bottom: 1px solid var(--ecode-border);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground-default) 10%, transparent);
-  color: var(--ecode-text);
-  position: sticky;
-  top: 0;
-  z-index: 980;
-  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.replit-header .replit-nav {
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .replit-header .replit-nav {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    margin-left: 0.75rem;
-    flex-shrink: 1;
-    min-width: 0;
-    overflow: hidden;
-  }
-}
-
-.replit-nav-link {
-  border-radius: 6px;
-  padding: 0.375rem 0.625rem;
-  font-weight: 500;
-  font-size: 0.875rem;
-  letter-spacing: -0.01em;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--ecode-text-secondary);
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.replit-nav-link--trigger {
-  color: var(--ecode-text);
-  font-weight: 600;
-}
-
-.replit-nav-link--inactive:hover {
-  color: var(--ecode-text);
-  background-color: var(--ecode-surface-hover);
-}
-
-.replit-nav-link--active {
-  color: var(--primary-foreground);
-  background: var(--ecode-accent);
-  box-shadow: 0 2px 4px color-mix(in srgb, var(--ecode-accent) 20%, transparent);
-}
-
-.replit-header-search {
-  width: 100%;
-  justify-content: flex-start;
-  text-align: left;
-  font-weight: 400;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  background: var(--ecode-surface-secondary);
-  border: 1px solid var(--ecode-border);
-  color: var(--ecode-text-muted);
-  transition: all 0.15s ease;
-}
-
-.replit-header-search:hover {
-  background: var(--ecode-surface-hover);
-  border-color: var(--ecode-border-strong);
-  color: var(--ecode-text);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-}
-
-.replit-header-controls {
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: var(--ecode-surface-elevated);
-  border: 1px solid var(--ecode-border);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.replit-header-controls .replit-nav-link {
-  margin-left: 0;
-}
-
-.dark .replit-header {
-  background: linear-gradient(135deg, rgba(20, 26, 40, 0.92), rgba(29, 38, 58, 0.92));
-  border-bottom-color: rgba(96, 165, 250, 0.25);
-  box-shadow: 0 20px 45px -28px rgba(0, 0, 0, 0.65);
-}
-
-.dark .replit-nav-link--trigger {
-  color: var(--ecode-text);
-}
-
-.dark .replit-nav-link--inactive:hover {
-  background-color: rgba(59, 130, 246, 0.12);
-}
-
-.dark .replit-nav-link--active {
-  box-shadow: 0 20px 36px -20px rgba(59, 130, 246, 0.45);
-}
-
-.dark .replit-header-search {
-  background: color-mix(in srgb, var(--background-default) 80%, transparent);
-  border-color: color-mix(in srgb, var(--status-info) 20%, transparent);
-  color: var(--ecode-text-muted);
-}
-
-.dark .replit-header-search:hover {
-  background: color-mix(in srgb, var(--background-higher) 92%, transparent);
-  border-color: color-mix(in srgb, var(--status-info) 35%, transparent);
-  color: var(--ecode-text);
-  box-shadow: 0 14px 30px -24px color-mix(in srgb, var(--foreground-default) 60%, transparent);
-}
-
-.dark .replit-header-controls {
-  background: linear-gradient(135deg, rgba(30, 38, 56, 0.85), rgba(24, 32, 48, 0.85));
-  border-color: rgba(96, 165, 250, 0.2);
-  box-shadow: 0 18px 34px -24px rgba(0, 0, 0, 0.55);
-}
-
-/* Footer refinements */
-.replit-footer {
-  background: var(--ecode-surface-elevated);
-  border-top: 1px solid var(--ecode-border);
-  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.04);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  color: var(--ecode-text-secondary);
-}
-
-.replit-footer__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px 24px;
-  font-size: 12px;
-}
-
-.replit-footer__section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.replit-footer__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ecode-text-muted);
-  cursor: default;
-}
-
-.replit-footer__value {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--ecode-text-secondary);
-}
-
-.replit-footer__value--mono {
-  font-family: var(--ecode-font-mono);
-  letter-spacing: 0.02em;
-}
-
-.replit-footer__status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--background-root) 65%, transparent);
-}
-
-.replit-footer__plan {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 4px;
-  padding: 4px 12px;
-  border: 1px solid color-mix(in srgb, var(--ecode-accent) 20%, transparent);
-  background: color-mix(in srgb, var(--ecode-accent) 8%, transparent);
-  color: var(--ecode-accent);
-  font-weight: 600;
-  text-transform: none;
-}
-
-.dark .replit-footer {
-  background: linear-gradient(90deg, rgba(18, 23, 35, 0.92), rgba(26, 33, 49, 0.92));
-  border-top-color: rgba(96, 165, 250, 0.18);
-  box-shadow: 0 -18px 38px -24px rgba(0, 0, 0, 0.65);
-  color: var(--ecode-text-muted);
-}
-
-.dark .replit-footer__item {
-  color: var(--ecode-text-muted);
-}
-
-.dark .replit-footer__value {
-  color: var(--ecode-text);
-}
-
-.dark .replit-footer__status-dot {
-  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.65);
-}
-
-.dark .replit-footer__plan {
-  border-color: rgba(245, 158, 11, 0.35);
-  background: linear-gradient(135deg, rgba(184, 111, 31, 0.35), rgba(255, 176, 67, 0.22));
-  color: rgba(255, 226, 166, 0.95);
-  --ecode-shadow-sm: 0 10px 30px -15px rgba(15, 23, 42, 0.25);
-  --ecode-shadow-md: 0 20px 45px -20px rgba(15, 23, 42, 0.3);
-  --ecode-shadow-lg: 0 35px 65px -30px rgba(15, 23, 42, 0.35);
-}
-
-/* Animations et transitions E-Code */
+/* Animations et transitions Replit */
 .replit-transition {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -780,9 +117,9 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Hover effects E-Code style */
+/* Hover effects Replit style */
 .replit-hover:hover {
-  background-color: var(--ecode-sidebar-hover);
+  background-color: var(--replit-sidebar-hover);
   transform: translateY(-1px);
 }
 
@@ -790,465 +127,94 @@
   transform: scale(1.02);
 }
 
-/* Focus states E-Code */
+/* Focus states Replit */
 .replit-focus:focus {
-  outline: 2px solid var(--ecode-accent);
+  outline: 2px solid var(--replit-accent);
   outline-offset: 2px;
 }
 
 .replit-focus-ring:focus-visible {
-  box-shadow: 0 0 0 2px var(--ecode-accent);
+  box-shadow: 0 0 0 2px var(--replit-accent);
 }
 
-/* Scrollbars E-Code style - Minimal Replit-like */
+/* Scrollbars Replit style */
 .replit-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 .replit-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--replit-surface);
 }
 
 .replit-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--ecode-border);
-  border-radius: 3px;
+  background: var(--replit-border);
+  border-radius: 0px;
 }
 
 .replit-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--ecode-text-muted);
-}
-
-/* Thin scrollbar variant for panels */
-.replit-scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.replit-scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.replit-scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--ecode-border);
-  border-radius: 2px;
-}
-
-.replit-scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: var(--ecode-text-muted);
+  background: var(--replit-text-secondary);
 }
 
 /* Layout helpers */
 .replit-layout-main {
-  background-color: var(--ecode-background);
-  color: var(--ecode-text);
-  font-family: var(--ecode-font-sans);
+  background-color: var(--replit-background);
+  color: var(--replit-text);
+  font-family: var(--replit-font-sans);
 }
 
 .replit-surface {
-  background-color: var(--ecode-surface);
-  border: 1px solid var(--ecode-border);
-  border-radius: var(--ecode-radius-md);
+  background-color: var(--replit-surface);
+  border: 1px solid var(--replit-border);
+  border-radius: var(--replit-radius-md);
 }
 
 .replit-card {
-  background-color: var(--ecode-surface);
-  border: 1px solid var(--ecode-border);
-  border-radius: var(--ecode-radius-lg);
-  box-shadow: var(--ecode-shadow-sm);
-  padding: var(--ecode-space-4);
+  background-color: var(--replit-surface);
+  border: 1px solid var(--replit-border);
+  border-radius: var(--replit-radius-lg);
+  box-shadow: var(--replit-shadow-sm);
+  padding: var(--replit-space-4);
 }
 
 .replit-button-primary {
-  background-color: var(--ecode-button-primary);
+  background-color: var(--replit-button-primary);
   color: white;
   border: none;
-  border-radius: var(--ecode-radius-sm);
-  padding: var(--ecode-space-2) var(--ecode-space-4);
-  font-family: var(--ecode-font-sans);
+  border-radius: var(--replit-radius-sm);
+  padding: var(--replit-space-2) var(--replit-space-4);
+  font-family: var(--replit-font-sans);
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .replit-button-primary:hover {
-  background-color: var(--ecode-button-primary-hover);
+  background-color: var(--replit-button-primary-hover);
 }
 
 .replit-button-secondary {
-  background-color: var(--ecode-button-secondary);
-  color: var(--ecode-text);
-  border: 1px solid var(--ecode-border);
-  border-radius: var(--ecode-radius-sm);
-  padding: var(--ecode-space-2) var(--ecode-space-4);
-  font-family: var(--ecode-font-sans);
+  background-color: var(--replit-button-secondary);
+  color: var(--replit-text);
+  border: 1px solid var(--replit-border);
+  border-radius: var(--replit-radius-sm);
+  padding: var(--replit-space-2) var(--replit-space-4);
+  font-family: var(--replit-font-sans);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .replit-button-secondary:hover {
-  background-color: var(--ecode-button-secondary-hover);
-  border-color: var(--ecode-text-secondary);
+  background-color: var(--replit-button-secondary-hover);
+  border-color: var(--replit-text-secondary);
 }
 
 /* Mobile responsive helpers */
 @media (max-width: 768px) {
   :root {
-    --ecode-space-4: 12px;
-    --ecode-space-6: 20px;
-    --ecode-space-8: 28px;
+    --replit-space-4: 12px;
+    --replit-space-6: 20px;
+    --replit-space-8: 28px;
   }
-}
-
-/* =============================================================================
-   SEMANTIC STATUS UTILITIES - Fortune 500 Theme Token System
-   ============================================================================= */
-
-/* Base Status Background Classes */
-.bg-status-critical {
-  background-color: var(--ecode-danger);
-  color: white;
-}
-
-.bg-status-success {
-  background-color: var(--ecode-green);
-  color: white;
-}
-
-.bg-status-warning {
-  background-color: var(--ecode-warning);
-  color: white;
-}
-
-.bg-status-info {
-  background-color: var(--ecode-info);
-  color: white;
-}
-
-/* Soft/Subtle Status Backgrounds (for light tints) */
-.bg-status-critical-soft {
-  background-color: rgba(220, 53, 69, 0.1);
-  color: var(--ecode-danger);
-}
-
-.bg-status-success-soft {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: var(--ecode-green);
-}
-
-.bg-status-warning-soft {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: var(--ecode-warning);
-}
-
-.bg-status-info-soft {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: var(--ecode-info);
-}
-
-/* Dark Mode Soft Backgrounds */
-.dark .bg-status-critical-soft {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
-}
-
-.dark .bg-status-success-soft {
-  background-color: rgba(52, 211, 153, 0.15);
-  color: #6ee7b7;
-}
-
-.dark .bg-status-warning-soft {
-  background-color: rgba(251, 146, 60, 0.15);
-  color: #fdba74;
-}
-
-.dark .bg-status-info-soft {
-  background-color: rgba(56, 189, 248, 0.15);
-  color: #7dd3fc;
-}
-
-/* Status Text Classes */
-.text-status-critical {
-  color: var(--ecode-danger);
-}
-
-.text-status-success {
-  color: var(--ecode-green);
-}
-
-.text-status-warning {
-  color: var(--ecode-warning);
-}
-
-.text-status-info {
-  color: var(--ecode-info);
-}
-
-/* Dark Mode Text Colors */
-.dark .text-status-critical {
-  color: #fca5a5;
-}
-
-.dark .text-status-success {
-  color: #6ee7b7;
-}
-
-.dark .text-status-warning {
-  color: #fdba74;
-}
-
-.dark .text-status-info {
-  color: #7dd3fc;
-}
-
-/* Status Border Classes */
-.border-status-critical {
-  border-color: var(--ecode-danger);
-}
-
-.border-status-success {
-  border-color: var(--ecode-green);
-}
-
-.border-status-warning {
-  border-color: var(--ecode-warning);
-}
-
-.border-status-info {
-  border-color: var(--ecode-info);
-}
-
-/* Hover States */
-.hover\:bg-status-critical:hover {
-  background-color: var(--ecode-danger);
-  color: white;
-}
-
-.hover\:bg-status-success:hover {
-  background-color: var(--ecode-green);
-  color: white;
-}
-
-.hover\:bg-status-warning:hover {
-  background-color: var(--ecode-warning);
-  color: white;
-}
-
-.hover\:bg-status-info:hover {
-  background-color: var(--ecode-info);
-  color: white;
-}
-
-/* Focus Ring States */
-.focus\:ring-status-critical:focus {
-  --tw-ring-color: var(--ecode-danger);
-}
-
-.focus\:ring-status-success:focus {
-  --tw-ring-color: var(--ecode-green);
-}
-
-.focus\:ring-status-warning:focus {
-  --tw-ring-color: var(--ecode-warning);
-}
-
-.focus\:ring-status-info:focus {
-  --tw-ring-color: var(--ecode-info);
-}
-
-/* ============================================
-   E-CODE BRAND UTILITY CLASSES
-   Fortune 500 Enterprise Grade - No Hardcoded Colors
-   ============================================ */
-
-/* Brand Colors - Primary Orange */
-.bg-ecode-accent {
-  background-color: var(--ecode-accent);
-}
-
-.bg-ecode-accent-hover {
-  background-color: var(--ecode-accent-hover);
-}
-
-.hover\:bg-ecode-accent:hover {
-  background-color: var(--ecode-accent);
-}
-
-.hover\:bg-ecode-accent-hover:hover {
-  background-color: var(--ecode-accent-hover);
-}
-
-.text-ecode-accent {
-  color: var(--ecode-accent);
-}
-
-.hover\:text-ecode-accent:hover {
-  color: var(--ecode-accent);
-}
-
-.border-ecode-accent {
-  border-color: var(--ecode-accent);
-}
-
-.hover\:border-ecode-accent:hover {
-  border-color: var(--ecode-accent);
-}
-
-/* Brand Colors with Opacity */
-.bg-ecode-accent\/5 {
-  background-color: color-mix(in srgb, var(--ecode-accent) 5%, transparent);
-}
-
-.bg-ecode-accent\/10 {
-  background-color: color-mix(in srgb, var(--ecode-accent) 10%, transparent);
-}
-
-.bg-ecode-accent\/15 {
-  background-color: color-mix(in srgb, var(--ecode-accent) 15%, transparent);
-}
-
-.bg-ecode-accent\/20 {
-  background-color: color-mix(in srgb, var(--ecode-accent) 20%, transparent);
-}
-
-.hover\:bg-ecode-accent\/10:hover {
-  background-color: color-mix(in srgb, var(--ecode-accent) 10%, transparent);
-}
-
-.hover\:bg-ecode-accent\/20:hover {
-  background-color: color-mix(in srgb, var(--ecode-accent) 20%, transparent);
-}
-
-.border-ecode-accent\/20 {
-  border-color: color-mix(in srgb, var(--ecode-accent) 20%, transparent);
-}
-
-.border-ecode-accent\/30 {
-  border-color: color-mix(in srgb, var(--ecode-accent) 30%, transparent);
-}
-
-.border-ecode-accent\/50 {
-  border-color: color-mix(in srgb, var(--ecode-accent) 50%, transparent);
-}
-
-.hover\:border-ecode-accent\/30:hover {
-  border-color: color-mix(in srgb, var(--ecode-accent) 30%, transparent);
-}
-
-.hover\:border-ecode-accent\/50:hover {
-  border-color: color-mix(in srgb, var(--ecode-accent) 50%, transparent);
-}
-
-/* Surface Colors - Solid Backgrounds (No Transparency) */
-.bg-ecode-surface {
-  background-color: var(--ecode-surface);
-}
-
-.bg-ecode-surface-secondary {
-  background-color: var(--ecode-surface-secondary);
-}
-
-.bg-ecode-surface-tertiary {
-  background-color: var(--ecode-surface-tertiary);
-}
-
-.bg-ecode-surface-elevated {
-  background-color: var(--ecode-surface-elevated);
-}
-
-.bg-ecode-surface-hover {
-  background-color: var(--ecode-surface-hover);
-}
-
-.hover\:bg-ecode-surface-hover:hover {
-  background-color: var(--ecode-surface-hover);
-}
-
-/* Text Colors */
-.text-ecode-primary {
-  color: var(--ecode-text);
-}
-
-.text-ecode-secondary {
-  color: var(--ecode-text-secondary);
-}
-
-.text-ecode-muted {
-  color: var(--ecode-text-muted);
-}
-
-/* Border Colors */
-.border-ecode {
-  border-color: var(--ecode-border);
-}
-
-.border-ecode-strong {
-  border-color: var(--ecode-border-strong);
-}
-
-.hover\:border-ecode-strong:hover {
-  border-color: var(--ecode-border-strong);
-}
-
-/* Button Styles - Enterprise Grade */
-.btn-ecode-primary {
-  background-color: var(--ecode-button-primary);
-  color: white;
-  transition: all 0.2s ease;
-}
-
-.btn-ecode-primary:hover {
-  background-color: var(--ecode-button-primary-hover);
-}
-
-.btn-ecode-secondary {
-  background-color: var(--ecode-button-secondary);
-  color: var(--ecode-text);
-  border: 1px solid var(--ecode-border);
-  transition: all 0.2s ease;
-}
-
-.btn-ecode-secondary:hover {
-  background-color: var(--ecode-button-secondary-hover);
-  border-color: var(--ecode-border-strong);
-}
-
-/* Shadow Utilities */
-.shadow-ecode-sm {
-  box-shadow: var(--ecode-shadow-sm);
-}
-
-.shadow-ecode-md {
-  box-shadow: var(--ecode-shadow-md);
-}
-
-.shadow-ecode-lg {
-  box-shadow: var(--ecode-shadow-lg);
-}
-
-.shadow-ecode-accent {
-  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--ecode-accent) 25%, transparent);
-}
-
-.hover\:shadow-ecode-accent:hover {
-  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--ecode-accent) 35%, transparent);
-}
-
-/* Ring/Focus Utilities */
-.ring-ecode-accent {
-  --tw-ring-color: var(--ecode-accent);
-}
-
-.focus\:ring-ecode-accent:focus {
-  --tw-ring-color: var(--ecode-accent);
-}
-
-/* Gradient Utilities */
-.gradient-ecode-accent {
-  background: linear-gradient(135deg, var(--ecode-accent) 0%, var(--ecode-accent-hover) 100%);
-}
-
-.gradient-ecode-surface {
-  background: linear-gradient(180deg, var(--ecode-surface) 0%, var(--ecode-surface-tertiary) 100%);
 }

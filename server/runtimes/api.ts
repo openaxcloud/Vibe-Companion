@@ -9,9 +9,6 @@ import * as runtimeManager from './runtime-manager';
 import * as runtimeHealth from './runtime-health';
 import { createLogger } from '../utils/logger';
 import * as os from 'os';
-import { randomUUID } from 'crypto';
-import { previewService } from '../preview/preview-service';
-import { previewEvents } from '../preview/preview-websocket';
 
 const logger = createLogger('runtime-api');
 
@@ -152,58 +149,32 @@ export function getLanguageRecommendations(dependencies: any): string[] {
  * Start project runtime
  */
 export async function startProjectRuntime(req: Request, res: Response) {
-  const executionId = randomUUID(); // Generate unique execution ID for tracking (outside try for catch access)
-  
   try {
-    const projectId = req.params.id; // Keep as string (UUID)
+    const projectId = parseInt(req.params.id);
     
-    if (!projectId) {
-      return res.status(400).json({ message: 'Invalid project ID', executionId });
+    if (isNaN(projectId)) {
+      return res.status(400).json({ message: 'Invalid project ID' });
     }
     
-    logger.info(`Starting runtime for project ${projectId}, executionId: ${executionId}`);
+    logger.info(`Starting runtime for project ${projectId}`);
     
     // Get project details
     const project = await storage.getProject(projectId);
     if (!project) {
-      return res.status(404).json({ message: 'Project not found', executionId });
+      return res.status(404).json({ message: 'Project not found' });
     }
     
     // Get project files
-    let files = await storage.getFilesByProjectId(projectId);
-    
-    // If no files exist, create default files based on project language
+    const files = await storage.getFilesByProject(projectId);
     if (!files.length) {
-      const language = (project.language || 'javascript') as any;
-      const defaultFiles = runtimeManager.createDefaultProject(language);
-      
-      // Create default files in storage
-      for (const file of defaultFiles) {
-        if (!file.isFolder) {
-          await storage.createFile({
-            projectId: projectId,
-            path: file.name,
-            content: file.content || ''
-          });
-        }
-      }
-      
-      // Reload files after creation
-      files = await storage.getFilesByProjectId(projectId);
-      
-      if (!files.length) {
-        return res.status(500).json({ message: 'Failed to create default project files', executionId });
-      }
-      
-      logger.info(`Created default files for project ${projectId}`);
+      return res.status(400).json({ message: 'No files found in project' });
     }
     
     // Get options from request
     const options: runtimeManager.StartProjectOptions = {
       useNix: req.body.useNix === true,
       port: req.body.port,
-      environmentVariables: req.body.environmentVariables,
-      executionId // Pass executionId for real-time streaming
+      environmentVariables: req.body.environmentVariables
     };
     
     // If Nix is requested, add Nix options
@@ -216,61 +187,22 @@ export async function startProjectRuntime(req: Request, res: Response) {
       };
     }
     
-    // Start the project with real-time streaming enabled
+    // Start the project
     const result = await runtimeManager.startProject(project, files, options);
-    
-    // Save execution logs to terminal logs database for display in console
-    const userId = (req as any).user?.id;
-    if (result.logs && result.logs.length > 0 && userId) {
-      try {
-        // Clear previous logs for this execution
-        await storage.clearTerminalLogs(projectId);
-        
-        // Save each log entry
-        for (const logMessage of result.logs) {
-          const logType = logMessage.includes('[ERROR]') ? 'error' 
-            : logMessage.includes('---') ? 'info'
-            : 'log';
-          
-          await storage.createTerminalLog({
-            projectId: parseInt(projectId, 10),
-            userId,
-            type: logType,
-            message: logMessage.replace(/^\[ERROR\]\s*/, ''),
-            source: 'runtime'
-          });
-        }
-        logger.info(`Saved ${result.logs.length} runtime logs for project ${projectId}`);
-      } catch (logError) {
-        logger.warn(`Failed to save runtime logs: ${logError}`);
-        // Don't fail the request if log saving fails
-      }
-    }
     
     if (!result.success) {
       return res.status(500).json({
         message: 'Failed to start project runtime',
-        error: result.error,
-        logs: result.logs,
-        executionId // Include for error tracking
+        error: result.error
       });
     }
     
-    // Bridge runtime → preview: set up the proxy to the runtime's port
-    try {
-      const preview = await previewService.startPreview(projectId, { port: result.port, runId: executionId });
-      logger.info(`Preview started for project ${projectId}, proxying to runtime port: ${result.port}`);
-    } catch (previewErr: any) {
-      logger.warn(`Preview service start failed for project ${projectId}: ${previewErr.message} — runtime continues without preview proxy`);
-    }
-
     res.json({
       success: true,
       containerId: result.containerId,
       port: result.port,
-      url: `/preview/${projectId}/`,
-      logs: result.logs,
-      executionId // Include for WebSocket subscription
+      url: `http://localhost:${result.port}`,
+      logs: result.logs
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -278,8 +210,7 @@ export async function startProjectRuntime(req: Request, res: Response) {
     
     res.status(500).json({
       message: 'Failed to start project runtime',
-      error: errorMessage,
-      executionId // Include even in catch for error tracking
+      error: errorMessage
     });
   }
 }
@@ -289,23 +220,21 @@ export async function startProjectRuntime(req: Request, res: Response) {
  */
 export async function stopProjectRuntime(req: Request, res: Response) {
   try {
-    const projectId = req.params.id; // Keep as string (UUID)
+    const projectId = parseInt(req.params.id);
     
-    if (!projectId) {
+    if (isNaN(projectId)) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     logger.info(`Stopping runtime for project ${projectId}`);
     
     // Stop the project
-    await runtimeManager.stopProject(projectId);
+    const result = await runtimeManager.stopProject(projectId);
     
-    // Bridge runtime → preview: stop the preview proxy and free the port
-    try {
-      await previewService.stopPreview(projectId);
-      logger.info(`Preview stopped for project ${projectId}`);
-    } catch (previewErr: any) {
-      logger.warn(`Preview service stop failed for project ${projectId}: ${previewErr.message}`);
+    if (!result) {
+      return res.status(500).json({
+        message: 'Failed to stop project runtime'
+      });
     }
     
     res.json({
@@ -327,9 +256,9 @@ export async function stopProjectRuntime(req: Request, res: Response) {
  */
 export function getProjectRuntimeStatus(req: Request, res: Response) {
   try {
-    const projectId = req.params.id; // Keep as string (UUID)
+    const projectId = parseInt(req.params.id);
     
-    if (!projectId) {
+    if (isNaN(projectId)) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
@@ -355,9 +284,9 @@ export function getProjectRuntimeStatus(req: Request, res: Response) {
  */
 export async function executeProjectCommand(req: Request, res: Response) {
   try {
-    const projectId = req.params.id; // Keep as string (UUID)
+    const projectId = parseInt(req.params.id);
     
-    if (!projectId) {
+    if (isNaN(projectId)) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
@@ -391,9 +320,9 @@ export async function executeProjectCommand(req: Request, res: Response) {
  */
 export function getProjectRuntimeLogs(req: Request, res: Response) {
   try {
-    const projectId = req.params.id; // Keep as string (UUID)
+    const projectId = parseInt(req.params.id);
     
-    if (!projectId) {
+    if (isNaN(projectId)) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     

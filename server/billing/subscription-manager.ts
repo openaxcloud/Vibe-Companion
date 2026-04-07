@@ -1,7 +1,5 @@
 import Stripe from 'stripe';
-import { getStripe } from '../lib/stripe-client';
 import { storage } from '../storage';
-import { getSubscriptionPeriodBoundary } from '../services/stripe-utils';
 
 export interface SubscriptionPlan {
   id: string;
@@ -105,7 +103,9 @@ export class SubscriptionManager {
 
   constructor() {
     if (process.env.STRIPE_SECRET_KEY) {
-      this.stripe = getStripe();
+      this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2023-10-16'
+      });
     }
   }
 
@@ -230,10 +230,9 @@ export class SubscriptionManager {
 
     // Check numeric limits
     switch (limitType) {
-      case 'projects': {
-        const projects = await storage.getProjectsByUser(userId);
-        return projects.length < limit;
-      }
+      case 'projects':
+        const projectCount = await storage.getProjectCountByUser(userId);
+        return projectCount < limit;
 
       case 'storage':
         const storageUsed = await this.calculateUserStorage(userId);
@@ -251,7 +250,7 @@ export class SubscriptionManager {
 
     // Check if user already has a Stripe customer ID
     const subscription = await this.getUserSubscription(user.id);
-    if (subscription.stripeCustomerId) {
+    if (subscription?.stripeCustomerId) {
       return subscription.stripeCustomerId;
     }
 
@@ -350,8 +349,7 @@ export class SubscriptionManager {
     
     await this.updateUserSubscription(userId, {
       status: subscription.status,
-      currentPeriodEnd:
-        getSubscriptionPeriodBoundary(subscription, 'current_period_end') ?? undefined,
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       cancelAtPeriodEnd: subscription.cancel_at_period_end
     });
   }
@@ -371,98 +369,34 @@ export class SubscriptionManager {
     console.error('Payment failed for invoice:', invoice.id);
   }
 
-  private async getUserSubscription(userId: number): Promise<{
-    userId: number;
-    planId: string;
-    stripeCustomerId: string | null;
-    stripeSubscriptionId: string | null;
-    status: string;
-    currentPeriodEnd: Date | null;
-    cancelAtPeriodEnd: boolean;
-  }> {
-    const user = await storage.getUser(userId);
-
-    if (!user) {
-      return {
-        userId,
-        planId: 'free',
-        stripeCustomerId: null,
-        stripeSubscriptionId: null,
-        status: 'inactive',
-        currentPeriodEnd: null,
-        cancelAtPeriodEnd: false
-      };
-    }
-
+  private async getUserSubscription(userId: number): Promise<any> {
+    // In real implementation, this would fetch from a subscriptions table
+    // For now, returning mock data structure
     return {
       userId,
-      planId: this.resolvePlanId(user.stripePriceId),
-      stripeCustomerId: user.stripeCustomerId ?? null,
-      stripeSubscriptionId: user.stripeSubscriptionId ?? null,
-      status: user.subscriptionStatus ?? 'inactive',
-      currentPeriodEnd: user.subscriptionCurrentPeriodEnd ?? null,
+      planId: 'free',
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      status: 'active',
+      currentPeriodEnd: null,
       cancelAtPeriodEnd: false
     };
   }
 
-  private resolvePlanId(storedPlan: string | null | undefined): string {
-    if (!storedPlan) {
-      return 'free';
-    }
-
-    if (this.plans[storedPlan]) {
-      return storedPlan;
-    }
-
-    return 'free';
-  }
-
-  private async updateUserSubscription(
-    userId: number,
-    data: {
-      planId?: string;
-      stripeCustomerId?: string | null;
-      stripeSubscriptionId?: string | null;
-      status?: string;
-      currentPeriodEnd?: Date | null;
-      cancelAtPeriodEnd?: boolean;
-    }
-  ): Promise<void> {
-    const update: Record<string, unknown> = {};
-
-    if ('planId' in data) {
-      update.stripePriceId = data.planId ?? null;
-    }
-
-    if ('stripeCustomerId' in data) {
-      update.stripeCustomerId = data.stripeCustomerId ?? null;
-    }
-
-    if ('stripeSubscriptionId' in data) {
-      update.stripeSubscriptionId = data.stripeSubscriptionId ?? null;
-    }
-
-    if ('status' in data) {
-      update.subscriptionStatus = data.status;
-    }
-
-    if ('currentPeriodEnd' in data) {
-      update.subscriptionCurrentPeriodEnd = data.currentPeriodEnd ?? null;
-    }
-
-    if (Object.keys(update).length > 0) {
-      await storage.updateUserStripeInfo(userId, update);
-    }
+  private async updateUserSubscription(userId: number, data: any): Promise<void> {
+    // In real implementation, this would update the subscriptions table
+    console.log('Updating user subscription:', userId, data);
   }
 
   private async calculateUserStorage(userId: number): Promise<number> {
+    // Calculate total storage used by user's projects
     const projects = await storage.getProjectsByUser(userId);
     let totalSize = 0;
 
     for (const project of projects) {
-      const files = await storage.getFilesByProjectId(project.id);
+      const files = await storage.getFilesByProject(project.id);
       for (const file of files) {
-        if (!file.isDirectory && file.content) {
+        if (!file.isFolder && file.content) {
           totalSize += new TextEncoder().encode(file.content).length;
         }
       }

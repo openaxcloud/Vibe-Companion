@@ -78,17 +78,15 @@ interface FileNode {
 }
 
 interface ReplitFileExplorerProps {
-  projectId: string | number;
+  projectId: number;
   onFileSelect?: (file: FileNode) => void;
   selectedFileId?: number;
-  isBootstrapping?: boolean;
 }
 
 export function ReplitFileExplorer({
   projectId,
   onFileSelect,
   selectedFileId,
-  isBootstrapping = false,
 }: ReplitFileExplorerProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,37 +101,35 @@ export function ReplitFileExplorer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Fetch files from API - REAL BACKEND
-  // During bootstrap (autonomous workspace creation), refetch more aggressively
+  // Fetch files from API
   const { data: files = [], isLoading, refetch } = useQuery<FileNode[]>({
     queryKey: [`/api/projects/${projectId}/files`],
     enabled: !!projectId,
-    refetchOnMount: 'always',
-    staleTime: isBootstrapping ? 0 : 5 * 60 * 1000,
-    refetchInterval: isBootstrapping ? 3000 : false,
   });
 
-  // File operations mutations - REAL BACKEND
+  // File operations mutations
   const createFileMutation = useMutation({
-    mutationFn: async (data: { name: string; isFolder: boolean; parentId: number | null; content?: string }) => {
-      const result = await apiRequest("POST", `/api/files/${projectId}`, data);
-      return result;
-    },
+    mutationFn: async (data: { name: string; isFolder: boolean; parentId: number | null; content?: string }) => 
+      apiRequest(`/api/projects/${projectId}/files`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
       toast({ title: "Success", description: "File created successfully" });
       setNewItemDialog(null);
     },
-    onError: (error: any) => {
-      console.error('[FILE-EXPLORER] File creation error:', error);
-      console.error('[FILE-EXPLORER] Error details:', error.message, error.stack);
-      toast({ title: "Error", description: `Failed to create file: ${error.message || 'Unknown error'}`, variant: "destructive" });
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create file", variant: "destructive" });
     },
   });
 
   const updateFileMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: number; name?: string; content?: string }) =>
-      apiRequest("PATCH", `/api/files/${id}`, data),
+      apiRequest(`/api/files/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
       toast({ title: "Success", description: "File updated successfully" });
@@ -146,7 +142,7 @@ export function ReplitFileExplorer({
 
   const deleteFileMutation = useMutation({
     mutationFn: async (id: number) =>
-      apiRequest("DELETE", `/api/files/${id}`),
+      apiRequest(`/api/files/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
       toast({ title: "Success", description: "File deleted successfully" });
@@ -301,6 +297,7 @@ export function ReplitFileExplorer({
       try {
         await updateFileMutation.mutateAsync({
           id: draggedFile.id,
+          parentId: targetFile.id,
         });
       } catch (error) {
         console.error("Failed to move file:", error);
@@ -357,6 +354,7 @@ export function ReplitFileExplorer({
     } else {
       await updateFileMutation.mutateAsync({
         id: clipboard.file.id,
+        parentId: targetId,
       });
     }
 
@@ -380,8 +378,8 @@ export function ReplitFileExplorer({
               <div
                 className={`
                   flex items-center py-1 px-2 rounded-md cursor-pointer select-none
-                  ${isSelected ? "bg-[var(--ecode-accent)] text-white" : "hover:bg-[var(--ecode-sidebar-hover)]"}
-                  ${isDragOver ? "bg-surface-tertiary-solid" : ""}
+                  ${isSelected ? "bg-[var(--replit-accent)] text-white" : "hover:bg-[var(--replit-sidebar-hover)]"}
+                  ${isDragOver ? "bg-[var(--replit-accent)]/20" : ""}
                   ${isHidden ? "opacity-60" : ""}
                 `}
                 style={{ paddingLeft: `${8 + level * 16}px` }}
@@ -397,7 +395,6 @@ export function ReplitFileExplorer({
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, node)}
                 draggable
-                data-testid={`file-item-${node.id}`}
               >
                 {node.type === "folder" ? (
                   <>
@@ -407,9 +404,9 @@ export function ReplitFileExplorer({
                       <ChevronRight className="h-4 w-4 mr-1 flex-shrink-0" />
                     )}
                     {isExpanded ? (
-                      <FolderOpen className="h-4 w-4 mr-2 flex-shrink-0 text-[var(--ecode-blue)]" />
+                      <FolderOpen className="h-4 w-4 mr-2 flex-shrink-0 text-[var(--replit-blue)]" />
                     ) : (
-                      <Folder className="h-4 w-4 mr-2 flex-shrink-0 text-[var(--ecode-blue)]" />
+                      <Folder className="h-4 w-4 mr-2 flex-shrink-0 text-[var(--replit-blue)]" />
                     )}
                   </>
                 ) : (
@@ -417,37 +414,37 @@ export function ReplitFileExplorer({
                     {getFileIcon(node.name)}
                   </div>
                 )}
-                <span className="truncate text-[13px]">{node.name}</span>
+                <span className="truncate text-sm">{node.name}</span>
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent className="w-48" data-testid={`file-context-menu-${node.id}`}>
+            <ContextMenuContent className="w-48">
               {node.type === "folder" && (
                 <>
-                  <ContextMenuItem onClick={() => setNewItemDialog({ parentId: node.id, type: "file", name: "" })} data-testid={`menu-new-file-${node.id}`}>
+                  <ContextMenuItem onClick={() => setNewItemDialog({ parentId: node.id, type: "file", name: "" })}>
                     <FilePlus className="h-4 w-4 mr-2" />
                     New File
                   </ContextMenuItem>
-                  <ContextMenuItem onClick={() => setNewItemDialog({ parentId: node.id, type: "folder", name: "" })} data-testid={`menu-new-folder-${node.id}`}>
+                  <ContextMenuItem onClick={() => setNewItemDialog({ parentId: node.id, type: "folder", name: "" })}>
                     <FolderPlus className="h-4 w-4 mr-2" />
                     New Folder
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                 </>
               )}
-              <ContextMenuItem onClick={() => setRenameDialog({ file: node, newName: node.name })} data-testid={`menu-rename-${node.id}`}>
+              <ContextMenuItem onClick={() => setRenameDialog({ file: node, newName: node.name })}>
                 <Edit2 className="h-4 w-4 mr-2" />
                 Rename
               </ContextMenuItem>
-              <ContextMenuItem onClick={() => handleCopy(node)} data-testid={`menu-copy-${node.id}`}>
+              <ContextMenuItem onClick={() => handleCopy(node)}>
                 <Copy className="h-4 w-4 mr-2" />
                 Copy
               </ContextMenuItem>
-              <ContextMenuItem onClick={() => handleCut(node)} data-testid={`menu-cut-${node.id}`}>
+              <ContextMenuItem onClick={() => handleCut(node)}>
                 <Scissors className="h-4 w-4 mr-2" />
                 Cut
               </ContextMenuItem>
               {clipboard && (
-                <ContextMenuItem onClick={() => handlePaste(node.type === "folder" ? node.id : node.parentId)} data-testid={`menu-paste-${node.id}`}>
+                <ContextMenuItem onClick={() => handlePaste(node.type === "folder" ? node.id : node.parentId)}>
                   <Clipboard className="h-4 w-4 mr-2" />
                   Paste
                 </ContextMenuItem>
@@ -455,8 +452,7 @@ export function ReplitFileExplorer({
               <ContextMenuSeparator />
               <ContextMenuItem 
                 onClick={() => setDeleteConfirmDialog(node)} 
-                className="text-status-critical focus:text-status-critical"
-                data-testid={`menu-delete-${node.id}`}
+                className="text-red-600 focus:text-red-600"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -477,81 +473,75 @@ export function ReplitFileExplorer({
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-full bg-[var(--ecode-sidebar-bg)]" data-testid="file-explorer">
-        <div className="h-9 px-2.5 flex items-center justify-between border-b border-[var(--ecode-border)] shrink-0">
-          <div className="flex items-center gap-1.5">
-            <Folder className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
-            <span className="text-xs font-medium text-[var(--ecode-text)]">Files</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                  onClick={() => setNewItemDialog({ parentId: null, type: "file", name: "" })}
-                  data-testid="button-new-file"
-                >
-                  <FilePlus className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>New File</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                  onClick={() => setNewItemDialog({ parentId: null, type: "folder", name: "" })}
-                  data-testid="button-new-folder"
-                >
-                  <FolderPlus className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>New Folder</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                  onClick={() => fileInputRef.current?.click()}
-                  data-testid="button-upload-files"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Upload Files</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                  onClick={() => setShowHidden(!showHidden)}
-                  data-testid="button-toggle-hidden"
-                >
-                  {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{showHidden ? "Hide" : "Show"} Hidden Files</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-                  onClick={() => refetch()}
-                  data-testid="button-refresh-files"
+      <div className="flex flex-col h-full bg-[var(--replit-sidebar-bg)]">
+        {/* Header */}
+        <div className="p-3 border-b border-[var(--replit-border)]">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-[var(--replit-text)]">Files</h3>
+            <div className="flex items-center space-x-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setNewItemDialog({ parentId: null, type: "file", name: "" })}
+                  >
+                    <FilePlus className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New File</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setNewItemDialog({ parentId: null, type: "folder", name: "" })}
+                  >
+                    <FolderPlus className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Folder</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Upload Files</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setShowHidden(!showHidden)}
+                  >
+                    {showHidden ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{showHidden ? "Hide" : "Show"} Hidden Files</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => refetch()}
                   >
                     <RefreshCw className="h-3 w-3" />
                   </Button>
@@ -560,18 +550,16 @@ export function ReplitFileExplorer({
               </Tooltip>
             </div>
           </div>
-        
-        {/* Search */}
-        <div className="px-2.5 py-1.5 shrink-0">
+          
+          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-[var(--ecode-text-secondary)]" />
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-[var(--replit-text-secondary)]" />
             <Input
               type="text"
               placeholder="Search files..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 pl-7 pr-7 text-[11px] bg-[var(--ecode-bg)] border-[var(--ecode-border)]"
-              data-testid="input-search-files"
+              className="h-7 pl-7 pr-7 text-xs bg-[var(--replit-bg)] border-[var(--replit-border)]"
             />
             {searchQuery && (
               <Button
@@ -579,7 +567,6 @@ export function ReplitFileExplorer({
                 size="icon"
                 className="absolute right-1 top-1/2 transform -translate-y-1/2 h-5 w-5"
                 onClick={() => setSearchQuery("")}
-                data-testid="button-clear-search"
               >
                 <X className="h-3 w-3" />
               </Button>
@@ -588,14 +575,14 @@ export function ReplitFileExplorer({
         </div>
 
         {/* File Tree */}
-        <ScrollArea className="flex-1" data-testid="file-tree-scroll">
-          <div className="p-2" data-testid="file-tree-container">
+        <ScrollArea className="flex-1">
+          <div className="p-2">
             {isLoading ? (
-              <div className="text-center py-4" data-testid="file-tree-loading">
-                <RefreshCw className="h-4 w-4 animate-spin mx-auto text-[var(--ecode-text-secondary)]" />
+              <div className="text-center py-4">
+                <RefreshCw className="h-4 w-4 animate-spin mx-auto text-[var(--replit-text-secondary)]" />
               </div>
             ) : filteredTree.length === 0 ? (
-              <div className="text-center py-4 text-[var(--ecode-text-secondary)] text-[13px]" data-testid="file-tree-empty">
+              <div className="text-center py-4 text-[var(--replit-text-secondary)] text-sm">
                 {searchQuery ? "No files found" : "No files in this project"}
               </div>
             ) : (
@@ -629,7 +616,6 @@ export function ReplitFileExplorer({
               onChange={(e) => setNewItemDialog(prev => prev ? { ...prev, name: e.target.value } : null)}
               placeholder={newItemDialog?.type === "folder" ? "folder-name" : "filename.js"}
               autoFocus
-              data-testid="input-new-item-name"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newItemDialog?.name) {
                   createFileMutation.mutate({
@@ -642,7 +628,7 @@ export function ReplitFileExplorer({
               }}
             />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setNewItemDialog(null)} data-testid="button-dialog-create-cancel">
+              <Button variant="outline" onClick={() => setNewItemDialog(null)}>
                 Cancel
               </Button>
               <Button
@@ -657,7 +643,6 @@ export function ReplitFileExplorer({
                   }
                 }}
                 disabled={!newItemDialog?.name || createFileMutation.isPending}
-                data-testid="button-dialog-create-confirm"
               >
                 Create
               </Button>
@@ -678,7 +663,6 @@ export function ReplitFileExplorer({
               value={renameDialog?.newName || ""}
               onChange={(e) => setRenameDialog(prev => prev ? { ...prev, newName: e.target.value } : null)}
               autoFocus
-              data-testid="input-rename-item"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && renameDialog?.newName) {
                   updateFileMutation.mutate({
@@ -689,7 +673,7 @@ export function ReplitFileExplorer({
               }}
             />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setRenameDialog(null)} data-testid="button-dialog-rename-cancel">
+              <Button variant="outline" onClick={() => setRenameDialog(null)}>
                 Cancel
               </Button>
               <Button
@@ -702,7 +686,6 @@ export function ReplitFileExplorer({
                   }
                 }}
                 disabled={!renameDialog?.newName || updateFileMutation.isPending}
-                data-testid="button-dialog-rename-confirm"
               >
                 Rename
               </Button>
@@ -722,7 +705,7 @@ export function ReplitFileExplorer({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDeleteConfirmDialog(null)} data-testid="button-dialog-delete-cancel">
+              <Button variant="outline" onClick={() => setDeleteConfirmDialog(null)}>
                 Cancel
               </Button>
               <Button
@@ -733,7 +716,6 @@ export function ReplitFileExplorer({
                   }
                 }}
                 disabled={deleteFileMutation.isPending}
-                data-testid="button-dialog-delete-confirm"
               >
                 Delete
               </Button>
