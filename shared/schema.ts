@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, jsonb, real, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, jsonb, real, serial, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -2795,7 +2795,24 @@ export const aiUsageRecords = pgTable("ai_usage_records", {
 
 export const templates = pgTable("templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().default(''),
+  description: text("description").default(''),
+  category: text("category").default('general'),
+  tags: text("tags").array().default([]),
+  language: text("language").default(''),
+  framework: text("framework").default(''),
+  difficulty: text("difficulty").default('beginner'),
+  rating: numeric("rating").default('0'),
+  price: text("price").default('0'),
+  published: boolean("published").notNull().default(false),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  isOfficial: boolean("is_official").notNull().default(false),
+  isCommunity: boolean("is_community").notNull().default(true),
+  authorId: varchar("author_id"),
+  downloads: integer("downloads").default(0),
+  views: integer("views").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const promptTemplates = pgTable("prompt_templates", {

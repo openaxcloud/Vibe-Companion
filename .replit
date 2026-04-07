@@ -35,3 +35,7 @@ build = ["sh", "-c", "NODE_OPTIONS='--max-old-space-size=4096' npx vite build"]
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000

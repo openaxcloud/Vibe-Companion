@@ -161,7 +161,7 @@ export class TemplateMarketplaceService {
       // Tags filter (match any)
       if (tags.length > 0) {
         const tagConditions = tags.map(tag => 
-          sql`$${tag} = ANY(${templates.tags})`
+          sql`${tag} = ANY(${templates.tags})`
         );
         conditions.push(or(...tagConditions));
       }

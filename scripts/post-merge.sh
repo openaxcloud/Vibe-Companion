@@ -49,4 +49,4 @@ const p = new Pool({connectionString: process.env.DATABASE_URL});
 })().catch(e => { console.error(e); process.exit(1); });
 "
 
-NODE_OPTIONS="--max-old-space-size=1536" npm run build
+NODE_OPTIONS="--max-old-space-size=8192" timeout 90 npx vite build

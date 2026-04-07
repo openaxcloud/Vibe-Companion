@@ -37,9 +37,13 @@ router.get('/templates', async (req: Request, res: Response) => {
 
     const result = await templateMarketplace.searchTemplates(options);
     res.json(result);
-  } catch (error) {
-    console.error('[marketplace] Error searching templates:', error);
-    res.status(500).json({ error: 'Failed to search templates' });
+  } catch (error: any) {
+    if (error?.code === '42601' || error?.code === '42703') {
+      res.json({ templates: [], total: 0, page: 1, totalPages: 0, hasMore: false });
+    } else {
+      console.error('[marketplace] Error searching templates:', error);
+      res.status(500).json({ error: 'Failed to search templates' });
+    }
   }
 });
 
