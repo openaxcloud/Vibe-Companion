@@ -1,128 +1,255 @@
-import { Button } from '@/components/ui/button';
+import { PublicNavbar } from '@/components/layout/PublicNavbar';
+import { PublicFooter } from '@/components/layout/PublicFooter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { MarketingLayout } from '@/components/layout/MarketingLayout';
-import { Megaphone, MessageSquare, Users, Award, ArrowUpRight } from 'lucide-react';
-
-const featuredThreads = [
-  {
-    title: 'Scaling E-Code for a global enterprise rollout',
-    description: 'Best practices from teams rolling out secure AI development across 10,000+ seats.',
-    category: 'Enterprise',
-    replies: 128,
-  },
-  {
-    title: 'Recommended workflows for AI agent assisted development',
-    description: 'Share your playbooks for combining AI agents with compliance guardrails.',
-    category: 'AI',
-    replies: 94,
-  },
-  {
-    title: 'From PoC to production: winning strategies',
-    description: 'A step-by-step checklist from CTOs on moving from prototype to production inside E-Code.',
-    category: 'Leadership',
-    replies: 76,
-  },
-];
-
-const categories = [
-  { label: 'Announcements', icon: Megaphone, description: 'Platform updates, roadmap reveals, and release notes.' },
-  { label: 'Implementation', icon: Users, description: 'Architecture patterns, deployment questions, and how-to guides.' },
-  { label: 'AI & Automation', icon: MessageSquare, description: 'Prompt engineering, agent operations, and AI governance.' },
-  { label: 'Champions', icon: Award, description: 'Spotlights on teams shipping faster with E-Code.' },
-];
+import { MessageSquare, Users, TrendingUp, Search, Plus, Star } from 'lucide-react';
 
 export default function Forum() {
+  const categories = [
+    { name: 'General Discussion', posts: 12543, color: 'bg-blue-500' },
+    { name: 'Help & Support', posts: 8932, color: 'bg-green-500' },
+    { name: 'Show & Tell', posts: 5621, color: 'bg-purple-500' },
+    { name: 'Feature Requests', posts: 3456, color: 'bg-orange-500' },
+    { name: 'Bug Reports', posts: 2134, color: 'bg-red-500' },
+    { name: 'Tutorials', posts: 4567, color: 'bg-indigo-500' },
+  ];
+
+  const recentPosts = [
+    {
+      title: 'How to deploy a Next.js app on E-Code?',
+      author: 'alex_dev',
+      category: 'Help & Support',
+      replies: 23,
+      views: 456,
+      time: '2 hours ago',
+      solved: true,
+    },
+    {
+      title: 'Check out my new portfolio site!',
+      author: 'sarah_codes',
+      category: 'Show & Tell',
+      replies: 15,
+      views: 234,
+      time: '4 hours ago',
+      solved: false,
+    },
+    {
+      title: 'Python vs JavaScript for beginners?',
+      author: 'newbie123',
+      category: 'General Discussion',
+      replies: 67,
+      views: 1234,
+      time: '6 hours ago',
+      solved: false,
+    },
+    {
+      title: 'Bug: Terminal not loading in mobile app',
+      author: 'mobile_user',
+      category: 'Bug Reports',
+      replies: 5,
+      views: 89,
+      time: '8 hours ago',
+      solved: true,
+    },
+  ];
+
+  const topContributors = [
+    { name: 'codemaster', posts: 523, reputation: 15234 },
+    { name: 'helpful_dev', posts: 412, reputation: 12456 },
+    { name: 'tutorial_king', posts: 389, reputation: 11234 },
+    { name: 'debug_wizard', posts: 345, reputation: 10123 },
+  ];
+
   return (
-    <MarketingLayout>
-      <section className="relative overflow-hidden py-16">
-        <div className="container-responsive max-w-5xl text-center">
-          <Badge className="mx-auto mb-6 bg-primary/10 text-primary border-primary/20">Global developer forum</Badge>
-          <h1 className="text-4xl sm:text-5xl font-semibold text-foreground tracking-tight">
-            Connect with the E-Code community
-          </h1>
-          <p className="mt-4 text-base sm:text-[15px] text-muted-foreground max-w-3xl mx-auto">
-            Learn from engineers building at enterprise scale, share feedback with our product teams, and stay ahead with curated best practices.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button className="bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 text-white shadow-blue-500/30" onClick={() => (window.location.href = '/register')} data-testid="button-join-forum">
-              Join the forum
-              <ArrowUpRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button variant="outline" onClick={() => (window.location.href = '/contact-sales')} data-testid="button-request-workshop">
-              Request a tailored workshop
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16">
-        <div className="container-responsive max-w-6xl grid gap-6 lg:grid-cols-3">
-          {featuredThreads.map((thread) => (
-            <Card key={thread.title} className="bg-card border-border text-left">
-              <CardHeader>
-                <Badge variant="outline" className="w-fit">{thread.category}</Badge>
-                <CardTitle className="text-xl text-card-foreground">{thread.title}</CardTitle>
-                <CardDescription className="leading-relaxed">{thread.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-[13px] text-muted-foreground">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-9 w-9 border border-border">
-                    <AvatarFallback className="bg-primary/10 text-primary">EC</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-card-foreground">E-Code Enterprise Team</p>
-                    <p className="text-[11px] text-muted-foreground">Official insights & resources</p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-muted px-3 py-1 text-[11px]">{thread.replies} replies</span>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="py-16">
-        <div className="container-responsive max-w-6xl">
-          <div className="grid gap-6 sm:grid-cols-2">
-            {categories.map((category) => (
-              <Card key={category.label} className="bg-card border-border">
-                <CardHeader className="flex items-center gap-4">
-                  <div className="rounded-full bg-primary/10 p-3 text-primary">
-                    <category.icon className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-[15px] text-card-foreground">{category.label}</CardTitle>
-                    <CardDescription className="leading-relaxed">{category.description}</CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="pb-20">
-        <div className="container-responsive max-w-4xl">
-          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-border">
-            <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
-              <h2 className="text-3xl font-semibold text-foreground">Bring E-Code to your organization</h2>
-              <p className="max-w-2xl text-muted-foreground">
-                Partner with our enterprise architects for tailored onboarding, SOC2 compliant deployments, and on-site enablement programs.
+    <div className="min-h-screen flex flex-col">
+      <PublicNavbar />
+      
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="py-responsive bg-muted">
+          <div className="container-responsive">
+            <div className="text-center max-w-3xl mx-auto">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-primary" />
+              <h1 className="text-4xl font-bold mb-4">Community Forum</h1>
+              <p className="text-lg text-muted-foreground mb-8">
+                Connect with developers, get help, and share your projects
               </p>
-              <div className="flex flex-wrap justify-center gap-4">
-                <Button className="bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 text-white" onClick={() => (window.location.href = '/contact-sales')} data-testid="button-schedule-briefing">
-                  Schedule a briefing
-                </Button>
-                <Button variant="outline" onClick={() => (window.location.href = '/pricing')} data-testid="button-explore-pricing">
-                  Explore pricing
+              
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search the forum..."
+                    className="w-full pl-10 pr-4 py-2 border rounded-md"
+                  />
+                </div>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Post
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-    </MarketingLayout>
+            </div>
+          </div>
+        </section>
+
+        {/* Stats */}
+        <section className="py-8 border-b">
+          <div className="container-responsive">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              <div>
+                <div className="text-3xl font-bold text-primary">45.2K</div>
+                <div className="text-muted-foreground">Total Posts</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-primary">128K</div>
+                <div className="text-muted-foreground">Members</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-primary">892</div>
+                <div className="text-muted-foreground">Online Now</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-primary">23.5K</div>
+                <div className="text-muted-foreground">Solutions</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Main Content */}
+        <section className="py-responsive">
+          <div className="container-responsive">
+            <div className="grid lg:grid-cols-3 gap-8">
+              {/* Categories */}
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Categories</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {categories.map((category) => (
+                        <div key={category.name} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${category.color}`}></div>
+                            <span className="font-medium">{category.name}</span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">{category.posts.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Top Contributors */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Top Contributors</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {topContributors.map((contributor, index) => (
+                        <div key={contributor.name} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium">{contributor.name}</p>
+                              <p className="text-xs text-muted-foreground">{contributor.posts} posts</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                            <span className="text-sm">{contributor.reputation.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Posts */}
+              <div className="lg:col-span-2">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold">Recent Posts</h2>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm">Latest</Button>
+                    <Button variant="outline" size="sm">Popular</Button>
+                    <Button variant="outline" size="sm">Unanswered</Button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {recentPosts.map((post, index) => (
+                    <Card key={index}>
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="secondary">{post.category}</Badge>
+                              {post.solved && (
+                                <Badge className="bg-green-100 text-green-800">Solved</Badge>
+                              )}
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2 hover:text-primary cursor-pointer">
+                              {post.title}
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span>by {post.author}</span>
+                              <span>•</span>
+                              <span>{post.time}</span>
+                              <span>•</span>
+                              <span>{post.replies} replies</span>
+                              <span>•</span>
+                              <span>{post.views} views</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-center gap-1 ml-4">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">{post.replies}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex justify-center">
+                  <Button 
+                    variant="outline"
+                    onClick={() => window.location.href = '/forum'}
+                  >
+                    Load More Posts
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-responsive bg-primary text-primary-foreground">
+          <div className="container-responsive text-center">
+            <h2 className="text-3xl font-bold mb-4">Join the Discussion</h2>
+            <p className="text-lg mb-8 opacity-90">
+              Share your knowledge and learn from the community
+            </p>
+            <Button 
+              size="lg" 
+              variant="secondary"
+              onClick={() => window.location.href = '/auth'}
+            >
+              Join Forum
+            </Button>
+          </div>
+        </section>
+      </main>
+
+      <PublicFooter />
+    </div>
   );
 }

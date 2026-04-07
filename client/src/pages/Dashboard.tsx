@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
@@ -107,6 +106,9 @@ export default function Dashboard() {
       }
       const res = await apiRequest('GET', url);
       // Projects API returns { projects: [...], pagination: {...} }
+      if (Array.isArray(res)) {
+        return { projects: res };
+      }
       return res;
     },
     enabled: !!user,
@@ -508,7 +510,7 @@ export default function Dashboard() {
                           <Clock className="h-3 w-3" />
                           {getTimeAgo(project.updatedAt)}
                         </span>
-                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button 
                             size="sm" 
                             variant="ghost" 
