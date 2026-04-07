@@ -1,7 +1,18 @@
 import * as monaco from 'monaco-editor';
 
+// Setup global Monaco environment
+(self as any).MonacoEnvironment = {
+  getWorker: function() {
+    const workerCode = `
+      self.onmessage = function() {
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    return new Worker(URL.createObjectURL(blob));
+  }
+};
+
 export function setupMonacoTheme() {
-  // Define the Replit dark theme
   monaco.editor.defineTheme('replitDark', {
     base: 'vs-dark',
     inherit: true,
@@ -28,7 +39,6 @@ export function setupMonacoTheme() {
     }
   });
 
-  // Define the Replit light theme
   monaco.editor.defineTheme('replitLight', {
     base: 'vs',
     inherit: true,
@@ -53,5 +63,20 @@ export function setupMonacoTheme() {
       'editorIndentGuide.background': '#D3D3D3',
       'editor.selectionHighlightBorder': '#EEEEEE',
     }
+  });
+
+  monaco.editor.defineTheme('plotDark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': '#1E1E1E',
+      'editor.foreground': '#FFFFFF',
+      'editorLineNumber.foreground': '#525252',
+      'editorCursor.foreground': '#FFFFFF',
+      'editorSuggestWidget.background': '#2D2D2D',
+      'editorSuggestWidget.border': '#3E3E3E',
+      'editorSuggestWidget.selectedBackground': '#3E3E3E',
+    },
   });
 }

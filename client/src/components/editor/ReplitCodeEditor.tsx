@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { EditorView } from '@codemirror/view';
 import { CM6Editor } from '@/components/editor/CM6Editor';
 import { Button } from '@/components/ui/button';
@@ -173,6 +174,7 @@ export function ReplitCodeEditor({
   onFileUpdate,
   className 
 }: ReplitCodeEditorProps) {
+  const { t } = useTranslation();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<number | null>(null);
@@ -387,9 +389,9 @@ export function ReplitCodeEditor({
     return (
       <div className={cn("flex items-center justify-center h-full bg-background", className)}>
         <div className="text-center">
-          <p className="text-[15px] text-muted-foreground">No files open</p>
+          <p className="text-[15px] text-muted-foreground">{t('ide.editor.noFilesOpen')}</p>
           <p className="text-[13px] text-muted-foreground mt-2">
-            Select a file from the sidebar to start editing
+            {t('ide.editor.selectFile')}
           </p>
         </div>
       </div>
@@ -434,13 +436,13 @@ export function ReplitCodeEditor({
             <DropdownMenuItem onClick={() => {
               setTabs(tabs.filter(tab => tab.fileId === activeTabId));
             }}>
-              Close Other Tabs
+              {t('ide.editor.closeOtherTabs')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => {
               setTabs([]);
               setActiveTabId(null);
             }}>
-              Close All Tabs
+              {t('ide.editor.closeAllTabs')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -451,7 +453,7 @@ export function ReplitCodeEditor({
           {aiProcessing && (
             <Badge variant="outline" className="text-[11px] bg-card border-primary">
               <Sparkles className="h-3 w-3 mr-1 animate-pulse" />
-              AI Processing...
+              {t('ide.editor.aiProcessing')}
             </Badge>
           )}
           
@@ -473,8 +475,8 @@ export function ReplitCodeEditor({
               </TooltipTrigger>
               <TooltipContent>
                 <div className="space-y-1">
-                  <p className="font-semibold">AI Code Completion {aiPreferences.enabled ? 'Enabled' : 'Disabled'}</p>
-                  <p className="text-[11px]">Press Ctrl+Alt+Space to trigger manually</p>
+                  <p className="font-semibold">{t('ide.editor.aiCompletion')} {aiPreferences.enabled ? t('ide.editor.enabled') : t('ide.editor.disabled')}</p>
+                  <p className="text-[11px]">{t('ide.editor.aiTriggerHint')}</p>
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -488,11 +490,11 @@ export function ReplitCodeEditor({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>AI Code Completion Settings</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('ide.editor.aiSettings')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               
               {/* Model Selection */}
-              <DropdownMenuLabel className="text-[11px] text-muted-foreground">AI Model</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-[11px] text-muted-foreground">{t('ide.editor.aiModel')}</DropdownMenuLabel>
               {getAvailableModels().map((model) => (
                 <DropdownMenuCheckboxItem
                   key={model.value}
@@ -513,7 +515,7 @@ export function ReplitCodeEditor({
                 className="flex items-center justify-between"
                 onSelect={(e) => e.preventDefault()}
               >
-                <Label htmlFor="auto-trigger" className="cursor-pointer">Auto-trigger</Label>
+                <Label htmlFor="auto-trigger" className="cursor-pointer">{t('ide.editor.autoTrigger')}</Label>
                 <Switch
                   id="auto-trigger"
                   checked={aiPreferences.autoTrigger}
@@ -527,7 +529,7 @@ export function ReplitCodeEditor({
                 onSelect={(e) => e.preventDefault()}
               >
                 <div className="flex items-center justify-between w-full">
-                  <Label className="text-[11px]">Confidence Threshold</Label>
+                  <Label className="text-[11px]">{t('ide.editor.confidenceThreshold')}</Label>
                   <span className="text-[11px] text-muted-foreground">{Math.round(aiPreferences.confidenceThreshold * 100)}%</span>
                 </div>
                 <input
@@ -552,7 +554,7 @@ export function ReplitCodeEditor({
             <div className="text-center space-y-4">
               <Skeleton className="h-4 w-48 mx-auto" />
               <Skeleton className="h-4 w-32 mx-auto" />
-              <p className="text-[13px] text-muted-foreground">Loading editor...</p>
+              <p className="text-[13px] text-muted-foreground">{t('ide.editor.loadingEditor')}</p>
             </div>
           </div>
         )}
@@ -562,12 +564,12 @@ export function ReplitCodeEditor({
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10 p-8">
             <Alert className="max-w-md">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Editor Failed to Load</AlertTitle>
+              <AlertTitle>{t('ide.editor.editorFailedToLoad')}</AlertTitle>
               <AlertDescription className="mt-2 space-y-3">
                 <p>{errorMessage}</p>
                 <Button onClick={handleRetry} size="sm" className="w-full">
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Retry Loading
+                  {t('ide.editor.retryLoading')}
                 </Button>
               </AlertDescription>
             </Alert>

@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useTranslation } from 'react-i18next';
 
 interface FileNode {
   id: number;
@@ -63,6 +64,7 @@ interface Project {
 }
 
 export function ReplitSidebar({ projectId }: { projectId?: number }) {
+  const { t } = useTranslation();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["/"]));
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
@@ -144,7 +146,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   >
                     <div className="flex items-center">
                       <Folder className="h-4 w-4 mr-2" />
-                      <span className="text-[13px] font-medium">Files</span>
+                      <span className="text-[13px] font-medium">{t('ide.sidebar.files')}</span>
                     </div>
                     <ChevronDown className="h-4 w-4" />
                   </Button>
@@ -157,13 +159,13 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="New File"
+                            aria-label={t('ide.sidebar.newFile')}
                             className="h-6 w-6 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                           >
                             <Plus className="h-3 w-3" aria-hidden="true" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>New File</TooltipContent>
+                        <TooltipContent>{t('ide.sidebar.newFile')}</TooltipContent>
                       </Tooltip>
 
                       <Tooltip>
@@ -171,13 +173,13 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="Search Files"
+                            aria-label={t('ide.sidebar.searchFiles')}
                             className="h-6 w-6 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                           >
                             <Search className="h-3 w-3" aria-hidden="true" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Search Files</TooltipContent>
+                        <TooltipContent>{t('ide.sidebar.searchFiles')}</TooltipContent>
                       </Tooltip>
 
                       <Tooltip>
@@ -185,13 +187,13 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label="Refresh files"
+                            aria-label={t('ide.sidebar.refresh')}
                             className="h-6 w-6 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                           >
                             <RefreshCw className="h-3 w-3" aria-hidden="true" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Refresh</TooltipContent>
+                        <TooltipContent>{t('ide.sidebar.refresh')}</TooltipContent>
                       </Tooltip>
                     </div>
                   </div>
@@ -217,7 +219,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                 >
                   <div className="flex items-center">
                     <GitBranch className="h-4 w-4 mr-2" />
-                    <span className="text-[13px] font-medium">Version Control</span>
+                    <span className="text-[13px] font-medium">{t('ide.sidebar.versionControl')}</span>
                   </div>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -231,14 +233,14 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                       size="sm"
                       className="h-7 px-2 text-[11px] text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                     >
-                      Commit
+                      {t('ide.sidebar.commit')}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2 text-[11px] text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                     >
-                      Push
+                      {t('ide.sidebar.push')}
                     </Button>
                   </div>
                 </div>
@@ -254,14 +256,14 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   >
                     <div className="flex items-center">
                       <Sparkles className="h-4 w-4 mr-2" />
-                      <span className="text-[13px] font-medium">Agent</span>
+                      <span className="text-[13px] font-medium">{t('ide.sidebar.agent')}</span>
                     </div>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-1 mt-2">
                   <div className="px-2 py-2 text-[11px] text-[var(--ecode-text-secondary)]">
-                    AI-powered assistant to help you build faster
+                    {t('ide.sidebar.agentDescription')}
                   </div>
                   <Button
                     variant="ghost"
@@ -270,7 +272,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                     onClick={() => window.dispatchEvent(new CustomEvent('openAgent'))}
                   >
                     <Sparkles className="h-3 w-3 mr-2" />
-                    Open Agent Chat
+                    {t('ide.sidebar.openAgentChat')}
                   </Button>
                 </CollapsibleContent>
               </Collapsible>
@@ -284,7 +286,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                 >
                   <div className="flex items-center">
                     <Terminal className="h-4 w-4 mr-2" />
-                    <span className="text-[13px] font-medium">Tools</span>
+                    <span className="text-[13px] font-medium">{t('ide.sidebar.tools')}</span>
                   </div>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -297,7 +299,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openBottomPanelTab', { detail: { tab: 'console' } }))}
                 >
                   <Terminal className="h-3 w-3 mr-2" />
-                  Console
+                  {t('ide.sidebar.console')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -306,7 +308,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openBottomPanelTab', { detail: { tab: 'terminal' } }))}
                 >
                   <Terminal className="h-3 w-3 mr-2" />
-                  Shell
+                  {t('ide.sidebar.shell')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -315,7 +317,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openRightPanelTab', { detail: { tab: 'postgres' } }))}
                 >
                   <Database className="h-3 w-3 mr-2" />
-                  Database
+                  {t('ide.sidebar.database')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -324,7 +326,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openRightPanelTab', { detail: { tab: 'preview' } }))}
                 >
                   <Globe className="h-3 w-3 mr-2" />
-                  Webview
+                  {t('ide.sidebar.webview')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -333,7 +335,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openRightPanelTab', { detail: { tab: 'packages' } }))}
                 >
                   <Package className="h-3 w-3 mr-2" />
-                  Packager
+                  {t('ide.sidebar.packager')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -342,7 +344,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openRightPanelTab', { detail: { tab: 'storage' } }))}
                 >
                   <HardDrive className="h-3 w-3 mr-2" />
-                  Object Storage
+                  {t('ide.sidebar.objectStorage')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -351,7 +353,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   onClick={() => window.dispatchEvent(new CustomEvent('openBottomPanelTab', { detail: { tab: 'secrets' } }))}
                 >
                   <Key className="h-3 w-3 mr-2" />
-                  Secrets
+                  {t('ide.sidebar.secrets')}
                 </Button>
               </CollapsibleContent>
             </Collapsible>
@@ -365,7 +367,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   >
                     <div className="flex items-center">
                       <Clock className="h-4 w-4 mr-2" />
-                      <span className="text-[13px] font-medium">Recent</span>
+                      <span className="text-[13px] font-medium">{t('ide.sidebar.recent')}</span>
                     </div>
                     <ChevronDown className="h-4 w-4" />
                   </Button>
@@ -403,7 +405,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                               {project.isRunning && (
                                 <div className="flex items-center">
                                   <div className="h-2 w-2 bg-[var(--ecode-green)] rounded-full animate-pulse"></div>
-                                  <span className="text-[11px] text-[var(--ecode-green)] ml-1">Running</span>
+                                  <span className="text-[11px] text-[var(--ecode-green)] ml-1">{t('ide.sidebar.running')}</span>
                                 </div>
                               )}
                             </div>
@@ -413,7 +415,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={project.isRunning ? "Stop project" : "Run project"}
+                            aria-label={project.isRunning ? t('ide.sidebar.stopProject') : t('ide.sidebar.runProject')}
                             className="h-6 w-6 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)]"
                           >
                             {project.isRunning ? (
@@ -439,14 +441,14 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                   >
                     <div className="flex items-center">
                       <Rocket className="h-4 w-4 mr-2" />
-                      <span className="text-[13px] font-medium">Deploy</span>
+                      <span className="text-[13px] font-medium">{t('ide.sidebar.deploy')}</span>
                     </div>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-1 mt-2">
                   <div className="px-2 py-2 text-[11px] text-[var(--ecode-text-secondary)]">
-                    Deploy your project to the web.
+                    {t('ide.sidebar.deployDescription')}
                   </div>
                   <Button
                     variant="ghost"
@@ -455,7 +457,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                     onClick={() => window.dispatchEvent(new CustomEvent('openDeploy'))}
                   >
                     <Rocket className="h-3 w-3 mr-2" />
-                    Open Deploy
+                    {t('ide.sidebar.openDeploy')}
                   </Button>
                 </CollapsibleContent>
               </Collapsible>
@@ -469,7 +471,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Settings"
+              aria-label={t('ide.sidebar.settings')}
               className="h-8 w-8 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
             >
               <Settings className="h-4 w-4" aria-hidden="true" />
@@ -480,7 +482,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Run project"
+                  aria-label={t('ide.sidebar.runProject')}
                   className="h-8 w-8 text-[var(--ecode-green)] hover:bg-surface-hover-solid"
                 >
                   <Play className="h-4 w-4" aria-hidden="true" />
@@ -488,7 +490,7 @@ export function ReplitSidebar({ projectId }: { projectId?: number }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Stop project"
+                  aria-label={t('ide.sidebar.stopProject')}
                   className="h-8 w-8 text-[var(--ecode-text-secondary)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                 >
                   <Square className="h-4 w-4" aria-hidden="true" />

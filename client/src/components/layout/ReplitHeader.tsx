@@ -62,6 +62,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from 'react-i18next';
 
 import { ECodeLogo } from "@/components/ECodeLogo";
 import { MobileMenu } from "./MobileMenu";
@@ -78,6 +79,7 @@ import {
 } from "@/components/ui/dialog";
 
 export function ReplitHeader() {
+  const { t } = useTranslation();
   const { user, logoutMutation } = useAuth();
   const [location, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -108,7 +110,7 @@ export function ReplitHeader() {
           setProjectInfo(data);
         } catch (error) {
           console.error('Failed to fetch project info:', error);
-          setProjectInfoError('Failed to load project');
+          setProjectInfoError(t('ide.header.failedToLoadProject'));
           setProjectInfo(null);
         } finally {
           setProjectInfoLoading(false);
@@ -121,7 +123,7 @@ export function ReplitHeader() {
           setProjectInfo(data);
         } catch (error) {
           console.error('Failed to fetch project info:', error);
-          setProjectInfoError('Failed to load project');
+          setProjectInfoError(t('ide.header.failedToLoadProject'));
           setProjectInfo(null);
         } finally {
           setProjectInfoLoading(false);
@@ -146,7 +148,7 @@ export function ReplitHeader() {
 
   return (
     <>
-    <header role="banner" aria-label="Site header" className="replit-header h-14 bg-background dark:bg-[var(--ecode-surface)] border-b border-[var(--ecode-border)] flex items-center px-4 gap-2 replit-transition overflow-hidden">
+    <header role="banner" aria-label={t('ide.header.siteHeader')} className="replit-header h-14 bg-background dark:bg-[var(--ecode-surface)] border-b border-[var(--ecode-border)] flex items-center px-4 gap-2 replit-transition overflow-hidden">
       <div className="flex items-center gap-2 min-w-0">
         <div className="lg:hidden mr-2">
           <MobileMenu onOpenSpotlight={() => setSpotlightOpen(true)} />
@@ -166,7 +168,7 @@ export function ReplitHeader() {
               className="text-[var(--ecode-text-muted)] font-medium flex items-center gap-1"
             >
               <FolderOpen className="h-4 w-4 animate-pulse" />
-              <span className="animate-pulse">Loading...</span>
+              <span className="animate-pulse">{t('ide.header.loading')}</span>
             </Button>
           </>
         )}
@@ -181,7 +183,7 @@ export function ReplitHeader() {
               title={projectInfoError}
             >
               <FolderOpen className="h-4 w-4" />
-              <span>Error</span>
+              <span>{t('ide.header.error')}</span>
             </Button>
           </>
         )}
@@ -212,14 +214,14 @@ export function ReplitHeader() {
                   }}
                 >
                   <Code className="mr-2 h-4 w-4" />
-                  Open project
+                  {t('ide.header.openProject')}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                   onClick={() => navigate(`/projects/${projectId}/settings`)}
                 >
                   <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  {t('ide.header.settings')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
                 <DropdownMenuItem 
@@ -227,21 +229,21 @@ export function ReplitHeader() {
                   onClick={() => navigate(`/projects/${projectId}/git`)}
                 >
                   <GitBranch className="mr-2 h-4 w-4" />
-                  Version control
+                  {t('ide.header.versionControl')}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                   onClick={() => navigate(`/projects/${projectId}/database`)}
                 >
                   <Database className="mr-2 h-4 w-4" />
-                  Database
+                  {t('ide.header.database')}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
                   onClick={() => navigate(`/projects/${projectId}/deployments`)}
                 >
                   <Rocket className="mr-2 h-4 w-4" />
-                  Deployments
+                  {t('ide.header.deployments')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
                 <DropdownMenuItem 
@@ -250,21 +252,21 @@ export function ReplitHeader() {
                     try {
                       const forkedProject = await apiRequest('POST', `/api/projects/${projectId}/fork`);
                       toast({
-                        title: "Project Forked",
-                        description: `Successfully forked project as "${forkedProject.name}"`,
+                        title: t('ide.header.projectForked'),
+                        description: t('ide.header.projectForkedDesc', { name: forkedProject.name }),
                       });
                       navigate(`/ide/${forkedProject.id}`);
                     } catch (error) {
                       toast({
-                        title: "Fork Failed",
-                        description: "Failed to fork project. Please try again.",
+                        title: t('ide.header.forkFailed'),
+                        description: t('ide.header.forkFailedDesc'),
                         variant: "destructive"
                       });
                     }
                   }}
                 >
                   <Copy className="mr-2 h-4 w-4" />
-                  Fork project
+                  {t('ide.header.forkProject')}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
@@ -272,13 +274,13 @@ export function ReplitHeader() {
                     const shareUrl = window.location.origin + window.location.pathname;
                     navigator.clipboard.writeText(shareUrl);
                     toast({
-                      title: "Link Copied",
-                      description: "Project link copied to clipboard",
+                      title: t('ide.header.linkCopied'),
+                      description: t('ide.header.linkCopiedDesc'),
                     });
                   }}
                 >
                   <Share2 className="mr-2 h-4 w-4" />
-                  Share
+                  {t('ide.header.share')}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
@@ -298,23 +300,23 @@ export function ReplitHeader() {
                         a.click();
                         window.URL.revokeObjectURL(url);
                         toast({
-                          title: "Download Started",
-                          description: "Your project is being downloaded",
+                          title: t('ide.header.downloadStarted'),
+                          description: t('ide.header.downloadStartedDesc'),
                         });
                       } else {
                         throw new Error('Download failed');
                       }
                     } catch (error) {
                       toast({
-                        title: "Download Failed",
-                        description: "Failed to download project. Please try again.",
+                        title: t('ide.header.downloadFailed'),
+                        description: t('ide.header.downloadFailedDesc'),
                         variant: "destructive"
                       });
                     }
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Download
+                  {t('ide.header.download')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
                 <DropdownMenuItem 
@@ -322,7 +324,7 @@ export function ReplitHeader() {
                   onClick={() => navigate(`/projects/${projectId}/history`)}
                 >
                   <History className="mr-2 h-4 w-4" />
-                  History
+                  {t('ide.header.history')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -338,30 +340,30 @@ export function ReplitHeader() {
                 className={cn(navLinkClass, "replit-nav-link--trigger replit-transition")}
               >
                 <Plus className="mr-1 h-4 w-4" />
-                Create
+                {t('ide.header.create')}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56 bg-[var(--ecode-surface)] border-[var(--ecode-border)]">
               <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]" onClick={() => navigate('/dashboard')}>
                 <Zap className="mr-2 h-4 w-4" />
-                Build with AI
+                {t('ide.header.buildWithAI')}
               </DropdownMenuItem>
               <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]" onClick={() => navigate('/new')}>
                 <Code className="mr-2 h-4 w-4" />
-                Start from scratch
+                {t('ide.header.startFromScratch')}
               </DropdownMenuItem>
               <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]" onClick={() => navigate('/templates')}>
                 <Package className="mr-2 h-4 w-4" />
-                From template
+                {t('ide.header.fromTemplate')}
               </DropdownMenuItem>
               <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]" onClick={() => navigate('/github-import')}>
                 <Database className="mr-2 h-4 w-4" />
-                Import from GitHub
+                {t('ide.header.importFromGitHub')}
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
               <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]" onClick={() => navigate('/teams/new')}>
                 <Users className="mr-2 h-4 w-4" />
-                Create a team
+                {t('ide.header.createTeam')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -431,10 +433,10 @@ export function ReplitHeader() {
             variant="ghost"
             className="replit-header-search"
             onClick={() => setSpotlightOpen(true)}
-            aria-label="Search or run a command (⌘K)"
+            aria-label={t('ide.header.searchOrCommand')}
           >
             <Search className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="truncate text-sm">Search or run a command...</span>
+            <span className="truncate text-sm">{t('ide.header.searchOrCommand')}</span>
             <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100 shrink-0">
               <span className="text-[11px]">⌘</span>K
             </kbd>
@@ -450,7 +452,7 @@ export function ReplitHeader() {
           onClick={() => navigate('/pricing')}
         >
           <Crown className="h-4 w-4" />
-          <span>Upgrade</span>
+          <span>{t('ide.header.upgrade')}</span>
         </Button>
 
 
@@ -483,14 +485,14 @@ export function ReplitHeader() {
               onClick={() => navigate(`/@${user?.username}`)}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <User className="mr-2 h-4 w-4" />
-              View Profile
+              {t('ide.header.viewProfile')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/account')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Settings className="mr-2 h-4 w-4" />
-              Account
+              {t('ide.header.account')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
@@ -499,35 +501,35 @@ export function ReplitHeader() {
               onClick={() => navigate('/analytics')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <BarChart3 className="mr-2 h-4 w-4" />
-              Analytics
+              {t('ide.header.analytics')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/badges')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Trophy className="mr-2 h-4 w-4" />
-              Badges & Achievements
+              {t('ide.header.badges')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/education')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <GraduationCap className="mr-2 h-4 w-4" />
-              Education Center
+              {t('ide.header.educationCenter')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/marketplace')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Store className="mr-2 h-4 w-4" />
-              Marketplace
+              {t('ide.header.marketplace')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/powerups')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Rocket className="mr-2 h-4 w-4" />
-              Power Ups
+              {t('ide.header.powerUps')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
@@ -536,35 +538,35 @@ export function ReplitHeader() {
               onClick={() => navigate('/cycles')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Zap className="mr-2 h-4 w-4" />
-              Cycles
+              {t('ide.header.cycles')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/plans')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <CreditCard className="mr-2 h-4 w-4" />
-              Plans & Pricing
+              {t('ide.header.plansPricing')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/deployments')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Globe className="mr-2 h-4 w-4" />
-              Deployments
+              {t('ide.header.deployments')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/bounties')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <DollarSign className="mr-2 h-4 w-4" />
-              Bounties
+              {t('ide.header.bounties')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/teams')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Users className="mr-2 h-4 w-4" />
-              Teams & Orgs
+              {t('ide.header.teamsOrgs')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
@@ -573,21 +575,21 @@ export function ReplitHeader() {
               onClick={() => navigate('/learn')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <GraduationCap className="mr-2 h-4 w-4" />
-              Learn
+              {t('ide.header.learn')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/docs')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <Book className="mr-2 h-4 w-4" />
-              Documentation
+              {t('ide.header.docs')}
             </DropdownMenuItem>
 
             <DropdownMenuItem 
               onClick={() => navigate('/support')}
               className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
               <HelpCircle className="mr-2 h-4 w-4" />
-              Support
+              {t('ide.header.support')}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
@@ -596,7 +598,7 @@ export function ReplitHeader() {
               onClick={handleLogout}
               className="text-[var(--ecode-danger)] hover:bg-[var(--ecode-sidebar-hover)]">
               <LogOut className="mr-2 h-4 w-4" />
-              Log out
+              {t('ide.header.logOut')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

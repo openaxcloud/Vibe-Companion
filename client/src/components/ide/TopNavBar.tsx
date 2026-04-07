@@ -48,6 +48,7 @@ import { AddTabMenu } from './AddTabMenu';
 import { ReplitPublishButton } from './ReplitPublishButton';
 import { useTheme } from '@/components/ThemeProvider';
 import { useLocation } from 'wouter';
+import { useTranslation } from 'react-i18next';
 
 interface Tab {
   id: string;
@@ -121,6 +122,7 @@ export function TopNavBar({
   onOpenCommandPalette,
   onOpenGlobalSearch,
 }: TopNavBarProps) {
+  const { t } = useTranslation();
   const { user, logoutMutation } = useAuth();
   const { theme, setTheme } = useTheme();
   const [, navigate] = useLocation();
@@ -150,7 +152,7 @@ export function TopNavBar({
         <DropdownMenuContent className="w-56" align="start">
           <DropdownMenuItem onClick={() => navigate('/dashboard')}>
             <Home className="w-4 h-4 mr-2" />
-            Home
+            {t('ide.nav.home')}
           </DropdownMenuItem>
           
           {isAdmin && (
@@ -161,12 +163,12 @@ export function TopNavBar({
                 onClick={() => navigate('/admin')}
               >
                 <Shield className="w-4 h-4 mr-2 text-[var(--ecode-accent)]" />
-                <span className="font-medium">Admin Dashboard</span>
+                <span className="font-medium">{t('ide.nav.adminDashboard')}</span>
                 <Badge 
                   variant="default"
                   className="ml-auto text-[10px] h-4 px-1.5"
                 >
-                  ADMIN
+                  {t('ide.nav.admin')}
                 </Badge>
               </DropdownMenuItem>
             </>
@@ -301,12 +303,12 @@ export function TopNavBar({
           {isRunning ? (
             <>
               <Square className="h-3 w-3 fill-current" />
-              <span>Stop</span>
+              <span>{t('ide.nav.stop')}</span>
             </>
           ) : (
             <>
               <Play className="h-3 w-3 fill-current" />
-              <span>Run</span>
+              <span>{t('ide.nav.run')}</span>
             </>
           )}
         </Button>
@@ -341,15 +343,15 @@ export function TopNavBar({
           <DropdownMenuContent align="end" className="w-36">
             <DropdownMenuItem onClick={() => setTheme("light")} className="text-[13px]">
               <Sun className="w-4 h-4 mr-2" />
-              Light
+              {t('ide.nav.light')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setTheme("dark")} className="text-[13px]">
               <Moon className="w-4 h-4 mr-2" />
-              Dark
+              {t('ide.nav.dark')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setTheme("system")} className="text-[13px]">
               <Monitor className="w-4 h-4 mr-2" />
-              System
+              {t('ide.nav.system')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -374,23 +376,23 @@ export function TopNavBar({
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-1">
-                <p className="text-[13px] font-medium">{user?.username || 'User'}</p>
+                <p className="text-[13px] font-medium">{user?.username || t('ide.nav.user')}</p>
                 <p className="text-[11px] text-[var(--ecode-text-muted)]">{user?.email || ''}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/profile')} className="text-[13px]">
               <User className="mr-2 h-4 w-4" />
-              Profile
+              {t('ide.nav.profile')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowSettings(true)} className="text-[13px]">
               <Settings className="mr-2 h-4 w-4" />
-              Settings
+              {t('ide.nav.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-[13px] text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {t('ide.nav.logout')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -400,7 +402,7 @@ export function TopNavBar({
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
         <DialogContent className="max-w-2xl max-h-[80vh] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b border-border">
-            <DialogTitle className="text-base">User Settings</DialogTitle>
+            <DialogTitle className="text-base">{t('ide.nav.userSettings')}</DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-hidden">
             <WorkspaceSettings />

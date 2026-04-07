@@ -35,6 +35,7 @@ import {
   Clock,
 } from "lucide-react";
 import { TerminalMetricsIndicator } from "./TerminalMetricsIndicator";
+import { useTranslation } from 'react-i18next';
 import "xterm/css/xterm.css";
 
 interface TerminalSession {
@@ -66,6 +67,7 @@ export function ReplitTerminal({
   theme = "dark",
   allowMultipleSessions = true,
 }: ReplitTerminalProps) {
+  const { t } = useTranslation();
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstanceRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -74,7 +76,7 @@ export function ReplitTerminal({
   const [sessions, setSessions] = useState<TerminalSession[]>([
     {
       id: "main",
-      name: "Shell",
+      name: "shell",
       isActive: true,
       status: "running",
       lastActivity: new Date(),
@@ -168,8 +170,8 @@ export function ReplitTerminal({
 
     // Message de bienvenue
     terminal.writeln("\x1b[1;32m╭─────────────────────────────────────────╮\x1b[0m");
-    terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[1;36mWelcome to E-Code Terminal\x1b[0m           \x1b[1;32m│\x1b[0m");
-    terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[90mConnecting to workspace...\x1b[0m            \x1b[1;32m│\x1b[0m");
+    terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[1;36m" + t('ide.terminal.welcome') + "\x1b[0m\x1b[1;32m│\x1b[0m");
+    terminal.writeln("\x1b[1;32m│\x1b[0m \x1b[90m" + t('ide.terminal.connecting') + "\x1b[0m\x1b[1;32m│\x1b[0m");
     terminal.writeln("\x1b[1;32m╰─────────────────────────────────────────╯\x1b[0m");
     terminal.writeln("");
 
@@ -183,7 +185,7 @@ export function ReplitTerminal({
 
       ws.onopen = () => {
         setIsConnected(true);
-        terminal.writeln("\x1b[1;32m✓ Connected to terminal server\x1b[0m");
+        terminal.writeln("\x1b[1;32m✓ " + t('ide.terminal.connectedMsg') + "\x1b[0m");
         
         const dims = fitAddon.proposeDimensions();
         if (dims) {
@@ -225,7 +227,7 @@ export function ReplitTerminal({
 
       ws.onclose = () => {
         setIsConnected(false);
-        terminal.writeln("\r\n\x1b[1;31m✗ Connection lost. Attempting to reconnect...\x1b[0m");
+        terminal.writeln("\r\n\x1b[1;31m✗ " + t('ide.terminal.connectionLost') + "\x1b[0m");
         
         // Tentative de reconnexion
         setTimeout(() => {
@@ -236,7 +238,7 @@ export function ReplitTerminal({
       };
 
       ws.onerror = () => {
-        terminal.writeln("\r\n\x1b[1;31m✗ Connection error\x1b[0m");
+        terminal.writeln("\r\n\x1b[1;31m✗ " + t('ide.terminal.connectionError') + "\x1b[0m");
       };
     };
 
@@ -298,7 +300,7 @@ export function ReplitTerminal({
     const newSessionId = `session-${Date.now()}`;
     const newSession: TerminalSession = {
       id: newSessionId,
-      name: `Shell ${sessions.length + 1}`,
+      name: `shell-${sessions.length + 1}`,
       isActive: false,
       status: "running",
       lastActivity: new Date(),
@@ -354,6 +356,12 @@ export function ReplitTerminal({
     }
   };
 
+  const getSessionDisplayName = (name: string) => {
+    if (name === "shell") return t('ide.terminal.shell');
+    if (name.startsWith("shell-")) return t('ide.terminal.shell') + ' ' + name.split('-')[1];
+    return name;
+  };
+
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
   if (isMinimized) {
@@ -362,12 +370,12 @@ export function ReplitTerminal({
         <div className="flex items-center justify-between p-2">
           <div className="flex items-center space-x-2">
             <TerminalIcon className="h-4 w-4 text-[var(--ecode-text-secondary)]" />
-            <span className="text-[13px] font-medium text-[var(--ecode-text)]">Terminal</span>
+            <span className="text-[13px] font-medium text-[var(--ecode-text)]">{t('ide.terminal.terminal')}</span>
             <Badge 
               variant="outline" 
               className={`text-[11px] ${isConnected ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}`}
             >
-              {isConnected ? 'Connected' : 'Disconnected'}
+              {isConnected ? t('ide.terminal.connected') : t('ide.terminal.disconnected')}
             </Badge>
           </div>
           <Button
@@ -404,7 +412,7 @@ export function ReplitTerminal({
                     }`}
                   >
                     <TerminalIcon className="h-3 w-3 mr-1" />
-                    {session.name}
+                    {getSessionDisplayName(session.name)}
                     <div className={`ml-1 h-1.5 w-1.5 rounded-full ${
                       session.status === "running" ? "bg-green-400" :
                       session.status === "error" ? "bg-red-400" : "bg-gray-400"
@@ -444,12 +452,12 @@ export function ReplitTerminal({
               {isConnected ? (
                 <>
                   <Zap className="h-2 w-2 mr-1" />
-                  Connected
+                  {t('ide.terminal.connected')}
                 </>
               ) : (
                 <>
                   <PowerOff className="h-2 w-2 mr-1" />
-                  Disconnected
+                  {t('ide.terminal.disconnected')}
                 </>
               )}
             </Badge>
@@ -471,7 +479,7 @@ export function ReplitTerminal({
                   <Square className="h-3 w-3" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Clear Terminal</TooltipContent>
+              <TooltipContent>{t('ide.terminal.clearTerminal')}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -485,7 +493,7 @@ export function ReplitTerminal({
                   <RotateCcw className="h-3 w-3" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Restart Session</TooltipContent>
+              <TooltipContent>{t('ide.terminal.restartSession')}</TooltipContent>
             </Tooltip>
 
             {/* Menu des options */}
@@ -502,16 +510,16 @@ export function ReplitTerminal({
               <DropdownMenuContent className="w-40 bg-[var(--ecode-surface)] border-[var(--ecode-border)]">
                 <DropdownMenuItem onClick={copySelection} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
                   <Copy className="mr-2 h-3 w-3" />
-                  Copy
+                  {t('ide.terminal.copy')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={pasteFromClipboard} className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
                   <Copy className="mr-2 h-3 w-3" />
-                  Paste
+                  {t('ide.terminal.paste')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-[var(--ecode-border)]" />
                 <DropdownMenuItem className="text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]">
                   <Search className="mr-2 h-3 w-3" />
-                  Find
+                  {t('ide.terminal.find')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -557,7 +565,7 @@ export function ReplitTerminal({
                 {activeSession.lastActivity.toLocaleTimeString()}
               </span>
               <span>
-                PWD: {activeSession.workingDirectory}
+                {t('ide.terminal.pwd')} {activeSession.workingDirectory}
               </span>
             </div>
             <div className="flex items-center space-x-2">
