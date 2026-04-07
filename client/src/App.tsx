@@ -14,7 +14,7 @@ import Pricing from "@/pages/Pricing";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import Teams from "@/pages/Teams";
-import Admin from "@/pages/Admin";
+import AdminDashboard from "@/pages/AdminDashboard";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import VerifyEmail from "@/pages/VerifyEmail";
@@ -24,18 +24,15 @@ import { useAsyncBrowserLocation } from "@/hooks/use-async-location";
 import { Component, lazy, Suspense, startTransition, useState, useEffect, type ReactNode } from "react";
 import Project from "@/pages/Project";
 import UnifiedIDELayout from "@/pages/UnifiedIDELayout";
-import Frameworks from "@/pages/Frameworks";
-import ThemeEditor from "@/pages/ThemeEditor";
-import ThemesExplore from "@/pages/ThemesExplore";
+import Themes from "@/pages/Themes";
 import Import from "@/pages/Import";
 import AccountCLI from "@/pages/AccountCLI";
 import Desktop from "@/pages/Desktop";
 import McpDirectory from "@/pages/McpDirectory";
 import McpInstallLink from "@/pages/McpInstallLink";
 import OpenInReplit from "@/pages/OpenInReplit";
-import Documentation from "@/pages/Documentation";
+import Docs from "@/pages/Docs";
 import Community from "@/pages/Community";
-import HelpCenter from "@/pages/HelpCenter";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import GlobalShortcuts from "@/components/GlobalShortcuts";
 import CookieConsent from "@/components/CookieConsent";
@@ -87,8 +84,8 @@ const NewsletterConfirm = lazy(() => import("@/pages/NewsletterConfirm"));
 const NewsletterConfirmed = lazy(() => import("@/pages/NewsletterConfirmed"));
 const NewsletterUnsubscribe = lazy(() => import("@/pages/NewsletterUnsubscribe"));
 const AIAgent = lazy(() => import("@/pages/AIAgent"));
-const AIPlatform = lazy(() => import("@/pages/AIPlatform"));
-const MobilePage = lazy(() => import("@/pages/Mobile"));
+const AIPlatform = lazy(() => import("@/pages/AI"));
+const MobilePage = lazy(() => import("@/pages/mobile"));
 const Deployments = lazy(() => import("@/pages/Deployments"));
 const TeamsOverview = lazy(() => import("@/pages/TeamsOverview"));
 const ReportAbuse = lazy(() => import("@/pages/ReportAbuse"));
@@ -282,21 +279,21 @@ function App() {
                 <Route path="/ide/:id">{() => <ProtectedRoute component={UnifiedProjectRoute} />}</Route>
                 <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
                 <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
-                <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
-                <Route path="/frameworks">{() => <ProtectedRoute component={Frameworks} />}</Route>
-                <Route path="/frameworks/:id">{() => <ProtectedRoute component={Frameworks} />}</Route>
-                <Route path="/themes">{() => <ProtectedRoute component={ThemesExplore} />}</Route>
-                <Route path="/themes/editor">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
-                <Route path="/themes/editor/:id">{() => <ProtectedRoute component={ThemeEditor} />}</Route>
+                <Route path="/admin">{() => <ProtectedRoute component={AdminDashboard} />}</Route>
+                <Route path="/frameworks">{() => <LazyPage component={Languages} />}</Route>
+                <Route path="/frameworks/:id">{() => <LazyPage component={Languages} />}</Route>
+                <Route path="/themes">{() => <ProtectedRoute component={Themes} />}</Route>
+                <Route path="/themes/editor">{() => <ProtectedRoute component={Themes} />}</Route>
+                <Route path="/themes/editor/:id">{() => <ProtectedRoute component={Themes} />}</Route>
                 <Route path="/import">{() => <ProtectedRoute component={Import} />}</Route>
                 <Route path="/cli">{() => <ProtectedRoute component={AccountCLI} />}</Route>
                 <Route path="/mcp-directory" component={McpDirectory} />
                 <Route path="/mcp-install-link">{() => <ProtectedRoute component={McpInstallLink} />}</Route>
                 <Route path="/open" component={OpenInReplit} />
                 <Route path="/desktop" component={Desktop} />
-                <Route path="/docs" component={Documentation} />
+                <Route path="/docs" component={Docs} />
                 <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
-                <Route path="/help">{() => <ProtectedRoute component={HelpCenter} />}</Route>
+                <Route path="/help">{() => <LazyPage component={HelpCenterPage} />}</Route>
                 <Route path="/pricing" component={Pricing} />
                 <Route path="/demo" component={DemoProject} />
                 <Route path="/shared/:id" component={SharedProject} />
