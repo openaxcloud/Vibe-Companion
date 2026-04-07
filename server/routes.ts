@@ -1523,9 +1523,6 @@ API will be available at http://localhost:3000
     }
   });
 
-  const mainRouter = new MainRouter(storage);
-  await mainRouter.registerRoutes(app);
-
   try {
     const { centralUpgradeDispatcher } = await import('./websocket/central-upgrade-dispatcher');
     centralUpgradeDispatcher.initialize(httpServer);

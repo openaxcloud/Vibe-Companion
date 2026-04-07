@@ -25,18 +25,6 @@ const activeRuntimes: Map<number, {
   error?: string;
 }> = new Map();
 
-
-// Map to track active project runtimes
-const activeRuntimes: Map<number, {
-  projectId: number;
-  language: Language;
-  containerId?: string;
-  port?: number;
-  status: 'starting' | 'running' | 'stopped' | 'error';
-  logs: string[];
-  error?: string;
-}> = new Map();
-
 // Interface for starting a project
 export interface StartProjectOptions {
   environmentVariables?: Record<string, string>;
@@ -75,12 +63,6 @@ export async function startProject(
 }> {
   try {
     const projectId = project.id;
-  status: 'starting' | 'running' | 'stopped' | 'error';
-  logs: string[];
-  error?: string;
-}> {
-  try {
-    const projectId = project.id;
     
     // Check if project is already running
     if (activeRuntimes.has(projectId)) {
@@ -105,8 +87,6 @@ export async function startProject(
     }
     
     // Create project directory
-    const projectDir = await createProjectDir(project, files);
-    projectDir = await createProjectDir(project, files);
     const projectDir = await createProjectDir(project, files);
     
     // Detect language from files
@@ -696,7 +676,6 @@ export async function startProject(
 }
 
 /**
- * Stop a project runtime
  * Stop a project runtime with proper process cleanup
  */
 export async function stopProject(projectId: number): Promise<boolean> {
@@ -705,24 +684,11 @@ export async function stopProject(projectId: number): Promise<boolean> {
     
     if (!activeRuntimes.has(projectId)) {
       logger.warn(`Project ${projectId} is not running`);
- * Stop a project runtime
- */
-export async function stopProject(projectId: number): Promise<boolean> {
-  try {
-    log(`Stopping project ${projectId}`, 'runtime');
-    
-    if (!activeRuntimes.has(projectId)) {
-      log(`Project ${projectId} is not running`, 'runtime', 'warn');
       return false;
     }
     
     const runtime = activeRuntimes.get(projectId)!;
     
-    if (!runtime.containerId) {
-      logger.warn(`Project ${projectId} does not have a container ID`);
-      activeRuntimes.delete(projectId);
-      return false;
-    // Handle direct execution mode cleanup
     if (runtime.directExecutionMode || !runtime.containerId) {
       logger.info(`Cleaning up direct execution mode for project ${projectId}`);
       
@@ -763,29 +729,27 @@ export async function stopProject(projectId: number): Promise<boolean> {
       
       activeRuntimes.delete(projectId);
       return true;
+    }
+    
     if (!runtime.containerId) {
-      log(`Project ${projectId} does not have a container ID`, 'runtime', 'warn');
+      logger.warn(`Project ${projectId} does not have a container ID`);
       activeRuntimes.delete(projectId);
       return false;
     }
     
-    // Stop the container
     const result = await containerManager.stopContainer(runtime.containerId);
     
     if (result) {
-      log(`Project ${projectId} stopped successfully`, 'runtime');
-      runtime.status = 'stopped';
+      logger.info(`Project ${projectId} stopped successfully`);
       activeRuntimes.delete(projectId);
       return true;
     } else {
-      log(`Failed to stop project ${projectId}`, 'runtime', 'error');
-      runtime.status = 'error';
-      runtime.error = 'Failed to stop container';
+      logger.error(`Failed to stop project ${projectId}`);
       return false;
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log(`Error stopping project: ${errorMessage}`, 'runtime', 'error');
+    logger.error(`Error stopping project: ${errorMessage}`);
     return false;
   }
 }
@@ -793,8 +757,6 @@ export async function stopProject(projectId: number): Promise<boolean> {
 /**
  * Get the status of a project runtime
  */
-export function getProjectStatus(projectId: number): {
-export function getProjectStatus(projectId: string): {
 export function getProjectStatus(projectId: number): {
   isRunning: boolean;
   language?: Language;
@@ -828,8 +790,6 @@ export function getProjectStatus(projectId: number): {
 /**
  * Execute a command in a project runtime
  */
-export async function executeCommand(projectId: number, command: string): Promise<{
-export async function executeCommand(projectId: string, command: string): Promise<{
 export async function executeCommand(projectId: number, command: string): Promise<{
   success: boolean;
   output: string;
@@ -944,9 +904,6 @@ export async function executeCommand(projectId: number, command: string): Promis
     if (!runtime.containerId) {
       const errorMessage = `Project ${projectId} does not have a container ID`;
       logger.error(errorMessage);
-    if (!runtime.containerId) {
-      const errorMessage = `Project ${projectId} does not have a container ID`;
-      log(errorMessage, 'runtime', 'error');
       
       return {
         success: false,
@@ -975,12 +932,6 @@ export async function executeCommand(projectId: number, command: string): Promis
 /**
  * Stream project logs
  */
-export function streamProjectLogs(projectId: number, callback: (log: string) => void): () => void {
-export function streamProjectLogs(projectId: string, callback: (log: string) => void): () => void {
-  if (!activeRuntimes.has(projectId)) {
-    const errorMessage = `Project ${projectId} is not running`;
-    logger.warn(errorMessage);
-    callback(`ERROR: ${errorMessage}`);
 export function streamProjectLogs(projectId: number, callback: (log: string) => void): () => void {
   if (!activeRuntimes.has(projectId)) {
     callback(`ERROR: Project ${projectId} is not running`);
@@ -1190,36 +1141,8 @@ async function createProjectDir(project: Project, files: File[]): Promise<string
   }
   
   // Write all files to the project directory
-  let fileCount = 0;
   const { bulkSyncProjectFiles } = await import('../utils/project-fs-sync');
   return bulkSyncProjectFiles(String(project.id), files as any);
-  const projectDir = path.join(process.cwd(), 'projects', `project-${project.id}`);
-  
-  // Create project directory if it doesn't exist
-  if (!fs.existsSync(projectDir)) {
-    fs.mkdirSync(projectDir, { recursive: true });
-  }
-  
-  // Write all files to the project directory
-  for (const file of files) {
-    // Skip folders - we'll create them when writing files
-    if (file.isFolder) continue;
-    
-    // Make sure parent directories exist
-    const filePath = path.join(projectDir, file.name);
-    const fileDir = path.dirname(filePath);
-    
-    if (!fs.existsSync(fileDir)) {
-      fs.mkdirSync(fileDir, { recursive: true });
-    }
-    
-    // Write file content
-    fs.writeFileSync(filePath, file.content || '');
-    fileCount++;
-  }
-  
-  logger.info(`Wrote ${fileCount} files to project directory`);
-  return projectDir;
 }
 
 /**
@@ -1239,17 +1162,6 @@ function detectProjectLanguage(files: File[]): Language | undefined {
   
   // Check for common main files
   const mainFileChecks: [string, Language][] = [
-    ['package.json', 'nodejs'],
-    ['tsconfig.json', 'typescript'],
-  // Filter out folder entries
-  const nonFolderFiles = files.filter(file => !file.isFolder);
-  
-  // If no files, return undefined
-  if (nonFolderFiles.length === 0) return undefined;
-  
-  // Check for common main files
-  const mainFileChecks: [string, Language][] = [
-    ['package.json', 'nodejs'],
     ['tsconfig.json', 'typescript'],
     ['requirements.txt', 'python'],
     ['Cargo.toml', 'rust'],
@@ -1264,16 +1176,8 @@ function detectProjectLanguage(files: File[]): Language | undefined {
     ['*.kt', 'kotlin'],
     ['*.swift', 'swift'],
     ['index.html', 'html-css-js'],
-    ['replit.nix', 'nix']
-  ];
-  
-  // First try to detect by main file
     ['replit.nix', 'nix'],
-    ['package.json', 'nodejs']  // Moved to last - only match if no TypeScript detected above
-  ];
-  
-  // Try to detect by main file
-    ['replit.nix', 'nix']
+    ['package.json', 'nodejs']
   ];
   
   for (const [pattern, language] of mainFileChecks) {

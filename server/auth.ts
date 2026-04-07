@@ -4,7 +4,7 @@ import { Express, Request, Response } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { storage } from "./storage";
+import { storage, sessionStore } from "./storage";
 import { User } from "@shared/schema";
 import { 
   generateEmailVerificationToken, 
@@ -74,7 +74,7 @@ export function setupAuth(app: Express) {
     secret: process.env.SESSION_SECRET || 'plot-secret-key-strong-enough-for-development',
     resave: false, // Changed to false as we're using a store that implements touch
     saveUninitialized: true, // Changed to true to allow all sessions for testing
-    store: storage.sessionStore,
+    store: sessionStore,
     name: 'plot.sid', // Custom name to avoid using the default
     cookie: {
       secure: false, // Set to false for development to work with HTTP

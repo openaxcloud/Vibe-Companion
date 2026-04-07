@@ -1,40 +1,8 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, jsonb, real, serial, numeric } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, jsonb, real, serial, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
-
-// Project visibility enum
-export const visibilityEnum = pgEnum("visibility", ["public", "private", "unlisted"]);
-
-// Programming language enum
-export const languageEnum = pgEnum("language", [
-  "nodejs", "python", "java", "go", "ruby", "rust", "php", "c", "cpp", 
-  "csharp", "swift", "kotlin", "dart", "typescript", "bash", 
-  "html-css-js", "nix", "deno"
-]);
-
-// Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").unique(),
-  displayName: text("display_name"),
-  avatarUrl: text("avatar_url"),
-  bio: text("bio"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  email: true,
-  displayName: true,
-  avatarUrl: true,
-  bio: true,
-});
 
 export interface CustomThemeColors {
   background: string;

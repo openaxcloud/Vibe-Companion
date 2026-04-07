@@ -374,4 +374,8 @@ router.post('/clear', ensureAuthenticated, (req, res) => {
   res.json({ success: true, sessionId });
 });
 
+export function setupShellWebSocket(_server: any) {
+  return null;
+}
+
 export default router;

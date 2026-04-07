@@ -9,6 +9,7 @@ import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { AI_MODELS, type AIModel as AIModelType } from "./ai/models-catalog.js";
+import { registerRoutes } from "./routes.js";
 
 const conversationMessages = new Map<string, Array<{id: number, conversationId: number, role: string, content: string, timestamp: string}>>();
 
@@ -1014,7 +1015,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
 (async () => {
   try {
-    await registerRoutes(httpServer, app);
+    await registerRoutes(app);
     log("Full routes loaded successfully");
   } catch (err: any) {
     log(`Full routes failed to load: ${err.message}. Loading minimal routes...`, "warn");
