@@ -1,0 +1,3 @@
+Add Prisma schema for Todo model using SQLite. Configure datasource and generator, and prepare database migration files and client generation output directory.
+
+Content generated as fallback. Please implement specific functionality as needed.

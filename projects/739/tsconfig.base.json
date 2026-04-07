@@ -1,0 +1,4 @@
+{
+  "description": "Shared TypeScript options including strict mode, path aliases for shared types, and module resolution suitable for NodeNext and TSX.",
+  "todo": "Configure based on outline"
+}

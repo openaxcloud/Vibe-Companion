@@ -1,0 +1,8 @@
+# Document REST API endpoints with a concise OpenAPI spec to aid frontend integration.
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

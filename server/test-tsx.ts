@@ -1,0 +1,2 @@
+// TSX test file
+export {};

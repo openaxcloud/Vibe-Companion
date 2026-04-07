@@ -1,0 +1,4 @@
+{
+  "description": "Shared compiler options for the repo, including strict type checking, path aliases placeholders, and common libs settings.",
+  "todo": "Configure based on outline"
+}

@@ -1,0 +1,25 @@
+# Memory Bank — System & Architecture Patterns
+
+- **Overall Architecture:**
+  - Full-stack TypeScript web app.
+  - React SPA/MPA front end.
+  - TypeScript backend (Node-based API; exact framework TBD, e.g., Express/Nest/Fastify) with REST or GraphQL.
+  - Relational database for users, products, orders, and payments.
+  - Stripe integration for payments and webhooks.
+- **Domain Areas to Track:**
+  - Identity & Access: auth, roles (buyer/seller/admin), sessions/tokens.
+  - Catalog: products, variants, categories, filters, search.
+  - Cart & Checkout: cart persistence, shipping and tax fields, order creation.
+  - Payments: Stripe payment intents, webhooks, refunds, payout assumptions.
+  - Order Management: statuses, events, dashboards per role.
+- **Key Patterns / Decisions (to remember):**
+  - Single source of truth for prices and inventory in backend; frontend only displays.
+  - Use server-side validation and shared types between frontend and backend.
+  - Handle Stripe via Payment Intents and webhooks; backend owns final order state.
+  - Introduce modular service boundaries (e.g., `CatalogService`, `CheckoutService`) even in a monolith.
+- **Performance & Reliability Considerations:**
+  - Pagination for product listing and orders.
+  - Idempotent operations for checkout and Stripe webhook handlers.
+  - Logging and basic monitoring from day one.
+- **Memory Bank Role:**
+  - Store finalized architecture diagrams, API contracts, schema changes, and Stripe flow decisions.

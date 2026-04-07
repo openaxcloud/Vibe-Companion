@@ -1,0 +1,4 @@
+{
+  "description": "ESLint configuration applying recommended rules for TypeScript and React, integrating with Prettier to avoid formatting conflicts. Defines environments for node and browser.",
+  "todo": "Configure based on outline"
+}

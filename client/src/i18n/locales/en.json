@@ -1,0 +1,134 @@
+{
+  "common": {
+    "getStarted": "Get Started",
+    "learnMore": "Learn More",
+    "contactUs": "Contact Us",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "startBuilding": "Start Building",
+    "viewDemo": "View Demo",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  },
+  "landing": {
+    "hero": {
+      "title": "Build software with AI",
+      "subtitle": "E-Code is an AI-powered development platform that transforms your ideas into production-ready applications in minutes.",
+      "cta": "Start building for free",
+      "secondaryCta": "Watch demo"
+    },
+    "features": {
+      "title": "Everything you need to build faster",
+      "subtitle": "A complete platform for modern software development",
+      "aiAssistant": {
+        "title": "AI Assistant",
+        "description": "Get intelligent code suggestions and automate repetitive tasks with our advanced AI."
+      },
+      "collaboration": {
+        "title": "Real-time Collaboration",
+        "description": "Work together with your team in real-time with shared workspaces and live editing."
+      },
+      "deployment": {
+        "title": "Instant Deployment",
+        "description": "Deploy your applications to production with a single click. No DevOps required."
+      },
+      "security": {
+        "title": "Enterprise Security",
+        "description": "Bank-grade security with SOC2 compliance, SSO, and audit logging."
+      }
+    },
+    "stats": {
+      "developers": "Developers",
+      "projectsBuilt": "Projects Built",
+      "uptime": "Uptime",
+      "satisfaction": "Satisfaction"
+    },
+    "testimonials": {
+      "title": "Loved by developers worldwide"
+    },
+    "cta": {
+      "title": "Ready to transform your development workflow?",
+      "subtitle": "Join thousands of developers building the future with E-Code.",
+      "button": "Get started for free"
+    }
+  },
+  "pricing": {
+    "title": "Simple, transparent pricing",
+    "subtitle": "Choose the plan that works best for you and your team",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "save": "Save 20%",
+    "popular": "Most Popular",
+    "perMonth": "/month",
+    "perYear": "/year",
+    "free": {
+      "name": "Free",
+      "description": "Perfect for learning and personal projects",
+      "cta": "Get Started"
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "For professional developers and small teams",
+      "cta": "Start Free Trial"
+    },
+    "team": {
+      "name": "Team",
+      "description": "For growing teams that need more power",
+      "cta": "Start Free Trial"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "description": "For large organizations with custom needs",
+      "cta": "Contact Sales",
+      "price": "Custom"
+    },
+    "features": {
+      "projects": "Projects",
+      "storage": "Storage",
+      "collaborators": "Collaborators",
+      "aiCredits": "AI Credits",
+      "support": "Support",
+      "sso": "SSO & SAML",
+      "audit": "Audit Logs",
+      "sla": "SLA"
+    }
+  },
+  "contact": {
+    "title": "Get in Touch",
+    "subtitle": "Have a question or want to learn more about E-Code? We'd love to hear from you.",
+    "form": {
+      "name": "Your Name",
+      "email": "Email Address",
+      "company": "Company (optional)",
+      "subject": "Subject",
+      "message": "Your Message",
+      "submit": "Send Message"
+    },
+    "reasons": {
+      "general": "General Inquiry",
+      "sales": "Sales & Pricing",
+      "support": "Technical Support",
+      "partnership": "Partnership",
+      "press": "Press & Media"
+    },
+    "success": {
+      "title": "Message sent!",
+      "description": "We'll get back to you within 24 hours."
+    },
+    "offices": {
+      "title": "Our Offices",
+      "headquarters": "Headquarters"
+    }
+  },
+  "footer": {
+    "product": "Product",
+    "company": "Company",
+    "resources": "Resources",
+    "legal": "Legal",
+    "copyright": "All rights reserved."
+  }
+}

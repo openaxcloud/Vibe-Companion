@@ -1,0 +1,8 @@
+# Compose file orchestrating PostgreSQL, server, and client services with environment, ports, volumes, and dependencies for local dev.
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

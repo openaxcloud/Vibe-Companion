@@ -1,0 +1,3 @@
+Prisma schema with models: User (id, email unique, passwordHash, role), Product (id, title, description, price, currency, categoryId, images, createdAt), Category, ProductImage, Cart, CartItem, Order (status, total, paymentIntentId), OrderItem. Relations and indexes for search and filters.
+
+Content generated as fallback. Please implement specific functionality as needed.

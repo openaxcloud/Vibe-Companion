@@ -1,0 +1,29 @@
+/* Global CSS for base typography, layout, and theming (light/dark). Defines responsive layout for chat UI and sidebar while using simple utility-like classes for spacing and colors. */
+
+.global {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.global-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.global-content {
+  flex: 1;
+}
+
+.global-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .global {
+    padding: 0.75rem;
+  }
+}

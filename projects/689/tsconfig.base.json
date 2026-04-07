@@ -1,0 +1,4 @@
+{
+  "description": "Base TS config with strict mode, ES2022 target, moduleResolution node, paths for shared types, and JSX preserve for client override.",
+  "todo": "Configure based on outline"
+}

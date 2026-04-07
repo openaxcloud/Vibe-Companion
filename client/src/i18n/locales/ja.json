@@ -1,0 +1,105 @@
+{
+  "common": {
+    "getStarted": "始める",
+    "learnMore": "詳細を見る",
+    "contactUs": "お問い合わせ",
+    "signIn": "ログイン",
+    "signUp": "新規登録",
+    "startBuilding": "構築を始める",
+    "viewDemo": "デモを見る",
+    "submit": "送信",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "success": "成功"
+  },
+  "landing": {
+    "hero": {
+      "title": "AIでソフトウェアを構築",
+      "subtitle": "E-Codeは、あなたのアイデアを数分で本番対応のアプリケーションに変換するAI搭載の開発プラットフォームです。",
+      "cta": "無料で始める",
+      "secondaryCta": "デモを見る"
+    },
+    "features": {
+      "title": "より速く構築するために必要なすべて",
+      "subtitle": "現代のソフトウェア開発のための完全なプラットフォーム",
+      "aiAssistant": {
+        "title": "AIアシスタント",
+        "description": "高度なAIでインテリジェントなコード提案を取得し、繰り返しタスクを自動化します。"
+      },
+      "collaboration": {
+        "title": "リアルタイムコラボレーション",
+        "description": "共有ワークスペースとライブ編集でチームとリアルタイムで作業します。"
+      },
+      "deployment": {
+        "title": "即時デプロイ",
+        "description": "ワンクリックでアプリケーションを本番環境にデプロイ。DevOpsは不要です。"
+      },
+      "security": {
+        "title": "エンタープライズセキュリティ",
+        "description": "SOC2準拠、SSO、監査ログを備えた銀行レベルのセキュリティ。"
+      }
+    },
+    "stats": {
+      "developers": "開発者",
+      "projectsBuilt": "構築されたプロジェクト",
+      "uptime": "稼働時間",
+      "satisfaction": "満足度"
+    },
+    "cta": {
+      "title": "開発ワークフローを変革する準備はできましたか？",
+      "subtitle": "E-Codeで未来を構築している何千人もの開発者に加わりましょう。",
+      "button": "無料で始める"
+    }
+  },
+  "pricing": {
+    "title": "シンプルで透明な価格設定",
+    "subtitle": "あなたとチームに最適なプランを選択してください",
+    "monthly": "月額",
+    "yearly": "年額",
+    "save": "20%節約",
+    "popular": "最も人気",
+    "perMonth": "/月",
+    "perYear": "/年",
+    "free": {
+      "name": "無料",
+      "description": "学習と個人プロジェクトに最適",
+      "cta": "始める"
+    },
+    "pro": {
+      "name": "プロ",
+      "description": "プロの開発者と小規模チーム向け",
+      "cta": "無料トライアル"
+    },
+    "enterprise": {
+      "name": "エンタープライズ",
+      "description": "カスタムニーズを持つ大規模組織向け",
+      "cta": "営業に連絡",
+      "price": "カスタム"
+    }
+  },
+  "contact": {
+    "title": "お問い合わせ",
+    "subtitle": "ご質問やE-Codeについて詳しく知りたい場合は、お気軽にご連絡ください。",
+    "form": {
+      "name": "お名前",
+      "email": "メールアドレス",
+      "company": "会社名（任意）",
+      "subject": "件名",
+      "message": "メッセージ",
+      "submit": "メッセージを送信"
+    },
+    "success": {
+      "title": "メッセージが送信されました！",
+      "description": "24時間以内にご返信いたします。"
+    }
+  },
+  "footer": {
+    "product": "製品",
+    "company": "会社",
+    "resources": "リソース",
+    "legal": "法的情報",
+    "copyright": "全著作権所有。"
+  }
+}

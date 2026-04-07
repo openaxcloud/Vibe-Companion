@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Order Confirmation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style type="text/css">
+    /* General Resets */
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #f3f4f6;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #111827;
+    }
+    table {
+      border-spacing: 0;
+      border-collapse: collapse;
+    }
+    img {
+      border: 0;
+      max-width: 100%;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+    p {
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Container */
+    .email-root {
+      width: 100%;
+      background-color: #f3f4f6;
+      padding: 24px 0;
+    }
+    .email-wrapper {
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+
+    /* Header */
+    .email-header {
+      background-color: #111827;
+      color: #f9fafb;
+      padding: 24px 32px;
+    }
+    .email-header-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .email-header-subtitle {
+      font-size: 14px;
+      color: #d1d5db;
+    }
+
+    /* Body */
+    .email-body {
+      padding: 24px 32px 32px;
+    }
+    .greeting {
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    .intro-text {
+      font-size: 14px;
+      color: #4b5563;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .order-summary-box {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      background-color: #f9fafb;
+    }
+    .order-summary-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .order-summary-row {
+      font-size: 13px;
+      color: #4b5563;
+      margin-bottom: 4px;
+    }
+    .order-label {
+      font-weight: 500;
+      color: #374151;
+    }
+
+    /* Items Table */
+    .items-table-container {
+      margin-bottom: 24px;
+    }
+    .items-table-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .items-table {
+      width: 100%;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 13px;
+    }
+    .items-table thead {
+      background-color: #f3f4f6;
+    }
+    .items-table th,
+    .items-table td {
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .items-table th {
+      font-weight: 600;
+      color: #374151;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 12px;
+    }
+    .items-table td {
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+      color: #4b5563;
+    }
+    .items-table tr:last-child td {
+      border-bottom: none;
+    }
+    .item-name {
+      font-weight: 500;
+      color: #111827;
+      margin-bottom: 2px;
+    }
+    .item-meta {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .item-qty {
+      white-space: nowrap;
+    }
+    .item-price,
+    .item-total {
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    /* Totals */
+    .totals-container {
+      width: 100%;
+      margin-top: 8px;
+      margin-bottom: 24px;
+    }
+    .totals-table {
+      width: 260px;
+      margin-left: auto;
+      font-size: 13px;
+    }
+    .totals-table td {
+      padding: 4px 0;
+    }
+    .totals-label {
+      color: #4b5563;
+    }
+    .totals-value {
+      text-align: right;
+      color: #111827;
+      white-space: nowrap;
+    }
+    .totals-row-total td {
+      padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* Address & Payment */
+    .info-columns {
+      width: 100%;
+      margin-bottom: 24px;
+    }
+    .info-column {
+      vertical-align: top;
+      width: 50%;
+      padding-right: 16px;
+      font-size: 13px;
+    }
+    .info-column:last-child {
+      padding-right: 0;
+      padding-left: 16px;
+    }
+    .info-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #111827;
+      font-size: 13px;
+    }
+    .info-text {
+      color: #4b5563;
+      line-height: 1.5;
+    }
+
+    /* Support */
+    .support-box {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 16px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #4b5563;
+    }
+    .support-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #111827;
+    }
+    .support-contact {
+      margin-bottom: 4px;
+    }
+
+    /* Footer */
+    .email-footer {
+      text-align: center;
+      font-size: 11px;
+      color: #9ca3af;
+      padding: 16px 32px 0;
+    }
+    .footer-link {
+      color: #6b7280;
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .email-wrapper {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+      }
+      .email-header,
+      .email-body,
+      .email-footer {
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+      }
+      .info-columns,
+      .totals-table {
+        width: 100%;
+      }
+      .info-column,
+      .info-column:last-child {
+        display: block;
+        width: 100%;
+        padding: 0 0 12px 0;
+      }
+      .totals-table {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="email-root">
+    <table class="email-wrapper" role="presentation" cellpadding="0" cellspacing="0" align="center">
+      <tr>
+        <td>
+          <!-- Header -->
+          <div class="email-header">
+            <div class="email-header-title">
+              Order Confirmation
+            </div>
+            <div class="email-header-subtitle">
+              Order #{{orderNumber}} · Placed on {{orderDate}}
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="email-body">
+            <!-- Greeting -->
+            <p class="greeting">
+              Hi {{customerName}},
+            </p>
+            <p class="intro-text">
+              Thank you for your purchase. This email confirms that we have received your order
+              and it is now being processed. A separate email will be sent once your items have shipped.
+            </p>
+
+            <!-- Order Summary -->
+            <div class="order-summary-box">
+              <div class="order-summary-title">
+                Order Summary
+              </div>
+              <p class="order-summary-row">
+                <span class="order-label">Order number:</span>
+                &nbsp;{{orderNumber}}
+              </p>
+              <p class="order-summary-row">
+                <span class="order-label">Order date:</span>
+                &nbsp;{{orderDate}}
+              </p>
+              <p class="order-summary-row">
+                <span class="order-label">Order status:</span>
+                &nbsp;{{orderStatus}}
+              </p>
+            </div>
+
+            <!-- Items -->
+            <div class="items-table-container">
+              <div class="items-table-title">
+                Items in your order
+              </div>
+              <table class="items

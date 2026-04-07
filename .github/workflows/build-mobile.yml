@@ -1,0 +1,178 @@
+name: Build Mobile Apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-mobile.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+      profile:
+        description: 'Build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+
+env:
+  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+jobs:
+  build-android:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: yarn install
+
+      - name: Verify yarn.lock exists
+        working-directory: mobile
+        run: |
+          if [ ! -f "yarn.lock" ] || [ ! -s "yarn.lock" ]; then
+            echo "::error::yarn.lock is missing or empty. Please run 'yarn install' locally in the mobile/ directory and commit yarn.lock before pushing."
+            exit 1
+          fi
+          echo "yarn.lock verified"
+
+      - name: Build Android APK
+        working-directory: mobile
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ github.event.inputs.profile || 'preview' }} \
+            --non-interactive \
+            --wait
+        env:
+          EXPO_PUBLIC_API_BASE: ${{ vars.API_BASE_URL || 'https://e-code.ai/api' }}
+          EXPO_PUBLIC_ENV: ${{ github.event.inputs.profile || 'preview' }}
+
+      - name: Download APK artifact
+        working-directory: mobile
+        run: |
+          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+          if [ "$BUILD_URL" != "null" ] && [ -n "$BUILD_URL" ]; then
+            curl -L -o E-Code.apk "$BUILD_URL"
+            echo "APK downloaded successfully"
+          else
+            echo "No APK URL available yet"
+          fi
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: E-Code-Android-APK
+          path: mobile/E-Code.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+  build-ios:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'ios' }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: yarn install
+
+      - name: Verify yarn.lock exists
+        working-directory: mobile
+        run: |
+          if [ ! -f "yarn.lock" ] || [ ! -s "yarn.lock" ]; then
+            echo "::error::yarn.lock is missing or empty. Please run 'yarn install' locally in the mobile/ directory and commit yarn.lock before pushing."
+            exit 1
+          fi
+          echo "yarn.lock verified"
+
+      - name: Build iOS
+        working-directory: mobile
+        run: |
+          eas build \
+            --platform ios \
+            --profile ${{ github.event.inputs.profile || 'preview' }} \
+            --non-interactive \
+            --wait
+        env:
+          EXPO_PUBLIC_API_BASE: ${{ vars.API_BASE_URL || 'https://e-code.ai/api' }}
+          EXPO_PUBLIC_ENV: ${{ github.event.inputs.profile || 'preview' }}
+          EXPO_APPLE_ID: ${{ secrets.APPLE_ID }}
+          EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Download IPA artifact
+        working-directory: mobile
+        run: |
+          BUILD_URL=$(eas build:list --platform ios --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+          if [ "$BUILD_URL" != "null" ] && [ -n "$BUILD_URL" ]; then
+            curl -L -o E-Code.ipa "$BUILD_URL"
+            echo "IPA downloaded successfully"
+          else
+            echo "No IPA URL available yet"
+          fi
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: E-Code-iOS-IPA
+          path: mobile/E-Code.ipa
+          retention-days: 30
+          if-no-files-found: warn
+
+  notify:
+    needs: [build-android, build-ios]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## Mobile Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Android | ${{ needs.build-android.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS | ${{ needs.build-ios.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Profile: ${{ github.event.inputs.profile || 'preview' }}" >> $GITHUB_STEP_SUMMARY

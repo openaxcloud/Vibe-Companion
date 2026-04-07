@@ -1,0 +1,4 @@
+{
+  "description": "Base TypeScript configuration shared by api and web projects, setting strict mode, path aliases, and common compiler options.",
+  "todo": "Configure based on outline"
+}

@@ -1,0 +1,3 @@
+Prisma schema using PostgreSQL provider. Models: User (id, email, passwordHash, role), Product (title, description, price, images, stock, categoryId), Category, Order, OrderItem, CartItem, Payment, with timestamps and indexes.
+
+Content generated as fallback. Please implement specific functionality as needed.

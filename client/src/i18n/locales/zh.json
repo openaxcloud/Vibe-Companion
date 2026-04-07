@@ -1,0 +1,105 @@
+{
+  "common": {
+    "getStarted": "开始使用",
+    "learnMore": "了解更多",
+    "contactUs": "联系我们",
+    "signIn": "登录",
+    "signUp": "注册",
+    "startBuilding": "开始构建",
+    "viewDemo": "查看演示",
+    "submit": "提交",
+    "cancel": "取消",
+    "save": "保存",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功"
+  },
+  "landing": {
+    "hero": {
+      "title": "用AI构建软件",
+      "subtitle": "E-Code是一个AI驱动的开发平台，可以在几分钟内将您的想法转化为生产级应用。",
+      "cta": "免费开始",
+      "secondaryCta": "观看演示"
+    },
+    "features": {
+      "title": "构建更快所需的一切",
+      "subtitle": "现代软件开发的完整平台",
+      "aiAssistant": {
+        "title": "AI助手",
+        "description": "使用我们先进的AI获取智能代码建议并自动化重复任务。"
+      },
+      "collaboration": {
+        "title": "实时协作",
+        "description": "与团队实时协作，共享工作空间和实时编辑。"
+      },
+      "deployment": {
+        "title": "即时部署",
+        "description": "一键将应用部署到生产环境。无需DevOps。"
+      },
+      "security": {
+        "title": "企业级安全",
+        "description": "银行级安全，符合SOC2标准，支持SSO和审计日志。"
+      }
+    },
+    "stats": {
+      "developers": "开发者",
+      "projectsBuilt": "已创建项目",
+      "uptime": "正常运行时间",
+      "satisfaction": "满意度"
+    },
+    "cta": {
+      "title": "准备好改变您的开发工作流程了吗？",
+      "subtitle": "加入数千名正在使用E-Code构建未来的开发者。",
+      "button": "免费开始"
+    }
+  },
+  "pricing": {
+    "title": "简单透明的定价",
+    "subtitle": "选择最适合您和团队的计划",
+    "monthly": "月付",
+    "yearly": "年付",
+    "save": "节省20%",
+    "popular": "最受欢迎",
+    "perMonth": "/月",
+    "perYear": "/年",
+    "free": {
+      "name": "免费版",
+      "description": "适合学习和个人项目",
+      "cta": "开始使用"
+    },
+    "pro": {
+      "name": "专业版",
+      "description": "适合专业开发者和小型团队",
+      "cta": "免费试用"
+    },
+    "enterprise": {
+      "name": "企业版",
+      "description": "适合有定制需求的大型组织",
+      "cta": "联系销售",
+      "price": "定制"
+    }
+  },
+  "contact": {
+    "title": "联系我们",
+    "subtitle": "有问题或想了解更多关于E-Code的信息？我们很乐意收到您的来信。",
+    "form": {
+      "name": "您的姓名",
+      "email": "电子邮箱",
+      "company": "公司（可选）",
+      "subject": "主题",
+      "message": "您的留言",
+      "submit": "发送消息"
+    },
+    "success": {
+      "title": "消息已发送！",
+      "description": "我们将在24小时内回复您。"
+    }
+  },
+  "footer": {
+    "product": "产品",
+    "company": "公司",
+    "resources": "资源",
+    "legal": "法律",
+    "copyright": "版权所有。"
+  }
+}

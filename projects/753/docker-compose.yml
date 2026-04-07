@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: myapp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: undefined
+      POSTGRES_PASSWORD: undefined
+      POSTGRES_DB: undefined
+    ports:
+      - "undefined:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - myapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: myapp-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: undefined
+      PORT: undefined
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: undefined
+      DATABASE_PASSWORD: undefined
+      DATABASE_NAME: undefined
+      DATABASE_URL: postgres://undefined:undefined@postgres:5432/undefined
+      JWT_SECRET: undefined
+      CLIENT_ORIGIN: undefined
+    ports:
+      - "undefined:4000"
+    volumes:
+      - ./server:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - myapp-network
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: myapp-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      NODE_ENV: undefined
+      VITE_API_URL: undefined
+    ports:
+      - "undefined:3000"
+    volumes:
+      - ./client:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - myapp-network
+
+volumes:
+  postgres_data:
+
+networks:
+  myapp-network:
+    driver: bridge

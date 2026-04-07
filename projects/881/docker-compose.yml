@@ -1,0 +1,8 @@
+# Setup Docker for easy database and application deployment
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

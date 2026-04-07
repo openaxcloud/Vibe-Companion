@@ -1,0 +1,202 @@
+name: Deploy to Production (VM / Replit)
+
+# Triggered on every push to the main branch.
+# Installs dependencies, compiles for production, deploys via SSH
+# to the configured VM (Replit Reserved VM or equivalent cloud VM),
+# and validates the deployment with a health check.
+#
+# Required GitHub Secrets (Settings → Secrets and variables → Actions):
+#   SSH_HOST            - VM hostname or IP address
+#   SSH_USER            - SSH username (e.g. runner or ubuntu)
+#   SSH_PRIVATE_KEY     - Private SSH key (RSA/Ed25519)
+#   SSH_PORT            - SSH port (default: 22)
+#   DATABASE_URL        - PostgreSQL connection string
+#   REDIS_PASSWORD      - Redis password
+#   SESSION_SECRET      - Express session secret (≥32 chars)
+#   ANTHROPIC_API_KEY   - Anthropic Claude API key
+#   OPENAI_API_KEY      - OpenAI API key
+#   GEMINI_API_KEY      - Google Gemini API key  (optional)
+#   XAI_API_KEY         - xAI API key            (optional)
+#   MOONSHOT_API_KEY    - Moonshot API key        (optional)
+#   SENDGRID_API_KEY    - SendGrid API key        (optional)
+#   STRIPE_SECRET_KEY   - Stripe secret key       (optional)
+#   STRIPE_WEBHOOK_SECRET - Stripe webhook secret (optional)
+#   SLACK_WEBHOOK       - Slack incoming webhook  (optional, for failure alerts)
+#
+# Required GitHub Variables (Settings → Secrets and variables → Variables):
+#   APP_URL             - Production URL, e.g. https://e-code.ai
+#   DEPLOY_DIR          - Directory on the VM, e.g. /home/runner/e-code
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1 — Build & validate
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build for Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Run CI tests
+        run: npm run test:ci
+        env:
+          NODE_ENV: test
+          SESSION_SECRET: ${{ secrets.TEST_SESSION_SECRET || 'test-session-secret-for-ci' }}
+          JWT_SECRET: ${{ secrets.TEST_JWT_SECRET || 'test-jwt-secret-for-ci' }}
+
+      - name: Build for production
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Verify build artifacts
+        run: |
+          test -d dist/public || (echo "❌ Build failed: dist/public not found" && exit 1)
+          test -f dist/public/index.html || (echo "❌ Build failed: index.html not found" && exit 1)
+          echo "✅ Build artifacts verified"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Deploy to VM via SSH
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build]
+    permissions:
+      contents: read
+    environment:
+      name: production
+      url: ${{ vars.APP_URL || 'https://e-code.ai' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: |
+            DATABASE_URL,REDIS_PASSWORD,SESSION_SECRET,ANTHROPIC_API_KEY,
+            OPENAI_API_KEY,GEMINI_API_KEY,XAI_API_KEY,MOONSHOT_API_KEY,
+            SENDGRID_API_KEY,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,DEPLOY_DIR
+          script: |
+            set -e
+            DEPLOY_DIR="${DEPLOY_DIR:-/home/runner/e-code}"
+
+            echo "📦 Pulling latest code..."
+            cd "$DEPLOY_DIR"
+            git pull origin main
+
+            echo "🐳 Starting services with docker-compose..."
+            docker-compose -f docker-compose.replit-vm.yml up -d --build --remove-orphans
+
+            echo "✅ Deployment complete"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 3 — Health check & smoke tests
+  # ─────────────────────────────────────────────────────────────────────────────
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy]
+    permissions: {}
+
+    steps:
+      - name: Wait for application to start
+        run: sleep 30
+
+      - name: Liveness health check
+        run: |
+          APP_URL="${{ vars.APP_URL || 'https://e-code.ai' }}"
+          MAX_RETRIES=12
+          RETRY_COUNT=0
+
+          echo "🏥 Polling $APP_URL/health/liveness ..."
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/health/liveness" || echo "000")
+
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Liveness check passed (HTTP $HTTP_STATUS)"
+              break
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "⚠️  Attempt $RETRY_COUNT/$MAX_RETRIES failed (HTTP $HTTP_STATUS), retrying in 15 s..."
+            sleep 15
+          done
+
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "❌ Liveness check failed after $MAX_RETRIES attempts"
+            exit 1
+          fi
+
+      - name: Readiness smoke test
+        run: |
+          APP_URL="${{ vars.APP_URL || 'https://e-code.ai' }}"
+          curl -f "$APP_URL/health/readiness" \
+            && echo "✅ Readiness check passed" \
+            || (echo "❌ Readiness check failed" && exit 1)
+
+      - name: API smoke test
+        run: |
+          APP_URL="${{ vars.APP_URL || 'https://e-code.ai' }}"
+          curl -f "$APP_URL/api/health" \
+            && echo "✅ API health check passed" \
+            || (echo "❌ API health check failed" && exit 1)
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Post-deployment health checks FAILED for commit ${{ github.sha }}"
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H 'Content-type: application/json' \
+              --data "{\"text\":\"❌ Production deployment health check failed for commit \`${{ github.sha }}\`. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>\"}"
+          fi
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

@@ -1,0 +1,8 @@
+# Docker Compose configuration with PostgreSQL database, Redis cache, application services, and volume mappings
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

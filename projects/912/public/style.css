@@ -1,0 +1,29 @@
+/* Add basic styling to `style.css` to make the Todo app visually appealing and functional. */
+
+.style {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.style-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.style-content {
+  flex: 1;
+}
+
+.style-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+@media (max-width: 768px) {
+  .style {
+    padding: 0.75rem;
+  }
+}

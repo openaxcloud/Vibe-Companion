@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Order Status Update</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style type="text/css">
+    /* General resets */
+    html, body {
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    body {
+      width: 100% !important;
+      height: 100% !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f5f7;
+      color: #1f2933;
+    }
+    table {
+      border-spacing: 0;
+      border-collapse: collapse;
+    }
+    img {
+      border: 0;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+      max-width: 100%;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #f4f5f7;
+      padding: 24px 0;
+    }
+    .main {
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+    .header {
+      padding: 20px 24px;
+      background-color: #0f172a;
+      color: #f9fafb;
+    }
+    .header-logo {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .content {
+      padding: 24px;
+    }
+    .greeting {
+      font-size: 16px;
+      font-weight: 500;
+      margin: 0 0 16px 0;
+      color: #111827;
+    }
+    .paragraph {
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0 0 12px 0;
+      color: #4b5563;
+    }
+    .status-section {
+      margin: 20px 0 24px 0;
+      padding: 16px 18px;
+      border-radius: 8px;
+      background-color: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+    .status-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .status-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111827;
+      margin: 0;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      text-align: center;
+      white-space: nowrap;
+      background-color: #ecfdf3;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+    .status-badge-fallback {
+      background-color: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+    .status-subtext {
+      font-size: 13px;
+      color: #6b7280;
+      margin: 0;
+    }
+    .summary-grid {
+      width: 100%;
+      margin: 16px 0 0 0;
+    }
+    .summary-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      padding-bottom: 4px;
+    }
+    .summary-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: #111827;
+      padding-bottom: 10px;
+    }
+    .divider {
+      border-top: 1px solid #e5e7eb;
+      margin: 20px 0;
+    }
+    .order-meta {
+      width: 100%;
+      margin: 0 0 8px 0;
+    }
+    .order-meta-label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-bottom: 3px;
+    }
+    .order-meta-value {
+      font-size: 14px;
+      color: #111827;
+      font-weight: 500;
+      padding-bottom: 8px;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+    .items-header {
+      background-color: #f9fafb;
+    }
+    .items-header th {
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .items-row td {
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #111827;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .items-row:last-child td {
+      border-bottom: none;
+    }
+    .items-name {
+      font-weight: 500;
+      color: #111827;
+    }
+    .items-meta {
+      font-size: 12px;
+      color: #6b7280;
+      padding-top: 2px;
+    }
+    .items-qty {
+      text-align: center;
+      white-space: nowrap;
+    }
+    .items-price {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .totals {
+      width: 100%;
+      margin-top: 16px;
+    }
+    .totals-row td {
+      padding: 3px 0;
+      font-size: 13px;
+      color: #374151;
+    }
+    .totals-label {
+      text-align: right;
+      padding-right: 8px;
+    }
+    .totals-value {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .totals-row.total td {
+      font-weight: 600;
+      font-size: 14px;
+      padding-top: 6px;
+      border-top: 1px solid #e5e7eb;
+      margin-top: 4px;
+    }
+    .cta-container {
+      margin: 24px 0 8px 0;
+      text-align: center;
+    }
+    .cta-button {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 999px;
+      background-color: #2563eb;
+      color: #ffffff !important;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid #1d4ed8;
+    }
+    .cta-button:hover {
+      background-color: #1d4ed8;
+      text-decoration: none;
+    }
+    .cta-hint {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+    .footer {
+      width: 100%;
+      max-width: 640px;
+      margin: 8px auto 0 auto;
+      padding: 0 16px 16px 16px;
+      text-align: center;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .footer a {
+      color: #6b7280;
+      text-decoration: underline;
+    }
+    @media screen and (max-width: 600px) {
+      .content {
+        padding: 18px 14px 20px 14px;
+      }
+      .header {
+        padding: 16px 14px;
+      }
+      .status-section {
+        padding: 14px 12px;
+      }
+      .status-header {
+        display: block;
+      }
+      .status-badge {
+        margin-top: 6px;
+      }
+      .items-header th,
+      .items-row td {
+        padding: 8px 8px;
+      }
+      .cta-button {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #020617;
+        color: #e5e7eb;
+      }
+      .wrapper {

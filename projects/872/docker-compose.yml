@@ -1,0 +1,8 @@
+# Docker Compose configuration for PostgreSQL, backend, and frontend services with volume mounts
+
+version: '1.0'
+
+settings:
+  enabled: true
+  
+# Add configuration here

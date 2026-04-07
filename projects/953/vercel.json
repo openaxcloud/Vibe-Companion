@@ -1,0 +1,6 @@
+{
+  "name": "vercel",
+  "version": "1.0.0",
+  "description": "Vercel deployment configuration for serverless API routes and static file serving with environment variables",
+  "config": {}
+}

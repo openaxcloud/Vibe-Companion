@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" style="margin:0;padding:0;">
+<head>
+  <meta charset="UTF-8">
+  <title>Order Confirmation</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style type="text/css">
+    /* Force Outlook.com to display emails at full width */
+    .ExternalClass { width:100%; }
+    .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div { line-height:100%; }
+
+    /* Reset styles */
+    body { margin:0; padding:0; }
+    img { border:0; height:auto; line-height:100%; outline:none; text-decoration:none; }
+    table { border-collapse:collapse !important; }
+    body, #bodyTable, #bodyCell { height:100% !important; margin:0; padding:0; width:100% !important; }
+
+    /* iOS blue links */
+    a[x-apple-data-detectors] {
+      color:inherit !important;
+      text-decoration:none !important;
+      font-size:inherit !important;
+      font-family:inherit !important;
+      font-weight:inherit !important;
+      line-height:inherit !important;
+    }
+
+    @media only screen and (max-width:600px) {
+      .wrapper { width:100% !important; }
+      .mobile-padding { padding-left:16px !important; padding-right:16px !important; }
+      .stack-column, .stack-column td { display:block !important; width:100% !important; box-sizing:border-box !important; }
+      .text-center { text-align:center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <center style="width:100%;background-color:#f3f4f6;">
+    <table id="bodyTable" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0;padding:32px 0;background-color:#f3f4f6;">
+      <tr>
+        <td id="bodyCell" align="center" valign="top">
+          <table class="wrapper" role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="border-collapse:collapse;width:600px;max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,0.08);">
+            <!-- Header -->
+            <tr>
+              <td align="center" valign="middle" style="padding:24px 32px 16px 32px;background-color:#111827;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td align="left" style="font-size:20px;line-height:24px;color:#f9fafb;font-weight:600;">
+                      {{brandName}}
+                    </td>
+                    <td align="right" style="font-size:12px;line-height:16px;color:#9ca3af;">
+                      Order Confirmation
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Hero / Intro -->
+            <tr>
+              <td align="left" class="mobile-padding" style="padding:24px 32px 8px 32px;">
+                <p style="margin:0 0 8px 0;font-size:18px;line-height:26px;color:#111827;font-weight:600;">
+                  Thank you for your order, {{customerName}}!
+                </p>
+                <p style="margin:0 0 4px 0;font-size:14px;line-height:20px;color:#4b5563;">
+                  We're happy to let you know that we've received your order.
+                </p>
+                <p style="margin:0;font-size:14px;line-height:20px;color:#4b5563;">
+                  Your order ID is
+                  <span style="font-family:SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:13px;background-color:#f3f4f6;padding:2px 6px;border-radius:4px;color:#111827;">
+                    {{orderId}}
+                  </span>
+                </p>
+              </td>
+            </tr>
+
+            <!-- Order Summary -->
+            <tr>
+              <td align="left" class="mobile-padding" style="padding:16px 32px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;border-radius:6px;border:1px solid #e5e7eb;">
+                  <tr>
+                    <td colspan="2" style="padding:12px 16px;border-bottom:1px solid #e5e7eb;background-color:#f9fafb;">
+                      <span style="font-size:14px;line-height:20px;color:#111827;font-weight:600;">
+                        Order Summary
+                      </span>
+                    </td>
+                  </tr>
+
+                  <!-- Dynamic order items will be injected here -->
+                  {{orderItems}}
+
+                  <!-- Totals -->
+                  <tr>
+                    <td align="right" style="padding:8px 16px 4px 16px;font-size:13px;line-height:18px;color:#6b7280;">
+                      Subtotal
+                    </td>
+                    <td align="right" style="padding:8px 16px 4px 16px;font-size:13px;line-height:18px;color:#111827;">
+                      {{subtotal}}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="right" style="padding:0 16px 4px 16px;font-size:13px;line-height:18px;color:#6b7280;">
+                      Shipping
+                    </td>
+                    <td align="right" style="padding:0 16px 4px 16px;font-size:13px;line-height:18px;color:#111827;">
+                      {{shipping}}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="right" style="padding:0 16px 8px 16px;font-size:13px;line-height:18px;color:#6b7280;">
+                      Tax
+                    </td>
+                    <td align="right" style="padding:0 16px 8px 16px;font-size:13px;line-height:18px;color:#111827;">
+                      {{tax}}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="right" style="padding:8px 16px 12px 16px;border-top:1px solid #e5e7eb;font-size:14px;line-height:20px;color:#111827;font-weight:600;">
+                      Total
+                    </td>
+                    <td align="right" style="padding:8px 16px 12px 16px;border-top:1px solid #e5e7eb;font-size:14px;line-height:20px;color:#111827;font-weight:700;">
+                      {{orderTotal}}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Shipping Info -->
+            <tr>
+              <td align="left" class="mobile-padding" style="padding:0 32px 16px 32px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;border-radius:6px;border:1px solid #e5e7eb;">
+                  <tr>
+                    <td style="padding:12px 16px;border-bottom:1px solid #e5e7eb;background-color:#f9fafb;">
+                      <span style="font-size:14px;line-height:20px;color:#111827;font-weight:600;">
+                        Shipping Details
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 16px;font-size:13px;line-height:20px;color:#4b5563;">
+                      <div style="margin-bottom:6px;font-weight:600;color:#111827;">
+                        {{shippingName}}
+                      </div>
+                      <div>{{shippingAddressLine1}}</div>
+                      <div>{{shippingAddressLine2}}</div>
+                      <div>{{shippingCity}}, {{shippingState}} {{shippingPostalCode}}</div>
+                      <div>{{shippingCountry}}</div>
+                      <div style="margin-top:6px;color:#6b7280;">
+                        Estimated delivery: {{estimatedDelivery}}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Support / Help -->
+            <tr>
+              <td align="left" class="mobile-padding" style="padding:8px 32px 24px 32px;">
+                <p style="margin:0 0 8px 0;font

@@ -1,0 +1,6 @@
+{
+  "name": ".eslintrc",
+  "version": "1.0.0",
+  "description": "ESLint config for TypeScript Node project with recommended rules and import ordering. Enable parserOptions matching tsconfig.",
+  "config": {}
+}

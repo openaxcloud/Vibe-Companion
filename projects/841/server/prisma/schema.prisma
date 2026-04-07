@@ -1,0 +1,3 @@
+Initialize Prisma, define schema for users, products, categories, product variants, carts, cart items, orders, order items, and payment records. Configure PostgreSQL connection and run initial migration.
+
+Content generated as fallback. Please implement specific functionality as needed.

@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELED
+  REFUNDED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String?
+  role      Role      @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  carts   Cart[]
+  orders  Order[]
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  parent   Category?   @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children Category[]  @relation("CategoryToCategory")
+  products Product[]
+}
+
+model Product {
+  id          String                 @id @default(cuid())
+  name        String
+  slug        String                 @unique
+  description String?
+  price       Decimal                @db.Decimal(10, 2)
+  sku         String?                @unique
+  imageUrl    String?
+  isActive    Boolean                @default(true)
+  stock       Int                    @default(0)
+  categoryId  String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  category             Category?             @relation(fields: [categoryId], references: [id])
+  cartItems            CartItem[]
+  orderItems           OrderItem[]
+  inventoryTransactions InventoryTransaction[]
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Order {
+  id             String       @id @default(cuid())
+  userId         String
+  status         OrderStatus  @default(PENDING)
+  totalAmount    Decimal      @db.Decimal(10, 2)
+  currency       String       @default("USD")
+  shippingAddress String?
+  billingAddress  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id])
+  items  OrderItem[]
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  totalPrice Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model InventoryTransaction {
+  id          String   @id @default(cuid())
+  productId   String
+  quantity    Int
+  type        InventoryTransactionType
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+enum InventoryTransactionType {
+  INCREASE
+  DECREASE
+}
