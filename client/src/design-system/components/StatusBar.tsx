@@ -68,10 +68,10 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     animationFrameId = requestAnimationFrame(measureFPS);
 
     // Monitor memory (if available)
+    const perf = performance as Performance & { memory?: { usedJSHeapSize: number } };
     const memoryInterval = setInterval(() => {
-      if ('memory' in performance && (performance as any).memory) {
-        const used = (performance as any).memory.usedJSHeapSize;
-        setMemory(Math.round(used / 1048576)); // Convert to MB
+      if (perf.memory) {
+        setMemory(Math.round(perf.memory.usedJSHeapSize / 1048576));
       }
     }, 2000);
 
