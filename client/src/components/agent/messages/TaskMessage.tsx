@@ -78,7 +78,7 @@ export function TaskMessage({ tasks, className }: TaskMessageProps) {
   const overallProgress = (completedTasks / totalTasks) * 100;
 
   return (
-    <div className={cn("space-y-3", className)} data-testid="task-message">
+    <div className={cn("space-y-3 max-w-full overflow-hidden", className)} data-testid="task-message">
       {/* Overall Progress */}
       <div className="flex items-center gap-3">
         <div className="flex-1">
@@ -118,16 +118,16 @@ export function TaskMessage({ tasks, className }: TaskMessageProps) {
             >
               <Collapsible open={isExpanded} onOpenChange={() => toggleTask(task.id)}>
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-start gap-3 p-3 min-h-[44px] cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors touch-manipulation">
+                  <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 min-h-[44px] cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors touch-manipulation overflow-hidden">
                     {/* Status Icon */}
                     <div className="flex-shrink-0 mt-0.5">
                       <Icon className={cn("h-4 w-4", config.color, task.status === 'in_progress' && 'animate-spin')} />
                     </div>
 
                     {/* Task Content */}
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-[13px] font-medium text-[var(--ecode-text)] break-words">
+                    <div className="flex-1 min-w-0 text-left overflow-hidden">
+                      <div className="flex flex-wrap items-start gap-1 sm:gap-2 mb-1">
+                        <span className="text-[12px] sm:text-[13px] font-medium text-[var(--ecode-text)] break-words" style={{ overflowWrap: 'anywhere' }}>
                           {task.title}
                         </span>
                         <Badge variant="outline" className="text-[11px]">

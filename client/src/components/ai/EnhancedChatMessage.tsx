@@ -183,7 +183,7 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
       animate="visible"
       exit="exit"
       className={cn(
-        "flex gap-2 sm:gap-3 group w-full min-w-0",
+        "flex gap-2 sm:gap-3 group w-full min-w-0 max-w-full overflow-hidden",
         isUser && "flex-row-reverse"
       )}
       data-testid={`enhanced-message-${message.id}`}
@@ -230,7 +230,7 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
           className={cn(
             "relative rounded-xl sm:rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200",
             "min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px]",
-            "overflow-x-auto overflow-y-visible w-full",
+            "overflow-x-hidden overflow-y-visible w-full max-w-full",
             isUser
               ? cn(
                   "bg-primary text-primary-foreground",
@@ -259,7 +259,7 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
           ) : (
             <p 
               className={cn(
-                "text-[13px] whitespace-pre-wrap break-words leading-relaxed",
+                "text-[13px] whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed max-w-full",
                 isError && "text-destructive"
               )}
               data-testid={`enhanced-message-text-${message.id}`}

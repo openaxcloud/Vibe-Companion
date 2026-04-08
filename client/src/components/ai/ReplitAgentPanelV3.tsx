@@ -2734,12 +2734,12 @@ export function ReplitAgentPanelV3({
               </Avatar>
               <div className="flex-1">
                 <LazyMotionDiv 
-                  className="bg-muted/80 text-foreground rounded-2xl rounded-bl-md px-4 py-3 max-w-[95%] sm:max-w-[85%] shadow-md border border-border/50" 
+                  className="bg-muted/80 text-foreground rounded-2xl rounded-bl-md px-3 sm:px-4 py-3 max-w-full sm:max-w-[85%] shadow-md border border-border/50 overflow-hidden" 
                   data-testid="streaming-content"
                   initial={{ scale: 0.95 }}
                   animate={{ scale: 1 }}
                 >
-                  <div className="text-[13px] whitespace-pre-wrap break-words leading-relaxed" data-testid="streaming-text">
+                  <div className="text-[13px] whitespace-pre-wrap break-words leading-relaxed max-w-full" style={{ overflowWrap: 'anywhere' }} data-testid="streaming-text">
                     <StreamingText 
                       content={streamingContent} 
                       isComplete={false}
