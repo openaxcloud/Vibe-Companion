@@ -24,6 +24,10 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
     - **Key Replit Features**: RunButton, EnvironmentVariables, PackageManager, WebPreview, Shell components.
     - **Advanced Features**: GlobalSearch, GitIntegration with UI, ReplitDB management, DeploymentManager, AIAssistant (code completion, explanations, chat), ImportExport, BillingSystem, ExtensionsMarketplace.
     - **UI/UX**: Onboarding/Guided Tour, UserProfile and UserSettings pages, ProjectTemplates system.
+    - **Agent Wall Architecture** (`client/src/components/agent/`):
+        - **ActionCard**: Expandable card with icon, title, subtitle, status, duration. Supports pending/running/complete/error states with visual feedback.
+        - **ExecutionTimeline**: Visual timeline connecting actions with colored dots and lines per status. Used in AgentWall phases.
+        - **AgentWall**: Container splitting agent work into 3 collapsible phases: Plan (thinking steps) → Execution (tool calls) → Results (summary). Integrated in EnhancedChatMessage when both thinking + tools exist.
     - **Performance**: Code splitting and lazy loading for optimized performance.
 
 ### Backend

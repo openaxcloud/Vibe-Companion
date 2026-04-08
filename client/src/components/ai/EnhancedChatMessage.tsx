@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ThinkingDisplay, ThinkingDisplayCompact, ThinkingStep } from './ThinkingDisplay';
 import { ToolExecutionList } from './ToolExecutionDisplay';
+import { AgentWall } from '@/components/agent/AgentWall';
 import { MessageMetadataFooter } from './MessageMetadataFooter';
 import { 
   TaskMessage, 
@@ -207,7 +208,44 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
         "flex-1 space-y-2 min-w-0",
         isUser && "flex flex-col items-end"
       )}>
-        {hasThinking && (
+        {hasThinking && hasTools && !isCompactMode && (
+          <LazyMotionDiv
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="w-full"
+            data-testid={`enhanced-agent-wall-${message.id}`}
+          >
+            <AgentWall
+              thinkingSteps={message.thinking!}
+              toolExecutions={message.toolExecutions!}
+              isActive={!!message.isStreaming}
+              result={
+                !message.isStreaming && message.toolExecutions!.length > 0
+                  ? {
+                      summary: `Completed ${message.toolExecutions!.filter(t => t.status === 'complete' && t.success).length} of ${message.toolExecutions!.length} actions`,
+                      filesCreated: message.toolExecutions!
+                        .filter(t => t.tool === 'create_file' && t.status === 'complete')
+                        .map(t => t.parameters?.path)
+                        .filter(Boolean),
+                      filesModified: message.toolExecutions!
+                        .filter(t => t.tool === 'edit_file' && t.status === 'complete')
+                        .map(t => t.parameters?.path)
+                        .filter(Boolean),
+                      commandsRun: message.toolExecutions!
+                        .filter(t => t.tool === 'run_command' && t.status === 'complete').length,
+                      errors: message.toolExecutions!
+                        .filter(t => t.status === 'error' || (t.status === 'complete' && t.success === false))
+                        .map(t => t.error || `${t.tool} failed`)
+                        .filter(Boolean),
+                    }
+                  : undefined
+              }
+            />
+          </LazyMotionDiv>
+        )}
+
+        {hasThinking && !(hasThinking && hasTools && !isCompactMode) && (
           <div className="collapsible-content expanded w-full">
             <div>
               {isCompactMode ? (
@@ -352,7 +390,7 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
           </LazyMotionDiv>
         )}
 
-        {hasTools && (
+        {hasTools && !(hasThinking && hasTools && !isCompactMode) && (
           <LazyMotionDiv 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
