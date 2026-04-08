@@ -2,13 +2,14 @@ import { useState, useMemo } from 'react';
 import { 
   CheckCircle2, XCircle, Loader2, FileEdit, Terminal, Search, Database, Globe,
   ChevronDown, ChevronRight, Filter, FileText, FolderOpen, Package, AlertTriangle,
-  Clock, Trash2, Eye, FilePlus, FileCode, Command, Timer
+  Clock, Trash2, Eye, FilePlus, FileCode, Command, Timer, GitCompareArrows
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { FileDiffInline, type FileDiffData } from '@/components/agent/messages/FileDiffInline';
 
 export interface ToolExecutionProps {
   id: string;
@@ -40,6 +41,8 @@ const toolIcons: Record<string, React.ElementType> = {
   search_code: Search,
   get_project_structure: Database,
   get_diagnostics: AlertTriangle,
+  file_diff: GitCompareArrows,
+  write_file: FilePlus,
 };
 
 const toolLabels: Record<string, string> = {
@@ -54,6 +57,8 @@ const toolLabels: Record<string, string> = {
   search_code: 'Code Search',
   get_project_structure: 'Analyzed Project',
   get_diagnostics: 'Ran Diagnostics',
+  file_diff: 'File Changed',
+  write_file: 'Wrote File',
 };
 
 const toolCategories: Record<string, FilterType> = {
@@ -68,6 +73,8 @@ const toolCategories: Record<string, FilterType> = {
   search_code: 'search',
   get_project_structure: 'files',
   get_diagnostics: 'commands',
+  file_diff: 'files',
+  write_file: 'files',
 };
 
 function formatDuration(ms: number): string {
@@ -114,7 +121,7 @@ function CompactToolExecution({
   };
 
   const getTarget = () => {
-    if (tool === 'create_file' || tool === 'edit_file' || tool === 'read_file' || tool === 'delete_file') {
+    if (tool === 'create_file' || tool === 'edit_file' || tool === 'read_file' || tool === 'delete_file' || tool === 'file_diff' || tool === 'write_file') {
       return parameters.path;
     }
     if (tool === 'run_command') {
@@ -207,6 +214,21 @@ function CompactToolExecution({
                       {result.stdout}
                     </pre>
                   </div>
+                )}
+
+                {tool === 'file_diff' && result && (
+                  <FileDiffInline
+                    diff={{
+                      path: result.path || parameters.path || 'unknown',
+                      language: result.language || metadata?.language,
+                      hunks: [],
+                      linesAdded: result.linesAdded || 0,
+                      linesRemoved: result.linesRemoved || 0,
+                      isNewFile: result.isNewFile || metadata?.isNewFile,
+                      isDeleted: result.isDeleted,
+                    }}
+                    defaultExpanded={true}
+                  />
                 )}
 
                 {result?.description && (

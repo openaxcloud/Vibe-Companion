@@ -1584,6 +1584,18 @@ export function ReplitAgentPanelV3({
                     }
                   }
                   
+                  if (currentEventType === 'file_diff' && data.path) {
+                    toolExecutions.push({
+                      id: `diff-${data.path}-${Date.now()}`,
+                      tool: 'file_diff',
+                      parameters: { path: data.path },
+                      status: 'complete',
+                      success: true,
+                      result: data,
+                      metadata: { language: data.language, isNewFile: data.isNewFile },
+                    });
+                  }
+                  
                   if (data.toolCallId) {
                     const toolId = data.toolCallId;
                     if (data.tool && data.parameters && !data.result) {
@@ -1601,6 +1613,9 @@ export function ReplitAgentPanelV3({
                         toolExecutions[index] = { ...toolExecutions[index], status: 'error', error: data.error };
                       }
                     }
+                  }
+                  
+                  if (toolExecutions.length > 0) {
                     assistantMessage.toolExecutions = [...toolExecutions];
                     setMessages(prev => {
                       const newMessages = [...prev];
