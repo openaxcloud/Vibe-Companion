@@ -1,18 +1,18 @@
-/**
- * E-Code Real-Time Collaboration Hook
- * Fortune 500 Quality React Integration
- * 
- * Provides comprehensive real-time collaboration features:
- * - Presence awareness (who's online, cursors, selections)
- * - Real-time chat
- * - File change notifications
- * - Follow mode
- * - Activity tracking
- */
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/hooks/use-auth';
+
+export interface CursorPosition {
+  lineNumber: number;
+  column: number;
+}
+
+export interface SelectionRange {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+}
 
 export interface Collaborator {
   id: string;
@@ -23,16 +23,8 @@ export interface Collaborator {
   status: 'active' | 'idle' | 'away';
   currentFile?: string;
   activity?: string;
-  cursor?: {
-    lineNumber: number;
-    column: number;
-  };
-  selection?: {
-    startLineNumber: number;
-    startColumn: number;
-    endLineNumber: number;
-    endColumn: number;
-  };
+  cursor?: CursorPosition;
+  selection?: SelectionRange;
   lastSeen: Date;
 }
 
@@ -81,7 +73,6 @@ export function useRealTimeCollaboration({ projectId, autoConnect = true }: UseR
   const connect = useCallback(() => {
     if (!user || !projectId || socketRef.current?.connected) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${window.location.protocol}//${window.location.host}`;
 
     const socket = io(wsUrl, {
@@ -108,11 +99,11 @@ export function useRealTimeCollaboration({ projectId, autoConnect = true }: UseR
       reconnectAttemptsRef.current = 0;
     });
 
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', () => {
       setIsConnected(false);
     });
 
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', () => {
       reconnectAttemptsRef.current++;
       if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
         setError('Unable to connect to collaboration server');
@@ -138,13 +129,13 @@ export function useRealTimeCollaboration({ projectId, autoConnect = true }: UseR
       }
     });
 
-    socket.on('cursor:updated', (data: { odUserId: string; socketId: string; cursor: any; currentFile?: string; color: string; username: string }) => {
+    socket.on('cursor:updated', (data: { odUserId: string; socketId: string; cursor: CursorPosition; currentFile?: string; color: string; username: string }) => {
       setCollaborators(prev => prev.map(c => 
         c.id === data.socketId ? { ...c, cursor: data.cursor, currentFile: data.currentFile } : c
       ));
     });
 
-    socket.on('selection:updated', (data: { odUserId: string; socketId: string; selection: any; color: string; username: string }) => {
+    socket.on('selection:updated', (data: { odUserId: string; socketId: string; selection: SelectionRange; color: string; username: string }) => {
       setCollaborators(prev => prev.map(c => 
         c.id === data.socketId ? { ...c, selection: data.selection } : c
       ));
@@ -178,11 +169,9 @@ export function useRealTimeCollaboration({ projectId, autoConnect = true }: UseR
       }
     });
 
-    socket.on('file:changed', (data: FileChangeNotification) => {
-    });
+    socket.on('file:changed', (_data: FileChangeNotification) => {});
 
-    socket.on('follow:requested', (data: { followerId: string; followerName: string; targetUserId: string }) => {
-    });
+    socket.on('follow:requested', (_data: { followerId: string; followerName: string; targetUserId: string }) => {});
 
     socketRef.current = socket;
   }, [user, projectId, followingUserId]);
@@ -214,7 +203,7 @@ export function useRealTimeCollaboration({ projectId, autoConnect = true }: UseR
     }
   }, []);
 
-  const updateSelection = useCallback((selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => {
+  const updateSelection = useCallback((selection: SelectionRange) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('selection:update', selection);
     }
