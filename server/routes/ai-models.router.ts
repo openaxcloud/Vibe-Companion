@@ -139,6 +139,7 @@ router.get('/pricing', (_req, res) => {
       'grok-3-mini':                { input: 0.0000003,  output: 0.0000005,  creditsPerThousand: 0.3 },
       'grok-3-fast':                { input: 0.000005,   output: 0.000025,   creditsPerThousand: 5 },
       // Moonshot AI / Kimi
+      'kimi-k2':                    { input: 0.000002,   output: 0.000008,   creditsPerThousand: 2 },
       'moonshot-v1-8k':             { input: 0.0000012,  output: 0.0000012,  creditsPerThousand: 1.2 },
       'moonshot-v1-32k':            { input: 0.0000024,  output: 0.0000024,  creditsPerThousand: 2.4 },
       'moonshot-v1-128k':           { input: 0.000006,   output: 0.000006,   creditsPerThousand: 6 },

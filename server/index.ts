@@ -452,7 +452,7 @@ app.post("/api/agent/chat", async (req: Request, res: Response) => {
     } else if (modelfarmBaseUrl && modelfarmKey) {
       const openai = new OpenAI({ apiKey: modelfarmKey, baseURL: modelfarmBaseUrl });
       const completion = await openai.chat.completions.create({
-        model: highPower ? "gpt-4o" : "gpt-4o-mini", messages: [{ role: "system", content: systemPrompt }, ...chatMessages], temperature: 0.7, max_tokens: maxTokens,
+        model: modelId || (highPower ? "gpt-4o" : "gpt-4.1-mini"), messages: [{ role: "system", content: systemPrompt }, ...chatMessages], temperature: 0.7, max_tokens: maxTokens,
       });
       result = completion.choices?.[0]?.message?.content || "";
     } else if (anthropicKey) {
@@ -748,7 +748,7 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
 
   const providers: Array<{ name: string; fn: () => Promise<void> }> = [];
 
-  const modelfarmModel = highPowerEnabled ? "gpt-4o" : "gpt-4o-mini";
+  const modelfarmModel = modelId || (highPowerEnabled ? "gpt-4o" : "gpt-4.1-mini");
 
   if (requestedProvider === "anthropic" && anthropicKey) {
     providers.push({ name: "Anthropic", fn: () => streamWithAnthropic(anthropicKey) });
@@ -757,7 +757,7 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
     providers.push({ name: "Modelfarm", fn: () => streamWithOpenAI(modelfarmKey, modelfarmModel, "modelfarm", modelfarmBaseUrl) });
   }
   if (openaiKey) {
-    const m = modelId?.startsWith("gpt") ? modelId : (highPowerEnabled ? "gpt-4o" : "gpt-4o");
+    const m = modelId?.startsWith("gpt") || modelId?.startsWith("o") ? modelId : "gpt-4o";
     providers.push({ name: "OpenAI", fn: () => streamWithOpenAI(openaiKey, m, "openai") });
   }
   if (requestedProvider !== "anthropic" && anthropicKey) {
@@ -938,15 +938,6 @@ app.put("/api/agent/preferences", (req: Request, res: Response) => {
   res.json(updated);
 });
 
-app.get("/api/agent/models", (_req: Request, res: Response) => {
-  res.json({
-    models: [
-      { id: "claude-sonnet-4", name: "Claude Sonnet 4", provider: "anthropic" },
-      { id: "gpt-4o", name: "GPT-4o", provider: "openai" },
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini" },
-    ],
-  });
-});
 
 app.get("/api/agent/effective-model", (_req: Request, res: Response) => {
   res.json({ model: "claude-sonnet-4-20250514", provider: "anthropic" });

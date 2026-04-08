@@ -231,7 +231,7 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
       case 'anthropic': return 'claude-sonnet-4-20250514';
       case 'gemini': return 'gemini-2.5-flash';
       case 'xai': return 'grok-3';
-      case 'moonshot': return 'moonshot-v1-32k';
+      case 'moonshot': return 'kimi-k2';
       default: return 'gpt-4.1';
     }
   };
@@ -1400,8 +1400,7 @@ async function streamMoonshot(res: any, messages: any[], options: any) {
     baseURL: 'https://api.moonshot.ai/v1'
   });
   
-  // Use provided model or default to moonshot-v1-32k
-  const modelToUse = options.model || 'moonshot-v1-32k';
+  const modelToUse = options.model || 'kimi-k2';
   
   // ✅ KIMI K2 OPTIMIZATION: Detect thinking models for special configuration
   const isThinkingModel = modelToUse.includes('thinking') || modelToUse.includes('kimi-k2');
