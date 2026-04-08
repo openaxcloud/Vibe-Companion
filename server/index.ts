@@ -1828,11 +1828,13 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       catch (e: any) { return e.stdout?.toString().trim() || e.message; }
     }
 
-    app.get("/api/git/projects/:id/status", (_req, res) => {
+    app.get("/api/git/projects/:id/status", (req, res) => {
+      const projectId = req.params.id;
+      const projRelative = `projects/${projectId}`;
       const cwd = process.cwd();
       try {
         const branch = git("rev-parse --abbrev-ref HEAD", cwd);
-        const statusRaw = git("status --porcelain", cwd);
+        const statusRaw = git(`status --porcelain -- "${projRelative}"`, cwd);
         const staged: string[] = [];
         const unstaged: string[] = [];
         const untracked: string[] = [];
@@ -1840,7 +1842,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         if (statusRaw) {
           statusRaw.split("\n").filter(Boolean).forEach(l => {
             const x = l[0], y = l[1];
-            const filePath = l.substring(3);
+            const filePath = l.substring(3).replace(new RegExp(`^${projRelative}/?`), "");
             if (x === "?") { untracked.push(filePath); }
             else {
               if (x !== " ") staged.push(filePath);
@@ -1849,14 +1851,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
             files.push({ status: l.substring(0, 2).trim(), path: filePath, staged: x !== " " && x !== "?" });
           });
         }
-        let ahead = 0, behind = 0;
-        try {
-          const ab = git("rev-list --left-right --count HEAD...@{upstream}", cwd);
-          const parts = ab.split(/\s+/);
-          ahead = parseInt(parts[0]) || 0;
-          behind = parseInt(parts[1]) || 0;
-        } catch (err: any) { console.error("[catch]", err?.message || err);}
-        res.json({ branch, clean: files.length === 0, files, staged, unstaged, untracked, ahead, behind });
+        res.json({ branch, clean: files.length === 0, files, staged, unstaged, untracked, ahead: 0, behind: 0 });
       } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ branch: "main", clean: true, files: [], staged: [], unstaged: [], untracked: [], ahead: 0, behind: 0 }); }
     });
 
@@ -1894,21 +1889,47 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     app.get("/api/git/projects/:id/log", (req, res) => {
+      const projectId = req.params.id;
+      const projDir = path.join(process.cwd(), "projects", projectId);
       try {
         const limit = parseInt(req.query.limit as string) || 20;
-        const raw = git(`log --format="%H|%h|%an|%ae|%aI|%s" -${limit}`);
-        const commits = raw.split("\n").filter(Boolean).map(l => {
-          const [hash, short, author, email, date, ...msgParts] = l.split("|");
-          return { hash, short, shortHash: short, author, email, date, message: msgParts.join("|") };
-        });
-        res.json({ commits });
+        if (fs.existsSync(projDir)) {
+          const raw = git(`log --format="%H|%h|%an|%ae|%aI|%s" -${limit} -- "${projDir}"`) || "";
+          const commits = raw.split("\n").filter(Boolean).map(l => {
+            const [hash, short, author, email, date, ...msgParts] = l.split("|");
+            return { hash, short, shortHash: short, author, email, date, message: msgParts.join("|") };
+          });
+          res.json({ commits });
+        } else {
+          res.json({ commits: [] });
+        }
       } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ commits: [] }); }
     });
 
-    app.get("/api/git/projects/:id/diff", (_req, res) => {
+    app.get("/api/git/projects/:id/history", (req, res) => {
+      const projectId = req.params.id;
+      const projDir = path.join(process.cwd(), "projects", projectId);
       try {
-        const diff = git("diff");
-        const staged = git("diff --cached");
+        const limit = parseInt(req.query.limit as string) || 20;
+        if (fs.existsSync(projDir)) {
+          const raw = git(`log --format="%H|%h|%an|%ae|%aI|%s" -${limit} -- "${projDir}"`) || "";
+          const commits = raw.split("\n").filter(Boolean).map(l => {
+            const [hash, short, author, email, date, ...msgParts] = l.split("|");
+            return { hash, short, shortHash: short, author, email, date, message: msgParts.join("|") };
+          });
+          res.json({ commits });
+        } else {
+          res.json({ commits: [] });
+        }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ commits: [] }); }
+    });
+
+    app.get("/api/git/projects/:id/diff", (req, res) => {
+      const projectId = req.params.id;
+      const projRelative = `projects/${projectId}`;
+      try {
+        const diff = git(`diff -- "${projRelative}"`);
+        const staged = git(`diff --cached -- "${projRelative}"`);
         res.json({ diff, staged, hasDiff: !!(diff || staged) });
       } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ diff: "", staged: "", hasDiff: false }); }
     });
@@ -1967,6 +1988,24 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         const hash = git("rev-parse --short HEAD");
         res.json({ success: true, hash, message: result });
       } catch (e: any) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.get("/api/git/:projectId/commits", (req, res) => {
+      const projectId = req.params.projectId;
+      const projDir = path.join(process.cwd(), "projects", projectId);
+      try {
+        const limit = parseInt(req.query.limit as string) || 20;
+        if (fs.existsSync(projDir)) {
+          const raw = git(`log --format="%H|%h|%an|%ae|%aI|%s" -${limit} -- "${projDir}"`) || "";
+          const commits = raw.split("\n").filter(Boolean).map(l => {
+            const [hash, short, author, email, date, ...msgParts] = l.split("|");
+            return { hash, short, shortHash: short, author, email, date, message: msgParts.join("|") };
+          });
+          res.json({ commits });
+        } else {
+          res.json({ commits: [] });
+        }
+      } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ commits: [] }); }
     });
 
     app.post("/api/git/projects/:id/pull", (req, res) => {
@@ -3260,8 +3299,11 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     app.get("/api/projects/:id/checkpoints", (req, res) => {
+      const projectId = req.params.id;
+      const projDir = path.join(process.cwd(), "projects", projectId);
       try {
-        const raw = git(`log --format="%H|%h|%an|%aI|%s" -20`);
+        const pathFilter = fs.existsSync(projDir) ? ` -- "${projDir}"` : "";
+        const raw = git(`log --format="%H|%h|%an|%aI|%s" -20${pathFilter}`);
         const checkpoints = raw.split("\n").filter(Boolean).map((l, i) => {
           const [hash, short, author, date, ...msg] = l.split("|");
           return { id: hash, shortId: short, author, date, message: msg.join("|"), type: "auto" };
