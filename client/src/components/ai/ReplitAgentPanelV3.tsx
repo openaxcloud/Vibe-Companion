@@ -45,7 +45,8 @@ import {
   Play,
   AlertCircle,
   Paperclip,
-  Mic
+  Mic,
+  Square
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ThinkingDisplay, ThinkingDisplayCompact, ThinkingStep } from './ThinkingDisplay';
@@ -495,6 +496,7 @@ export function ReplitAgentPanelV3({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isPendingResponse, setIsPendingResponse] = useState(false); // True when waiting for first AI response chunk
@@ -1025,7 +1027,28 @@ export function ReplitAgentPanelV3({
     }
   };
 
-  // Handler for stopping autonomy session
+  const handleStopStream = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsWorking(false);
+    setIsPendingResponse(false);
+    setStreamingContent('');
+    setActiveThinking([]);
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last.role === 'assistant' && last.isStreaming) {
+        return prev.map(msg =>
+          msg.id === last.id
+            ? { ...msg, isStreaming: false, content: msg.content || '(Stopped by user)' }
+            : msg
+        );
+      }
+      return prev;
+    });
+  }, [setMessages]);
+
   const handleStopAutonomy = () => {
     setAutonomySessionId(null);
     setAgentMode('build');
@@ -1498,115 +1521,98 @@ export function ReplitAgentPanelV3({
             const thinkingSteps: ThinkingStep[] = [];
             const toolExecutions: ToolExecution[] = [];
             
-            // ✅ FORTUNE 500 FIX: Buffer for partial SSE frames
-            // SSE events can be split across network chunks - we need to buffer until we get complete frames
             let sseBuffer = '';
             
             while (reader) {
               const { done, value } = await reader.read();
-              
               if (done) break;
               
-              const chunk = decoder.decode(value, { stream: true }); // stream: true for proper multi-byte handling
-              // ✅ FORTUNE 500 FIX: Normalize line endings (handle \r\n and \r from different servers)
+              const chunk = decoder.decode(value, { stream: true });
               sseBuffer += chunk.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
               
-              // ✅ FORTUNE 500 FIX: Parse complete SSE events (delimited by \n\n)
-              // This ensures we only process complete events, not partial frames
-              const eventBoundary = '\n\n';
               let boundaryIndex;
-              
-              while ((boundaryIndex = sseBuffer.indexOf(eventBoundary)) !== -1) {
+              while ((boundaryIndex = sseBuffer.indexOf('\n\n')) !== -1) {
                 const eventText = sseBuffer.slice(0, boundaryIndex);
-                sseBuffer = sseBuffer.slice(boundaryIndex + eventBoundary.length);
+                sseBuffer = sseBuffer.slice(boundaryIndex + 2);
                 
-                // Parse the complete event
-                const lines = eventText.split('\n');
+                let currentEventType = 'message';
+                let dataStr = '';
+                for (const line of eventText.split('\n')) {
+                  if (line.startsWith('event: ')) currentEventType = line.slice(7).trim();
+                  else if (line.startsWith('data: ')) dataStr += line.slice(6);
+                }
+                if (!dataStr) continue;
                 
-                for (const line of lines) {
-                  if (line.startsWith('event: ')) {
+                try {
+                  const data = JSON.parse(dataStr);
+                  
+                  if (currentEventType === 'error' && data.message) {
+                    devLog('[AutoStart SSE] Error event:', data.message);
                     continue;
                   }
                   
-                  if (line.startsWith('data: ')) {
-                    try {
-                      const data = JSON.parse(line.slice(6));
-                    
-                      if (data.content) {
-                        fullContent += data.content;
-                        setStreamingContent(fullContent);
-                        setIsPendingResponse(false); // First chunk received
-                      }
-                    
-                      if (data.step) {
-                        setIsPendingResponse(false); // Thinking step received
-                        const step: ThinkingStep = {
-                          ...data.step,
-                          timestamp: new Date(data.step.timestamp)
-                        };
-                      
-                        const existingIndex = thinkingSteps.findIndex(s => s.id === step.id);
-                        if (existingIndex >= 0) {
-                          thinkingSteps[existingIndex] = step;
-                        } else {
-                          thinkingSteps.push(step);
-                        }
-                      
-                        setActiveThinking([...thinkingSteps]);
-                      }
-                    
-                      if (data.toolCallId) {
-                        const toolId = data.toolCallId;
-                      
-                        if (data.tool && data.parameters && !data.result) {
-                          const toolExecution: ToolExecution = {
-                            id: toolId,
-                            tool: data.tool,
-                            parameters: data.parameters,
-                            status: 'running'
-                          };
-                          toolExecutions.push(toolExecution);
-                        }
-                      
-                        if (data.result !== undefined) {
-                          const index = toolExecutions.findIndex(t => t.id === toolId);
-                          if (index >= 0) {
-                            toolExecutions[index] = {
-                              ...toolExecutions[index],
-                              result: data.result,
-                              success: data.success,
-                              status: 'complete',
-                              metadata: data.metadata
-                            };
-                          }
-                        }
-                      
-                        if (data.error) {
-                          const index = toolExecutions.findIndex(t => t.id === toolId);
-                          if (index >= 0) {
-                            toolExecutions[index] = {
-                              ...toolExecutions[index],
-                              status: 'error',
-                              error: data.error
-                            };
-                          }
-                        }
-                      
-                        assistantMessage.toolExecutions = [...toolExecutions];
-                        setMessages(prev => {
-                          const newMessages = [...prev];
-                          const lastMessage = newMessages[newMessages.length - 1];
-                          if (lastMessage && lastMessage.role === 'assistant') {
-                            lastMessage.toolExecutions = [...toolExecutions];
-                          }
-                          return newMessages;
-                        });
-                      }
-                    } catch (e) {
-                      // Skip invalid JSON - but log in dev mode for debugging
-                      devLog('[SSE Parse] Invalid JSON in data line:', { line: line.slice(0, 100) });
+                  if (currentEventType === 'token' || data.content) {
+                    fullContent += data.content || '';
+                    setStreamingContent(fullContent);
+                    setIsPendingResponse(false);
+                  }
+                  
+                  if ((currentEventType === 'thinking_start' || currentEventType === 'thinking_update' || currentEventType === 'thinking_complete') && data.step) {
+                    setIsPendingResponse(false);
+                    const step: ThinkingStep = { ...data.step, timestamp: new Date(data.step.timestamp) };
+                    const existingIndex = thinkingSteps.findIndex(s => s.id === step.id);
+                    if (existingIndex >= 0) thinkingSteps[existingIndex] = step;
+                    else thinkingSteps.push(step);
+                    setActiveThinking([...thinkingSteps]);
+                  }
+                  
+                  if (currentEventType === 'action_start' && data.actionId) {
+                    thinkingSteps.push({
+                      id: `action-${data.actionId}`, type: 'tool',
+                      title: data.label || data.action || 'Processing',
+                      content: '', status: 'active', timestamp: new Date(),
+                    });
+                    setActiveThinking([...thinkingSteps]);
+                  }
+                  
+                  if (currentEventType === 'action_complete' && data.actionId) {
+                    const idx = thinkingSteps.findIndex(s => s.id === `action-${data.actionId}`);
+                    if (idx >= 0) {
+                      thinkingSteps[idx] = { ...thinkingSteps[idx], status: data.success ? 'complete' : 'error',
+                        content: data.filesCreated ? `${data.filesCreated} files created` : '' };
+                      setActiveThinking([...thinkingSteps]);
                     }
                   }
+                  
+                  if (data.toolCallId) {
+                    const toolId = data.toolCallId;
+                    if (data.tool && data.parameters && !data.result) {
+                      toolExecutions.push({ id: toolId, tool: data.tool, parameters: data.parameters, status: 'running' });
+                    }
+                    if (data.result !== undefined) {
+                      const index = toolExecutions.findIndex(t => t.id === toolId);
+                      if (index >= 0) {
+                        toolExecutions[index] = { ...toolExecutions[index], result: data.result, success: data.success, status: 'complete', metadata: data.metadata };
+                      }
+                    }
+                    if (data.error) {
+                      const index = toolExecutions.findIndex(t => t.id === toolId);
+                      if (index >= 0) {
+                        toolExecutions[index] = { ...toolExecutions[index], status: 'error', error: data.error };
+                      }
+                    }
+                    assistantMessage.toolExecutions = [...toolExecutions];
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        lastMessage.toolExecutions = [...toolExecutions];
+                      }
+                      return newMessages;
+                    });
+                  }
+                } catch (e) {
+                  devLog('[AutoStart SSE] Invalid JSON:', { data: dataStr.slice(0, 100) });
                 }
               }
             }
@@ -1853,8 +1859,8 @@ export function ReplitAgentPanelV3({
       setActiveThinking(thinkingSteps);
     }
 
-    // Track assistant message ID for error handling
     let assistantMessageId: string | null = null;
+    let fullContent = '';
 
     try {
       // Use selected provider from model preference (fallback to openai)
@@ -1874,13 +1880,15 @@ export function ReplitAgentPanelV3({
           name: att.name
         }));
       
-      // Use raw fetch for SSE streaming - apiRequest consumes the body
-      // CSRF token must be included manually since we can't use apiRequest for streaming
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const csrfHeader = await getCSRFToken();
       const response = await fetch('/api/agent/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfHeader },
         credentials: 'include',
+        signal: controller.signal,
         body: JSON.stringify({
           message: messageWithAttachments,
           projectId: projectId,
@@ -1924,7 +1932,6 @@ export function ReplitAgentPanelV3({
         }
       };
 
-      let fullContent = '';
       const thinkingSteps: ThinkingStep[] = [];
       const toolExecutions: ToolExecution[] = [];
       const warningMessages: Message[] = []; // Accumulate warnings during streaming
@@ -1933,154 +1940,191 @@ export function ReplitAgentPanelV3({
       // Add assistant message to state BEFORE streaming to support live tool/thinking updates
       setMessages(prev => [...prev, assistantMessage]);
       
+      let sseBuffer = '';
+      
       while (reader) {
         const { done, value } = await reader.read();
-        
         if (done) break;
         
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        const chunk = decoder.decode(value, { stream: true });
+        sseBuffer += chunk.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         
-        for (const line of lines) {
-          // Handle SSE events
-          if (line.startsWith('event: ')) {
-            const eventType = line.slice(7).trim();
-            continue;
+        let boundaryIndex;
+        while ((boundaryIndex = sseBuffer.indexOf('\n\n')) !== -1) {
+          const eventText = sseBuffer.slice(0, boundaryIndex);
+          sseBuffer = sseBuffer.slice(boundaryIndex + 2);
+          
+          let currentEventType = 'message';
+          let dataStr = '';
+          
+          for (const line of eventText.split('\n')) {
+            if (line.startsWith('event: ')) {
+              currentEventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataStr += line.slice(6);
+            }
           }
           
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              // Handle context truncation warnings (check for presence of warning-specific fields)
-              if (data.message && typeof data.message === 'string' && !data.content && !data.step && !data.toolCallId) {
-                const warningResult = handleSSEWarning(data as SSEWarningData, { toast });
-                if (warningResult.shouldShow && warningResult.systemMessageContent) {
-                  // Accumulate warning to be added after streaming completes
-                  const systemMessage: Message = {
-                    id: `system-${Date.now()}`,
-                    role: 'system',
-                    content: warningResult.systemMessageContent,
-                    timestamp: new Date()
-                  };
-                  warningMessages.push(systemMessage);
-                }
-                continue;
+          if (!dataStr) continue;
+          
+          try {
+            const data = JSON.parse(dataStr);
+            
+            if (currentEventType === 'error' && data.message) {
+              const warningResult = handleSSEWarning(data as SSEWarningData, { toast });
+              if (warningResult.shouldShow && warningResult.systemMessageContent) {
+                warningMessages.push({
+                  id: `system-${Date.now()}`,
+                  role: 'system',
+                  content: warningResult.systemMessageContent,
+                  timestamp: new Date()
+                });
               }
-              
-              // Regular content tokens
-              if (data.content) {
-                fullContent += data.content;
-                setStreamingContent(fullContent);
-                setIsPendingResponse(false); // First chunk received
-              }
-              
-              // Handle thinking events from backend
+              continue;
+            }
+            
+            if (currentEventType === 'token' || data.content) {
+              const tokenContent = data.content || '';
+              fullContent += tokenContent;
+              setStreamingContent(fullContent);
+              setIsPendingResponse(false);
+            }
+            
+            if (currentEventType === 'thinking_start' || currentEventType === 'thinking_update' || currentEventType === 'thinking_complete') {
               if (data.step) {
-                setIsPendingResponse(false); // Thinking step received
-                // Normalize timestamp from ISO string to Date object
+                setIsPendingResponse(false);
                 const step: ThinkingStep = {
                   ...data.step,
                   timestamp: new Date(data.step.timestamp)
                 };
-                
-                // Find existing step or add new one
                 const existingIndex = thinkingSteps.findIndex(s => s.id === step.id);
                 if (existingIndex >= 0) {
                   thinkingSteps[existingIndex] = step;
                 } else {
                   thinkingSteps.push(step);
                 }
-                
                 setActiveThinking([...thinkingSteps]);
               }
-              
-              // Handle web search results from backend
-              if (data.resultCount !== undefined && data.sources) {
-                setIsPendingResponse(false);
-                const searchStep: ThinkingStep = {
-                  id: `search-${Date.now()}`,
-                  type: 'analysis',
-                  title: `Web Search: ${data.query || 'Searching...'}`,
-                  content: `Found ${data.resultCount} results${data.answer ? ': ' + data.answer.slice(0, 200) : ''}`,
-                  status: 'complete',
-                  timestamp: new Date(),
+            }
+            
+            if (currentEventType === 'action_start' && data.actionId) {
+              const actionStep: ThinkingStep = {
+                id: `action-${data.actionId}`,
+                type: 'tool',
+                title: data.label || data.action || 'Processing',
+                content: '',
+                status: 'active',
+                timestamp: new Date(),
+              };
+              thinkingSteps.push(actionStep);
+              setActiveThinking([...thinkingSteps]);
+            }
+            
+            if (currentEventType === 'action_complete' && data.actionId) {
+              const idx = thinkingSteps.findIndex(s => s.id === `action-${data.actionId}`);
+              if (idx >= 0) {
+                thinkingSteps[idx] = {
+                  ...thinkingSteps[idx],
+                  status: data.success ? 'complete' : 'error',
+                  content: data.filesCreated ? `${data.filesCreated} files created` : '',
                 };
-                thinkingSteps.push(searchStep);
                 setActiveThinking([...thinkingSteps]);
               }
-
-              // Handle RAG status events from backend
-              if (data.enabled !== undefined && data.nodesRetrieved !== undefined) {
-                // RAG context is automatically injected by the backend
-                // This event is for UI feedback only
-              }
+            }
+            
+            if (currentEventType === 'file_diff' && data.path) {
+              const diffTool: ToolExecution = {
+                id: `diff-${data.path}-${Date.now()}`,
+                tool: 'file_diff',
+                parameters: { path: data.path },
+                status: 'complete',
+                success: true,
+                result: data,
+                metadata: { language: data.language, isNewFile: data.isNewFile },
+              };
+              toolExecutions.push(diffTool);
+              assistantMessage.toolExecutions = [...toolExecutions];
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMessage = newMessages[newMessages.length - 1];
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  lastMessage.toolExecutions = [...toolExecutions];
+                }
+                return newMessages;
+              });
+            }
+            
+            if (currentEventType === 'web_search' && data.resultCount !== undefined) {
+              setIsPendingResponse(false);
+              const searchStep: ThinkingStep = {
+                id: `search-${Date.now()}`,
+                type: 'analysis',
+                title: `Web Search: ${data.query || 'Searching...'}`,
+                content: `Found ${data.resultCount} results${data.answer ? ': ' + data.answer.slice(0, 200) : ''}`,
+                status: 'complete',
+                timestamp: new Date(),
+              };
+              thinkingSteps.push(searchStep);
+              setActiveThinking([...thinkingSteps]);
+            }
+            
+            if (currentEventType === 'done' || (data.totalTokens !== undefined || data.cost !== undefined)) {
+              messageMetadata = {
+                cost: data.cost,
+                tokens: data.totalTokens,
+                model: data.model,
+                provider: data.provider
+              };
+            }
+            
+            if (data.toolCallId) {
+              const toolId = data.toolCallId;
               
-              // Handle 'done' event with cost and token data (Replit-style)
-              if (data.totalTokens !== undefined || data.cost !== undefined) {
-                messageMetadata = {
-                  cost: data.cost,
-                  tokens: data.totalTokens,
-                  model: data.model,
-                  provider: data.provider
-                };
-              }
-              
-              // Handle tool execution events
-              if (data.toolCallId) {
-                const toolId = data.toolCallId;
-                
-                // Tool start event
-                if (data.tool && data.parameters && !data.result) {
-                  const toolExecution: ToolExecution = {
-                    id: toolId,
-                    tool: data.tool,
-                    parameters: data.parameters,
-                    status: 'running'
-                  };
-                  toolExecutions.push(toolExecution);
-                }
-                
-                // Tool result event
-                if (data.result !== undefined) {
-                  const index = toolExecutions.findIndex(t => t.id === toolId);
-                  if (index >= 0) {
-                    toolExecutions[index] = {
-                      ...toolExecutions[index],
-                      result: data.result,
-                      success: data.success,
-                      status: 'complete',
-                      metadata: data.metadata
-                    };
-                  }
-                }
-                
-                // Tool error event
-                if (data.error) {
-                  const index = toolExecutions.findIndex(t => t.id === toolId);
-                  if (index >= 0) {
-                    toolExecutions[index] = {
-                      ...toolExecutions[index],
-                      status: 'error',
-                      error: data.error
-                    };
-                  }
-                }
-                
-                // Update assistant message with tool executions
-                assistantMessage.toolExecutions = [...toolExecutions];
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMessage = newMessages[newMessages.length - 1];
-                  if (lastMessage && lastMessage.role === 'assistant') {
-                    lastMessage.toolExecutions = [...toolExecutions];
-                  }
-                  return newMessages;
+              if (data.tool && data.parameters && !data.result) {
+                toolExecutions.push({
+                  id: toolId,
+                  tool: data.tool,
+                  parameters: data.parameters,
+                  status: 'running'
                 });
               }
-            } catch (e) {
-              // Skip invalid JSON
+              
+              if (data.result !== undefined) {
+                const index = toolExecutions.findIndex(t => t.id === toolId);
+                if (index >= 0) {
+                  toolExecutions[index] = {
+                    ...toolExecutions[index],
+                    result: data.result,
+                    success: data.success,
+                    status: 'complete',
+                    metadata: data.metadata
+                  };
+                }
+              }
+              
+              if (data.error) {
+                const index = toolExecutions.findIndex(t => t.id === toolId);
+                if (index >= 0) {
+                  toolExecutions[index] = {
+                    ...toolExecutions[index],
+                    status: 'error',
+                    error: data.error
+                  };
+                }
+              }
+              
+              assistantMessage.toolExecutions = [...toolExecutions];
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMessage = newMessages[newMessages.length - 1];
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  lastMessage.toolExecutions = [...toolExecutions];
+                }
+                return newMessages;
+              });
             }
+          } catch (e) {
+            devLog('[SSE Parse] Invalid JSON:', { data: dataStr.slice(0, 100) });
           }
         }
       }
@@ -2127,13 +2171,24 @@ export function ReplitAgentPanelV3({
         onBuildComplete();
       }
       
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessageId
+            ? { ...msg, content: fullContent || '(Stopped by user)', isStreaming: false }
+            : msg
+        ));
+        optimisticResult.confirm();
+        setStreamingContent('');
+        setActiveThinking([]);
+        return;
+      }
+      
       console.error('AI chat error:', error);
       
       const { title, message: userFriendlyError } = categorizeError(error);
       const errorContent = `⚠️ ${userFriendlyError}\n\nIf this issue persists, please try:\n- Refreshing the page\n- Checking your internet connection\n- Waiting a few moments before trying again`;
       
-      // Rollback optimistic user message on error
       optimisticResult.rollback(userFriendlyError);
       
       toast({
@@ -2179,7 +2234,7 @@ export function ReplitAgentPanelV3({
     } finally {
       setIsWorking(false);
       setIsPendingResponse(false);
-      // Call onBuildComplete callback when build/execution finishes (for IDE integration)
+      abortControllerRef.current = null;
       if (agentMode === 'build' && onBuildComplete) {
         onBuildComplete();
       }
@@ -3095,20 +3150,22 @@ export function ReplitAgentPanelV3({
               >
                 <Button
                   size="icon"
-                  onClick={handleSend}
-                  disabled={!input.trim() || isWorking}
+                  onClick={isWorking ? handleStopStream : handleSend}
+                  disabled={!isWorking && !input.trim()}
                   className={cn(
                     "h-7 w-7 rounded-lg",
                     "transition-all duration-200",
-                    input.trim() && !isWorking 
-                      ? "bg-primary hover:bg-primary/90 text-primary-foreground" 
-                      : "bg-muted text-muted-foreground"
+                    isWorking
+                      ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                      : input.trim()
+                        ? "bg-primary hover:bg-primary/90 text-primary-foreground" 
+                        : "bg-muted text-muted-foreground"
                   )}
-                  data-testid="button-send"
-                  title="Send message"
+                  data-testid={isWorking ? "button-stop" : "button-send"}
+                  title={isWorking ? "Stop generation" : "Send message"}
                 >
                   {isWorking ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Square className="h-3 w-3 fill-current" />
                   ) : (
                     <Send className="h-3.5 w-3.5" />
                   )}

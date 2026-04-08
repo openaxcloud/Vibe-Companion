@@ -624,6 +624,7 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
         id: Date.now(), conversationId: Number(conversationId) || 0,
         role: "assistant", content: fullContent, timestamp: new Date().toISOString(),
       });
+      res.write(`event: action_start\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", label: "Extracting code from response" })}\n\n`);
       const savedFiles = await extractAndSaveCodeBlocks(fullContent, projectId, storage);
       if (savedFiles.length > 0) {
         for (const f of savedFiles) {
@@ -631,12 +632,17 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
             tool: "write_file", status: "success",
             result: { filename: f.filename, language: f.language, action: "created" },
           })}\n\n`);
+          res.write(`event: file_diff\ndata: ${JSON.stringify({
+            path: f.filename, language: f.language, isNewFile: true,
+            linesAdded: (f.content || "").split("\\n").length, linesRemoved: 0,
+          })}\n\n`);
         }
         res.write(`event: preview_ready\ndata: ${JSON.stringify({
           url: `/api/preview/${projectId}/`,
           files: savedFiles.map(f => f.filename),
         })}\n\n`);
       }
+      res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
       res.write(`event: done\ndata: ${JSON.stringify({
         conversationId: conversationId || Date.now(),
         projectId,
@@ -724,6 +730,7 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
         id: Date.now(), conversationId: Number(conversationId) || 0,
         role: "assistant", content: fullContent, timestamp: new Date().toISOString(),
       });
+      res.write(`event: action_start\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", label: "Extracting code from response" })}\n\n`);
       const savedFiles = await extractAndSaveCodeBlocks(fullContent, projectId, storage);
       if (savedFiles.length > 0) {
         for (const f of savedFiles) {
@@ -731,12 +738,17 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
             tool: "write_file", status: "success",
             result: { filename: f.filename, language: f.language, action: "created" },
           })}\n\n`);
+          res.write(`event: file_diff\ndata: ${JSON.stringify({
+            path: f.filename, language: f.language, isNewFile: true,
+            linesAdded: (f.content || "").split("\\n").length, linesRemoved: 0,
+          })}\n\n`);
         }
         res.write(`event: preview_ready\ndata: ${JSON.stringify({
           url: `/api/preview/${projectId}/`,
           files: savedFiles.map(f => f.filename),
         })}\n\n`);
       }
+      res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
       res.write(`event: done\ndata: ${JSON.stringify({
         conversationId: conversationId || Date.now(), projectId,
         totalTokens: tokensInput + tokensOutput, tokensInput, tokensOutput,

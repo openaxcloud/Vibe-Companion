@@ -14,4 +14,6 @@ export { VibingAnimation } from './VibingAnimation';
 export { CollapsibleSection, CodeCollapsible } from './CollapsibleSection';
 export { ToolExecutionBadge, ToolExecutionList } from './ToolExecutionBadge';
 export { FileDiffViewer, MultiFileDiff } from './FileDiffViewer';
+export { FileDiffInline, MultiFileDiffInline, parseDiffString } from './FileDiffInline';
+export type { FileDiffData, DiffLine, DiffHunk } from './FileDiffInline';
 export { StreamingSkeleton, StreamingMessageSkeleton, StreamingThinkingSkeleton } from './StreamingSkeleton';

@@ -28,6 +28,9 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
         - **ActionCard**: Expandable card with icon, title, subtitle, status, duration. Supports pending/running/complete/error states with visual feedback.
         - **ExecutionTimeline**: Visual timeline connecting actions with colored dots and lines per status. Used in AgentWall phases.
         - **AgentWall**: Container splitting agent work into 3 collapsible phases: Plan (thinking steps) → Execution (tool calls) → Results (summary). Integrated in EnhancedChatMessage when both thinking + tools exist.
+        - **FileDiffInline**: Inline unified diff viewer with line numbers, +/- coloring, hunks, copy path, toggle context lines. Parses git diff format. `MultiFileDiffInline` for multi-file views.
+    - **Streaming**: Token-by-token typing animation via `StreamingText` with adaptive speed (catches up when behind, smooth when close). Stop button (red square) replaces Send button during streaming, uses `AbortController` to cancel fetch.
+    - **SSE Events**: Backend emits `action_start`, `action_complete`, `file_diff`, `thinking_start/update/complete`, `token`, `done`, `error`, `web_search`, `tool_result`, `preview_ready`. Both autoStart and handleSend parsers unified with event-type-aware buffered parsing.
     - **Performance**: Code splitting and lazy loading for optimized performance.
 
 ### Backend

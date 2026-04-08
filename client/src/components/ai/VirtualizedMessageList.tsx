@@ -228,16 +228,18 @@ export const StreamingText = memo(function StreamingText({
   content,
   isComplete = false,
   className,
-  typingSpeed = 20,
 }: StreamingTextProps) {
-  const displayedRef = useRef<string>('');
+  const displayedRef = useRef('');
   const indexRef = useRef(0);
   const containerRef = useRef<HTMLSpanElement>(null);
   const frameRef = useRef<number | null>(null);
+  const lastTimeRef = useRef(0);
+  const prevContentLenRef = useRef(0);
 
   useEffect(() => {
     if (isComplete) {
       displayedRef.current = content;
+      indexRef.current = content.length;
       if (containerRef.current) {
         containerRef.current.textContent = content;
       }
@@ -245,21 +247,42 @@ export const StreamingText = memo(function StreamingText({
     }
 
     const targetLength = content.length;
-    
-    const animate = () => {
-      if (indexRef.current < targetLength) {
-        const charsToAdd = Math.min(3, targetLength - indexRef.current);
-        displayedRef.current = content.slice(0, indexRef.current + charsToAdd);
+    const newCharsAvailable = targetLength - prevContentLenRef.current;
+    prevContentLenRef.current = targetLength;
+
+    const animate = (timestamp: number) => {
+      if (indexRef.current >= targetLength) return;
+
+      const elapsed = timestamp - lastTimeRef.current;
+      const behind = targetLength - indexRef.current;
+
+      let charsToAdd: number;
+      if (behind > 200) {
+        charsToAdd = Math.min(behind, 40);
+      } else if (behind > 50) {
+        charsToAdd = Math.min(behind, 8);
+      } else {
+        charsToAdd = Math.min(behind, 2);
+      }
+
+      if (elapsed >= 8 || behind > 100) {
+        lastTimeRef.current = timestamp;
         indexRef.current += charsToAdd;
-        
+        displayedRef.current = content.slice(0, indexRef.current);
+
         if (containerRef.current) {
           containerRef.current.textContent = displayedRef.current;
         }
-        
+      }
+
+      if (indexRef.current < targetLength) {
         frameRef.current = requestAnimationFrame(animate);
       }
     };
 
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+    }
     frameRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -273,6 +296,7 @@ export const StreamingText = memo(function StreamingText({
     if (content.length < displayedRef.current.length) {
       displayedRef.current = '';
       indexRef.current = 0;
+      prevContentLenRef.current = 0;
     }
   }, [content]);
 
