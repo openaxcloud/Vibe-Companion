@@ -90,10 +90,28 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
           
           code: ({ inline, className, children, ...props }: any) => {
             if (inline) {
+              const inlineText = String(children);
+              const isLongEnough = inlineText.length > 3;
               return (
-                <code className="px-1.5 py-0.5 rounded bg-muted text-violet-500 font-mono text-[11px]">
-                  {children}
-                </code>
+                <span className="inline-flex items-center gap-0.5 align-baseline">
+                  <code className="px-1.5 py-0.5 rounded bg-muted text-violet-500 font-mono text-[11px]">
+                    {children}
+                  </code>
+                  {isLongEnough && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); copyCode(inlineText); }}
+                      className="inline-flex items-center justify-center h-[18px] w-[18px] rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover/msg:opacity-100 focus:opacity-100"
+                      title="Copy"
+                      data-testid="copy-inline-code"
+                    >
+                      {copiedCode === inlineText ? (
+                        <Check className="h-2.5 w-2.5 text-green-500" />
+                      ) : (
+                        <Copy className="h-2.5 w-2.5" />
+                      )}
+                    </button>
+                  )}
+                </span>
               );
             }
             

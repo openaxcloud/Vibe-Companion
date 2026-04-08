@@ -153,7 +153,7 @@ export function MessageRenderer({ message, onApproveAction, onRejectAction }: Me
   return (
     <div
       className={cn(
-        "group flex gap-3 px-3 md:px-4 py-4 border-b border-[var(--ecode-border)] max-w-full",
+        "group group/msg flex gap-3 px-3 md:px-4 py-4 border-b border-[var(--ecode-border)] max-w-full",
         isUser && "bg-[var(--ecode-surface-secondary)]",
         isUser ? "agent-message-user" : "agent-message-assistant"
       )}
