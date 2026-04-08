@@ -216,7 +216,7 @@
   --ecode-z-notification: 1300;
 
   /* Fortune 500 Mobile Navigation - Solid Design (Light Mode) */
-  --mobile-nav-height: 72px;
+  --mobile-nav-height: 56px;
   --mobile-nav-bg: #FFFFFF;
   --mobile-nav-bg-elevated: #FFFFFF;
   --mobile-nav-blur: 0;
@@ -381,7 +381,7 @@
   --mobile-ide-active: var(--ecode-sidebar-active);
 
   /* Fortune 500 Mobile Navigation - Solid Design (Dark Mode) */
-  --mobile-nav-height: 72px;
+  --mobile-nav-height: 56px;
   --mobile-nav-bg: #1C2333;
   --mobile-nav-bg-elevated: #1C2333;
   --mobile-nav-blur: 0;

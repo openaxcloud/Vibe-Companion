@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { SlashCommandMenu, DEFAULT_MCP_SERVERS, type MCPServer } from '../ai/SlashCommandMenu';
 import { AgentToolsBottomSheet } from '../ai/AgentToolsBottomSheet';
 import type { AgentToolsSettings } from '@/hooks/useAgentTools';
+import { useKeyboardHeight } from '@/hooks/use-keyboard';
 
 type AgentMode = 'build' | 'plan' | 'edit' | 'fast';
 
@@ -63,6 +64,7 @@ export const ReplitMobileInputBar = memo(function ReplitMobileInputBar({
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showAgentTools, setShowAgentTools] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const keyboardHeight = useKeyboardHeight();
 
   const defaultSettings: AgentToolsSettings = {
     maxAutonomy: false,
@@ -241,7 +243,10 @@ export const ReplitMobileInputBar = memo(function ReplitMobileInputBar({
   const isDisabled = disabled || isLoading || isWorking;
 
   return (
-    <div className="fixed bottom-14 left-0 right-0 z-40 px-3 pb-2 mobile-safe-bottom">
+    <div 
+      className="fixed left-0 right-0 z-40 px-3 pb-2 mobile-safe-bottom"
+      style={{ bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '56px' }}
+    >
       {/* Slash Command Menu - appears above input */}
       <SlashCommandMenu
         isOpen={showSlashMenu}

@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type MobileTab = 'preview' | 'agent' | 'deploy' | 'more' | 'files' | 'search' | 'git' | 'packages' | 'secrets' | 'database' | 'terminal' | 'settings' | 'history' | 'extensions' | 'workflows' | 'debug' | 'checkpoints' | 'security' | 'collaboration' | 'actions' | 'tools' | 'shell' | 'storage' | 'themes' | 'multiplayers' | 'testing';
+export type MobileTab = 'preview' | 'agent' | 'deploy' | 'more' | 'files' | 'editor' | 'search' | 'git' | 'packages' | 'secrets' | 'database' | 'terminal' | 'settings' | 'history' | 'extensions' | 'workflows' | 'debug' | 'checkpoints' | 'security' | 'collaboration' | 'actions' | 'tools' | 'shell' | 'storage' | 'themes' | 'multiplayers' | 'testing';
 
 export interface OpenTab {
   id: string;
@@ -75,6 +75,7 @@ const iconMap: Record<string, React.ElementType> = {
   files: FolderTree,
   agent: Bot,
   assistant: Code,
+  editor: Code,
   publishing: Rocket,
   'app-storage': HardDrive,
   auth: Shield,

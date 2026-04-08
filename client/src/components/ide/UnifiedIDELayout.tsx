@@ -61,7 +61,7 @@ import { ReplitToolsSheet } from '@/components/ide/ReplitToolsSheet';
 import { QuickFileSearch } from '@/components/ide/QuickFileSearch';
 import { KeyboardShortcutsOverlay } from '@/components/ide/KeyboardShortcutsOverlay';
 import { ReplitFileExplorer } from '@/components/editor/ReplitFileExplorer';
-import { ReplitMobileNavigation, ReplitMobileInputBar, ReplitMobileHeader, type MobileTab } from '@/components/mobile';
+import { ReplitMobileNavigation, ReplitMobileInputBar, ReplitMobileHeader, ReplitBottomTabs, type MobileTab } from '@/components/mobile';
 
 const ReplitMonacoEditor = instrumentedLazy(() => import('@/components/editor/ReplitMonacoEditor').then(mod => ({ default: mod.ReplitMonacoEditor })), 'ReplitMonacoEditor');
 const ReplitTerminalPanel = instrumentedLazy(() => import('@/components/editor/ReplitTerminalPanel').then(mod => ({ default: mod.ReplitTerminalPanel })), 'ReplitTerminalPanel');
@@ -158,7 +158,7 @@ type TabletPanel = 'editor' | 'terminal' | 'preview' | 'agent' | 'more';
 const SWIPE_THRESHOLD = 50;
 const SWIPE_VELOCITY_THRESHOLD = 0.3;
 
-const mobileTabOrder: MobileTab[] = ['preview', 'agent', 'deploy', 'more'];
+const mobileTabOrder: MobileTab[] = ['agent', 'files', 'editor', 'preview', 'terminal'];
 
 function UnifiedIDELayout({ 
   projectId, 
@@ -828,8 +828,17 @@ function UnifiedIDELayout({
             />
           </AgentPanelErrorBoundary>
         );
+      case 'editor':
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Editor..." /></div>}>
+            <LazyMobileCodeEditor
+              projectId={projectId}
+              fileId={selectedFileId}
+              className="h-full"
+            />
+          </Suspense>
+        );
       case 'deploy':
-        // Gate deploy with AppNotReadyPlaceholder until schema is ready (bootstrap only)
         if (!isSchemaReady && !!bootstrapToken) {
           return <AppNotReadyPlaceholder tabName="Deploy" projectId={projectId} />;
         }
@@ -1500,9 +1509,9 @@ function UnifiedIDELayout({
         {/* Main Content Area - maximized vertical space */}
         <div 
           className="flex-1 overflow-hidden"
-          {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
+          {...mobileSwipeHandlers}
           data-testid="mobile-swipe-area"
-          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '3rem' }}
+          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '56px' }}
         >
           <div
             key={mobileActiveTab}
@@ -1537,20 +1546,12 @@ function UnifiedIDELayout({
           />
         )}
 
-        {/* Replit-style Bottom Navigation */}
-        <ReplitMobileNavigation
+        {/* Bottom Navigation - 5-tab fixed model */}
+        <ReplitBottomTabs
           activeTab={mobileActiveTab}
-          onTabChange={setMobileActiveTab}
-          isRunning={isRunning}
-          onPlayStop={handleRunStop}
-          isPanelOpen={showToolsSheet}
-          onPanelToggle={() => setShowToolsSheet(!showToolsSheet)}
-          onMorePress={() => setShowMobileMoreMenu(true)}
-          openTabs={openTabs}
-          activeOpenTabId={activeOpenTabId}
-          onOpenTabSelect={handleSelectOpenTab}
-          onAddTab={() => setShowToolsSheet(true)}
-          onTabSwitcherOpen={() => setShowTabSwitcher(true)}
+          onTabChange={(tab) => setMobileActiveTab(tab as MobileTab)}
+          badgeCounts={{ errors: errorsCount }}
+          isConnected={connectionStatus === 'connected'}
         />
 
         <Suspense fallback={null}>

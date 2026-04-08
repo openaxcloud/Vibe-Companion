@@ -33,6 +33,7 @@ const tabConfig: Record<string, { icon: any; label: string; iconColor?: string }
   preview: { icon: Monitor, label: 'Preview' },
   agent: { icon: ReplitAgentIcon, label: 'Agent', iconColor: '#7C65C1' },
   deploy: { icon: Globe, label: 'Deploy' },
+  editor: { icon: Code, label: 'Editor' },
   files: { icon: FolderTree, label: 'Files' },
   search: { icon: Search, label: 'Search' },
   git: { icon: GitBranch, label: 'Git' },
