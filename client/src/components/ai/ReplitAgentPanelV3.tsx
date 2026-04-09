@@ -639,20 +639,7 @@ export function ReplitAgentPanelV3({
   const [showPricing, setShowPricing] = useState(false);
   const [showCheckpoints, setShowCheckpoints] = useState(false);
   
-  // Fast Mode state - quick mode for 10-60 second targeted changes
   const [fastMode, setFastMode] = useState(false);
-  
-  // Fast Mode toggle handler with toast notification
-  const handleFastModeToggle = useCallback(() => {
-    const newState = !fastMode;
-    setFastMode(newState);
-    toast({
-      title: newState ? '⚡ Fast Mode Enabled' : 'Fast Mode Disabled',
-      description: newState 
-        ? 'Using fast model for quick 10-60s targeted edits' 
-        : 'Switched back to standard model',
-    });
-  }, [fastMode, toast]);
   
   // Slash command menu state (Replit-style "/" to show integrations)
   const slashCommand = useSlashCommand();
@@ -1095,6 +1082,7 @@ export function ReplitAgentPanelV3({
 
   const handleModeChange = useCallback(async (newMode: AgentMode) => {
     setAgentMode(newMode);
+    setFastMode(newMode === 'fast');
     
     const modeDescriptions: Record<AgentMode, string> = {
       build: "Agent will autonomously make changes",
@@ -2702,37 +2690,6 @@ export function ReplitAgentPanelV3({
               </Badge>
             )}
             {/* ✅ Memory Bank is 100% TRANSPARENT - no visible badge like Replit */}
-            
-            {/* Fast Mode Toggle - Quick mode for 10-60s targeted changes */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleFastModeToggle}
-                    className={cn(
-                      "flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all flex-shrink-0",
-                      fastMode 
-                        ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30" 
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                    )}
-                    data-testid="fast-mode-toggle"
-                  >
-                    <Zap className={cn("h-3 w-3", fastMode && "animate-pulse")} />
-                    {!isCompactMode && (
-                      <span>{fastMode ? '~30s' : 'Fast'}</span>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="font-medium">{fastMode ? 'Fast Mode Active' : 'Enable Fast Mode'}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {fastMode 
-                      ? 'Using fast model for quick 10-60s edits' 
-                      : 'Quick mode for single-file targeted changes'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
             
             {/* Model chip with dropdown for quick model selection */}
             <DropdownMenu open={isModelSelectorOpen} onOpenChange={setIsModelSelectorOpen}>
