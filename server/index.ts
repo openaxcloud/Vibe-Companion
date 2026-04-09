@@ -1648,9 +1648,15 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       res.json({ providers, defaultProvider: providers[0]?.id || null });
     });
 
-    app.get("/api/rag/stats", (_req, res) => {
-      res.json({ indexed: 0, total: 0, status: "idle" });
-    });
+    try {
+      const ragRouter = (await import("./routes/rag.router")).default;
+      app.use("/api/rag", ragRouter);
+    } catch (ragErr: any) {
+      console.warn("RAG router failed to load:", ragErr?.message);
+      app.get("/api/rag/stats", (_req, res) => {
+        res.json({ indexed: 0, total: 0, status: "idle" });
+      });
+    }
 
     // =========================================================
     // TERMINAL — WebSocket-based PTY terminal
@@ -4119,6 +4125,18 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     app.get("/api/community/collections", (_req, res) => { res.json({ collections: [] }); });
 
     log("Minimal fallback routes loaded");
+
+    try {
+      const { initRAGDatabase } = await import('./services/rag/index');
+      const ragReady = await initRAGDatabase();
+      if (ragReady) {
+        log("RAG database initialized (pgvector ready)");
+      } else {
+        log("RAG database initialization skipped");
+      }
+    } catch (ragErr: any) {
+      console.error("[RAG Init]", ragErr?.message || ragErr);
+    }
   }
 
   const distPath = path.resolve(import.meta.dirname || __dirname, "..", "dist", "public");

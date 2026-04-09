@@ -1981,6 +1981,7 @@ function UnifiedIDELayout({
                       />
                     </Suspense>
                   </TabsContent>
+
                 </Tabs>
               </div>
             </ResizablePanel>

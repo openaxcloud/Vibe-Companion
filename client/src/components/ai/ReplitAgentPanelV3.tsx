@@ -2082,6 +2082,45 @@ export function ReplitAgentPanelV3({
               thinkingSteps.push(searchStep);
               setActiveThinking([...thinkingSteps]);
             }
+
+            if (currentEventType === 'rag_status' && data.status) {
+              setIsPendingResponse(false);
+              const filesFound = data.files ? data.files as string[] : [];
+              const nodesRetrieved = data.nodesRetrieved || 0;
+              const isSuccess = data.status === 'success' || data.status === 'success_fts';
+
+              if (isSuccess && nodesRetrieved > 0) {
+                const ragStep: ThinkingStep = {
+                  id: `rag-${Date.now()}`,
+                  type: 'analysis',
+                  title: `Searched codebase`,
+                  content: filesFound.length > 0
+                    ? `Read ${nodesRetrieved} relevant sections from ${filesFound.length} file${filesFound.length !== 1 ? 's' : ''}`
+                    : `Found ${nodesRetrieved} relevant context${nodesRetrieved !== 1 ? 's' : ''}`,
+                  status: 'complete',
+                  timestamp: new Date(),
+                  metadata: {
+                    ragFiles: filesFound.slice(0, 10),
+                    ragMode: data.mode || 'hybrid',
+                    tokenEstimate: data.tokenEstimate || 0,
+                    nodesRetrieved,
+                  },
+                };
+                thinkingSteps.push(ragStep);
+                setActiveThinking([...thinkingSteps]);
+              } else if (data.status === 'timeout' || data.status === 'error') {
+                const ragErrorStep: ThinkingStep = {
+                  id: `rag-err-${Date.now()}`,
+                  type: 'analysis',
+                  title: `Codebase search`,
+                  content: data.status === 'timeout' ? 'Search timed out' : `Search error: ${data.error || 'unknown'}`,
+                  status: 'error',
+                  timestamp: new Date(),
+                };
+                thinkingSteps.push(ragErrorStep);
+                setActiveThinking([...thinkingSteps]);
+              }
+            }
             
             if (currentEventType === 'done' || (data.totalTokens !== undefined || data.cost !== undefined)) {
               messageMetadata = {

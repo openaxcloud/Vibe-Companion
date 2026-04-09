@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Brain, CheckCircle, Loader2, Sparkles, Code, Search, FileText, Zap } from 'lucide-react';
+import { ChevronDown, ChevronRight, Brain, CheckCircle, Loader2, Sparkles, Code, Search, FileText, Zap, Database, FileCode } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -248,6 +248,31 @@ export function ThinkingDisplay({
 
                     {step.status === 'active' && step.progress !== undefined && (
                       <Progress value={step.progress} className="h-1 mt-2" />
+                    )}
+
+                    {step.metadata?.ragFiles && step.metadata.ragFiles.length > 0 && (
+                      <div className="mt-3 space-y-1" data-testid="rag-files-list">
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1.5">
+                          <Database className="h-3 h-3" />
+                          <span className="font-medium">Files read ({step.metadata.ragFiles.length})</span>
+                          {step.metadata.ragMode && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-blue-700/50 text-blue-400">
+                              {step.metadata.ragMode}
+                            </Badge>
+                          )}
+                          {step.metadata.tokenEstimate > 0 && (
+                            <span className="text-[10px] text-muted-foreground ml-auto">
+                              ~{Math.round(step.metadata.tokenEstimate).toLocaleString()} tokens
+                            </span>
+                          )}
+                        </div>
+                        {step.metadata.ragFiles.map((file: string, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-[11px] py-0.5 px-2 rounded bg-[#1a2235]/60 hover:bg-[#1a2235] transition-colors">
+                            <FileCode className="h-3 w-3 text-blue-400 flex-shrink-0" />
+                            <span className="text-gray-300 font-mono truncate">{file}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
 
                     {step.details && step.details.length > 0 && (
