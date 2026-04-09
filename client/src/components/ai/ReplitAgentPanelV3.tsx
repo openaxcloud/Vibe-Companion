@@ -47,7 +47,9 @@ import {
   AlertCircle,
   Paperclip,
   Mic,
-  Square
+  Square,
+  Globe,
+  ChevronDown
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ThinkingDisplay, ThinkingDisplayCompact, ThinkingStep } from './ThinkingDisplay';
@@ -148,6 +150,101 @@ type WorkflowPhase =
   | 'complete';
 
 type ValidationStep = 'idle' | 'post_validation' | 'installing_deps' | 'deps_complete' | 'deps_failed' | 'verifying_build' | 'build_complete' | 'build_failed' | 'running_qa' | 'qa_complete';
+
+function InlineWebSearchResults({ query, answer, sources, resultCount }: {
+  query: string;
+  answer?: string;
+  sources: Array<{ title: string; url: string }>;
+  resultCount: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <LazyMotionDiv
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="ml-12 mb-3"
+      data-testid="inline-web-search-results"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full text-left p-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors border border-border/30"
+        data-testid="web-search-toggle"
+      >
+        <Globe className="h-4 w-4 text-blue-500 shrink-0" />
+        <span className="text-[13px] font-medium text-foreground">
+          Searched {query.length > 60 ? query.slice(0, 60) + '...' : query}
+        </span>
+        <ChevronDown className={cn(
+          "h-4 w-4 text-muted-foreground ml-auto shrink-0 transition-transform duration-200",
+          expanded && "rotate-180"
+        )} />
+      </button>
+
+      <LazyAnimatePresence>
+        {expanded && (
+          <LazyMotionDiv
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 p-3 rounded-lg bg-muted/30 border border-border/30 space-y-3">
+              {query && (
+                <p className="text-[13px] font-medium text-foreground">
+                  {query}
+                </p>
+              )}
+
+              {answer && (
+                <div className="space-y-1">
+                  <p className="text-[11px] text-blue-500 font-medium">Web search results</p>
+                  <p className="text-[13px] text-foreground/90 leading-relaxed">
+                    {answer}
+                  </p>
+                </div>
+              )}
+
+              {sources.length > 0 && (
+                <div className="space-y-1.5 pt-1 border-t border-border/30">
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      {sources.length} sources
+                    </span>
+                  </div>
+                  {sources.map((source, idx) => {
+                    let domain = '';
+                    try { domain = new URL(source.url).hostname.replace('www.', ''); } catch {}
+                    return (
+                      <a
+                        key={idx}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-[12px] text-foreground/80 hover:text-blue-500 transition-colors py-0.5"
+                        data-testid={`web-source-${idx}`}
+                      >
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
+                          alt=""
+                          className="w-3.5 h-3.5 rounded-sm shrink-0"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                        <span className="truncate flex-1">{source.title}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{domain}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </LazyMotionDiv>
+        )}
+      </LazyAnimatePresence>
+    </LazyMotionDiv>
+  );
+}
 
 interface BuildValidationProgressProps {
   currentStep: ValidationStep;
@@ -508,6 +605,13 @@ export function ReplitAgentPanelV3({
   const messageQueueRef = useRef<QueueItem[]>([]);
   const isProcessingQueueRef = useRef(false);
   const isPausedRef = useRef(false);
+  const [activeWebSearch, setActiveWebSearch] = useState<{
+    query: string;
+    answer?: string;
+    sources: Array<{ title: string; url: string }>;
+    resultCount: number;
+  } | null>(null);
+  const activeWebSearchRef = useRef<typeof activeWebSearch>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeThinking, setActiveThinking] = useState<ThinkingStep[]>([]);
   const [capabilities, setCapabilities] = useState<AgentCapability[]>([
@@ -1893,8 +1997,10 @@ export function ReplitAgentPanelV3({
     setInput('');
     setPendingAttachments([]);
     setIsWorking(true);
-    setIsPendingResponse(true); // Show skeleton until first chunk
+    setIsPendingResponse(true);
     setStreamingContent('');
+    setActiveWebSearch(null);
+    activeWebSearchRef.current = null;
 
     // Show thinking steps if extended thinking is enabled
     const extendedThinkingEnabled = agentToolsSettings.extendedThinking;
@@ -2111,13 +2217,22 @@ export function ReplitAgentPanelV3({
               const searchStep: ThinkingStep = {
                 id: `search-${Date.now()}`,
                 type: 'analysis',
-                title: `Web Search: ${data.query || 'Searching...'}`,
+                title: `Searched ${data.query || 'the web'}`,
                 content: `Found ${data.resultCount} results${data.answer ? ': ' + data.answer.slice(0, 200) : ''}`,
                 status: 'complete',
                 timestamp: new Date(),
               };
               thinkingSteps.push(searchStep);
               setActiveThinking([...thinkingSteps]);
+
+              const webSearchPayload = {
+                query: data.query || '',
+                answer: data.answer,
+                sources: data.sources || [],
+                resultCount: data.resultCount,
+              };
+              setActiveWebSearch(webSearchPayload);
+              activeWebSearchRef.current = webSearchPayload;
             }
 
             if (currentEventType === 'rag_status' && data.status) {
@@ -2234,6 +2349,7 @@ export function ReplitAgentPanelV3({
                 ...msg, 
                 content: assistantMessage.content, 
                 isStreaming: false,
+                webSearchResults: activeWebSearchRef.current || undefined,
                 metadata: {
                   ...msg.metadata,
                   ...messageMetadata,
@@ -2256,6 +2372,8 @@ export function ReplitAgentPanelV3({
       
       setStreamingContent('');
       setActiveThinking([]);
+      setActiveWebSearch(null);
+      activeWebSearchRef.current = null;
       
       // Call onBuildComplete callback when streaming completes in build mode
       if (agentMode === 'build' && onBuildComplete) {
@@ -2272,6 +2390,8 @@ export function ReplitAgentPanelV3({
         optimisticResult.confirm();
         setStreamingContent('');
         setActiveThinking([]);
+        setActiveWebSearch(null);
+        activeWebSearchRef.current = null;
         return;
       }
       
@@ -2939,6 +3059,16 @@ export function ReplitAgentPanelV3({
                 )}
               </div>
             </LazyMotionDiv>
+          )}
+
+          {/* Inline Web Search Results - Replit-style with expandable sources */}
+          {activeWebSearch && activeWebSearch.sources.length > 0 && (
+            <InlineWebSearchResults
+              query={activeWebSearch.query}
+              answer={activeWebSearch.answer}
+              sources={activeWebSearch.sources}
+              resultCount={activeWebSearch.resultCount}
+            />
           )}
 
           {/* Streaming message with enhanced styling and optimized text animation */}

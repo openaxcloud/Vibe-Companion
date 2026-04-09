@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Loader2,
   Bot,
-  User
+  User,
+  Globe
 } from 'lucide-react';
 import { ThinkingDisplay, ThinkingDisplayCompact, ThinkingStep } from './ThinkingDisplay';
 import { ToolExecutionList } from './ToolExecutionDisplay';
@@ -53,6 +54,79 @@ import {
 } from './InlineBuildProgress';
 import type { Message, AutonomousBuildMode } from '@/stores/agentConversationStore';
 import { CheckpointCard } from './CheckpointCard';
+
+function MessageWebSearchBlock({ query, answer, sources, resultCount }: {
+  query: string;
+  answer?: string;
+  sources: Array<{ title: string; url: string }>;
+  resultCount: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mb-3" data-testid="message-web-search-block">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full text-left py-1.5 px-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors"
+        data-testid="message-web-search-toggle"
+      >
+        <Globe className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+        <span className="text-[12px] font-medium text-foreground/80">
+          Searched {query.length > 50 ? query.slice(0, 50) + '...' : query}
+        </span>
+        <span className="text-[10px] text-muted-foreground ml-1">
+          {sources.length} sources
+        </span>
+        <ChevronDown className={cn(
+          "h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0 transition-transform duration-200",
+          expanded && "rotate-180"
+        )} />
+      </button>
+
+      <LazyAnimatePresence>
+        {expanded && (
+          <LazyMotionDiv
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1.5 px-2 pb-2 space-y-2">
+              {answer && (
+                <p className="text-[12px] text-foreground/80 leading-relaxed">
+                  {answer}
+                </p>
+              )}
+              {sources.map((source, idx) => {
+                let domain = '';
+                try { domain = new URL(source.url).hostname.replace('www.', ''); } catch {}
+                return (
+                  <a
+                    key={idx}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[11px] text-foreground/70 hover:text-blue-500 transition-colors py-0.5"
+                    data-testid={`message-web-source-${idx}`}
+                  >
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
+                      alt=""
+                      className="w-3 h-3 rounded-sm shrink-0"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <span className="truncate flex-1">{source.title}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{domain}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </LazyMotionDiv>
+        )}
+      </LazyAnimatePresence>
+    </div>
+  );
+}
 
 interface EnhancedChatMessageProps {
   message: Message;
@@ -299,6 +373,14 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
           whileHover={{ scale: 1.005 }}
           transition={{ duration: 0.2 }}
         >
+          {!isUser && message.webSearchResults && message.webSearchResults.sources.length > 0 && (
+            <MessageWebSearchBlock
+              query={message.webSearchResults.query}
+              answer={message.webSearchResults.answer}
+              sources={message.webSearchResults.sources}
+              resultCount={message.webSearchResults.resultCount}
+            />
+          )}
           {!isUser && message.content ? (
             <RichMessageContent content={message.content} />
           ) : (

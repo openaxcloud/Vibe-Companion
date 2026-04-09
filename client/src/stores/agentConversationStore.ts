@@ -207,6 +207,12 @@ export interface Message {
     createdAt: string;
     type?: 'auto' | 'manual' | 'milestone';
   };
+  webSearchResults?: {
+    query: string;
+    answer?: string;
+    sources: Array<{ title: string; url: string }>;
+    resultCount: number;
+  };
   metadata?: {
     model?: string;
     provider?: string;
