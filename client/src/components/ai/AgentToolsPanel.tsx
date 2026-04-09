@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  Zap,
+  Bot,
   TestTube2,
   Globe,
   ImageIcon,
@@ -90,7 +90,7 @@ export function AgentToolsPanel({
   const tools = [
     {
       key: 'maxAutonomy' as const,
-      icon: Zap,
+      icon: Bot,
       label: 'Max autonomy',
       shortLabel: 'Autonomy',
       tooltip: 'Agent supervises itself — runs up to 200 min',

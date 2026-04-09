@@ -1268,9 +1268,7 @@ app.get("/api/projects/:id/git/status", (_req: Request, res: Response) => {
   res.json({ branch: "main", clean: true, files: [], ahead: 0, behind: 0 });
 });
 
-app.get("/api/autonomy/sessions", (_req: Request, res: Response) => {
-  res.json({ sessions: [] });
-});
+// Max Autonomy sessions - handled by real router mounted later
 
 app.get("/api/terminal/sessions", (_req: Request, res: Response) => {
   res.json({ sessions: [] });
@@ -1973,15 +1971,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       res.json({ files: [], folders: [] });
     });
 
-    app.get("/api/autonomy/sessions", async (req, res) => {
-      const user = await getSessionUser(req);
-      if (!user) return res.status(401).json({ message: "Not authenticated" });
-      res.json([]);
-    });
-
-    app.post("/api/autonomy/sessions", async (req, res) => {
-      res.json({ id: crypto.randomUUID(), status: "created" });
-    });
+    // Max Autonomy sessions — handled by real router
 
     app.get("/api/integrations/status", (_req, res) => {
       res.json({
@@ -4072,17 +4062,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       } catch (e: any) { res.status(500).json({ error: e.message }); }
     });
 
-    app.get("/api/autonomy/orchestrator/health", (req, res) => {
-      res.json({ status: "healthy", uptime: process.uptime() });
-    });
-
-    app.get("/api/autonomy/sessions/:id", (req, res) => {
-      res.json({ id: req.params.id, status: "idle", tasks: [], messages: [] });
-    });
-
-    app.get("/api/autonomy/sessions/:id/tasks", (req, res) => {
-      res.json({ tasks: [] });
-    });
+    // Max Autonomy routes — handled by real router
 
     // =========================================================
     // PROJECT TASKS — Full CRUD (shared pool, auth + project scoping)
@@ -4306,29 +4286,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       } catch (err: any) { console.error("[catch]", err?.message || err); res.status(500).json({ message: "Failed to send message" }); }
     });
 
-    app.get("/api/autonomy/sessions/:id/progress", (req, res) => {
-      res.json({ progress: 0, status: "idle", currentStep: null });
-    });
-
-    app.get("/api/autonomy/sessions/:id/messages/:msgId", (req, res) => {
-      res.json({ id: req.params.msgId, content: "", role: "system" });
-    });
-
-    app.post("/api/autonomy/sessions/:id/pause", (req, res) => {
-      res.json({ success: true, status: "paused" });
-    });
-
-    app.post("/api/autonomy/sessions/:id/resume", (req, res) => {
-      res.json({ success: true, status: "running" });
-    });
-
-    app.post("/api/autonomy/sessions/:id/stop", (req, res) => {
-      res.json({ success: true, status: "stopped" });
-    });
-
-    app.put("/api/autonomy/sessions/:id/messages/:msgId/priority", (req, res) => {
-      res.json({ success: true });
-    });
+    // Max Autonomy progress/pause/resume/stop — handled by real router
 
     // =========================================================
     // WORKSPACES
@@ -4810,6 +4768,15 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     log("ecode.md API routes registered");
+
+    // Mount Max Autonomy router (real service)
+    try {
+      const maxAutonomyRouter = (await import('./routes/max-autonomy.router')).default;
+      app.use('/api/autonomy', maxAutonomyRouter);
+      log("Max Autonomy router mounted at /api/autonomy");
+    } catch (e: any) {
+      console.warn("[Max Autonomy] Router failed to load:", e.message);
+    }
 
     log("Minimal fallback routes loaded");
 

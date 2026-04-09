@@ -2975,7 +2975,17 @@ export const bountyReviews = pgTable("bounty_reviews", {
 });
 
 export const agentSessions = pgTable("agent_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+  projectId: integer("project_id"),
+  sessionToken: text("session_token"),
+  model: text("model"),
+  isActive: boolean("is_active").default(true),
+  autonomousMode: boolean("autonomous_mode").default(false),
+  riskThreshold: text("risk_threshold").default("medium"),
+  autoApproveActions: boolean("auto_approve_actions").default(false),
+  workflowStatus: text("workflow_status").default("idle"),
+  context: json("context"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -3180,8 +3190,48 @@ export const toolExecutions = pgTable("tool_executions", { id: varchar("id").pri
 export const agentWorkflows = pgTable("agent_workflows", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), name: text("name"), steps: json("steps"), status: text("status").default("pending"), createdAt: timestamp("created_at").defaultNow() });
 export const collaborationMessages = pgTable("collaboration_messages", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), sessionId: varchar("session_id"), userId: varchar("user_id"), content: text("content"), createdAt: timestamp("created_at").defaultNow() });
 export const projectExtensions = pgTable("project_extensions", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), extensionId: text("extension_id"), enabled: boolean("enabled").default(true), config: json("config") });
-export const maxAutonomySessions = pgTable("max_autonomy_sessions", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), userId: varchar("user_id"), status: text("status").default("active"), startedAt: timestamp("started_at").defaultNow(), endedAt: timestamp("ended_at") });
-export const autonomyMessageQueue = pgTable("autonomy_message_queue", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), sessionId: varchar("session_id"), role: text("role"), content: text("content"), createdAt: timestamp("created_at").defaultNow() });
+export const maxAutonomySessions = pgTable("max_autonomy_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: integer("project_id"),
+  userId: integer("user_id"),
+  agentSessionId: integer("agent_session_id"),
+  goal: text("goal"),
+  status: text("status").default("pending"),
+  maxDurationMinutes: integer("max_duration_minutes").default(240),
+  executionIntervalMs: integer("execution_interval_ms").default(2000),
+  autoCheckpoint: boolean("auto_checkpoint").default(true),
+  autoTest: boolean("auto_test").default(true),
+  autoRollback: boolean("auto_rollback").default(true),
+  riskThreshold: text("risk_threshold").default("medium"),
+  tasksTotal: integer("tasks_total").default(0),
+  tasksCompleted: integer("tasks_completed").default(0),
+  tasksFailed: integer("tasks_failed").default(0),
+  tasksSkipped: integer("tasks_skipped").default(0),
+  currentTaskId: varchar("current_task_id"),
+  checkpointsCreated: integer("checkpoints_created").default(0),
+  lastCheckpointId: integer("last_checkpoint_id"),
+  rollbacksPerformed: integer("rollbacks_performed").default(0),
+  testsRun: integer("tests_run").default(0),
+  testsPassed: integer("tests_passed").default(0),
+  totalTokensUsed: integer("total_tokens_used").default(0),
+  totalCostUsd: text("total_cost_usd").default("0"),
+  metadata: json("metadata"),
+  startedAt: timestamp("started_at"),
+  pausedAt: timestamp("paused_at"),
+  resumedAt: timestamp("resumed_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const autonomyMessageQueue = pgTable("autonomy_message_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id"),
+  userId: integer("user_id"),
+  content: text("content"),
+  priority: integer("priority").default(0),
+  status: text("status").default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 export const mobileBuilds = pgTable("mobile_builds", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), platform: text("platform"), status: text("status").default("pending"), buildUrl: text("build_url"), createdAt: timestamp("created_at").defaultNow() });
 export const networkingPorts = pgTable("networking_ports", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), port: integer("port"), protocol: text("protocol"), label: text("label") });
 export const networkingDomains = pgTable("networking_domains", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), domain: text("domain"), target: text("target"), verified: boolean("verified").default(false) });
@@ -3238,7 +3288,36 @@ export const communityComments = pgTable("community_comments", { id: varchar("id
 export const communityFollows = pgTable("community_follows", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), followerId: varchar("follower_id"), followeeId: varchar("followee_id") });
 export const communityPostBookmarks = pgTable("community_post_bookmarks", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), postId: varchar("post_id"), userId: varchar("user_id") });
 export const communityPostLikes = pgTable("community_post_likes", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), postId: varchar("post_id"), userId: varchar("user_id") });
-export const maxAutonomyTasks = pgTable("max_autonomy_tasks", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), sessionId: varchar("session_id"), title: text("title"), status: text("status").default("pending"), result: json("result"), createdAt: timestamp("created_at").defaultNow() });
+export const maxAutonomyTasks = pgTable("max_autonomy_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id"),
+  title: text("title"),
+  description: text("description"),
+  type: text("type").default("code"),
+  priority: text("priority").default("medium"),
+  status: text("status").default("pending"),
+  order: integer("task_order").default(0),
+  dependencies: json("dependencies").default([]),
+  input: json("input"),
+  output: text("output"),
+  result: json("result"),
+  metadata: json("metadata"),
+  requiresCheckpoint: boolean("requires_checkpoint").default(false),
+  requiresTest: boolean("requires_test").default(false),
+  checkpointId: integer("checkpoint_id"),
+  estimatedDurationMs: integer("estimated_duration_ms"),
+  actualDurationMs: integer("actual_duration_ms"),
+  complexityScore: integer("complexity_score"),
+  confidenceScore: integer("confidence_score"),
+  estimatedTokens: integer("estimated_tokens"),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
+  errorMessage: text("error_message"),
+  errorStack: text("error_stack"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 export const projectWorkflows = pgTable("project_workflows", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), projectId: varchar("project_id"), name: text("name"), command: text("command"), status: text("status").default("stopped"), createdAt: timestamp("created_at").defaultNow() });
 export const templateCategories = pgTable("template_categories", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), name: text("name"), slug: text("slug"), description: text("description") });
 export const templateCollections = pgTable("template_collections", { id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), name: text("name"), description: text("description"), userId: varchar("user_id"), createdAt: timestamp("created_at").defaultNow() });
@@ -3279,7 +3358,7 @@ export type MaxAutonomyTask = typeof maxAutonomyTasks.$inferSelect;
 export type ProjectDatabase = typeof projectDatabases.$inferSelect;
 export type ProjectDatabaseBackup = typeof projectDatabaseBackups.$inferSelect;
 export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
-export type RiskThreshold = { level: string; threshold: number };
+export type RiskThreshold = 'low' | 'medium' | 'high' | 'critical';
 export type TemplateCategory = typeof templateCategories.$inferSelect;
 export type TemplateFork = typeof templateForks.$inferSelect;
 export type TemplateRating = typeof templateRatings.$inferSelect;
