@@ -8,8 +8,8 @@ import remarkGfm from 'remark-gfm';
 import { LightSyntaxHighlighter, darkStyle } from '@/components/ui/LightSyntaxHighlighter';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+import { Copy, Check, Download } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import { toast } from '@/hooks/use-toast';
 
 interface RichMessageContentProps {
@@ -26,6 +26,28 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
     toast({ description: "Code copied to clipboard" });
     setTimeout(() => setCopiedCode(null), 2000);
   };
+
+  const downloadFile = useCallback((code: string, filename: string) => {
+    const mimeMap: Record<string, string> = {
+      csv: 'text/csv', json: 'application/json', html: 'text/html',
+      css: 'text/css', js: 'application/javascript', ts: 'application/typescript',
+      py: 'text/x-python', md: 'text/markdown', txt: 'text/plain',
+      svg: 'image/svg+xml', xml: 'application/xml', yaml: 'text/yaml', yml: 'text/yaml',
+      sql: 'application/sql', sh: 'text/x-shellscript',
+    };
+    const ext = filename.split('.').pop()?.toLowerCase() || 'txt';
+    const mime = mimeMap[ext] || 'text/plain';
+    const blob = new Blob([code], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ description: `Downloaded ${filename}` });
+  }, []);
 
   const cleanedContent = content
     .replace(/<!--\s*filename:\s*([^\s]+)\s*-->/g, '**`$1`**')
@@ -139,19 +161,33 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
                       </span>
                     )}
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => copyCode(codeString)}
-                    className="h-10 w-10 md:h-8 md:w-8 min-h-[44px] min-w-[44px] md:min-h-[32px] md:min-w-[32px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity touch-manipulation text-gray-400 hover:text-white"
-                    data-testid="copy-code-button"
-                  >
-                    {isCopied ? (
-                      <Check className="h-4 w-4 md:h-3 md:w-3 text-green-500" />
-                    ) : (
-                      <Copy className="h-4 w-4 md:h-3 md:w-3" />
+                  <div className="flex items-center gap-1">
+                    {displayFilename && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => downloadFile(codeString, displayFilename)}
+                        className="h-10 w-10 md:h-8 md:w-8 min-h-[44px] min-w-[44px] md:min-h-[32px] md:min-w-[32px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity touch-manipulation text-gray-400 hover:text-white"
+                        title={`Download ${displayFilename}`}
+                        data-testid="download-file-button"
+                      >
+                        <Download className="h-4 w-4 md:h-3 md:w-3" />
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => copyCode(codeString)}
+                      className="h-10 w-10 md:h-8 md:w-8 min-h-[44px] min-w-[44px] md:min-h-[32px] md:min-w-[32px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity touch-manipulation text-gray-400 hover:text-white"
+                      data-testid="copy-code-button"
+                    >
+                      {isCopied ? (
+                        <Check className="h-4 w-4 md:h-3 md:w-3 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4 md:h-3 md:w-3" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div className="border border-t-0 border-[#2a3040] rounded-b-lg overflow-hidden max-w-full">
                   <div className="overflow-x-auto max-w-full">

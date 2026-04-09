@@ -54,6 +54,17 @@ import { getProjectUrl } from '@/lib/utils';
 import { AIModelSelector } from '@/components/ai/AIModelSelector';
 import { SEOHead, structuredData } from '@/components/seo/SEOHead';
 
+type ProjectTypeOption = 'general' | 'web-app' | 'mobile' | 'game' | 'cli' | 'data';
+
+const projectTypeOptions: { value: ProjectTypeOption; label: string; description: string }[] = [
+  { value: 'general', label: 'General', description: 'Any output type — chat, files, apps' },
+  { value: 'web-app', label: 'Web App', description: 'Full-stack web application' },
+  { value: 'mobile', label: 'Mobile', description: 'React Native or Flutter app' },
+  { value: 'game', label: 'Game', description: '2D/3D game with Godot or Phaser' },
+  { value: 'cli', label: 'CLI Tool', description: 'Command-line interface tool' },
+  { value: 'data', label: 'Data & Scripts', description: 'Data processing, analysis, scripts' },
+];
+
 export default function Home() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isBuildModeOpen, setIsBuildModeOpen] = useState(false);
@@ -62,6 +73,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("recent");
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [selectedProjectType, setSelectedProjectType] = useState<ProjectTypeOption>('general');
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -262,14 +274,36 @@ export default function Home() {
             <p className="text-xl mb-6 text-orange-50" data-testid="text-home-hero-subtitle">The collaborative, in-browser IDE that makes coding accessible</p>
             
             {/* AI Model Selection */}
-            <div className="mb-6">
+            <div className="mb-4">
               <AIModelSelector variant="hero" />
+            </div>
+
+            {/* Project Type Selector — Replit-style "General" pre-selection */}
+            <div className="flex flex-wrap gap-2 mb-4" data-testid="project-type-selector">
+              {projectTypeOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSelectedProjectType(opt.value)}
+                  className={`px-3 py-1.5 rounded-full text-[13px] font-medium transition-all ${
+                    selectedProjectType === opt.value
+                      ? 'bg-white text-orange-600 shadow-md'
+                      : 'bg-white/15 text-white/90 hover:bg-white/25'
+                  }`}
+                  title={opt.description}
+                  data-testid={`button-project-type-${opt.value}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
 
             <div className="bg-white/10 backdrop-blur-sm p-2 rounded-lg border border-white/20 shadow-xl">
               <div className="flex items-center gap-2 bg-background rounded-md p-1">
                 <Input 
-                  placeholder="Décrivez votre idée d'application en langage naturel..."
+                  placeholder={selectedProjectType === 'general' 
+                    ? "Start chatting — create a CSV, build an app, research a topic..."
+                    : `Describe your ${projectTypeOptions.find(o => o.value === selectedProjectType)?.label} project...`
+                  }
                   className="border-0 shadow-none focus-visible:ring-0 bg-transparent text-foreground"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

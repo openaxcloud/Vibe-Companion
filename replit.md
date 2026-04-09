@@ -66,6 +66,15 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
 - **Behavior**: Saves files to `projects/<projectId>/` directory. Supports both text content and base64-encoded binary files.
 - **Client**: `handleSend` appends file content/base64 context to the user message and sends attachment metadata alongside the streaming request.
 
+### General Agent (Replit Parity)
+- **No pre-selection**: Project type selector on home page with "General" as default — users can start chatting without committing to an artifact type
+- **Any output**: Agent generates CSV, JSON, HTML, PDF, SQL, scripts; all code blocks with filenames have a download button
+- **Connectors**: IntegrationsPanel with OAuth/API key/managed types; agent system prompt dynamically enriched with connected services per project
+- **Progressive disclosure**: System prompt supports conversational research → seamless transition to code generation when user intent is detected
+- **Knowledge work**: Agent handles research, summarization, analysis without building an app
+- **File download**: Inline download button (Download icon) on every code block with a filename in `RichMessageContent`
+- **Project type options**: General, Web App, Mobile, Game, CLI Tool, Data & Scripts
+
 ### Key Components Created
 - **ReplitLayout**: Main layout system matching Replit's exact structure
 - **ReplitHeader**: Navigation header with search, menus, user profile
