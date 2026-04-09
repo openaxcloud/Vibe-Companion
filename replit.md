@@ -42,9 +42,29 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
 ### Task System (Replit-style)
 - **Database**: `project_tasks` table with task numbering, status (draft/active/ready/done), plan content, priority, complexity, files modified tracking, review status
 - **API Router**: `server/routes/project-tasks.router.ts` mounted at `/api/projects/:projectId/tasks` with project ownership verification middleware
+- **Bulk Create**: `POST /api/projects/:projectId/tasks/bulk` — accepts array of tasks, auto-increments task numbers
 - **Frontend**: `TaskSummariesPanel` (`client/src/components/TaskSummariesPanel.tsx`) — unified task management with list view, Kanban board view, and inline task detail view
 - **Access**: Activity bar "Tasks" icon (ClipboardList) → opens TaskSummariesPanel; also `TaskBoardPanel` and `TaskDetailPanel` in `client/src/components/ide/`
 - **Features**: Create/edit/delete tasks, status transitions (draft→active→ready→done), priority/complexity badges, file change tracking, review approval flow ("Apply changes to main version"), progress bar, search/filter
+
+### Agent Modes (Replit-style)
+- **Plan Mode**: Agent brainstorms/plans without making code changes. System prompt focuses on architecture, task breakdown, and design. Emits `mode` SSE event. Extracted tasks render as `PlanModeTaskProposal` with "Start Building" / "Keep Chatting" actions. Accepting tasks creates them via bulk API and switches to Build mode.
+- **Build Mode**: Default mode. Agent generates code, creates files, shows live preview. Full tool execution.
+- **Edit Mode**: Targeted, surgical changes to specific files.
+- **Fast Mode**: Quick, precise changes in seconds with minimal explanation.
+- **Mode Selector**: UI component in agent input bar. `agentMode` passed to `/api/agent/chat/stream` endpoint which selects the corresponding system prompt.
+
+### Checkpoints (Git-backed)
+- **List**: `GET /api/projects/:id/checkpoints` — returns last 20 git commits with hash, author, date, message
+- **Create**: `POST /api/projects/:id/checkpoints` — creates a git commit for the project directory
+- **Restore**: `POST /api/projects/:id/checkpoints/:checkpointId/restore` — `git checkout <hash> -- .`
+- **Auto-restore**: `POST /api/auto-checkpoints/:id/restore` — same restore mechanism
+- **UI**: `CheckpointDivider` component after each assistant message in chat, `CheckpointCard` for restore actions
+
+### Agent Attachments
+- **Endpoint**: `POST /api/agent/attachments` — accepts `{ projectId, files: [{ name, content?, base64?, type?, size? }] }`
+- **Behavior**: Saves files to `projects/<projectId>/` directory. Supports both text content and base64-encoded binary files.
+- **Client**: `handleSend` appends file content/base64 context to the user message and sends attachment metadata alongside the streaming request.
 
 ### Key Components Created
 - **ReplitLayout**: Main layout system matching Replit's exact structure

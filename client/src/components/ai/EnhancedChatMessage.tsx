@@ -27,6 +27,7 @@ import {
   type Action
 } from '@/components/agent/messages';
 import { extractAndFormatTasks, containsPlanOrTasks } from '@/lib/task-extractor';
+import { PlanModeTaskProposal } from './PlanModeTaskProposal';
 import {
   InlineWorkingIndicator,
   InlineSearchIndicator,
@@ -56,12 +57,15 @@ import { CheckpointCard } from './CheckpointCard';
 interface EnhancedChatMessageProps {
   message: Message;
   isCompactMode?: boolean;
+  agentMode?: string;
+  projectId?: string | number;
   onCopy?: (content: string) => void;
   onRetry?: () => void;
   onApproveAction?: (action: Action) => void;
   onRejectAction?: (action: Action) => void;
   onSelectBuildMode?: (mode: AutonomousBuildMode) => void;
   onChangePlan?: () => void;
+  onSwitchToBuildMode?: () => void;
   onFileClick?: (filePath: string) => void;
   onRefreshPreview?: () => void;
   onOpenPreviewExternal?: () => void;
@@ -100,12 +104,15 @@ const messageVariants = {
 export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, EnhancedChatMessageProps>(function EnhancedChatMessage({
   message,
   isCompactMode = false,
+  agentMode,
+  projectId,
   onCopy,
   onRetry,
   onApproveAction,
   onRejectAction,
   onSelectBuildMode,
   onChangePlan,
+  onSwitchToBuildMode,
   onFileClick,
   onRefreshPreview,
   onOpenPreviewExternal,
@@ -371,7 +378,20 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
             className="w-full mt-2"
             data-testid={`enhanced-tasks-${message.id}`}
           >
-            <TaskMessage tasks={displayTasks} />
+            {agentMode === 'plan' && projectId ? (
+              <PlanModeTaskProposal
+                projectId={String(projectId)}
+                tasks={displayTasks.map(t => ({
+                  title: t.title,
+                  description: t.description,
+                }))}
+                onStartBuilding={onSwitchToBuildMode}
+                onKeepChatting={() => {}}
+                onRevise={onChangePlan}
+              />
+            ) : (
+              <TaskMessage tasks={displayTasks} />
+            )}
           </LazyMotionDiv>
         )}
 

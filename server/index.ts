@@ -526,11 +526,17 @@ app.post("/api/agent/chat/stream", async (req: Request, res: Response) => {
     conversationId,
     provider: requestedProvider = "anthropic",
     modelId,
+    agentMode = "build",
     context = [],
     capabilities = {},
+    attachments = [],
   } = req.body;
 
-  const systemPrompt = `You are E-Code AI, a world-class software engineer and coding assistant integrated into the E-Code IDE.
+  const isPlanMode = agentMode === "plan";
+  const isEditMode = agentMode === "edit";
+  const isFastMode = agentMode === "fast";
+
+  const buildSystemPrompt = `You are E-Code AI, a world-class software engineer and coding assistant integrated into the E-Code IDE.
 You help users build full-stack applications by writing high-quality, production-ready code.
 
 CRITICAL RULES FOR CODE GENERATION:
@@ -548,6 +554,42 @@ CRITICAL RULES FOR CODE GENERATION:
 When the user asks you to "build" or "create" something, generate ALL the necessary files as code blocks.
 The system will automatically save these files and show a live preview to the user.
 Be concise in explanations but thorough in code. Focus on working, visually polished, runnable code.`;
+
+  const planSystemPrompt = `You are E-Code AI in PLAN MODE. You are a senior software architect helping the user brainstorm, plan, and design their application.
+
+IMPORTANT: You are in PLAN MODE. Do NOT generate any code or make any file changes. Focus entirely on:
+1. Understanding the user's goals and requirements
+2. Breaking down complex requests into clear, actionable tasks
+3. Suggesting architecture, libraries, and approaches
+4. Identifying potential challenges and trade-offs
+5. Creating a structured plan with numbered tasks
+
+When proposing a plan, format your tasks clearly:
+- Use numbered lists for sequential tasks
+- Include estimated complexity (low/medium/high) for each task
+- Group related tasks together
+- Identify dependencies between tasks
+- Suggest which tasks can be done in parallel
+
+End your response with a structured task list that the user can review and approve before building.
+Be collaborative, ask clarifying questions when needed, and help the user think through their project before writing any code.`;
+
+  const editSystemPrompt = `You are E-Code AI in EDIT MODE. Make targeted, precise changes to specific files.
+Focus on the exact changes requested. Be surgical — modify only what's needed, preserve everything else.
+Always show the full file content after edits so the system can save the updated version.`;
+
+  const fastSystemPrompt = `You are E-Code AI in FAST MODE. Make quick, precise changes in 10-60 seconds.
+Be extremely concise. No explanations unless asked. Just the code changes needed.
+Always include filename comments in code blocks so files are saved correctly.`;
+
+  const systemPrompt = isPlanMode ? planSystemPrompt
+    : isEditMode ? editSystemPrompt
+    : isFastMode ? fastSystemPrompt
+    : buildSystemPrompt;
+
+  if (isPlanMode) {
+    res.write(`event: mode\ndata: ${JSON.stringify({ mode: "plan", message: "Agent will brainstorm without making changes" })}\n\n`);
+  }
 
   const chatMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
   if (context && context.length > 0) {
@@ -646,25 +688,27 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
         id: Date.now(), conversationId: Number(conversationId) || 0,
         role: "assistant", content: fullContent, timestamp: new Date().toISOString(),
       });
-      res.write(`event: action_start\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", label: "Extracting code from response" })}\n\n`);
-      const savedFiles = await extractAndSaveCodeBlocks(fullContent, projectId, storage);
-      if (savedFiles.length > 0) {
-        for (const f of savedFiles) {
-          res.write(`event: tool_result\ndata: ${JSON.stringify({
-            tool: "write_file", status: "success",
-            result: { filename: f.filename, language: f.language, action: "created" },
-          })}\n\n`);
-          res.write(`event: file_diff\ndata: ${JSON.stringify({
-            path: f.filename, language: f.language, isNewFile: true,
-            linesAdded: (f.content || "").split("\\n").length, linesRemoved: 0,
+      if (!isPlanMode) {
+        res.write(`event: action_start\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", label: "Extracting code from response" })}\n\n`);
+        const savedFiles = await extractAndSaveCodeBlocks(fullContent, projectId, storage);
+        if (savedFiles.length > 0) {
+          for (const f of savedFiles) {
+            res.write(`event: tool_result\ndata: ${JSON.stringify({
+              tool: "write_file", status: "success",
+              result: { filename: f.filename, language: f.language, action: "created" },
+            })}\n\n`);
+            res.write(`event: file_diff\ndata: ${JSON.stringify({
+              path: f.filename, language: f.language, isNewFile: true,
+              linesAdded: (f.content || "").split("\\n").length, linesRemoved: 0,
+            })}\n\n`);
+          }
+          res.write(`event: preview_ready\ndata: ${JSON.stringify({
+            url: `/api/preview/${projectId}/`,
+            files: savedFiles.map(f => f.filename),
           })}\n\n`);
         }
-        res.write(`event: preview_ready\ndata: ${JSON.stringify({
-          url: `/api/preview/${projectId}/`,
-          files: savedFiles.map(f => f.filename),
-        })}\n\n`);
+        res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
       }
-      res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
       res.write(`event: done\ndata: ${JSON.stringify({
         conversationId: conversationId || Date.now(),
         projectId,
@@ -752,25 +796,27 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
         id: Date.now(), conversationId: Number(conversationId) || 0,
         role: "assistant", content: fullContent, timestamp: new Date().toISOString(),
       });
-      res.write(`event: action_start\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", label: "Extracting code from response" })}\n\n`);
-      const savedFiles = await extractAndSaveCodeBlocks(fullContent, projectId, storage);
-      if (savedFiles.length > 0) {
-        for (const f of savedFiles) {
-          res.write(`event: tool_result\ndata: ${JSON.stringify({
-            tool: "write_file", status: "success",
-            result: { filename: f.filename, language: f.language, action: "created" },
-          })}\n\n`);
-          res.write(`event: file_diff\ndata: ${JSON.stringify({
-            path: f.filename, language: f.language, isNewFile: true,
-            linesAdded: (f.content || "").split("\\n").length, linesRemoved: 0,
+      if (!isPlanMode) {
+        res.write(`event: action_start\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", label: "Extracting code from response" })}\n\n`);
+        const savedFiles = await extractAndSaveCodeBlocks(fullContent, projectId, storage);
+        if (savedFiles.length > 0) {
+          for (const f of savedFiles) {
+            res.write(`event: tool_result\ndata: ${JSON.stringify({
+              tool: "write_file", status: "success",
+              result: { filename: f.filename, language: f.language, action: "created" },
+            })}\n\n`);
+            res.write(`event: file_diff\ndata: ${JSON.stringify({
+              path: f.filename, language: f.language, isNewFile: true,
+              linesAdded: (f.content || "").split("\\n").length, linesRemoved: 0,
+            })}\n\n`);
+          }
+          res.write(`event: preview_ready\ndata: ${JSON.stringify({
+            url: `/api/preview/${projectId}/`,
+            files: savedFiles.map(f => f.filename),
           })}\n\n`);
         }
-        res.write(`event: preview_ready\ndata: ${JSON.stringify({
-          url: `/api/preview/${projectId}/`,
-          files: savedFiles.map(f => f.filename),
-        })}\n\n`);
+        res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
       }
-      res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
       res.write(`event: done\ndata: ${JSON.stringify({
         conversationId: conversationId || Date.now(), projectId,
         totalTokens: tokensInput + tokensOutput, tokensInput, tokensOutput,
@@ -3476,6 +3522,26 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       } catch (e: any) { res.status(500).json({ error: e.message }); }
     });
 
+    app.post("/api/projects/:id/checkpoints", (req, res) => {
+      if (!req.session?.userId) return res.status(401).json({ error: "Authentication required" });
+      try {
+        const projectId = req.params.id.replace(/[^a-zA-Z0-9_-]/g, '');
+        const { message } = req.body;
+        const projDir = path.join(process.cwd(), "projects", projectId);
+        if (fs.existsSync(projDir)) {
+          git(`add "${projDir}"`);
+        } else {
+          git("add -A");
+        }
+        const commitMsg = String(message || `Auto-checkpoint for project ${projectId}`).slice(0, 200).replace(/[`$"\\]/g, '');
+        const { execFileSync } = require("child_process");
+        execFileSync("git", ["commit", "--allow-empty", "-m", commitMsg], { encoding: "utf-8", cwd: process.cwd() });
+        const hash = git("rev-parse HEAD").trim();
+        const short = git("rev-parse --short HEAD").trim();
+        res.json({ success: true, checkpoint: { id: hash, shortId: short, message: commitMsg, date: new Date().toISOString(), type: "auto" } });
+      } catch (e: any) { res.status(500).json({ error: e.message }); }
+    });
+
     app.get("/api/projects/:id/files-with-history", async (req, res) => {
       try {
         const files = await storage.getFilesByProjectId(req.params.id);
@@ -3505,8 +3571,49 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     // =========================================================
     // AGENT EXTRAS
     // =========================================================
-    app.post("/api/agent/attachments", (req, res) => {
-      res.json({ success: true, attachments: [] });
+    app.post("/api/agent/attachments", async (req, res) => {
+      if (!req.session?.userId) return res.status(401).json({ error: "Authentication required" });
+      try {
+        const { projectId, files } = req.body;
+        if (!files || !Array.isArray(files) || files.length === 0) {
+          return res.json({ success: true, attachments: [] });
+        }
+        const safeProjectId = String(projectId || "default").replace(/[^a-zA-Z0-9_-]/g, '');
+        const projDir = path.join(process.cwd(), "projects", safeProjectId);
+        const canonicalBase = path.resolve(process.cwd(), "projects");
+        if (!path.resolve(projDir).startsWith(canonicalBase)) {
+          return res.status(400).json({ error: "Invalid project ID" });
+        }
+        if (!fs.existsSync(projDir)) {
+          fs.mkdirSync(projDir, { recursive: true });
+        }
+        const attachments = files.slice(0, 20).map((file: { name: string; content?: string; base64?: string; type?: string; size?: number }) => {
+          const id = crypto.randomUUID();
+          const safeName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+          const filePath = path.join(projDir, safeName);
+          if (!path.resolve(filePath).startsWith(path.resolve(projDir))) {
+            return null;
+          }
+          if (file.content && typeof file.content === 'string') {
+            fs.writeFileSync(filePath, file.content.slice(0, 5 * 1024 * 1024), 'utf-8');
+          } else if (file.base64 && typeof file.base64 === 'string') {
+            const buffer = Buffer.from(file.base64.slice(0, 10 * 1024 * 1024), 'base64');
+            fs.writeFileSync(filePath, buffer);
+          }
+          return {
+            id,
+            name: safeName,
+            originalName: file.name,
+            type: file.type || 'text/plain',
+            size: file.size || 0,
+            path: `projects/${safeProjectId}/${safeName}`,
+          };
+        }).filter(Boolean);
+        res.json({ success: true, attachments });
+      } catch (err: any) {
+        console.error("[agent/attachments]", err?.message || err);
+        res.status(500).json({ success: false, error: err?.message || "Upload failed" });
+      }
     });
 
     app.post("/api/agent/tools/testing/start", (req, res) => {

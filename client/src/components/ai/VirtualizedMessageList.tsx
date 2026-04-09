@@ -12,12 +12,15 @@ interface VirtualizedMessageListProps {
   isCompactMode?: boolean;
   isPendingResponse?: boolean;
   streamingContent?: string;
+  agentMode?: string;
+  projectId?: string | number;
   onCopy?: (content: string) => void;
   onRetry?: () => void;
   onApproveAction?: (action: Action) => void;
   onRejectAction?: (action: Action) => void;
   onSelectBuildMode?: (mode: AutonomousBuildMode) => void;
   onChangePlan?: () => void;
+  onSwitchToBuildMode?: () => void;
   onFileClick?: (filePath: string) => void;
   onRefreshPreview?: () => void;
   onOpenPreviewExternal?: () => void;
@@ -36,12 +39,15 @@ export const VirtualizedMessageList = memo(forwardRef<HTMLDivElement, Virtualize
     isCompactMode = false,
     isPendingResponse = false,
     streamingContent = '',
+    agentMode,
+    projectId,
     onCopy,
     onRetry,
     onApproveAction,
     onRejectAction,
     onSelectBuildMode,
     onChangePlan,
+    onSwitchToBuildMode,
     onFileClick,
     onRefreshPreview,
     onOpenPreviewExternal,
@@ -174,12 +180,15 @@ export const VirtualizedMessageList = memo(forwardRef<HTMLDivElement, Virtualize
                     <EnhancedChatMessage
                       message={message}
                       isCompactMode={isCompactMode}
+                      agentMode={agentMode}
+                      projectId={projectId}
                       onCopy={onCopy}
                       onRetry={onRetry}
                       onApproveAction={onApproveAction}
                       onRejectAction={onRejectAction}
                       onSelectBuildMode={onSelectBuildMode}
                       onChangePlan={onChangePlan}
+                      onSwitchToBuildMode={onSwitchToBuildMode}
                       onFileClick={onFileClick}
                       onRefreshPreview={onRefreshPreview}
                       onOpenPreviewExternal={onOpenPreviewExternal}

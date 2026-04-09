@@ -1914,6 +1914,7 @@ export function ReplitAgentPanelV3({
           conversationId: chatConversationId,
           provider: selectedProvider,
           modelId: modelId || undefined,
+          agentMode: agentMode,
           fastMode: fastMode,
           context: messages.slice(-20).map(m => ({
             role: m.role,
@@ -1927,6 +1928,11 @@ export function ReplitAgentPanelV3({
             maxAutonomy: agentToolsSettings.maxAutonomy,
             appTesting: agentToolsSettings.appTesting,
           },
+          attachments: currentAttachments.map(att => ({
+            name: att.name,
+            type: att.type,
+            size: att.size,
+          })),
           images: imageAttachments.length > 0 ? imageAttachments : undefined
         })
       });
@@ -2740,7 +2746,10 @@ export function ReplitAgentPanelV3({
                   key={message.id}
                   message={message}
                   isCompactMode={isCompactMode}
+                  agentMode={agentMode}
+                  projectId={projectId}
                   onCopy={handleCopyMessage}
+                  onSwitchToBuildMode={() => setAgentMode('build')}
                 />
               ))}
             </div>
@@ -2761,11 +2770,14 @@ export function ReplitAgentPanelV3({
               isCompactMode={isCompactMode}
               isPendingResponse={isPendingResponse}
               streamingContent={streamingContent}
+              agentMode={agentMode}
+              projectId={projectId}
               onCopy={handleCopyMessage}
               onApproveAction={handleApproveAction}
               onRejectAction={handleRejectAction}
               onSelectBuildMode={sendBuildModeSelection}
               onChangePlan={requestPlanChange}
+              onSwitchToBuildMode={() => setAgentMode('build')}
               onRestoreCheckpoint={handleRestoreCheckpoint}
               isRestoringCheckpoint={isRestoringCheckpoint}
               className="min-h-[200px]"
@@ -2778,11 +2790,14 @@ export function ReplitAgentPanelV3({
                   <EnhancedChatMessage
                     message={message}
                     isCompactMode={isCompactMode}
+                    agentMode={agentMode}
+                    projectId={projectId}
                     onCopy={handleCopyMessage}
                     onApproveAction={handleApproveAction}
                     onRejectAction={handleRejectAction}
                     onSelectBuildMode={sendBuildModeSelection}
                     onChangePlan={requestPlanChange}
+                    onSwitchToBuildMode={() => setAgentMode('build')}
                     onRestoreCheckpoint={handleRestoreCheckpoint}
                     isRestoringCheckpoint={isRestoringCheckpoint}
                   />
