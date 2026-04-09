@@ -655,6 +655,21 @@ app.post("/api/agent/chat/stream", async (req: Request, res: Response) => {
     } catch (e) {}
   }
 
+  let ecodeContext = "";
+  try {
+    const ecodeTemplates = await import("./ecodeTemplates");
+    let ecodeMdContent = await ecodeTemplates.readEcodeMd(process.cwd());
+    if (!ecodeMdContent) {
+      console.log("[AI Stream] ecode.md not found — auto-generating");
+      ecodeMdContent = await ecodeTemplates.autoGenerateEcodeMd(process.cwd());
+    }
+    if (ecodeMdContent) {
+      ecodeContext = `\n\n<ecode_md>\nThe following is the project's ecode.md file — it contains project-specific context, architecture decisions, conventions, and preferences set by the user or auto-generated. Always follow these guidelines:\n\n${ecodeMdContent}\n</ecode_md>\n\nIMPORTANT RULES FOR ecode.md:\n- You MUST read and follow the conventions described in ecode.md\n- When you make significant architectural changes (add dependencies, change structure, add features), update ecode.md to reflect the changes\n- If the user edits ecode.md directly, respect their customizations in all future responses\n- Keep ecode.md concise and focused — it's injected into every conversation\n`;
+    }
+  } catch (e) {
+    console.warn("[AI Stream] Could not load ecode.md:", e);
+  }
+
   const buildSystemPrompt = `You are E-Code AI (General Agent), a world-class software engineer and coding assistant integrated into the E-Code IDE.
 You help users with ANY task — research, file generation, data analysis, or building full-stack applications.
 
@@ -664,7 +679,7 @@ CAPABILITIES:
 - Full-stack apps: Build complete web applications with frontend, backend, and database
 - Any framework: React, Vue, Angular, Svelte, Python, Rust, Go, and more
 - Connected services: Read and write data through the user's connected integrations
-${connectorContext}
+${connectorContext}${ecodeContext}
 CRITICAL RULES FOR CODE GENERATION:
 1. When building an app, ALWAYS generate a complete, working index.html file as the main entry point.
 2. Put each file in a separate code block with the correct language tag (html, css, javascript, etc.)
@@ -719,15 +734,18 @@ When proposing a plan, format your tasks clearly:
 - Suggest which tasks can be done in parallel
 
 End your response with a structured task list that the user can review and approve before building.
-Be collaborative, ask clarifying questions when needed, and help the user think through their project before writing any code.`;
+Be collaborative, ask clarifying questions when needed, and help the user think through their project before writing any code.
+${ecodeContext}`;
 
   const editSystemPrompt = `You are E-Code AI in EDIT MODE. Make targeted, precise changes to specific files.
 Focus on the exact changes requested. Be surgical — modify only what's needed, preserve everything else.
-Always show the full file content after edits so the system can save the updated version.`;
+Always show the full file content after edits so the system can save the updated version.
+${ecodeContext}`;
 
   const fastSystemPrompt = `You are E-Code AI in FAST MODE. Make quick, precise changes in 10-60 seconds.
 Be extremely concise. No explanations unless asked. Just the code changes needed.
-Always include filename comments in code blocks so files are saved correctly.`;
+Always include filename comments in code blocks so files are saved correctly.
+${ecodeContext}`;
 
   const systemPrompt = isPlanMode ? planSystemPrompt
     : isEditMode ? editSystemPrompt
@@ -4497,6 +4515,49 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     } catch (e: any) {
       log(`Image integration routes failed to load: ${e.message}`, "warn");
     }
+
+    app.get("/api/ecode-md", async (req: Request, res: Response) => {
+      if (!req.session?.userId) return res.status(401).json({ error: "Authentication required" });
+      try {
+        const { readEcodeMd } = await import("./ecodeTemplates");
+        const content = await readEcodeMd(process.cwd());
+        if (content) {
+          res.json({ exists: true, content, path: "ecode.md" });
+        } else {
+          res.json({ exists: false, content: null, path: "ecode.md" });
+        }
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    app.post("/api/ecode-md/generate", async (req: Request, res: Response) => {
+      if (!req.session?.userId) return res.status(401).json({ error: "Authentication required" });
+      try {
+        const { autoGenerateEcodeMd } = await import("./ecodeTemplates");
+        const content = await autoGenerateEcodeMd(process.cwd());
+        res.json({ success: true, content, path: "ecode.md" });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    app.put("/api/ecode-md", async (req: Request, res: Response) => {
+      if (!req.session?.userId) return res.status(401).json({ error: "Authentication required" });
+      try {
+        const { content } = req.body;
+        if (!content || typeof content !== 'string' || content.length > 50000) {
+          return res.status(400).json({ error: "Content is required and must be under 50KB" });
+        }
+        const { writeEcodeMd } = await import("./ecodeTemplates");
+        await writeEcodeMd(process.cwd(), content);
+        res.json({ success: true, path: "ecode.md" });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    log("ecode.md API routes registered");
 
     log("Minimal fallback routes loaded");
 

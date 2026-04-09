@@ -1,59 +1,21 @@
 <!-- filename: index.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messaging Platform</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        #messages {
-            width: 80%;
-            max-height: 50vh;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        #input {
-            width: 80%;
-            padding: 10px;
-            border: 1px solid #ccc;
-        }
-    </style>
+    <title>Fortune 500 Companies</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="messages"></div>
-    <input type="text" id="input" placeholder="Type a message..." />
-    <script>
-        const ws = new WebSocket('ws://localhost:3000');
-
-        ws.onopen = () => {
-            console.log('Connected to server');
-        };
-
-        ws.onmessage = (event) => {
-            const messagesDiv = document.getElementById('messages');
-            const message = document.createElement('div');
-            message.textContent = event.data;
-            messagesDiv.appendChild(message);
-        };
-
-        const input = document.getElementById('input');
-        input.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                ws.send(input.value);
-                input.value = '';
-            }
-        });
-    </script>
+    <header>
+        <h1>Fortune 500 Companies</h1>
+    </header>
+    <main>
+        <section id="companies-list">
+            <!-- Les informations sur les entreprises seront injectées ici -->
+        </section>
+    </main>
+    <script src="script.js"></script>
 </body>
 </html>

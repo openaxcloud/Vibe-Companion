@@ -19,7 +19,7 @@ const PLATFORM_ROOT = process.cwd();
 
 // Allowed top-level directories for security
 const ALLOWED_TOP_DIRS = new Set(['server', 'client', 'shared', 'scripts', 'runner']);
-const ALLOWED_ROOT_FILES = new Set(['package.json', 'tsconfig.json', 'vite.config.ts', 'drizzle.config.ts', 'replit.md', '.replit', 'README.md']);
+const ALLOWED_ROOT_FILES = new Set(['package.json', 'tsconfig.json', 'vite.config.ts', 'drizzle.config.ts', 'ecode.md', 'replit.md', '.replit', 'README.md']);
 
 function isPathAllowed(filePath: string): boolean {
   const normalized = path.normalize(filePath).replace(/\\/g, '/');
