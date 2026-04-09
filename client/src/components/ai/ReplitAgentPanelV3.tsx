@@ -594,6 +594,7 @@ export function ReplitAgentPanelV3({
   const [pendingAttachments, setPendingAttachments] = useState<FileAttachment[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const slashTriggerRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -3265,7 +3266,7 @@ export function ReplitAgentPanelV3({
           {/* Chat input with inline toolbar - Replit-style with attachment/voice/send */}
           {/* Hidden when hideInput=true (mobile uses external ReplitMobileInputBar) */}
           {!hideInput && (
-          <div className="relative">
+          <div className="relative" ref={slashTriggerRef}>
             {/* Slash Command Menu - Replit-style "/" to show MCP integrations */}
             <SlashCommandMenu
               isOpen={slashCommand.isOpen}
@@ -3279,6 +3280,7 @@ export function ReplitAgentPanelV3({
               searchQuery={slashSearchQuery}
               onSearchChange={setSlashSearchQuery}
               selectedIndex={slashSelectedIndex}
+              triggerRef={slashTriggerRef}
             />
             
             {/* Pending attachments display */}

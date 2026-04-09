@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { SiAnthropic, SiOpenai } from 'react-icons/si';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,7 @@ interface SlashCommandMenuProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   selectedIndex?: number;
+  triggerRef?: React.RefObject<HTMLElement>;
 }
 
 export function SlashCommandMenu({
@@ -92,11 +94,13 @@ export function SlashCommandMenu({
   searchQuery = '',
   onSearchChange,
   selectedIndex = 0,
+  triggerRef,
 }: SlashCommandMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [internalQuery, setInternalQuery] = useState(searchQuery);
   const [internalSelectedIndex, setInternalSelectedIndex] = useState(selectedIndex);
+  const [portalPos, setPortalPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const query = onSearchChange ? searchQuery : internalQuery;
   const setQuery = onSearchChange || setInternalQuery;
@@ -108,7 +112,27 @@ export function SlashCommandMenu({
     server.description?.toLowerCase().includes(query.toLowerCase())
   );
 
-  // Focus search input when menu opens
+  useEffect(() => {
+    if (isOpen && triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPortalPos({
+        left: rect.left,
+        width: rect.width,
+        top: rect.top - 8,
+      });
+    } else if (isOpen) {
+      const parent = menuRef.current?.parentElement;
+      if (parent) {
+        const rect = parent.getBoundingClientRect();
+        setPortalPos({
+          left: rect.left,
+          width: rect.width,
+          top: rect.top - 8,
+        });
+      }
+    }
+  }, [isOpen, triggerRef]);
+
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
       setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -175,19 +199,26 @@ export function SlashCommandMenu({
 
   if (!isOpen) return null;
 
-  return (
+  const menuContent = (
     <div
       ref={menuRef}
       className={cn(
-        "absolute bottom-full left-0 right-0 mb-2 z-50",
-        "bg-popover border border-border rounded-lg shadow-lg",
-        "overflow-hidden animate-in slide-in-from-bottom-2 duration-200"
+        "fixed z-[9999]",
+        "bg-popover text-popover-foreground border border-border rounded-lg shadow-xl",
+        "overflow-hidden animate-in slide-in-from-bottom-2 duration-200",
+        "flex flex-col"
       )}
+      style={{
+        bottom: portalPos ? `${window.innerHeight - portalPos.top}px` : undefined,
+        left: portalPos ? `${portalPos.left}px` : '0',
+        width: portalPos ? `${portalPos.width}px` : '100%',
+        maxHeight: 'min(420px, 50vh)',
+      }}
       onKeyDown={handleKeyDown}
       data-testid="slash-command-menu"
     >
       {/* Search input */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
         <Search className="h-4 w-4 text-muted-foreground shrink-0" />
         <input
           ref={searchInputRef}
@@ -195,7 +226,7 @@ export function SlashCommandMenu({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search..."
-          className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+          className="flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
           data-testid="input-slash-search"
         />
         <button
@@ -208,7 +239,7 @@ export function SlashCommandMenu({
       </div>
 
       {/* Server list */}
-      <div className="max-h-[280px] overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         <div className="px-2 py-1.5">
           <span className="text-[11px] font-medium text-muted-foreground px-2">
             Integrations
@@ -230,7 +261,7 @@ export function SlashCommandMenu({
                   "transition-colors duration-100",
                   index === currentIndex
                     ? "bg-accent text-accent-foreground"
-                    : "hover:bg-muted/50"
+                    : "hover:bg-muted/50 text-foreground"
                 )}
                 data-testid={`slash-item-${server.id}`}
               >
@@ -249,7 +280,7 @@ export function SlashCommandMenu({
       </div>
 
       {/* Footer hint */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
+      <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30 shrink-0">
         <span className="text-[11px] text-muted-foreground">
           Type '/' on page
         </span>
@@ -259,6 +290,8 @@ export function SlashCommandMenu({
       </div>
     </div>
   );
+
+  return createPortal(menuContent, document.body);
 }
 
 // Hook for managing slash command state
