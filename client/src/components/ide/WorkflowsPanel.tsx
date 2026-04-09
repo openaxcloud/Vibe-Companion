@@ -135,14 +135,13 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
   const runMutation = useMutation({
     mutationFn: async (workflow: Workflow) => {
       if (workflow.isSystem) {
-        const created = await apiRequest('POST', '/api/workflows', {
+        const data = await apiRequest<{ id: string }>('POST', '/api/workflows', {
           name: workflow.name,
           command: workflow.command,
           description: workflow.description,
           icon: workflow.icon,
           projectId
         });
-        const data = await created.json();
         return apiRequest('POST', `/api/workflows/${data.id}/run`, {});
       }
       return apiRequest('POST', `/api/workflows/${workflow.id}/run`, {});
