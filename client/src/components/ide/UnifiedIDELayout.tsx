@@ -1166,7 +1166,7 @@ function UnifiedIDELayout({
     if (currentTab.id === 'console') {
       return (
         <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Console..." /></div>}>
-          <ReplitConsolePanel projectId={projectId} isRunning={isRunning} executionId={executionId} />
+          <ReplitConsolePanel projectId={projectId} userId={user?.id} isRunning={isRunning} executionId={executionId} />
         </Suspense>
       );
     }

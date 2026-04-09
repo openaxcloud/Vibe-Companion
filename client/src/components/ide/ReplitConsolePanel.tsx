@@ -246,6 +246,26 @@ export function ReplitConsolePanel({
     autoReconnect: true,
   });
 
+  const initialLogsFetched = useRef(false);
+  const logsRef = useRef(logs);
+  logsRef.current = logs;
+  useEffect(() => {
+    if (initialLogsFetched.current) return;
+    initialLogsFetched.current = true;
+    const timer = setTimeout(() => {
+      if (logsRef.current.length > 0) return;
+      fetch('/api/server/logs', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.logs?.length && logsRef.current.length === 0) {
+            data.logs.forEach((log: ServerLogEntry) => handleServerLog(log));
+          }
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [handleServerLog]);
+
   const previewWsRef = useRef<WebSocket | null>(null);
   const previewReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewDisposedRef = useRef(false);

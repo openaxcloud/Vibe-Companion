@@ -267,7 +267,7 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (reqPath.startsWith("/api")) {
+    if (reqPath.startsWith("/api") && !reqPath.includes("/api/preview/render/") && reqPath !== "/api/server/logs") {
       let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse && !reqPath.includes("env-var") && !reqPath.includes("csrf")) {
         try {
@@ -1317,15 +1317,31 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       }
     });
 
+    app.get("/api/preview/render/:projectId/api/*", (_req, res) => {
+      res.status(404).end();
+    });
+
     app.get("/api/preview/render/:projectId", async (req, res) => {
       const projectId = req.params.projectId;
       const projDir = path.join(process.cwd(), 'projects', String(projectId));
+      const baseTag = `<base href="/api/preview/file/${projectId}/">`;
       try {
         const diskIndex = path.join(projDir, 'index.html');
         if (fs.existsSync(diskIndex)) {
           res.setHeader("Content-Type", "text/html");
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           let html = fs.readFileSync(diskIndex, 'utf-8');
+          if (!html.includes('<base ')) {
+            if (html.includes('<head>')) {
+              html = html.replace('<head>', `<head>\n${baseTag}`);
+            } else if (html.includes('<head ')) {
+              html = html.replace(/<head([^>]*)>/, `<head$1>\n${baseTag}`);
+            } else if (html.includes('<!DOCTYPE') || html.includes('<!doctype') || html.includes('<html')) {
+              html = html.replace(/<html([^>]*)>/, `<html$1>\n<head>${baseTag}</head>`);
+            } else {
+              html = `<head>${baseTag}</head>\n` + html;
+            }
+          }
           const cssFiles = ['styles.css', 'style.css', 'main.css', 'app.css'];
           for (const cssName of cssFiles) {
             const cssPath = path.join(projDir, cssName);
@@ -1358,10 +1374,18 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         }
         const files = await storage.getFilesByProjectId(projectId);
         const htmlFile = files.find((f: any) => f.filename === "index.html" || f.filename?.endsWith(".html"));
-        if (!htmlFile) return res.status(404).send("<h1>No preview available yet</h1><p>The agent is building your app. Once code is generated, the preview will appear here.</p>");
+        if (!htmlFile) return res.status(404).send(`<!DOCTYPE html><html><head>${baseTag}</head><body><h1>No preview available yet</h1><p>The agent is building your app. Once code is generated, the preview will appear here.</p></body></html>`);
         res.setHeader("Content-Type", "text/html");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        res.send(htmlFile.content || "<h1>Empty file</h1>");
+        let content = htmlFile.content || "<h1>Empty file</h1>";
+        if (!content.includes('<base ')) {
+          if (content.includes('<head>')) {
+            content = content.replace('<head>', `<head>\n${baseTag}`);
+          } else {
+            content = `<head>${baseTag}</head>\n` + content;
+          }
+        }
+        res.send(content);
       } catch (e: any) {
         res.status(500).send(`<h1>Error: ${e.message}</h1>`);
       }
@@ -1783,7 +1807,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       serverLogBuffer.push(entry);
       if (serverLogBuffer.length > MAX_LOG_BUFFER) serverLogBuffer.shift();
       const msg = JSON.stringify({ type: "log", log: entry });
-      serverLogClients.forEach(ws => { try { ws.send(msg); } catch (err: any) { console.error("[catch]", err?.message || err);} });
+      serverLogClients.forEach(ws => { try { ws.send(msg); } catch {} });
     }
 
     const origConsoleLog = console.log;
@@ -1814,18 +1838,24 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       const clients = isRuntime ? runtimeLogClients : serverLogClients;
       const buffer = isRuntime ? runtimeLogBuffer : serverLogBuffer;
       clients.add(ws);
-      try { ws.send(JSON.stringify({ type: "connected" })); } catch (err: any) { console.error("[catch]", err?.message || err);}
+      try { ws.send(JSON.stringify({ type: "connected" })); } catch (err: any) { origConsoleError("[logWss]", err?.message || err);}
       if (buffer.length > 0) {
-        try { ws.send(JSON.stringify({ type: "initial", logs: buffer.slice(-50) })); } catch (err: any) { console.error("[catch]", err?.message || err);}
+        try { ws.send(JSON.stringify({ type: "initial", logs: buffer.slice(-50) })); } catch (err: any) { origConsoleError("[logWss]", err?.message || err);}
       }
       ws.on("message", (raw: any) => {
         try {
           const data = JSON.parse(raw.toString());
           if (data.type === "ping") { ws.send(JSON.stringify({ type: "pong" })); }
-        } catch (err: any) { console.error("[catch]", err?.message || err);}
+        } catch (err: any) { origConsoleError("[logWss]", err?.message || err);}
       });
       ws.on("close", () => { clients.delete(ws); });
       ws.on("error", () => { clients.delete(ws); });
+    });
+
+    app.get("/api/server/logs", async (req: Request, res: Response) => {
+      const user = await getSessionUser(req);
+      if (!user) return res.status(401).json({ logs: [] });
+      res.json({ logs: serverLogBuffer.slice(-100) });
     });
 
     // =========================================================
