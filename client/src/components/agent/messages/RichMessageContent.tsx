@@ -33,28 +33,28 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
     .replace(/\/\*\s*filename:\s*([^\s*]+)\s*\*\//g, '**`$1`**');
 
   return (
-    <div className={cn("prose prose-sm dark:prose-invert max-w-none break-words", className)} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+    <div className={cn("prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden", className)} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => (
-            <h1 className="text-xl font-bold text-foreground mt-4 mb-2 flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground mt-4 mb-2 flex items-center gap-2 flex-wrap min-w-0">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-[15px] font-bold text-foreground mt-3 mb-2 flex items-center gap-2">
+            <h2 className="text-[15px] font-bold text-foreground mt-3 mb-2 flex items-center gap-2 flex-wrap min-w-0">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-base font-semibold text-foreground mt-2 mb-1 flex items-center gap-2">
+            <h3 className="text-base font-semibold text-foreground mt-2 mb-1 flex items-center gap-2 flex-wrap min-w-0">
               {children}
             </h3>
           ),
           
           p: ({ children }) => (
-            <p className="text-[13px] text-foreground leading-relaxed my-2">
+            <p className="text-[13px] text-foreground leading-relaxed my-2 break-words" style={{ overflowWrap: 'anywhere' }}>
               {children}
             </p>
           ),
@@ -65,9 +65,9 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
             </ul>
           ),
           li: ({ children }) => (
-            <li className="text-[13px] text-foreground flex items-start gap-2">
-              <span className="text-violet-500 mt-1">•</span>
-              <span className="flex-1">{children}</span>
+            <li className="text-[13px] text-foreground flex items-start gap-2 min-w-0">
+              <span className="text-violet-500 mt-1 flex-shrink-0">•</span>
+              <span className="flex-1 min-w-0 break-words" style={{ overflowWrap: 'anywhere' }}>{children}</span>
             </li>
           ),
           

@@ -2689,8 +2689,8 @@ export function ReplitAgentPanelV3({
           </div>
         )}
         
-        <ScrollArea ref={scrollRef} className="flex-1 min-h-0 px-3 sm:px-4 py-3">
-          <div className="space-y-4 sm:space-y-5 w-full min-w-0">
+        <ScrollArea ref={scrollRef} className="flex-1 min-h-0 px-3 sm:px-4 py-3 overflow-x-hidden">
+          <div className="space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
           
           {/* Build/Install/QA Validation Progress (Task 6) */}
           <LazyAnimatePresence>
@@ -2841,7 +2841,7 @@ export function ReplitAgentPanelV3({
                   <Sparkles className="h-4 w-4 animate-pulse" />
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <LazyMotionDiv 
                   className="bg-muted/80 text-foreground rounded-2xl rounded-bl-md px-3 sm:px-4 py-3 max-w-full sm:max-w-[85%] shadow-md border border-border/50 overflow-hidden" 
                   data-testid="streaming-content"

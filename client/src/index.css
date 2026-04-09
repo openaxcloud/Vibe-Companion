@@ -817,6 +817,29 @@ textarea:focus {
     }
   }
   
+  /* Mobile message content overflow fix */
+  @media (max-width: 640px) {
+    .prose,
+    .prose * {
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+    }
+
+    .prose pre {
+      max-width: 100% !important;
+      overflow-x: auto !important;
+    }
+
+    .prose code {
+      word-break: break-all !important;
+    }
+
+    .prose img {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+  }
+
   /* Performance Optimizations */
   .smooth-scroll {
     scroll-behavior: smooth;

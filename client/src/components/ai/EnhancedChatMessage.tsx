@@ -267,7 +267,7 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
         <LazyMotionDiv 
           className={cn(
             "group/msg relative rounded-xl sm:rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200",
-            "min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px]",
+            "min-h-[36px] sm:min-h-[44px] min-w-0",
             "overflow-x-hidden overflow-y-visible w-full max-w-full",
             isUser
               ? cn(
