@@ -671,15 +671,15 @@ app.post("/api/agent/chat/stream", async (req: Request, res: Response) => {
     console.warn("[AI Stream] Could not load ecode.md:", e);
   }
 
-  const buildSystemPrompt = `You are E-Code AI (General Agent), a world-class software engineer and coding assistant integrated into the E-Code IDE.
-You help users with ANY task — research, file generation, data analysis, or building full-stack applications.
+  let agentBasePrompt = "";
+  try {
+    const { getSystemPromptForContext } = await import("./ai/prompts/agent-system-prompt");
+    agentBasePrompt = getSystemPromptForContext("coding");
+  } catch {
+    agentBasePrompt = "You are E-Code AI Agent, a world-class software engineer integrated into the E-Code IDE.";
+  }
 
-CAPABILITIES:
-- Knowledge work: Research topics, summarize documents, analyze data
-- Single-file outputs: Generate CSV, JSON, HTML, Markdown, SQL, scripts — any file type
-- Full-stack apps: Build complete web applications with frontend, backend, and database
-- Any framework: React, Vue, Angular, Svelte, Python, Rust, Go, and more
-- Connected services: Read and write data through the user's connected integrations
+  const buildSystemPrompt = `${agentBasePrompt}
 ${connectorContext}${ecodeContext}
 CRITICAL RULES FOR CODE GENERATION:
 1. When building an app, ALWAYS generate a complete, working index.html file as the main entry point.
@@ -688,22 +688,16 @@ CRITICAL RULES FOR CODE GENERATION:
 4. For web apps, create at minimum: index.html (with embedded or linked CSS/JS)
 5. Make the HTML self-contained when possible — include CSS in <style> tags and JS in <script> tags for simple apps.
 6. For more complex apps, create separate files: index.html, styles.css, index.js
-7. Use modern HTML5, CSS3, and vanilla JavaScript unless the user specifically asks for a framework.
-8. The generated code MUST be complete and runnable — no placeholders, no "TODO" comments, no truncated code.
-9. Include responsive design with proper viewport meta tags.
-10. Add a professional, polished look with good typography, colors, and spacing.
+7. The generated code MUST be complete and runnable — no placeholders, no "TODO" comments, no truncated code.
 
 For SINGLE-FILE outputs (CSV, JSON, etc.):
 - Always include a filename comment at the top of the code block
 - For CSV: Use proper delimiters, headers, and quoting
 - For JSON: Use proper formatting and valid syntax
-- The user can download any generated file directly from the code block
 
 When the user asks you to "build" or "create" something, generate ALL the necessary files as code blocks.
 The system will automatically save these files and show a live preview to the user.
 Be concise in explanations but thorough in code. Focus on working, visually polished, runnable code.
-
-PROGRESSIVE DISCLOSURE: If the user is just chatting or asking questions, respond conversationally. If they want to build something, seamlessly transition into generating code and files. You don't need the user to explicitly say "build" — infer their intent from context.
 
 ${imageGenerationEnabled ? `IMAGE GENERATION:
 You have the ability to generate custom AI images when the user requests visual content.
