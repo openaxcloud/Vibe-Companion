@@ -193,8 +193,9 @@ export class SocketIOTerminalService {
 
   private async handleConnection(socket: Socket) {
     const projectId = (socket.handshake.query.projectId as string) || 'default';
+    const clientSessionId = (socket.handshake.query.sessionId as string) || 'default';
 
-    logger.info(`[SocketIO Terminal] New connection for project ${projectId}`);
+    logger.info(`[SocketIO Terminal] New connection for project ${projectId}, session ${clientSessionId}`);
 
     let userId: string | null = null;
     const cookieHeader = socket.handshake.headers.cookie;
@@ -255,9 +256,23 @@ export class SocketIOTerminalService {
       }
     }
 
+    if (userId && userId !== 'dev-anonymous') {
+      try {
+        const project = await storage.getProject(projectId);
+        if (project && String(project.userId) !== String(userId)) {
+          socket.emit('error', { message: 'Access denied: you do not own this project' });
+          socket.disconnect();
+          logger.info(`[SocketIO Terminal] Rejected user ${userId} for project ${projectId} (owner: ${project.userId})`);
+          return;
+        }
+      } catch (err) {
+        logger.error('[SocketIO Terminal] Project ownership check failed:', err);
+      }
+    }
+
     socket.emit('connected', { message: 'Connected to terminal' });
 
-    const sessionKey = `${projectId}:${userId}`;
+    const sessionKey = `${projectId}:${userId}:${clientSessionId}`;
     let session = this.sessions.get(sessionKey);
     
     if (!session) {

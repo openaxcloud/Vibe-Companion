@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +11,7 @@ import {
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
+import { Input } from '@/components/ui/input';
 import {
   Terminal,
   X,
@@ -23,11 +22,12 @@ import {
   Wifi,
   WifiOff,
   Loader2,
-  Settings,
+  Search,
   FolderOpen,
   ChevronDown,
   Maximize2,
   Minimize2,
+  MoreVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -89,6 +89,9 @@ export function ShellPanel({ projectId, className }: ShellPanelProps) {
   const [tabs, setTabs] = useState<ShellTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map());
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const reconnectTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -239,11 +242,7 @@ export function ShellPanel({ projectId, className }: ShellPanelProps) {
       currentInput: '',
     };
 
-    term.writeln('\x1b[1;32m╭─────────────────────────────────────────╮\x1b[0m');
-    term.writeln('\x1b[1;32m│\x1b[0m \x1b[1;36mShell\x1b[0m                                   \x1b[1;32m│\x1b[0m');
-    term.writeln('\x1b[1;32m│\x1b[0m \x1b[90mConnecting to workspace...\x1b[0m            \x1b[1;32m│\x1b[0m');
-    term.writeln('\x1b[1;32m╰─────────────────────────────────────────╯\x1b[0m');
-    term.writeln('');
+    term.writeln('\x1b[90mConnecting to workspace...\x1b[0m');
 
     term.onData((data) => {
       if (!instance.socket || !instance.socket.connected) {
@@ -340,11 +339,7 @@ export function ShellPanel({ projectId, className }: ShellPanelProps) {
 
     instance.socket?.disconnect();
     instance.term.reset();
-    instance.term.writeln('\x1b[1;32m╭─────────────────────────────────────────╮\x1b[0m');
-    instance.term.writeln('\x1b[1;32m│\x1b[0m \x1b[1;36mShell\x1b[0m                                   \x1b[1;32m│\x1b[0m');
-    instance.term.writeln('\x1b[1;32m│\x1b[0m \x1b[90mReconnecting...\x1b[0m                       \x1b[1;32m│\x1b[0m');
-    instance.term.writeln('\x1b[1;32m╰─────────────────────────────────────────╯\x1b[0m');
-    instance.term.writeln('');
+    instance.term.writeln('\x1b[90mReconnecting...\x1b[0m');
 
     setTimeout(() => connectSocket(activeTabId, tab.sessionId), 500);
   }, [activeTabId, connectSocket, tabs]);
@@ -443,6 +438,14 @@ export function ShellPanel({ projectId, className }: ShellPanelProps) {
     };
   }, []);
 
+  const handleSearch = useCallback(() => {
+    setShowSearch(prev => {
+      if (!prev) setTimeout(() => searchInputRef.current?.focus(), 50);
+      return !prev;
+    });
+    setSearchQuery('');
+  }, []);
+
   const activeTab = tabs.find(t => t.id === activeTabId);
 
   return (
@@ -454,167 +457,171 @@ export function ShellPanel({ projectId, className }: ShellPanelProps) {
       )}
       data-testid="shell-panel"
     >
-      <div className="h-9 flex items-center justify-between px-2.5 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] shrink-0">
-        <div className="flex items-center gap-1.5 overflow-hidden flex-1">
-          <div className="flex items-center gap-1 shrink-0">
-            <Terminal className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
-            <span className="text-xs font-medium text-[var(--ecode-text)] hidden sm:inline">Shell</span>
-          </div>
-
-          {activeTab && (
-            <div className="flex items-center gap-1.5 ml-2 shrink-0">
-              {activeTab.isConnecting ? (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted">
-                  <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                  <span className="text-[11px] text-muted-foreground hidden md:inline">Connecting</span>
-                </div>
-              ) : activeTab.isConnected ? (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/10">
-                  <Wifi className="w-3 h-3 text-green-500" />
-                  <span className="text-[11px] text-green-500 hidden md:inline">Connected</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted">
-                  <WifiOff className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-[11px] text-muted-foreground hidden md:inline">Disconnected</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {tabs.length > 1 && (
-            <ScrollArea className="flex-1 max-w-[200px] sm:max-w-[300px] lg:max-w-[400px]">
-              <Tabs value={activeTabId} onValueChange={setActiveTabId} className="w-full">
-                <TabsList className="h-7 bg-[var(--ecode-surface)] border border-[var(--ecode-border)] rounded p-0 gap-0.5 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                  {tabs.map((tab) => (
-                    <TabsTrigger
-                      key={tab.id}
-                      value={tab.id}
-                      className="h-6 px-2 text-[10px] gap-1 whitespace-nowrap data-[state=active]:bg-[var(--ecode-sidebar-hover)] rounded"
-                      data-testid={`tab-shell-${tab.id}`}
-                    >
-                      <span className="truncate max-w-[60px] sm:max-w-[80px]">{tab.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-4 w-4 p-0 hover:bg-destructive/20"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeTab(tab.id);
-                        }}
-                        data-testid={`button-close-tab-${tab.id}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            </ScrollArea>
-          )}
+      <div className="h-9 flex items-center justify-between px-2 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] shrink-0">
+        <div className="flex items-center gap-1 overflow-hidden flex-1 min-w-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-7 px-2 gap-1 text-xs font-medium text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] shrink min-w-0"
+                data-testid="button-session-selector"
+              >
+                <ChevronDown className="w-3 h-3 shrink-0" />
+                <span className="truncate">
+                  {activeTab ? `~/workspace: bash` : 'Shell'}
+                </span>
+                {tabs.length > 1 && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                    {tabs.length}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[200px]" data-testid="menu-session-selector">
+              {tabs.map((tab) => (
+                <DropdownMenuItem
+                  key={tab.id}
+                  onClick={() => setActiveTabId(tab.id)}
+                  className={cn(
+                    "text-xs gap-2",
+                    tab.id === activeTabId && "bg-accent"
+                  )}
+                  data-testid={`menu-item-session-${tab.id}`}
+                >
+                  <Terminal className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">~/workspace: bash</span>
+                  {tab.isConnected && <Wifi className="w-3 h-3 text-green-500 ml-auto shrink-0" />}
+                  {tab.isConnecting && <Loader2 className="w-3 h-3 animate-spin text-primary ml-auto shrink-0" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={addNewTab} className="text-xs gap-2" data-testid="menu-item-new-shell">
+                <Plus className="w-3.5 h-3.5" />
+                New Shell
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 sm:h-8 sm:w-8"
-            onClick={addNewTab}
-            title="New shell"
-            data-testid="button-new-shell"
+            className="h-7 w-7"
+            onClick={handleSearch}
+            title="Find in Shell"
+            data-testid="button-search-shell"
           >
-            <Plus className="w-4 h-4" />
+            <Search className="w-3.5 h-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 sm:h-8 sm:w-8"
-            onClick={handleCopy}
-            title="Copy selection"
-            data-testid="button-copy-output"
-          >
-            <Copy className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 sm:h-8 sm:w-8"
+            className="h-7 w-7"
             onClick={handleClear}
-            title="Clear terminal"
+            title="Clear Shell"
             data-testid="button-clear-terminal"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 sm:h-8 sm:w-8"
-            onClick={handleReset}
-            title="Reset terminal"
-            data-testid="button-reset-terminal"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 sm:h-8 sm:w-8"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            data-testid="button-fullscreen"
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4" />
-            ) : (
-              <Maximize2 className="w-4 h-4" />
-            )}
-          </Button>
-          
+          {tabs.length > 1 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => activeTabId && closeTab(activeTabId)}
+              title="Close tab"
+              data-testid="button-close-shell"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 sm:h-8 sm:w-8"
-                data-testid="button-shell-settings"
+                className="h-7 w-7"
+                data-testid="button-shell-menu"
               >
-                <Settings className="w-4 h-4" />
+                <MoreVertical className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" data-testid="menu-shell-settings">
-              <DropdownMenuItem onClick={addNewTab}>
-                <Plus className="w-4 h-4 mr-2" />
-                New Shell
+            <DropdownMenuContent align="end" className="min-w-[180px]" data-testid="menu-shell-options">
+              <div className="px-3 py-2 border-b border-border">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Terminal className="w-4 h-4" />
+                  Shell
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Directly access your App through a command line interface (CLI).
+                </p>
+              </div>
+              <DropdownMenuItem onClick={handleClear} className="gap-2" data-testid="menu-clear-shell">
+                <Trash2 className="w-4 h-4" />
+                Clear Shell
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleClear}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Clear Output
+              <DropdownMenuItem onClick={handleSearch} className="gap-2" data-testid="menu-find-shell">
+                <Search className="w-4 h-4" />
+                Find in Shell
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleReset}>
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reset Shell
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleCopy}>
-                <Copy className="w-4 h-4 mr-2" />
+              <DropdownMenuItem onClick={handleCopy} className="gap-2" data-testid="menu-copy-shell">
+                <Copy className="w-4 h-4" />
                 Copy Selection
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleReset} className="gap-2" data-testid="menu-reset-shell">
+                <RotateCcw className="w-4 h-4" />
+                Reset Shell
+              </DropdownMenuItem>
+              {tabs.length > 1 && (
+                <DropdownMenuItem 
+                  onClick={() => activeTabId && closeTab(activeTabId)} 
+                  className="gap-2"
+                  data-testid="menu-close-tab"
+                >
+                  <X className="w-4 h-4" />
+                  Close tab
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      {activeTab && (
-        <div className="h-6 flex items-center px-3 border-b border-border bg-muted/30 text-[11px] text-muted-foreground gap-2">
-          <FolderOpen className="w-3 h-3" />
-          <span className="truncate" data-testid="text-working-directory">{activeTab.cwd}</span>
+      {showSearch && (
+        <div className="h-8 flex items-center gap-1 px-2 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] shrink-0">
+          <Input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Find"
+            className="h-6 text-xs flex-1 min-w-0"
+            data-testid="input-shell-search"
+          />
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" data-testid="button-search-next">
+            Next
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" data-testid="button-search-prev">
+            Previous
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-6 px-2 text-[11px]"
+            onClick={() => { setShowSearch(false); setSearchQuery(''); }}
+            data-testid="button-search-exit"
+          >
+            Exit
+          </Button>
         </div>
       )}
 
       <div className="flex-1 relative overflow-hidden">
         <div
           ref={terminalContainerRef}
-          className="absolute inset-0 p-2"
+          className="absolute inset-0 p-1"
           style={{ backgroundColor: 'var(--ecode-terminal-bg)' }}
           data-testid="terminal-container"
         />

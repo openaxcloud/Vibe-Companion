@@ -195,6 +195,7 @@ const sessionStore = new PgSession({
   errorLog: (err: Error) => console.error("[PgSessionStore]", err.message),
 });
 console.log("[Session Store] Using PostgreSQL (persistent)");
+(global as any).sessionStore = sessionStore;
 app.use(
   session({
     secret: process.env.SESSION_SECRET!,
@@ -1758,8 +1759,12 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     }
 
     // =========================================================
-    // TERMINAL — WebSocket-based PTY terminal
+    // TERMINAL — Socket.IO terminal with child_process fallback
     // =========================================================
+    const { socketIOTerminalService } = await import("./terminal/socket-io-terminal");
+    socketIOTerminalService.initialize(httpServer);
+    console.log("8:" + new Date().toLocaleTimeString().slice(3) + " [express] Socket.IO terminal service initialized");
+
     const { WebSocketServer } = await import("ws");
     const pty = await import("node-pty").catch(() => null);
 
@@ -3475,60 +3480,6 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       res.json({ success: false, message: "Version restore not implemented" });
     });
 
-    // =========================================================
-    // SHELL PANEL (socket.io based — real PTY terminal)
-    // =========================================================
-    const { Server: SocketIOServer } = await import("socket.io");
-    const termIO = new SocketIOServer(httpServer, {
-      path: "/socket.io/terminal",
-      cors: { origin: true, credentials: true },
-      transports: ["polling", "websocket"],
-    });
-    const ptyShells = new Map<string, any>();
-
-    termIO.on("connection", (sock) => {
-      const projectId = sock.handshake.query.projectId as string || "default";
-      const sessionId = sock.handshake.query.sessionId as string || sock.id;
-      let projCwd = path.join(process.cwd(), "projects", projectId);
-      if (!fs.existsSync(projCwd)) { try { fs.mkdirSync(projCwd, { recursive: true }); } catch (err: any) { console.error("[catch]", err?.message || err);} projCwd = process.cwd(); }
-
-      if (!pty) {
-        sock.emit("error", { message: "Terminal not available (node-pty not installed)" });
-        return;
-      }
-      const shell = pty.spawn("/bin/bash", [], {
-        name: "xterm-256color",
-        cols: 120,
-        rows: 30,
-        cwd: projCwd,
-        env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
-      });
-      ptyShells.set(sessionId, shell);
-
-      sock.emit("ready", { message: "Shell ready — connected to workspace" });
-
-      shell.onData((data: string) => {
-        sock.emit("output", { data });
-      });
-      shell.onExit(({ exitCode, signal }: { exitCode: number; signal: number }) => {
-        sock.emit("exit", { code: exitCode, signal });
-        ptyShells.delete(sessionId);
-      });
-
-      sock.on("input", (msg: { data: string }) => {
-        if (msg?.data) shell.write(msg.data);
-      });
-      sock.on("resize", (msg: { cols: number; rows: number }) => {
-        if (msg?.cols && msg?.rows) {
-          try { shell.resize(Math.min(msg.cols, 500), Math.min(msg.rows, 200)); } catch (err: any) { console.error("[catch]", err?.message || err);}
-        }
-      });
-      sock.on("disconnect", () => {
-        shell.kill();
-        ptyShells.delete(sessionId);
-      });
-    });
-
     app.get("/api/projects/:projectId/shell/:sessionId", (req, res) => {
       res.json({ sessionId: req.params.sessionId, status: "connected", protocol: "socket.io" });
     });
@@ -3537,8 +3488,6 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       res.json({ sessionId, status: "created" });
     });
     app.delete("/api/projects/:projectId/shell/:sessionId", (req, res) => {
-      const shell = ptyShells.get(req.params.sessionId);
-      if (shell) { shell.kill(); ptyShells.delete(req.params.sessionId); }
       res.json({ success: true });
     });
 

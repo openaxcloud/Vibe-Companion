@@ -20,7 +20,7 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
     - **ReplitHeader, ReplitSidebar**: Navigation and project tools.
     - **ReplitMonacoEditor**: Advanced code editor with Replit theming and features.
     - **ReplitFileExplorer**: Interactive file system with drag/drop, search, context menus.
-    - **ReplitTerminal**: Full-featured terminal with xterm.js, WebSocket integration, multiple sessions, search, and history.
+    - **ReplitTerminal**: Full-featured terminal with xterm.js, Socket.IO integration (`/socket.io/terminal`), multiple sessions (per-tab), search, and history. Backend: `SocketIOTerminalService` in `server/terminal/socket-io-terminal.ts` with `child_process` fallback (no node-pty required), project ownership auth, output buffering, idle cleanup.
     - **Key Replit Features**: RunButton, EnvironmentVariables, PackageManager, WebPreview, Shell components.
     - **Advanced Features**: GlobalSearch, GitIntegration with UI, ReplitDB management, DeploymentManager, AIAssistant (code completion, explanations, chat), ImportExport, BillingSystem, ExtensionsMarketplace.
     - **UI/UX**: Onboarding/Guided Tour, UserProfile and UserSettings pages, ProjectTemplates system.
