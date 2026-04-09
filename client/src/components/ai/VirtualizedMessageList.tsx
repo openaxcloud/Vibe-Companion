@@ -140,7 +140,7 @@ export const VirtualizedMessageList = memo(forwardRef<HTMLDivElement, Virtualize
           "scroll-smooth scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
           className
         )}
-        style={{ contain: 'strict' }}
+        style={{ contain: 'size layout' }}
         data-testid="virtualized-message-list"
       >
         <div

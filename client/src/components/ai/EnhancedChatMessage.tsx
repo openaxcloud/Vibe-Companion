@@ -268,7 +268,7 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
           className={cn(
             "group/msg relative rounded-xl sm:rounded-2xl px-3 py-2 sm:px-4 sm:py-3 transition-all duration-200",
             "min-h-[36px] sm:min-h-[44px] min-w-0",
-            "overflow-x-hidden overflow-y-visible w-full max-w-full",
+            "overflow-hidden w-full max-w-full min-w-0",
             isUser
               ? cn(
                   "bg-primary text-primary-foreground",
@@ -297,9 +297,10 @@ export const EnhancedChatMessage = memo(forwardRef<EnhancedChatMessageRef, Enhan
           ) : (
             <p 
               className={cn(
-                "text-[13px] whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed max-w-full",
+                "text-[13px] whitespace-pre-wrap break-words leading-relaxed max-w-full min-w-0 w-full",
                 isError && "text-destructive"
               )}
+              style={{ overflowWrap: 'anywhere' }}
               data-testid={`enhanced-message-text-${message.id}`}
             >
               {message.content}

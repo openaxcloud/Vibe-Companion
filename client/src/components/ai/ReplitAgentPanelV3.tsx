@@ -2646,7 +2646,7 @@ export function ReplitAgentPanelV3({
       {/* Main Chat Content */}
       <>
       {/* Messages */}
-      <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+      <div className="flex flex-1 flex-col overflow-hidden min-h-0 min-w-0 w-full">
         {/* Sync Indicator */}
         <ConversationSyncIndicator
           lastSyncedAt={conversationId ? getLastSyncedAt(conversationId) : undefined}
@@ -2693,8 +2693,8 @@ export function ReplitAgentPanelV3({
           </div>
         )}
         
-        <ScrollArea ref={scrollRef} className="flex-1 min-h-0 px-3 sm:px-4 py-3 overflow-x-hidden">
-          <div className="space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
+        <ScrollArea ref={scrollRef} className="flex-1 min-h-0 px-3 sm:px-4 py-3 overflow-x-hidden min-w-0">
+          <div className="space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden max-w-full">
           
           {/* Build/Install/QA Validation Progress (Task 6) */}
           <LazyAnimatePresence>
@@ -2847,7 +2847,7 @@ export function ReplitAgentPanelV3({
               </Avatar>
               <div className="flex-1 min-w-0">
                 <LazyMotionDiv 
-                  className="bg-muted/80 text-foreground rounded-2xl rounded-bl-md px-3 sm:px-4 py-3 max-w-full sm:max-w-[85%] shadow-md border border-border/50 overflow-hidden" 
+                  className="bg-muted/80 text-foreground rounded-2xl rounded-bl-md px-3 sm:px-4 py-3 w-full max-w-full shadow-md border border-border/50 overflow-hidden min-w-0" 
                   data-testid="streaming-content"
                   initial={{ scale: 0.95 }}
                   animate={{ scale: 1 }}

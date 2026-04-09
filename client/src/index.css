@@ -817,27 +817,61 @@ textarea:focus {
     }
   }
   
-  /* Mobile message content overflow fix */
-  @media (max-width: 640px) {
-    .prose,
-    .prose * {
-      overflow-wrap: anywhere !important;
-      word-break: break-word !important;
-    }
+  /* Message content overflow protection — all breakpoints */
+  .prose {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
 
-    .prose pre {
-      max-width: 100% !important;
-      overflow-x: auto !important;
-    }
+  .prose p,
+  .prose li,
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose h4,
+  .prose blockquote,
+  .prose strong,
+  .prose em,
+  .prose span {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
 
-    .prose code {
-      word-break: break-all !important;
-    }
+  .prose pre {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    white-space: pre !important;
+  }
 
-    .prose img {
-      max-width: 100% !important;
-      height: auto !important;
-    }
+  .prose pre code {
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+
+  .prose code:not(pre code) {
+    word-break: break-all !important;
+  }
+
+  .prose img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  .prose table {
+    max-width: 100% !important;
+    display: block !important;
+    overflow-x: auto !important;
+  }
+
+  /* Agent message containers — prevent horizontal overflow */
+  [data-testid^="enhanced-message-"],
+  [data-testid="streaming-content"],
+  [data-testid="streaming-text"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: anywhere;
   }
 
   /* Performance Optimizations */

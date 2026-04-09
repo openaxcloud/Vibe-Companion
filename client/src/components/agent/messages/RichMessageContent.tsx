@@ -33,7 +33,7 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
     .replace(/\/\*\s*filename:\s*([^\s*]+)\s*\*\//g, '**`$1`**');
 
   return (
-    <div className={cn("prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden", className)} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+    <div className={cn("prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden min-w-0 w-full", className)} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -93,8 +93,8 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
               const inlineText = String(children);
               const isLongEnough = inlineText.length > 3;
               return (
-                <span className="inline-flex items-center gap-0.5 align-baseline">
-                  <code className="px-1.5 py-0.5 rounded bg-muted text-violet-500 font-mono text-[11px]">
+                <span className="inline-flex items-center gap-0.5 align-baseline max-w-full">
+                  <code className="px-1.5 py-0.5 rounded bg-muted text-violet-500 font-mono text-[11px] break-all">
                     {children}
                   </code>
                   {isLongEnough && (
