@@ -71,9 +71,21 @@ async function extractAndSaveCodeBlocks(content: string, projectId: string | num
       if (fileDir !== projDir) fs.mkdirSync(fileDir, { recursive: true });
       fs.writeFileSync(filePath, trimmedCode, 'utf-8');
       console.log(`[File] Saved ${filename} to projects/${projectId}/`);
+      if ((app as any).locals.broadcastProjectLog) {
+        (app as any).locals.broadcastProjectLog(String(projectId), {
+          type: "stdout", message: `[File] Saved ${filename} (${trimmedCode.length} bytes)`,
+          timestamp: Date.now(), level: "info", service: "files"
+        });
+      }
       savedFiles.push({ filename, language: lang || ext });
     } catch (e: any) {
       console.error(`[File] Failed to save ${filename}:`, e.message);
+      if ((app as any).locals.broadcastProjectLog) {
+        (app as any).locals.broadcastProjectLog(String(projectId), {
+          type: "stderr", message: `[File] Failed to save ${filename}: ${e.message}`,
+          timestamp: Date.now(), level: "error", service: "files"
+        });
+      }
     }
     if (storageRef) {
       try {
@@ -285,9 +297,18 @@ app.use((req, res, next) => {
           };
           redact(safe);
           logLine += ` :: ${JSON.stringify(safe).slice(0, 200)}`;
-        } catch (err: any) { console.error("[catch]", err?.message || err);}
+        } catch {}
       }
       log(logLine);
+
+      const pidMatch = reqPath.match(/\/api\/(?:projects|preview\/projects|agent\/(?:chat|conversation)|runtime|files|git\/projects|workflows|rag)\/([a-f0-9-]{8,})/);
+      const pid = pidMatch?.[1] || (req.body?.projectId as string | undefined);
+      if (pid && (app as any).locals.broadcastProjectLog) {
+        (app as any).locals.broadcastProjectLog(pid, {
+          type: "http", message: `${req.method} ${reqPath} ${res.statusCode} ${duration}ms`,
+          timestamp: Date.now(), level: res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info", service: "http"
+        });
+      }
     }
   });
   next();
@@ -776,14 +797,33 @@ Be concise in explanations but thorough in code. Focus on working, visually poli
     providers.push({ name: "Anthropic-fallback", fn: () => streamWithAnthropic(anthropicKey) });
   }
 
+  if (projectId && (app as any).locals.broadcastProjectLog) {
+    (app as any).locals.broadcastProjectLog(String(projectId), {
+      type: "stdout", message: `[AI] Starting ${requestedProvider} stream (model: ${modelId || "default"})`,
+      timestamp: Date.now(), level: "info", service: "ai"
+    });
+  }
+
   let lastError = "";
   for (const p of providers) {
     try {
       await p.fn();
+      if (projectId && (app as any).locals.broadcastProjectLog) {
+        (app as any).locals.broadcastProjectLog(String(projectId), {
+          type: "stdout", message: `[AI] Stream completed via ${p.name}`,
+          timestamp: Date.now(), level: "info", service: "ai"
+        });
+      }
       return;
     } catch (err: any) {
       lastError = err.message;
       console.error(`[AI Stream] ${p.name} failed: ${err.message}`);
+      if (projectId && (app as any).locals.broadcastProjectLog) {
+        (app as any).locals.broadcastProjectLog(String(projectId), {
+          type: "stderr", message: `[AI] ${p.name} failed: ${err.message}`,
+          timestamp: Date.now(), level: "error", service: "ai"
+        });
+      }
     }
   }
 
@@ -1161,47 +1201,65 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     app.put("/api/projects/:id/files/:fileId", async (req, res) => {
+      const pid = req.params.id;
       try {
         const file = await storage.updateFile(req.params.fileId, req.body);
         if (req.body.content !== undefined && file) {
           const filePath = (file as any).path || (file as any).filename;
           if (filePath) {
-            const projDir = path.join(process.cwd(), "projects", req.params.id);
+            const projDir = path.join(process.cwd(), "projects", pid);
             const diskPath = path.resolve(projDir, filePath);
             if (diskPath.startsWith(projDir)) {
               fs.mkdirSync(path.dirname(diskPath), { recursive: true });
               fs.writeFileSync(diskPath, req.body.content, "utf-8");
+              broadcastProjectLog(pid, {
+                type: "stdout", message: `[File] Updated ${filePath}`,
+                timestamp: Date.now(), level: "info", service: "files"
+              });
             }
           }
         }
         res.json(file);
       } catch (e: any) {
+        broadcastProjectLog(pid, {
+          type: "stderr", message: `[File] Update failed: ${e.message}`,
+          timestamp: Date.now(), level: "error", service: "files"
+        });
         res.status(500).json({ message: e.message });
       }
     });
 
     app.post("/api/projects/:id/files", async (req, res) => {
+      const pid = req.params.id;
       try {
         const body = req.body;
         const filename = body.filename || body.name || (body.path ? body.path.split("/").pop() : null);
         const filePath = body.path || filename;
         if (!filename) return res.status(400).json({ message: "filename, name, or path is required" });
         const file = await storage.createFile({
-          projectId: req.params.id,
+          projectId: pid,
           filename,
           content: body.content ?? "",
           isBinary: body.isBinary ?? false,
           mimeType: body.mimeType ?? null,
           artifactId: body.artifactId ?? null,
         });
-        const projDir = path.join(process.cwd(), "projects", req.params.id);
+        const projDir = path.join(process.cwd(), "projects", pid);
         const diskPath = path.resolve(projDir, filePath);
         if (diskPath.startsWith(projDir)) {
           fs.mkdirSync(path.dirname(diskPath), { recursive: true });
           fs.writeFileSync(diskPath, body.content ?? "", "utf-8");
         }
+        broadcastProjectLog(pid, {
+          type: "stdout", message: `[File] Created ${filename}`,
+          timestamp: Date.now(), level: "info", service: "files"
+        });
         res.json(file);
       } catch (e: any) {
+        broadcastProjectLog(pid, {
+          type: "stderr", message: `[File] Create failed: ${e.message}`,
+          timestamp: Date.now(), level: "error", service: "files"
+        });
         res.status(500).json({ message: e.message });
       }
     });
@@ -1219,10 +1277,19 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     app.delete("/api/projects/:id/files/:fileId", async (req, res) => {
+      const pid = req.params.id;
       try {
         await storage.deleteFile(req.params.fileId);
+        broadcastProjectLog(pid, {
+          type: "stdout", message: `[File] Deleted file ${req.params.fileId}`,
+          timestamp: Date.now(), level: "info", service: "files"
+        });
         res.json({ success: true });
       } catch (e: any) {
+        broadcastProjectLog(pid, {
+          type: "stderr", message: `[File] Delete failed: ${e.message}`,
+          timestamp: Date.now(), level: "error", service: "files"
+        });
         res.status(500).json({ message: e.message });
       }
     });
@@ -1431,6 +1498,14 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
           visibility: "public",
         });
         const bootstrapToken = crypto.randomUUID();
+        broadcastProjectLog(String(project.id), {
+          type: "stdout", message: `[Workspace] Project "${projectName}" created`,
+          timestamp: Date.now(), level: "info", service: "workspace"
+        });
+        broadcastProjectLog(String(project.id), {
+          type: "system", message: `[System] Language: ${options?.language || "typescript"} | Type: web-app | Ready for AI agent`,
+          timestamp: Date.now(), level: "info", service: "system"
+        });
         res.json({ success: true, projectId: project.id, bootstrapToken, status: "ready" });
       } catch (e: any) {
         console.error("[workspace/bootstrap fallback] Error:", e);
@@ -1787,75 +1862,81 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     });
 
     // =========================================================
-    // CONSOLE PANEL — Real-time log streaming via WebSocket
+    // CONSOLE PANEL — Per-project real-time log streaming
     // =========================================================
     interface LogEntry { type: string; message: string; timestamp: number; level?: string; service?: string }
-    const runtimeLogClients = new Set<any>();
-    const serverLogClients = new Set<any>();
-    const runtimeLogBuffer: LogEntry[] = [];
-    const serverLogBuffer: LogEntry[] = [];
-    const MAX_LOG_BUFFER = 500;
+    const projectLogClients = new Map<string, Set<any>>();
+    const projectLogBuffers = new Map<string, LogEntry[]>();
+    const MAX_PROJECT_LOG_BUFFER = 500;
 
-    function broadcastRuntimeLog(entry: LogEntry) {
-      runtimeLogBuffer.push(entry);
-      if (runtimeLogBuffer.length > MAX_LOG_BUFFER) runtimeLogBuffer.shift();
-      const msg = JSON.stringify({ type: "log", log: entry });
-      runtimeLogClients.forEach(ws => { try { ws.send(msg); } catch (err: any) { console.error("[catch]", err?.message || err);} });
+    function getProjectBuffer(pid: string): LogEntry[] {
+      if (!projectLogBuffers.has(pid)) projectLogBuffers.set(pid, []);
+      return projectLogBuffers.get(pid)!;
     }
 
-    function broadcastServerLog(entry: LogEntry) {
-      serverLogBuffer.push(entry);
-      if (serverLogBuffer.length > MAX_LOG_BUFFER) serverLogBuffer.shift();
+    const bufferLastAccess = new Map<string, number>();
+
+    function broadcastProjectLog(pid: string, entry: LogEntry) {
+      bufferLastAccess.set(pid, Date.now());
+      const buffer = getProjectBuffer(pid);
+      buffer.push(entry);
+      if (buffer.length > MAX_PROJECT_LOG_BUFFER) buffer.shift();
       const msg = JSON.stringify({ type: "log", log: entry });
-      serverLogClients.forEach(ws => { try { ws.send(msg); } catch {} });
+      const clients = projectLogClients.get(pid);
+      if (clients) {
+        const dead: any[] = [];
+        clients.forEach(ws => { try { ws.send(msg); } catch { dead.push(ws); } });
+        for (const ws of dead) clients.delete(ws);
+        if (clients.size === 0) projectLogClients.delete(pid);
+      }
     }
 
-    const origConsoleLog = console.log;
-    const origConsoleError = console.error;
-    const origConsoleWarn = console.warn;
-    const fmtArgs = (args: any[]) => args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
-    console.log = (...args: any[]) => {
-      origConsoleLog.apply(console, args);
-      const msg = fmtArgs(args);
-      broadcastServerLog({ type: "stdout", message: msg, timestamp: Date.now(), level: "info", service: "server" });
-      broadcastRuntimeLog({ type: "stdout", message: msg, timestamp: Date.now() });
-    };
-    console.error = (...args: any[]) => {
-      origConsoleError.apply(console, args);
-      const msg = fmtArgs(args);
-      broadcastServerLog({ type: "stderr", message: msg, timestamp: Date.now(), level: "error", service: "server" });
-      broadcastRuntimeLog({ type: "stderr", message: msg, timestamp: Date.now() });
-    };
-    console.warn = (...args: any[]) => {
-      origConsoleWarn.apply(console, args);
-      const msg = fmtArgs(args);
-      broadcastServerLog({ type: "stdout", message: msg, timestamp: Date.now(), level: "warn", service: "server" });
-      broadcastRuntimeLog({ type: "stdout", message: msg, timestamp: Date.now() });
-    };
+    (app as any).locals.broadcastProjectLog = broadcastProjectLog;
 
-    logWss.on("connection", (ws: any, _req: any, pathname: string) => {
-      const isRuntime = pathname === "/api/runtime/logs/ws";
-      const clients = isRuntime ? runtimeLogClients : serverLogClients;
-      const buffer = isRuntime ? runtimeLogBuffer : serverLogBuffer;
-      clients.add(ws);
-      try { ws.send(JSON.stringify({ type: "connected" })); } catch (err: any) { origConsoleError("[logWss]", err?.message || err);}
+    setInterval(() => {
+      const cutoff = Date.now() - 30 * 60 * 1000;
+      for (const [pid, lastAccess] of bufferLastAccess.entries()) {
+        if (lastAccess < cutoff && !projectLogClients.has(pid)) {
+          projectLogBuffers.delete(pid);
+          bufferLastAccess.delete(pid);
+        }
+      }
+    }, 5 * 60 * 1000);
+
+    logWss.on("connection", (ws: any, req: any, pathname: string) => {
+      const url = new URL(req.url || "", `http://${req.headers.host}`);
+      const pid = url.searchParams.get("projectId") || "__global__";
+
+      if (!projectLogClients.has(pid)) projectLogClients.set(pid, new Set());
+      projectLogClients.get(pid)!.add(ws);
+
+      try { ws.send(JSON.stringify({ type: "connected", projectId: pid })); } catch {}
+      const buffer = getProjectBuffer(pid);
       if (buffer.length > 0) {
-        try { ws.send(JSON.stringify({ type: "initial", logs: buffer.slice(-50) })); } catch (err: any) { origConsoleError("[logWss]", err?.message || err);}
+        try { ws.send(JSON.stringify({ type: "initial", logs: buffer.slice(-100) })); } catch {}
       }
       ws.on("message", (raw: any) => {
         try {
           const data = JSON.parse(raw.toString());
-          if (data.type === "ping") { ws.send(JSON.stringify({ type: "pong" })); }
-        } catch (err: any) { origConsoleError("[logWss]", err?.message || err);}
+          if (data.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
+        } catch {}
       });
-      ws.on("close", () => { clients.delete(ws); });
-      ws.on("error", () => { clients.delete(ws); });
+      ws.on("close", () => {
+        const set = projectLogClients.get(pid);
+        if (set) { set.delete(ws); if (set.size === 0) projectLogClients.delete(pid); }
+      });
+      ws.on("error", () => {
+        const set = projectLogClients.get(pid);
+        if (set) { set.delete(ws); if (set.size === 0) projectLogClients.delete(pid); }
+      });
     });
 
     app.get("/api/server/logs", async (req: Request, res: Response) => {
       const user = await getSessionUser(req);
       if (!user) return res.status(401).json({ logs: [] });
-      res.json({ logs: serverLogBuffer.slice(-100) });
+      const pid = req.query.projectId as string;
+      if (!pid) return res.json({ logs: [] });
+      res.json({ logs: getProjectBuffer(pid).slice(-100) });
     });
 
     // =========================================================
@@ -2559,10 +2640,24 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     // PREVIEW PANEL
     // =========================================================
     app.post("/api/preview/projects/:id/preview/start", (req, res) => {
-      res.json({ success: true, url: `/api/preview/render/${req.params.id}`, status: "running" });
+      const pid = req.params.id;
+      broadcastProjectLog(pid, {
+        type: "stdout", message: `[Preview] Starting preview server...`,
+        timestamp: Date.now(), level: "info", service: "preview"
+      });
+      broadcastProjectLog(pid, {
+        type: "stdout", message: `[Preview] Server ready at /api/preview/render/${pid}`,
+        timestamp: Date.now(), level: "info", service: "preview"
+      });
+      res.json({ success: true, url: `/api/preview/render/${pid}`, status: "running" });
     });
 
     app.post("/api/preview/projects/:id/preview/stop", (req, res) => {
+      const pid = req.params.id;
+      broadcastProjectLog(pid, {
+        type: "stdout", message: `[Preview] Server stopped`,
+        timestamp: Date.now(), level: "info", service: "preview"
+      });
       res.json({ success: true, status: "stopped" });
     });
 

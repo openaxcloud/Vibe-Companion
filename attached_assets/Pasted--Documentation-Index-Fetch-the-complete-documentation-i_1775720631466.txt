@@ -1,0 +1,124 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# General Agent
+
+> Learn how General Agent lets you work with any framework, create any output type, and read and write to connected services.
+
+## What is General Agent?
+
+General Agent is the most flexible way to work with Replit Agent. You don't need to pre-select an artifact type or commit to building something specific. Just start chatting — create a CSV, generate a PDF, research a topic, or build a full app when you're ready.
+
+Key concepts:
+
+* **No pre-selection**: Start working without choosing an artifact type upfront
+* **Any output**: Generate files (CSV, PDF, docs), do research, or build apps
+* **Connectors**: Read and write to external services like BigQuery, Linear, Slack, Notion, Amplitude, Segment, Hex, and more
+* **Progressive disclosure**: Start with a lightweight chat and escalate to a full app build naturally
+
+## How to access General Agent
+
+You can access General Agent in several ways:
+
+1. **Select "General" before writing a prompt** on the Replit home page
+2. **Open any existing project** and start chatting with Agent directly
+3. **Choose any [Developer Framework](https://replit.com/templates)** — all Developer Frameworks automatically include General Agent
+4. **[Import](/core-concepts/workspace/app-setup/import) from GitHub** — Projects imported from GitHub automatically get General Agent
+
+## How to use General Agent
+
+### Just start chatting
+
+Open a project and start talking. You don't need to commit to building anything specific — Agent works within your current project context and can handle whatever you throw at it.
+
+**Example prompts:**
+
+* "Summarize the key points from this document"
+* "Create a CSV of the top 100 companies by revenue"
+* "What are my top five Linear tickets?"
+* "Set up a Vue.js project with TypeScript"
+
+Agent can work with files created during the session, generate single-file outputs, and execute code as part of its reasoning — all before you decide to build anything.
+
+### Connecting external services
+
+Connect your tools so Agent can read and write data directly:
+
+1. Go to **Connectors** in your project settings
+2. Connect your services (BigQuery, Linear, Slack, Notion, Amplitude, Segment, Hex, and more)
+3. Ask Agent to read or write data through them
+
+**Example prompts with connectors:**
+
+* "What are the open tickets in Linear?"
+* "Summarize today's Slack messages in #engineering"
+* "Pull last month's sales data from BigQuery"
+* "Show me upcoming events from my calendar"
+* "Create a new ticket in Linear for the onboarding bug"
+* "Send a summary to #engineering in Slack"
+
+### From chat to full app
+
+When you're ready to build, just say so. Agent transitions from lightweight chat into full build mode seamlessly — no need to start over or switch contexts.
+
+* "Turn this into a web app"
+* "Build an app based on this data"
+* "Create a dashboard for these metrics"
+* "Set up a Rust CLI tool"
+
+You can start casually — research a topic, generate a report, explore some data — and escalate to a full application build when the moment is right.
+
+## What you can build
+
+* **Knowledge work**: Research, summarize, and analyze without building an app
+* **Single-file outputs**: CSVs, PDFs, documents, data exports, and formatted reports
+* **Data applications**: Query connected services and visualize results in dashboards
+* **Any framework or language**: Angular, Vue, Svelte, Rust, Go, C#, Python tkinter, Godot games, CLI tools, and more
+* **Full-stack apps**: When you're ready, build a complete application from your chat context
+
+## What to expect
+
+General Agent offers more power and flexibility, which comes with some variability:
+
+* **Single-shot setup**: Sometimes Agent configures everything in one go
+* **Iterative collaboration**: Complex setups may require multiple rounds of refinement
+* **Technology limitations**: Some technologies may not be fully supported in the Nix environment
+
+<Note>
+  Unlike standard Agent with pre-configured environments, General Agent sets up its own environment and run commands based on your request. You may need to ask it to configure publishing when you're ready to deploy.
+</Note>
+
+## Frequently asked questions
+
+<Accordion title="Can the agent see my other projects?">
+  No. Each chat is contained within a single project. You can't have Project A and Project B talk to each other.
+</Accordion>
+
+<Accordion title="Why can't it access my external tool yet?">
+  You need to connect your services first through Connectors. Once connected, Agent can read and write to them, but it doesn't have access by default.
+</Accordion>
+
+<Accordion title="What connectors are available?">
+  Currently supported: BigQuery, Linear, Slack, Notion, Amplitude, Segment, Hex, and more. Additional connectors are being added regularly.
+</Accordion>
+
+<Accordion title="Do I need connectors to use General Agent?">
+  No. Connectors are optional. You can use General Agent for knowledge work, file generation, and building apps without any external connections.
+</Accordion>
+
+## Availability
+
+| Capability      | Core | Pro |
+| --------------- | ---- | --- |
+| General Agent   | ✅    | ✅   |
+| Any framework   | ✅    | ✅   |
+| Knowledge work  | ✅    | ✅   |
+| File generation | ✅    | ✅   |
+| Connectors      | ✅    | ✅   |
+| Build apps      | ✅    | ✅   |
+
+General Agent is available to all users.
+
+
+Built with [Mintlify](https://mintlify.com).

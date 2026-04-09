@@ -197,18 +197,11 @@ export function ReplitConsolePanel({
     }
   }, []);
 
-  const handleServerLog = useCallback((log: ServerLogEntry) => {
-    const formatLogMessage = (log: ServerLogEntry): string => {
-      const timestamp = log.timestamp ? new Date(log.timestamp).toISOString().replace('T', ' ').slice(0, 23) : '';
-      const service = log.service ? `[${log.service}]` : '';
-      const level = log.level?.toUpperCase() || 'INFO';
-      return `${timestamp} ${service} ${level.toLowerCase()}: ${log.message}`;
-    };
-
+  const handleServerLog = useCallback((log: ServerLogEntry & { type?: string }) => {
     const consoleLog: ConsoleLog = {
       id: `server_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: log.level === 'error' ? 'error' : log.level === 'warn' ? 'warn' : log.level === 'debug' ? 'debug' : 'info',
-      message: formatLogMessage(log),
+      type: log.type === 'stderr' ? 'stderr' : log.type === 'system' ? 'system' : log.type === 'http' ? 'http' : log.level === 'error' ? 'error' : log.level === 'warn' ? 'warn' : log.level === 'debug' ? 'debug' : log.type === 'stdout' ? 'stdout' : 'info',
+      message: log.message,
       timestamp: new Date(log.timestamp || Date.now()),
     };
 
@@ -254,7 +247,7 @@ export function ReplitConsolePanel({
     initialLogsFetched.current = true;
     const timer = setTimeout(() => {
       if (logsRef.current.length > 0) return;
-      fetch('/api/server/logs', { credentials: 'include' })
+      fetch(`/api/server/logs?projectId=${projectId}`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.logs?.length && logsRef.current.length === 0) {

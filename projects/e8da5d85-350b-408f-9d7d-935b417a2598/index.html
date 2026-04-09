@@ -1,0 +1,32 @@
+<!-- filename: index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slack Clone</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div id="sidebar">
+            <h2>Channels</h2>
+            <ul id="channel-list">
+                <li>#general</li>
+                <li>#random</li>
+            </ul>
+            <h2>Direct Messages</h2>
+            <ul id="dm-list">
+                <li>@john</li>
+                <li>@jane</li>
+            </ul>
+        </div>
+        <div id="chat">
+            <div id="messages"></div>
+            <input type="text" id="message-input" placeholder="Type a message...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+    <script src="index.js"></script>
+</body>
+</html>
