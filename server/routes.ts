@@ -10408,9 +10408,11 @@ Rules:
         const existingFile = existingFiles.find(f => f.filename === safeName);
         if (existingFile) {
           const file = await storage.updateFileContent(existingFile.id, safeContent);
+          syncFileToWorkspace(projectId, safeName, safeContent);
           res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
         } else {
           const file = await storage.createFile(projectId, { filename: safeName, content: safeContent });
+          syncFileToWorkspace(projectId, safeName, safeContent);
           existingFiles.push(file as { id: string; filename: string; content: string });
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
         }

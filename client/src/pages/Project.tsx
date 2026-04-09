@@ -6205,10 +6205,24 @@ function _projectPage() {
                       setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
                       expandParentFolders(file.filename);
                       setMobileTab("editor");
+                      if (previewPanelOpen) {
+                        clearTimeout(previewRefreshTimer.current);
+                        previewRefreshTimer.current = setTimeout(() => {
+                          const html = generateHtmlPreviewRef.current?.();
+                          if (html) setPreviewHtml(html);
+                        }, 400);
+                      }
                     }}
                     onFileUpdated={(file) => {
                       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                       setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                      if (previewPanelOpen) {
+                        clearTimeout(previewRefreshTimer.current);
+                        previewRefreshTimer.current = setTimeout(() => {
+                          const html = generateHtmlPreviewRef.current?.();
+                          if (html) setPreviewHtml(html);
+                        }, 400);
+                      }
                     }}
                     onApplyCode={(filename, code) => {
                       const file = filesQuery.data?.find((f) => f.filename === filename);
@@ -6811,10 +6825,24 @@ function _projectPage() {
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
                     expandParentFolders(file.filename);
                     ensureFileExplorerVisible();
+                    if (previewPanelOpen) {
+                      clearTimeout(previewRefreshTimer.current);
+                      previewRefreshTimer.current = setTimeout(() => {
+                        const html = generateHtmlPreviewRef.current?.();
+                        if (html) setPreviewHtml(html);
+                      }, 400);
+                    }
                   }}
                   onFileUpdated={(file) => {
                     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
                     setFileContents((prev) => ({ ...prev, [file.id]: file.content }));
+                    if (previewPanelOpen) {
+                      clearTimeout(previewRefreshTimer.current);
+                      previewRefreshTimer.current = setTimeout(() => {
+                        const html = generateHtmlPreviewRef.current?.();
+                        if (html) setPreviewHtml(html);
+                      }, 400);
+                    }
                   }}
                   onApplyCode={(filename, code) => {
                     const file = filesQuery.data?.find((f) => f.filename === filename);
