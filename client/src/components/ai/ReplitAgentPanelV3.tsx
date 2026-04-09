@@ -79,7 +79,6 @@ import { MaxAutonomyProgress, MaxAutonomyStartForm } from './MaxAutonomyProgress
 import { useMaxAutonomy } from '@/hooks/useMaxAutonomy';
 import { AgentToolsPanel, type AgentToolsSettings } from './AgentToolsPanel';
 import { ElementEditor, type ElementSelection } from './ElementEditor';
-import { ChatToolbar, ChatToolbarMobile } from './ChatToolbar';
 import { UsageTrackingIcon } from './UsageTrackingIcon';
 import { VideoReplayViewer } from './VideoReplayViewer';
 import { ECodeLogo } from '@/components/ECodeLogo';
@@ -3466,34 +3465,7 @@ export function ReplitAgentPanelV3({
           </div>
           )}
           
-          {/* Chat Toolbar - Replit Agent 3 inline icons for quick toggle access */}
-          {/* Hidden on mobile when external input bar is used (has its own toolbar) */}
-          {!hideInput && (
-            isCompactMode ? (
-              <ChatToolbarMobile
-                extendedThinking={agentToolsSettings.extendedThinking}
-                highPowerModels={agentToolsSettings.highPowerModels}
-                onToggleExtendedThinking={() => handleAgentToolsChange({ ...agentToolsSettings, extendedThinking: !agentToolsSettings.extendedThinking })}
-                onToggleHighPowerModels={() => handleAgentToolsChange({ ...agentToolsSettings, highPowerModels: !agentToolsSettings.highPowerModels })}
-                isUpdating={false}
-              />
-            ) : (
-              <ChatToolbar
-                extendedThinking={agentToolsSettings.extendedThinking}
-                highPowerModels={agentToolsSettings.highPowerModels}
-                onToggleExtendedThinking={() => handleAgentToolsChange({ ...agentToolsSettings, extendedThinking: !agentToolsSettings.extendedThinking })}
-                onToggleHighPowerModels={() => handleAgentToolsChange({ ...agentToolsSettings, highPowerModels: !agentToolsSettings.highPowerModels })}
-                onToggleElementSelector={() => setElementEditorActive(!elementEditorActive)}
-                elementSelectorActive={elementEditorActive}
-                isUpdating={false}
-              />
-            )
-          )}
-          
-          {/* RAG Context - Automatic (Replit-style: no visible toggle, always enabled) */}
-          {/* Knowledge retrieval happens automatically behind the scenes like Replit's Agent */}
-          
-          {/* Agent Tools Panel - Replit Agent 3 toggles: Max Autonomy, App Testing, Extended Thinking, High Power Models, Web Search */}
+          {/* Agent Tools Panel - all toggles in one row */}
           {/* Hidden on mobile when external input bar is used (has its own Agent Tools trigger) */}
           {!hideInput && (
             <AgentToolsPanel

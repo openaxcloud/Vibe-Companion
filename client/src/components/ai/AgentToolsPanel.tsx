@@ -11,6 +11,8 @@ import {
   Globe,
   ImageIcon,
   Loader2,
+  Brain,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAgentTools, type AgentToolsSettings } from '@/hooks/useAgentTools';
@@ -88,6 +90,24 @@ export function AgentToolsPanel({
   }, [effectiveSettings]);
 
   const tools = [
+    {
+      key: 'extendedThinking' as const,
+      icon: Brain,
+      label: 'Extended thinking',
+      shortLabel: 'Thinking',
+      tooltip: 'Deeper reasoning for harder problems',
+      active: effectiveSettings.extendedThinking,
+      activeColor: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30',
+    },
+    {
+      key: 'highPowerModels' as const,
+      icon: Sparkles,
+      label: 'High power',
+      shortLabel: 'Power',
+      tooltip: 'Use sophisticated AI for complex tasks',
+      active: effectiveSettings.highPowerModels,
+      activeColor: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30',
+    },
     {
       key: 'maxAutonomy' as const,
       icon: Bot,
