@@ -216,6 +216,8 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
 
 **Developer Tools**: Includes a customizable Keyboard Shortcuts system, a structured Console Panel with run history, an AI Plan Mode for generating structured task lists, and a comprehensive User Settings panel. Dependency Management features a package panel with registry search, import guessing, and version pinning. SSH Panel and Key Management allow users to add and manage SSH public keys for remote access.
 
+**RAG (Retrieval-Augmented Generation)**: Full codebase indexing via `server/services/rag/` — chunker extracts imports/exports per chunk, pgvector stores embeddings in `code_embeddings` table, hybrid search (vector + FTS) with reranking. **Import Graph Traversal**: `getContextForPrompt` automatically resolves dependency chains — parses import statements from retrieved chunks, resolves file paths (relative imports, `@/` aliases), fetches exported symbols from those files via BFS (depth 2, max 12 files, 35% token budget). Two strategies: path-based traversal (follows `./`, `../` imports) and symbol-based lookup (queries `exports` array column for named imports). Dependency chunks are labeled `[dependency]` in context output.
+
 **Storage and Database**: Each project receives its own PostgreSQL schema for data isolation. A Database Panel provides a table browser, SQL Runner, and masked credentials display. An App Storage v2 system offers bucket-based object storage with folder organization, access management, and quota enforcement.
 
 **Key Features**:

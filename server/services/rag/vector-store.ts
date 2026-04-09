@@ -383,6 +383,57 @@ export async function setIndexStatus(projectId: number, updates: Partial<{
   `));
 }
 
+export async function getChunksByFilePaths(
+  projectId: number,
+  filePaths: string[],
+  options: { chunkTypes?: string[]; exportsOnly?: boolean } = {}
+): Promise<StoredChunk[]> {
+  if (filePaths.length === 0) return [];
+
+  const pathList = filePaths.map(p => `'${p.replace(/'/g, "''")}'`).join(', ');
+  let whereExtra = '';
+  if (options.exportsOnly) {
+    whereExtra += ` AND array_length(exports, 1) > 0`;
+  }
+  if (options.chunkTypes && options.chunkTypes.length > 0) {
+    const typeList = options.chunkTypes.map(t => `'${t.replace(/'/g, "''")}'`).join(', ');
+    whereExtra += ` AND chunk_type IN (${typeList})`;
+  }
+
+  const results = await db.execute(
+    sql.raw(
+      `SELECT * FROM code_embeddings WHERE project_id = ${projectId} AND file_path IN (${pathList})${whereExtra} ORDER BY file_path, chunk_index`
+    )
+  ) as unknown as { rows: any[] };
+
+  return results.rows.map(rowToChunk);
+}
+
+export async function getExportedSymbolFiles(
+  projectId: number,
+  symbolNames: string[]
+): Promise<Map<string, string[]>> {
+  if (symbolNames.length === 0) return new Map();
+
+  const conditions = symbolNames.map(s => `'${s.replace(/'/g, "''")}'`).join(', ');
+  const results = await db.execute(
+    sql.raw(
+      `SELECT DISTINCT file_path, unnest(exports) as export_name
+       FROM code_embeddings
+       WHERE project_id = ${projectId}
+         AND exports && ARRAY[${conditions}]::text[]`
+    )
+  ) as unknown as { rows: any[] };
+
+  const map = new Map<string, string[]>();
+  for (const row of results.rows) {
+    const existing = map.get(row.export_name) || [];
+    existing.push(row.file_path);
+    map.set(row.export_name, existing);
+  }
+  return map;
+}
+
 function rowToChunk(row: any): StoredChunk {
   return {
     id: row.id,

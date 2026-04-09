@@ -10,6 +10,7 @@ import {
   upsertChunk, deleteFileChunks, deleteProjectChunks,
   hybridSearch, searchByVector, searchByFTS, getProjectStats,
   setIndexStatus, getIndexStatus, SearchResult,
+  getChunksByFilePaths, getExportedSymbolFiles, StoredChunk,
 } from './vector-store';
 
 const logger = createLogger('rag-engine');
@@ -313,6 +314,34 @@ export class RAGEngine extends EventEmitter {
       }
     }
 
+    if (options.includeImports !== false && selectedChunks.length > 0) {
+      const depTokenBudget = Math.min(maxTokens - tokenCount, Math.floor(maxTokens * 0.35));
+      if (depTokenBudget > 500) {
+        try {
+          const depResult = await this.resolveImportGraph(
+            selectedChunks,
+            2,
+            12,
+            depTokenBudget
+          );
+
+          for (const depChunk of depResult.chunks) {
+            const contentHash = crypto.createHash('md5').update(depChunk.content).digest('hex');
+            if (seenContent.has(contentHash)) continue;
+            seenContent.add(contentHash);
+            selectedChunks.push(depChunk);
+            tokenCount += Math.ceil(depChunk.content.length / 4);
+          }
+
+          if (depResult.resolvedFiles.length > 0) {
+            logger.debug(`Import graph resolved ${depResult.resolvedFiles.length} files, ${depResult.chunks.length} chunks (${depResult.tokenEstimate} tokens)`);
+          }
+        } catch (err: any) {
+          logger.warn(`Import graph resolution failed: ${err.message}`);
+        }
+      }
+    }
+
     selectedChunks.sort((a, b) => {
       if (a.filePath !== b.filePath) return a.filePath.localeCompare(b.filePath);
       return a.startLine - b.startLine;
@@ -320,10 +349,13 @@ export class RAGEngine extends EventEmitter {
 
     let context = '=== CODEBASE CONTEXT (RAG) ===\n';
     let currentFile = '';
+    const depFiles = new Set<string>();
     for (const chunk of selectedChunks) {
+      if (chunk.matchType?.startsWith('dep-')) depFiles.add(chunk.filePath);
       if (chunk.filePath !== currentFile) {
         currentFile = chunk.filePath;
-        context += `\n--- ${chunk.filePath} (${chunk.language}) ---\n`;
+        const isDep = depFiles.has(chunk.filePath);
+        context += `\n--- ${chunk.filePath} (${chunk.language})${isDep ? ' [dependency]' : ''} ---\n`;
       }
       if (chunk.symbolName) {
         context += `[${chunk.symbolName}] L${chunk.startLine}-${chunk.endLine}:\n`;
@@ -333,6 +365,198 @@ export class RAGEngine extends EventEmitter {
     context += '\n=== END CODEBASE CONTEXT ===\n';
 
     return { context, chunks: selectedChunks, tokenEstimate: tokenCount };
+  }
+
+  async resolveImportGraph(
+    seedChunks: ContextChunk[],
+    maxDepth: number = 2,
+    maxFiles: number = 15,
+    maxTokens: number = 4000
+  ): Promise<{ chunks: ContextChunk[]; resolvedFiles: string[]; tokenEstimate: number }> {
+    const visitedFiles = new Set<string>(seedChunks.map(c => c.filePath));
+    const resultChunks: ContextChunk[] = [];
+    let tokenCount = 0;
+
+    const allImports: string[] = [];
+    for (const chunk of seedChunks) {
+      const rawImports = this.extractImportPaths(chunk.content, chunk.language);
+      allImports.push(...rawImports);
+    }
+
+    let frontier = this.resolveImportsToPaths(allImports, seedChunks[0]?.filePath || '');
+
+    for (let depth = 0; depth < maxDepth && frontier.length > 0 && visitedFiles.size < maxFiles; depth++) {
+      const unvisited = frontier.filter(f => !visitedFiles.has(f));
+      if (unvisited.length === 0) break;
+
+      const batch = unvisited.slice(0, maxFiles - visitedFiles.size);
+      for (const f of batch) visitedFiles.add(f);
+
+      let depChunks: StoredChunk[];
+      try {
+        depChunks = await getChunksByFilePaths(this.projectId, batch, {
+          chunkTypes: ['function', 'class', 'interface', 'type', 'export', 'method'],
+        });
+      } catch {
+        depChunks = [];
+      }
+
+      const nextImports: string[] = [];
+
+      for (const dc of depChunks) {
+        const chunkTokens = Math.ceil(dc.content.length / 4);
+        if (tokenCount + chunkTokens > maxTokens) break;
+
+        resultChunks.push({
+          filePath: dc.filePath,
+          content: dc.content,
+          language: dc.language,
+          startLine: dc.startLine || 0,
+          endLine: dc.endLine || 0,
+          symbolName: dc.symbolName || undefined,
+          score: 0.5 - depth * 0.1,
+          matchType: `dep-d${depth}`,
+        });
+        tokenCount += chunkTokens;
+
+        if (depth < maxDepth - 1 && dc.imports && dc.imports.length > 0) {
+          nextImports.push(...this.extractImportPaths(dc.content, dc.language));
+        }
+      }
+
+      frontier = this.resolveImportsToPaths(nextImports, batch[0] || '');
+    }
+
+    const importedSymbols = this.extractImportedSymbols(allImports);
+    if (importedSymbols.length > 0 && tokenCount < maxTokens) {
+      try {
+        const symbolFileMap = await getExportedSymbolFiles(this.projectId, importedSymbols);
+        const extraFiles: string[] = [];
+        for (const [, files] of symbolFileMap) {
+          for (const f of files) {
+            if (!visitedFiles.has(f)) {
+              extraFiles.push(f);
+              visitedFiles.add(f);
+            }
+          }
+        }
+
+        if (extraFiles.length > 0) {
+          const extraChunks = await getChunksByFilePaths(this.projectId, extraFiles.slice(0, 5), {
+            chunkTypes: ['function', 'class', 'interface', 'type', 'export'],
+          });
+
+          for (const ec of extraChunks) {
+            const chunkTokens = Math.ceil(ec.content.length / 4);
+            if (tokenCount + chunkTokens > maxTokens) break;
+
+            resultChunks.push({
+              filePath: ec.filePath,
+              content: ec.content,
+              language: ec.language,
+              startLine: ec.startLine || 0,
+              endLine: ec.endLine || 0,
+              symbolName: ec.symbolName || undefined,
+              score: 0.3,
+              matchType: 'dep-symbol',
+            });
+            tokenCount += chunkTokens;
+          }
+        }
+      } catch {
+      }
+    }
+
+    return {
+      chunks: resultChunks,
+      resolvedFiles: Array.from(visitedFiles),
+      tokenEstimate: tokenCount,
+    };
+  }
+
+  private extractImportPaths(content: string, language: string): string[] {
+    const paths: string[] = [];
+    const lines = content.split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      let match: RegExpMatchArray | null = null;
+
+      if (language === 'typescript' || language === 'javascript') {
+        match = trimmed.match(/(?:import|export)\s+.*?from\s+['"]([^'"]+)['"]/);
+        if (!match) match = trimmed.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+        if (!match) match = trimmed.match(/import\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+      } else if (language === 'python') {
+        match = trimmed.match(/^from\s+(\S+)\s+import/);
+        if (!match) match = trimmed.match(/^import\s+(\S+)/);
+      } else if (language === 'go') {
+        match = trimmed.match(/["']([^"']+)["']/);
+      } else if (language === 'rust') {
+        match = trimmed.match(/^use\s+(\S+)/);
+      }
+
+      if (match && match[1]) {
+        paths.push(match[1]);
+      }
+    }
+
+    return paths;
+  }
+
+  private extractImportedSymbols(importStatements: string[]): string[] {
+    const symbols: string[] = [];
+    for (const imp of importStatements) {
+      const namedMatch = imp.match(/\{\s*([^}]+)\s*\}/);
+      if (namedMatch) {
+        const names = namedMatch[1].split(',').map(s => {
+          const parts = s.trim().split(/\s+as\s+/);
+          return parts[0].trim();
+        }).filter(s => s.length > 0 && s !== 'type');
+        symbols.push(...names);
+      }
+
+      const defaultMatch = imp.match(/import\s+([A-Za-z_$][\w$]*)\s+from/);
+      if (defaultMatch && defaultMatch[1] !== 'type') {
+        symbols.push(defaultMatch[1]);
+      }
+    }
+    return [...new Set(symbols)];
+  }
+
+  private resolveImportsToPaths(importPaths: string[], contextFilePath: string): string[] {
+    const resolved: string[] = [];
+    const contextDir = path.dirname(contextFilePath);
+    const TS_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
+    const INDEX_FILES = ['index.ts', 'index.tsx', 'index.js', 'index.jsx'];
+
+    for (const imp of importPaths) {
+      if (!imp.startsWith('.') && !imp.startsWith('@')) continue;
+
+      let target = imp;
+      if (imp.startsWith('@/') || imp.startsWith('@shared/')) {
+        target = imp.replace(/^@\//, 'src/').replace(/^@shared\//, 'shared/');
+      } else if (imp.startsWith('./') || imp.startsWith('../')) {
+        target = path.posix.join(contextDir, imp);
+      } else {
+        continue;
+      }
+
+      target = target.replace(/\\/g, '/');
+
+      const ext = path.extname(target);
+      if (ext && SUPPORTED_EXTENSIONS.has(ext)) {
+        resolved.push(target);
+      } else {
+        for (const e of TS_EXTENSIONS) {
+          resolved.push(target + e);
+        }
+        for (const idx of INDEX_FILES) {
+          resolved.push(target + '/' + idx);
+        }
+      }
+    }
+
+    return [...new Set(resolved)];
   }
 
   startWatcher(): void {
