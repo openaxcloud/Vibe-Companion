@@ -1938,7 +1938,7 @@ function UnifiedIDELayout({
                     </TabsTrigger>
                   </TabsList>
                   
-                  <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount>
+                  <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden data-[state=inactive]:hidden" forceMount>
                     <ReplitAgentPanelV3
                       key={`agent-${projectId}`}
                       projectId={projectId}
