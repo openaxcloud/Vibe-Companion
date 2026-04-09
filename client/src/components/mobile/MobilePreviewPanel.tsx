@@ -160,7 +160,7 @@ export function MobilePreviewPanel({
   const isPreviewRunning = previewStatus?.status === 'running' || previewStatus?.status === 'static';
   const isPreviewStarting = previewStatus?.status === 'starting' || startPreviewMutation.isPending;
   const noRunnableFiles = previewStatus?.status === 'no_runnable_files';
-  const baseUrl = externalPreviewUrl || previewStatus?.previewUrl || `/api/preview/projects/${projectId}/preview`;
+  const baseUrl = externalPreviewUrl || previewStatus?.previewUrl || `/api/preview/render/${projectId}`;
   const computedPreviewUrl = baseUrl + (currentPath === '/' ? '' : currentPath);
 
   const handleRefresh = () => {

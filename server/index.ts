@@ -1378,7 +1378,7 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         }
         const files = await storage.getFilesByProjectId(projectId);
         const htmlFile = files.find((f: any) => f.filename?.endsWith(".html") || f.filename === "index.html");
-        if (!htmlFile) return res.json({ previewUrl: null, status: "building" });
+        if (!htmlFile) return res.json({ previewUrl: `/api/preview/render/${projectId}`, status: "building" });
         return res.json({ previewUrl: `/api/preview/render/${projectId}`, status: "running" });
       } catch (e: any) {
         res.json({ previewUrl: null, status: "error" });
@@ -1442,7 +1442,11 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
         }
         const files = await storage.getFilesByProjectId(projectId);
         const htmlFile = files.find((f: any) => f.filename === "index.html" || f.filename?.endsWith(".html"));
-        if (!htmlFile) return res.status(404).send(`<!DOCTYPE html><html><head>${baseTag}</head><body><h1>No preview available yet</h1><p>The agent is building your app. Once code is generated, the preview will appear here.</p></body></html>`);
+        if (!htmlFile) {
+          res.setHeader("Content-Type", "text/html");
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          return res.send(`<!DOCTYPE html><html><head>${baseTag}<meta http-equiv="refresh" content="3"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#0d1117;color:#c9d1d9;display:flex;align-items:center;justify-content:center;min-height:100vh}.c{text-align:center}.s{width:32px;height:32px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}@keyframes spin{to{transform:rotate(360deg)}}h2{font-size:16px;font-weight:500;margin-bottom:8px}p{font-size:13px;color:#8b949e}</style></head><body><div class="c"><div class="s"></div><h2>Building your app...</h2><p>The preview will appear automatically once files are generated.</p></div></body></html>`);
+        }
         res.setHeader("Content-Type", "text/html");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         let content = htmlFile.content || "<h1>Empty file</h1>";
@@ -2644,6 +2648,13 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     // =========================================================
     // PREVIEW PANEL
     // =========================================================
+    app.get("/api/preview/projects/:id/preview", (req, res) => {
+      res.redirect(`/api/preview/render/${req.params.id}`);
+    });
+    app.get("/api/preview/projects/:id/preview/*", (req, res) => {
+      res.redirect(`/api/preview/render/${req.params.id}`);
+    });
+
     app.post("/api/preview/projects/:id/preview/start", (req, res) => {
       const pid = req.params.id;
       broadcastProjectLog(pid, {

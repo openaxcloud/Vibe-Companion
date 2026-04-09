@@ -148,7 +148,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
         
         setSelectedPort(targetPort);
         // Use the API preview route for serving project content
-        setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
+        setPreviewUrl(`/api/preview/render/${projectId}`);
         
         toast({
           title: "Preview Started",
@@ -227,7 +227,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
     onSuccess: (data, port) => {
       if (data.success) {
         setSelectedPort(port);
-        setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
+        setPreviewUrl(`/api/preview/render/${projectId}`);
         savePreference('port', port.toString());
         
         setPreviewStatus(prev => ({
@@ -553,7 +553,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
             ? selectedPort 
             : data.primaryPort;
           // Use the API preview route for serving project content
-          setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
+          setPreviewUrl(`/api/preview/render/${projectId}`);
           setSelectedPort(targetPort);
         }
       }
