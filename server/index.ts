@@ -1879,6 +1879,9 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
 
     const activeExecutions = new Map<string, { pid?: number; startedAt: number; projectId: string }>();
 
+    const broadcastRuntimeLog = (msg: any) => { log(`[runtime] ${msg.message}`); };
+    const broadcastServerLog = (msg: any) => { log(`[server] ${msg.message}`); };
+
     app.post("/api/runtime/start", (req, res) => {
       const execId = crypto.randomUUID();
       const projectId = req.body?.projectId || "default";

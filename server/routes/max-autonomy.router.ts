@@ -12,7 +12,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { maxAutonomyService } from '../services/max-autonomy-service';
 import { delegationManager } from '../services/delegation-manager.service';
 import { orchestratorMetrics } from '../services/orchestrator-metrics.service';
-import { ensureAuthenticated } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
 import { db } from '../db';
 import { maxAutonomySessions, autonomyMessageQueue } from '@shared/schema';
@@ -53,13 +52,21 @@ router.get('/orchestrator/health', async (req: Request, res: Response) => {
   }
 });
 
-// All other routes require authentication
-router.use(ensureAuthenticated);
+function sessionAuth(req: Request, res: Response, next: NextFunction) {
+  const userId = (req.session as any)?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
+  }
+  (req as any)._userId = userId;
+  next();
+}
+
+router.use(sessionAuth);
 
 async function ensureSessionOwnership(req: Request, res: Response, next: NextFunction) {
   try {
     const sessionId = req.params.id || req.body.sessionId;
-    const userId = req.user!.id;
+    const userId = (req as any)._userId;
 
     if (!sessionId) {
       return res.status(400).json({ error: 'Session ID is required' });
@@ -93,7 +100,7 @@ async function ensureSessionOwnership(req: Request, res: Response, next: NextFun
  */
 router.post('/sessions', async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = (req as any)._userId;
     const {
       projectId,
       goal,
@@ -198,7 +205,7 @@ router.post('/sessions/:id/pause', ensureSessionOwnership, async (req: Request, 
 
     await maxAutonomyService.pauseSession(sessionId);
 
-    logger.info(`Session ${sessionId} paused by user ${req.user!.id}`);
+    logger.info(`Session ${sessionId} paused by user ${(req as any)._userId}`);
 
     res.json({
       success: true,
@@ -227,7 +234,7 @@ router.post('/sessions/:id/resume', ensureSessionOwnership, async (req: Request,
 
     await maxAutonomyService.resumeSession(sessionId);
 
-    logger.info(`Session ${sessionId} resumed by user ${req.user!.id}`);
+    logger.info(`Session ${sessionId} resumed by user ${(req as any)._userId}`);
 
     res.json({
       success: true,
@@ -256,7 +263,7 @@ router.post('/sessions/:id/stop', ensureSessionOwnership, async (req: Request, r
 
     await maxAutonomyService.stopSession(sessionId);
 
-    logger.info(`Session ${sessionId} stopped by user ${req.user!.id}`);
+    logger.info(`Session ${sessionId} stopped by user ${(req as any)._userId}`);
 
     res.json({
       success: true,
@@ -322,7 +329,7 @@ router.get('/sessions/:id/progress', ensureSessionOwnership, async (req: Request
  */
 router.get('/sessions', async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = (req as any)._userId;
     const limit = parseInt(req.query.limit as string) || 10;
 
     const sessions = await maxAutonomyService.getUserSessions(userId, limit);
@@ -386,7 +393,7 @@ router.get('/sessions/:id/messages', ensureSessionOwnership, async (req: Request
 router.post('/sessions/:id/messages', ensureSessionOwnership, async (req: Request, res: Response) => {
   try {
     const sessionId = req.params.id;
-    const userId = req.user!.id;
+    const userId = (req as any)._userId;
     const { content, priority = 0 } = req.body;
     
     if (!content?.trim()) {

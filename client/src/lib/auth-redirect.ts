@@ -61,11 +61,11 @@ export function handleUnauthorized(originUrl?: string): boolean {
     return false;
   }
   
-  // Skip for background prefetch requests to non-critical endpoints
   const nonCriticalEndpoints = [
     '/api/workspace/stats',
     '/api/notifications',
     '/api/activity',
+    '/api/autonomy',
   ];
   if (originUrl && nonCriticalEndpoints.some(ep => originUrl.includes(ep))) {
     return false;
