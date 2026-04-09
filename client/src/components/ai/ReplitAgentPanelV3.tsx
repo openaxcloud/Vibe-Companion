@@ -436,7 +436,7 @@ export function ReplitAgentPanelV3({
     conversationId,
     projectId: projectIdNum,
     sessionId: externalSessionId,
-    enabled: (!!bootstrapToken || isActiveBuildSession || !!conversationId) && abInlineMode,
+    enabled: (!!bootstrapToken || isActiveBuildSession) && abInlineMode,
     bootstrapToken,
     initialPrompt
   });
@@ -617,6 +617,10 @@ export function ReplitAgentPanelV3({
   useEffect(() => {
     const currentTask = abCurrentTask?.toLowerCase() || '';
     const phase = abPhase;
+    
+    if (phase === 'complete' || phase === 'error') {
+      setIsActiveBuildSession(false);
+    }
     
     if (currentTask.includes('post-build validation') || currentTask.includes('running post-build')) {
       setValidationStep('post_validation');
@@ -803,24 +807,31 @@ export function ReplitAgentPanelV3({
     refetchInterval: 3000,
   });
 
-  // Sync backend messages to zustand store on fetch
-  // ✅ FIX (Dec 10, 2025): Always hydrate store with backend messages on initial load
-  // Previously checked `!hasConversation(conversationId)` which prevented updates
-  // when the store was empty or had stale localStorage data
   useEffect(() => {
     if (backendMessages?.messages && conversationId) {
-      // Only sync once per conversationId to avoid overwriting user's new messages
       if (initialSyncDoneRef.current === conversationId) {
         return;
       }
       
       const fetchedMessages = backendMessages.messages as Message[];
-      // Always call setStoreMessages - it handles empty arrays by using default message
+      const existingMessages = getMessages(conversationId);
+      const hasExistingUserMessages = existingMessages.some(m => m.role === 'user');
+      
+      if (hasExistingUserMessages && fetchedMessages.length > 0) {
+        const localLatestId = existingMessages[existingMessages.length - 1]?.id;
+        const backendLatestId = fetchedMessages[fetchedMessages.length - 1]?.id;
+        if (localLatestId === backendLatestId || existingMessages.length >= fetchedMessages.length) {
+          initialSyncDoneRef.current = conversationId;
+          if (backendMessages.hasMore !== undefined) setHasMoreMessages(backendMessages.hasMore);
+          if (backendMessages.totalCount !== undefined) setTotalMessageCount(backendMessages.totalCount);
+          return;
+        }
+      }
+      
       setStoreMessages(conversationId, fetchedMessages);
       setLastSyncedAt(conversationId, Date.now());
       initialSyncDoneRef.current = conversationId;
       
-      // Track "Show Previous Messages" state from backend response
       if (backendMessages.hasMore !== undefined) {
         setHasMoreMessages(backendMessages.hasMore);
       }
@@ -828,7 +839,7 @@ export function ReplitAgentPanelV3({
         setTotalMessageCount(backendMessages.totalCount);
       }
     }
-  }, [backendMessages, conversationId, setStoreMessages, setLastSyncedAt]);
+  }, [backendMessages, conversationId, setStoreMessages, setLastSyncedAt, getMessages]);
   
   // Handler for "Show Previous Messages" button (Replit-style incremental loading)
   const handleLoadPreviousMessages = useCallback(async () => {
@@ -2648,8 +2659,8 @@ export function ReplitAgentPanelV3({
           lastSyncedAt={conversationId ? getLastSyncedAt(conversationId) : undefined}
         />
         
-        {/* Connection Error/Reconnecting Banner with Retry Button */}
-        {(connectionError || (reconnectAttempt > 0 && reconnectAttempt < maxReconnectAttempts)) && (
+        {/* Connection Error/Reconnecting Banner with Retry Button - only during active builds */}
+        {isActiveBuildSession && (connectionError || (reconnectAttempt > 0 && reconnectAttempt < maxReconnectAttempts)) && (
           <div 
             className={cn(
               "mx-3 sm:mx-4 mb-3 px-4 py-3 rounded-lg flex items-center justify-between gap-3",
