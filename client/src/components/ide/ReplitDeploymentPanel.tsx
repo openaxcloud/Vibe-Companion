@@ -1,1375 +1,1032 @@
 // @ts-nocheck
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from '@/components/ui/chart';
 import { cn } from '@/lib/utils';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { toast } from '@/hooks/use-toast';
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
-} from 'recharts';
-import {
-  Rocket,
-  Globe,
-  Server,
-  Activity,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  ExternalLink,
-  RefreshCw,
-  Loader2,
-  Zap,
-  Copy,
-  Play,
-  Square,
-  RotateCcw,
-  Pause,
-  Trash2,
-  Filter,
-  ArrowDown,
-  BarChart3,
-  TrendingUp,
-  AlertTriangle,
-  Timer,
-  DollarSign,
-  Wifi,
-  WifiOff,
-  FileText,
-  Terminal,
-  Info,
-  History,
-  ArrowLeft,
-  Shield,
-  Link2,
-  CheckCircle2,
+  Globe, Server, Rocket, Clock, CheckCircle, XCircle, AlertCircle, ExternalLink,
+  RefreshCw, Loader2, Copy, Pause, Play, Trash2, ArrowLeft, Shield, Link2,
+  ChevronDown, ChevronRight, Search, Filter, BarChart3, Cpu, HardDrive,
+  Cloud, Zap, Monitor, Timer, X, MoreHorizontal, Settings, Eye, EyeOff
 } from 'lucide-react';
 
 interface ReplitDeploymentPanelProps {
   projectId: string;
   className?: string;
-  defaultTab?: 'deploy' | 'logs' | 'analytics';
+  defaultTab?: string;
 }
 
-type InternalStatus = 'pending' | 'building' | 'deploying' | 'deployed' | 'active' | 'failed' | 'stopped';
-type UIStatus = 'idle' | 'publishing' | 'live' | 'failed' | 'needs-republish';
-
-interface Deployment {
+interface DeploymentRecord {
   id: string;
-  deploymentId?: string;
   projectId: string;
-  status: InternalStatus;
-  uiStatus?: UIStatus;
-  url?: string;
-  domain?: string;
-  customDomain?: string;
-  environment: string;
-  region?: string;
-  type?: string;
+  userId: string;
+  status: string;
+  deploymentType: string;
+  url: string;
+  version: number;
+  buildLog?: string;
+  buildCommand?: string;
+  runCommand?: string;
+  machineConfig?: string;
+  maxMachines?: number;
+  isPrivate?: boolean;
+  showBadge?: boolean;
   createdAt: string;
-  updatedAt?: string;
-  deployedAt?: string;
-  lastCodeChange?: string;
-  buildLogs?: string[];
-  deploymentLogs?: string[];
+  finishedAt?: string;
+  deployConfig?: any;
 }
 
-function translateStatusToUI(internalStatus: string, lastCodeChange?: string, deployedAt?: string): UIStatus {
-  switch (internalStatus) {
-    case 'pending':
-    case 'building':
-    case 'deploying':
-      return 'publishing';
-    case 'active':
-    case 'deployed':
-      if (lastCodeChange && deployedAt) {
-        const codeChangeTime = new Date(lastCodeChange).getTime();
-        const deployedTime = new Date(deployedAt).getTime();
-        if (codeChangeTime > deployedTime) {
-          return 'needs-republish';
-        }
-      }
-      return 'live';
-    case 'failed':
-      return 'failed';
-    case 'stopped':
-      return 'idle';
-    default:
-      return 'idle';
-  }
-}
-
-interface LogEntry {
+interface DomainRecord {
   id: string;
-  type: 'build' | 'deploy';
-  message: string;
-  timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'success';
+  domain: string;
+  target: string;
+  verified: boolean;
 }
 
-interface DeploymentAnalytics {
-  summary: {
-    totalRequests: number;
-    totalErrors: number;
-    errorRate: number;
-    avgResponseTime: number;
-    uptime: number;
-    bandwidth: {
-      incoming: number;
-      outgoing: number;
-      total: number;
-    };
-  };
-  latency: {
-    p50: number;
-    p75: number;
-    p90: number;
-    p95: number;
-    p99: number;
-    max: number;
-    min: number;
-  };
-  costs: {
-    period: string;
-    compute: number;
-    bandwidth: number;
-    storage: number;
-    total: number;
-    currency: string;
-    projectedMonthly: number;
-  };
-  timeSeries: Array<{
-    timestamp: string;
-    requests: number;
-    errors: number;
-    latencyP50: number;
-    latencyP99: number;
-  }>;
-}
+type DeployPhase = 'select_type' | 'configure' | 'published';
+type DeployType = 'autoscale' | 'static' | 'reserved-vm' | 'scheduled';
+type PostDeployTab = 'overview' | 'logs' | 'analytics' | 'resources' | 'domains' | 'manage';
 
-type TimePeriod = '1h' | '6h' | '24h' | '7d' | '30d';
+const DEPLOY_TYPES: { id: DeployType; label: string; subtitle: string; icon: any; recommended?: boolean }[] = [
+  { id: 'reserved-vm', label: 'Reserved VM', subtitle: 'Always On Servers', icon: Server },
+  { id: 'autoscale', label: 'Autoscale', subtitle: 'Best choice for most apps', icon: Cloud, recommended: true },
+  { id: 'static', label: 'Static pages', subtitle: 'Simple HTML websites', icon: Monitor },
+  { id: 'scheduled', label: 'Scheduled', subtitle: 'Time-based job scheduler', icon: Clock },
+];
 
-const WEBSOCKET_RECONNECT_DELAY = 3000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const REGIONS = [
+  { value: 'us-east-1', label: 'US East (N. Virginia)' },
+  { value: 'us-west-2', label: 'US West (Oregon)' },
+  { value: 'eu-central-1', label: 'EU Central (Frankfurt)' },
+  { value: 'ap-southeast-1', label: 'Asia Pacific (Singapore)' },
+];
 
-export function ReplitDeploymentPanel({ 
-  projectId, 
-  className, 
-  defaultTab = 'deploy' 
-}: ReplitDeploymentPanelProps) {
-  const [activeTab, setActiveTab] = useState<string>(defaultTab);
-  const [deployType, setDeployType] = useState<'static' | 'autoscale' | 'reserved-vm'>('autoscale');
-  const [customDomain, setCustomDomain] = useState('');
-  const [environment, setEnvironment] = useState<'production' | 'staging'>('production');
-  const [region, setRegion] = useState('us-east-1');
-  const [isDeploying, setIsDeploying] = useState(false);
-  
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [logFilter, setLogFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all');
-  const [isAutoScroll, setIsAutoScroll] = useState(true);
-  const [wsConnected, setWsConnected] = useState(false);
-  
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('24h');
-  
-  const [showHistory, setShowHistory] = useState(false);
-  const [dnsVerificationStatus, setDnsVerificationStatus] = useState<'idle' | 'verifying' | 'verified' | 'failed'>('idle');
-  const [dnsRecords, setDnsRecords] = useState<{ type: string; name: string; value: string; verified: boolean }[]>([]);
-  
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectAttempts = useRef(0);
+const MACHINE_CONFIGS = [
+  { value: 'small', label: '0.5 vCPU / 512 MiB RAM', cpu: 0.5, ram: 512 },
+  { value: 'medium', label: '1 vCPU / 1 GiB RAM', cpu: 1, ram: 1024 },
+  { value: 'large', label: '2 vCPU / 2 GiB RAM', cpu: 2, ram: 2048 },
+  { value: 'xlarge', label: '4 vCPU / 4 GiB RAM', cpu: 4, ram: 4096 },
+];
+
+export function ReplitDeploymentPanel({ projectId, className, defaultTab }: ReplitDeploymentPanelProps) {
+  const [phase, setPhase] = useState<DeployPhase>('select_type');
+  const [selectedType, setSelectedType] = useState<DeployType>('autoscale');
+  const [activeTab, setActiveTab] = useState<PostDeployTab>('overview');
+  const [configRegion, setConfigRegion] = useState('us-east-1');
+  const [configEnv, setConfigEnv] = useState('production');
+  const [configDomain, setConfigDomain] = useState('');
+  const [configBuildCmd, setConfigBuildCmd] = useState('');
+  const [configRunCmd, setConfigRunCmd] = useState('');
+  const [configMachine, setConfigMachine] = useState('small');
+  const [configMaxMachines, setConfigMaxMachines] = useState(1);
+  const [configPublicDir, setConfigPublicDir] = useState('/');
+  const [domainInput, setDomainInput] = useState('');
+  const [domainVerifying, setDomainVerifying] = useState(false);
+  const [domainDnsRecords, setDomainDnsRecords] = useState<any[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState<DomainRecord | null>(null);
+  const [logSearch, setLogSearch] = useState('');
+  const [analyticsPeriod, setAnalyticsPeriod] = useState('1h');
+  const [showDomainMenu, setShowDomainMenu] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const logsContainerRef = useRef<HTMLDivElement>(null);
 
-  const { data: latestDeployment, isLoading: isLoadingDeployment, refetch: refetchDeployment } = useQuery<{ 
-    success: boolean; 
-    deployment: Deployment 
-  }>({
-    queryKey: ['/api/projects', projectId, 'deployment', 'latest'],
-    refetchInterval: isDeploying ? 3000 : false,
-    enabled: !!projectId,
-  });
-
-  const { data: deploymentHistory, isLoading: isLoadingHistory } = useQuery<{ 
-    success: boolean; 
-    deployments: Deployment[] 
-  }>({
-    queryKey: ['/api/projects', projectId, 'deployments'],
-    enabled: !!projectId,
-  });
-
-  const { data: analyticsData, isLoading: isLoadingAnalytics, refetch: refetchAnalytics } = useQuery<{
-    success: boolean;
-    analytics: DeploymentAnalytics;
-    period: string;
-  }>({
-    queryKey: ['/api/projects', projectId, 'deployments', 'analytics', { period: timePeriod }],
+  const { data: latestDeploy, isLoading: loadingLatest, refetch: refetchLatest } = useQuery({
+    queryKey: ['deployment-latest', projectId],
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}/deployments/analytics?period=${timePeriod}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics');
-      }
-      return response.json();
+      const res = await fetch(`/api/projects/${projectId}/deployment/latest`, { credentials: 'include' });
+      if (!res.ok) return { status: 'not_deployed' };
+      return res.json();
+    },
+    enabled: !!projectId,
+    refetchInterval: 5000,
+  });
+
+  const { data: deployHistory } = useQuery({
+    queryKey: ['deployment-history', projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/deployments`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!projectId && phase === 'published',
+  });
+
+  const { data: domains, refetch: refetchDomains } = useQuery({
+    queryKey: ['deployment-domains', projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/domains`, { credentials: 'include' });
+      if (!res.ok) return { domains: [] };
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+
+  const { data: analyticsData } = useQuery({
+    queryKey: ['deployment-analytics', projectId, analyticsPeriod],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/deployments/analytics?period=${analyticsPeriod}`, { credentials: 'include' });
+      if (!res.ok) return { cpuData: [], memoryData: [], totalRequests: 0, totalErrors: 0, avgCpu: 0, avgMemory: 0 };
+      return res.json();
     },
     enabled: !!projectId && activeTab === 'analytics',
   });
 
-  const detectLogLevel = (message: string): 'info' | 'warn' | 'error' | 'success' => {
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('error') || lowerMessage.includes('failed') || lowerMessage.includes('❌')) {
-      return 'error';
-    }
-    if (lowerMessage.includes('warning') || lowerMessage.includes('warn') || lowerMessage.includes('⚠️')) {
-      return 'warn';
-    }
-    if (lowerMessage.includes('success') || lowerMessage.includes('complete') || lowerMessage.includes('✓') || lowerMessage.includes('✅')) {
-      return 'success';
-    }
-    return 'info';
-  };
-
-  const fetchLogsViaHTTP = useCallback(async (deploymentId: string) => {
-    try {
-      const response = await fetch(`/api/deployments/${deploymentId}/logs`, {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.logs && Array.isArray(data.logs)) {
-          setLogs(data.logs.map((log: any) => ({
-            ...log,
-            level: log.level || detectLogLevel(log.message),
-          })));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch logs via HTTP:', error);
-    }
-  }, []);
-
-  const connectWebSocket = useCallback((deploymentId: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ action: 'subscribe', deploymentId }));
-      return;
-    }
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/deployments`;
-
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        reconnectAttempts.current = 0;
-        ws.send(JSON.stringify({ action: 'subscribe', deploymentId }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          
-          if (message.type === 'build_log' || message.type === 'deploy_log') {
-            const newLog: LogEntry = {
-              id: `${message.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: message.type === 'build_log' ? 'build' : 'deploy',
-              message: message.data?.log || '',
-              timestamp: message.data?.timestamp || new Date().toISOString(),
-              level: detectLogLevel(message.data?.log || ''),
-            };
-            setLogs(prev => [...prev, newLog]);
-          } else if (message.type === 'status_change') {
-            refetchDeployment();
-            const uiStatus = message.data?.uiStatus || translateStatusToUI(message.data?.status || '');
-            const internalStatus = message.data?.status;
-            
-            if (uiStatus === 'live' || internalStatus === 'deployed' || internalStatus === 'active') {
-              setIsDeploying(false);
-              toast({ title: 'Deployment successful', description: 'Your app is now live!' });
-            } else if (uiStatus === 'failed' || internalStatus === 'failed') {
-              setIsDeploying(false);
-              toast({ 
-                title: 'Deployment failed', 
-                description: 'Check the logs for more details',
-                variant: 'destructive'
-              });
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse WebSocket message:', e);
-        }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-        if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttempts.current++;
-          setTimeout(() => connectWebSocket(deploymentId), WEBSOCKET_RECONNECT_DELAY);
-        }
-      };
-
-      ws.onerror = () => {
-        setWsConnected(false);
-        fetchLogsViaHTTP(deploymentId);
-      };
-    } catch (error) {
-      console.error('WebSocket connection failed:', error);
-      fetchLogsViaHTTP(deploymentId);
-    }
-  }, [refetchDeployment, fetchLogsViaHTTP]);
+  const { data: deployLogs } = useQuery({
+    queryKey: ['deployment-logs', latestDeploy?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/deployments/${latestDeploy.id}/logs`, { credentials: 'include' });
+      if (!res.ok) return { logs: [] };
+      return res.json();
+    },
+    enabled: !!latestDeploy?.id && activeTab === 'logs',
+    refetchInterval: latestDeploy?.status === 'building' ? 2000 : false,
+  });
 
   useEffect(() => {
-    const deploymentId = latestDeployment?.deployment?.deploymentId || latestDeployment?.deployment?.id;
-    if (deploymentId && activeTab === 'logs') {
-      connectWebSocket(deploymentId);
+    if (latestDeploy && latestDeploy.status && latestDeploy.status !== 'not_deployed') {
+      setPhase('published');
     }
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [latestDeployment?.deployment?.deploymentId, latestDeployment?.deployment?.id, activeTab, connectWebSocket]);
-
-  useEffect(() => {
-    if (isAutoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logs, isAutoScroll]);
+  }, [latestDeploy]);
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/projects/${projectId}/publish`, {
-        customDomain: customDomain || undefined,
+      const res = await fetch(`/api/projects/${projectId}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          deploymentType: selectedType,
+          environment: configEnv,
+          region: configRegion,
+          buildCommand: configBuildCmd || undefined,
+          runCommand: configRunCmd || undefined,
+          machineConfig: configMachine,
+          maxMachines: configMaxMachines,
+          publicDirectory: configPublicDir,
+        }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Publish failed');
+      }
+      return res.json();
     },
     onSuccess: () => {
-      setIsDeploying(true);
-      setLogs([]);
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
       toast({ title: 'Publishing started', description: 'Your app is being deployed...' });
+      setPhase('published');
+      refetchLatest();
     },
-    onError: (error: Error) => {
-      if (error.message.includes('ALREADY_PUBLISHED')) {
-        republishMutation.mutate(undefined);
-      } else {
-        toast({ title: 'Publish failed', description: error.message, variant: 'destructive' });
-      }
+    onError: (err: Error) => {
+      toast({ title: 'Publish failed', description: err.message, variant: 'destructive' });
     },
   });
 
   const republishMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/projects/${projectId}/republish`, {
-        forceRebuild: false,
+      const res = await fetch(`/api/projects/${projectId}/republish`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({}),
       });
+      return res.json();
     },
     onSuccess: () => {
-      setIsDeploying(true);
-      setLogs([]);
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
-      toast({ title: 'Republishing started', description: 'Updating your deployment...' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Republish failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Republishing...', description: 'Your app is being redeployed.' });
+      refetchLatest();
     },
   });
 
-  const stopMutation = useMutation({
-    mutationFn: async (deploymentId: string) => {
-      return apiRequest('POST', `/api/deployments/${deploymentId}/stop`);
-    },
-    onSuccess: () => {
-      setIsDeploying(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
-      toast({ title: 'Deployment stopped' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to stop deployment', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const restartMutation = useMutation({
-    mutationFn: async (deploymentId: string) => {
-      return apiRequest('POST', `/api/deployments/${deploymentId}/restart`);
-    },
-    onSuccess: () => {
-      setIsDeploying(true);
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
-      toast({ title: 'Deployment restarting' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to restart deployment', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const rollbackMutation = useMutation({
-    mutationFn: async ({ deploymentId, version }: { deploymentId: string; version: string }) => {
-      return apiRequest('POST', `/api/deployments/${deploymentId}/rollback`, {
-        version,
-        reason: `Rollback initiated from deployment panel`,
+  const actionMutation = useMutation({
+    mutationFn: async ({ action }: { action: string }) => {
+      const res = await fetch(`/api/deployments/${latestDeploy.id}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({}),
       });
+      return res.json();
     },
-    onSuccess: () => {
-      setIsDeploying(true);
-      setLogs([]);
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
-      toast({ title: 'Rollback initiated', description: 'Rolling back to previous version...' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Rollback failed', description: error.message, variant: 'destructive' });
+    onSuccess: (_, vars) => {
+      toast({ title: `Deployment ${vars.action}`, description: `Action completed successfully.` });
+      refetchLatest();
     },
   });
 
-  const verifyDomainMutation = useMutation({
-    mutationFn: async (domain: string) => {
-      return apiRequest('POST', `/api/projects/${projectId}/domains/verify`, { domain });
-    },
-    onMutate: () => {
-      setDnsVerificationStatus('verifying');
-    },
-    onSuccess: (data: any) => {
-      if (data.verified) {
-        setDnsVerificationStatus('verified');
-        setDnsRecords(data.records || []);
-        toast({ title: 'Domain verified', description: 'Your custom domain is configured correctly!' });
-      } else {
-        setDnsVerificationStatus('failed');
-        setDnsRecords(data.records || []);
-        toast({ title: 'Domain verification failed', description: 'Please check your DNS settings', variant: 'destructive' });
+  const handleVerifyDomain = async () => {
+    if (!domainInput.trim()) return;
+    setDomainVerifying(true);
+    try {
+      const addRes = await fetch(`/api/projects/${projectId}/domains`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ domain: domainInput.trim() }),
+      });
+      const addData = await addRes.json();
+      if (addData.dnsRecords) {
+        setDomainDnsRecords(addData.dnsRecords);
       }
-    },
-    onError: (error: Error) => {
-      setDnsVerificationStatus('failed');
-      toast({ title: 'Verification failed', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const updateDomainMutation = useMutation({
-    mutationFn: async (domain: string) => {
-      return apiRequest('POST', `/api/projects/${projectId}/domains`, { customDomain: domain });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
-      toast({ title: 'Domain updated', description: 'Custom domain configuration saved' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to update domain', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'deployed':
-      case 'active':
-      case 'live':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'building':
-      case 'deploying':
-      case 'pending':
-      case 'publishing':
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
-      case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'stopped':
-      case 'idle':
-        return <Square className="h-4 w-4 text-gray-500" />;
-      case 'needs-republish':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-yellow-500" />;
+      const verifyRes = await fetch(`/api/projects/${projectId}/domains/verify`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ domain: domainInput.trim() }),
+      });
+      const verifyData = await verifyRes.json();
+      if (verifyData.verified) {
+        toast({ title: 'Domain verified', description: `${domainInput} has been connected.` });
+      } else {
+        toast({ title: 'Verification failed', description: verifyData.message || 'Please check your DNS settings', variant: 'destructive' });
+      }
+      refetchDomains();
+    } catch {
+      toast({ title: 'Error', description: 'Failed to verify domain', variant: 'destructive' });
+    } finally {
+      setDomainVerifying(false);
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    const variants: Record<string, string> = {
-      deployed: 'bg-green-500/10 text-green-500 border-green-500/20',
-      active: 'bg-green-500/10 text-green-500 border-green-500/20',
-      live: 'bg-green-500/10 text-green-500 border-green-500/20',
-      building: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      deploying: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      publishing: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      pending: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-      failed: 'bg-red-500/10 text-red-500 border-red-500/20',
-      stopped: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-      idle: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-      'needs-republish': 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-    };
-    return variants[status] || variants.pending;
-  };
-  
-  const getDisplayStatus = (deployment: Deployment): string => {
-    if (deployment.uiStatus) {
-      return deployment.uiStatus;
-    }
-    return translateStatusToUI(deployment.status, deployment.lastCodeChange, deployment.deployedAt);
-  };
-
-  const getLogLevelClass = (level: string) => {
-    switch (level) {
-      case 'error':
-        return 'text-red-400 bg-red-500/10';
-      case 'warn':
-        return 'text-yellow-400 bg-yellow-500/10';
-      case 'success':
-        return 'text-green-400 bg-green-500/10';
-      default:
-        return 'text-blue-400 bg-blue-500/10';
-    }
+  const handleDeleteDomain = async (domainId: string) => {
+    try {
+      await fetch(`/api/projects/${projectId}/domains/${domainId}`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      refetchDomains();
+      setSelectedDomain(null);
+      toast({ title: 'Domain disconnected' });
+    } catch {}
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: 'Copied to clipboard' });
+    toast({ title: 'Copied', description: 'Copied to clipboard' });
   };
 
-  const clearLogs = () => {
-    setLogs([]);
-  };
+  const isDeployed = latestDeploy?.status === 'deployed' || latestDeploy?.status === 'active';
+  const isBuilding = latestDeploy?.status === 'building' || latestDeploy?.status === 'deploying';
+  const isPaused = latestDeploy?.status === 'paused';
+  const isStopped = latestDeploy?.status === 'stopped';
+  const deployUrl = latestDeploy?.url;
+  const replitAppDomain = deployUrl ? new URL(deployUrl).hostname : null;
 
-  const filteredLogs = useMemo(() => {
-    if (logFilter === 'all') return logs;
-    return logs.filter(log => log.level === logFilter);
-  }, [logs, logFilter]);
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-  };
-
-  const chartConfig: ChartConfig = {
-    requests: {
-      label: 'Requests',
-      color: 'hsl(var(--chart-1))',
-    },
-    errors: {
-      label: 'Errors',
-      color: 'hsl(var(--chart-2))',
-    },
-    latencyP50: {
-      label: 'P50 Latency',
-      color: 'hsl(var(--chart-3))',
-    },
-    latencyP99: {
-      label: 'P99 Latency',
-      color: 'hsl(var(--chart-4))',
-    },
-  };
-
-  const latencyChartData = useMemo(() => {
-    if (!analyticsData?.analytics?.latency) return [];
-    const { p50, p75, p90, p95, p99 } = analyticsData.analytics.latency;
-    return [
-      { percentile: 'P50', value: Math.round(p50), fill: 'hsl(var(--chart-1))' },
-      { percentile: 'P75', value: Math.round(p75), fill: 'hsl(var(--chart-2))' },
-      { percentile: 'P90', value: Math.round(p90), fill: 'hsl(var(--chart-3))' },
-      { percentile: 'P95', value: Math.round(p95), fill: 'hsl(var(--chart-4))' },
-      { percentile: 'P99', value: Math.round(p99), fill: 'hsl(var(--chart-5))' },
-    ];
-  }, [analyticsData]);
-
-  const timeSeriesData = useMemo(() => {
-    if (!analyticsData?.analytics?.timeSeries) return [];
-    return analyticsData.analytics.timeSeries.map(item => ({
-      ...item,
-      time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }));
-  }, [analyticsData]);
-
-  const deployment = latestDeployment?.deployment;
-  const deploymentId = deployment?.deploymentId || deployment?.id;
-  const displayStatus = deployment ? getDisplayStatus(deployment) : 'idle';
-  const isActive = displayStatus === 'live' || displayStatus === 'needs-republish' || 
-    deployment?.status === 'deployed' || deployment?.status === 'active';
-  const isInProgress = displayStatus === 'publishing' || 
-    deployment?.status === 'building' || deployment?.status === 'deploying' || deployment?.status === 'pending';
-
-  return (
-    <Card className={cn('h-full flex flex-col overflow-hidden', className)} data-testid="replit-deployment-panel">
-      {/* 1) Status & Publish Section at the TOP (Prominent) */}
-      <div className="px-4 pt-4 pb-4 shrink-0 border-b">
-        <CardTitle className="text-base font-medium flex items-center gap-2 mb-4">
-          <Rocket className="h-4 w-4" />
-          Deployment Status
-          {wsConnected && activeTab === 'logs' && (
-            <Badge variant="outline" className="ml-auto text-[11px] bg-green-500/10 text-green-500">
-              <Wifi className="h-3 w-3 mr-1" />
-              Live
-            </Badge>
-          )}
-        </CardTitle>
-        <Card className={cn("border-2", 
-          displayStatus === 'live' ? "border-green-500/20 bg-green-500/5" : 
-          displayStatus === 'failed' ? "border-red-500/20 bg-red-500/5" : 
-          displayStatus === 'needs-republish' ? "border-yellow-500/20 bg-yellow-500/5" :
-          displayStatus === 'publishing' ? "border-blue-500/20 bg-blue-500/5" :
-          "bg-muted/30"
-        )}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className={cn("p-2 rounded-full", 
-                  displayStatus === 'live' ? "bg-green-500/20 text-green-500" : 
-                  displayStatus === 'failed' ? "bg-red-500/20 text-red-500" : 
-                  displayStatus === 'needs-republish' ? "bg-yellow-500/20 text-yellow-500" :
-                  displayStatus === 'publishing' ? "bg-blue-500/20 text-blue-500" :
-                  "bg-muted text-muted-foreground"
-                )}>
-                  {getStatusIcon(displayStatus)}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-lg capitalize">{displayStatus.replace('-', ' ')}</span>
-                    <Badge className={cn("text-[10px] uppercase font-bold", getStatusBadgeClass(displayStatus))}>
-                      {displayStatus}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {displayStatus === 'live' ? 'Your application is live and accessible' :
-                     displayStatus === 'needs-republish' ? 'Changes detected since last deployment' :
-                     displayStatus === 'publishing' ? 'Deployment in progress...' :
-                     displayStatus === 'failed' ? 'Last deployment failed' :
-                     'Application is not currently deployed'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {!isActive && !isInProgress && (
-                  <Button 
-                    onClick={() => publishMutation.mutate()} 
-                    disabled={publishMutation.isPending || isInProgress}
-                    className="bg-primary hover:bg-primary/90 text-white gap-2 h-10 px-6"
-                    data-testid="button-publish-primary"
-                  >
-                    {publishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-                    Publish App
-                  </Button>
-                )}
-                
-                {displayStatus === 'needs-republish' && (
-                  <Button 
-                    onClick={() => republishMutation.mutate()} 
-                    disabled={republishMutation.isPending || isInProgress}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white gap-2 h-10 px-6"
-                    data-testid="button-republish-primary"
-                  >
-                    {republishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Update App
-                  </Button>
-                )}
-
-                {isActive && displayStatus !== 'needs-republish' && (
-                  <Button 
-                    onClick={() => republishMutation.mutate()} 
-                    disabled={republishMutation.isPending || isInProgress}
-                    variant="outline"
-                    className="gap-2 h-10 px-6"
-                    data-testid="button-redeploy-primary"
-                  >
-                    {republishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Redeploy
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {isActive && deployment?.url && (
-              <div className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Public URL</span>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(deployment.url!)}>
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                      <a href={deployment.url} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm font-mono truncate bg-background p-2 rounded border">
-                  <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="truncate">{deployment.url}</span>
-                </div>
-              </div>
-            )}
-            
-            {isInProgress && (
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-xs font-medium">
-                  <span>Deploying...</span>
-                  <span>45%</span>
-                </div>
-                <Progress value={45} className="h-2" />
-                <p className="text-[10px] text-muted-foreground animate-pulse text-center">
-                  Provisioning infrastructure and building container image...
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="px-4 shrink-0 border-b">
-          <TabsList className="h-10 bg-transparent p-0 gap-4">
-            <TabsTrigger 
-              value="deploy" 
-              className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2"
-              data-testid="tab-deploy"
-            >
-              Configuration
-            </TabsTrigger>
-            <TabsTrigger 
-              value="logs" 
-              className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2"
-              data-testid="tab-logs"
-            >
-              Logs
-            </TabsTrigger>
-            <TabsTrigger 
-              value="analytics" 
-              className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2"
-              data-testid="tab-analytics"
-            >
-              Analytics
-            </TabsTrigger>
-          </TabsList>
+  if (phase === 'select_type' || (phase !== 'published' && !latestDeploy?.id)) {
+    return (
+      <div className={cn("h-full flex flex-col bg-background", className)} data-testid="deploy-panel">
+        <div className="flex items-center gap-2 p-3 border-b border-border">
+          <Globe className="h-4 w-4 text-green-500" />
+          <span className="text-sm font-semibold" data-testid="deploy-header">Deploy</span>
         </div>
 
-        <TabsContent value="deploy" className="flex-1 overflow-auto px-4 pt-4 pb-16 space-y-4 m-0 data-[state=inactive]:hidden" data-testid="deploy-tab-content">
-          {isLoadingDeployment ? (
-            <div className="space-y-4">
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-6">
+            <div className="text-center space-y-3 py-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                <Rocket className="h-6 w-6 text-green-500" />
+              </div>
+              <h2 className="text-lg font-semibold" data-testid="deploy-title">Deploy to production</h2>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Publish a live, stable, public version of your App, unaffected by the changes you make in the workspace.
+              </p>
             </div>
-          ) : (
-            <div className="space-y-6">
-              {/* 2) Config Sections */}
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Deployment Type</Label>
-                  <div className="grid grid-cols-1 gap-2">
-                    <div 
-                      className={cn(
-                        "p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
-                        deployType === 'autoscale' ? "border-primary bg-primary/5 ring-1 ring-primary" : "bg-muted/30"
-                      )}
-                      onClick={() => setDeployType('autoscale')}
-                      data-testid="deploy-type-autoscale"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-sm">Autoscale</span>
-                        <Badge variant="secondary" className="text-[10px]">Recommended</Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">Serverless execution that scales based on traffic. Perfect for most apps.</p>
-                    </div>
-                    
-                    <div 
-                      className={cn(
-                        "p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
-                        deployType === 'static' ? "border-primary bg-primary/5 ring-1 ring-primary" : "bg-muted/30"
-                      )}
-                      onClick={() => setDeployType('static')}
-                      data-testid="deploy-type-static"
-                    >
-                      <span className="font-medium text-sm block mb-1">Static Site</span>
-                      <p className="text-[11px] text-muted-foreground">For frontend-only applications. Free global CDN hosting.</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="environment" className="text-[11px] font-medium">Environment</Label>
-                    <Select value={environment} onValueChange={(v: any) => setEnvironment(v)}>
-                      <SelectTrigger id="environment" className="h-8 text-xs bg-muted/30" data-testid="select-environment">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="production">Production</SelectItem>
-                        <SelectItem value="staging">Staging</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="region" className="text-[11px] font-medium">Region</Label>
-                    <Select value={region} onValueChange={setRegion}>
-                      <SelectTrigger id="region" className="h-8 text-xs bg-muted/30" data-testid="select-region">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="us-east-1">US East (N. Virginia)</SelectItem>
-                        <SelectItem value="us-west-2">US West (Oregon)</SelectItem>
-                        <SelectItem value="eu-west-1">EU (Ireland)</SelectItem>
-                        <SelectItem value="ap-southeast-1">Asia Pacific (Singapore)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Deployment Type</p>
+              <div className="grid grid-cols-2 gap-2">
+                {DEPLOY_TYPES.map((dt) => (
+                  <button
+                    key={dt.id}
+                    onClick={() => { setSelectedType(dt.id); setPhase('configure'); }}
+                    className={cn(
+                      "relative flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all text-center",
+                      selectedType === dt.id
+                        ? "border-primary bg-primary/10 ring-2 ring-primary"
+                        : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"
+                    )}
+                    data-testid={`deploy-type-${dt.id}`}
+                  >
+                    {dt.recommended && (
+                      <Badge variant="secondary" className="absolute -top-2 text-[9px] px-1.5 py-0 bg-blue-500 text-white border-0">
+                        Chosen by Agent
+                      </Badge>
+                    )}
+                    <dt.icon className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-xs font-medium">{dt.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{dt.subtitle}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="custom-domain" className="text-[11px] font-medium">Custom Domain (Optional)</Label>
+            {selectedType === 'autoscale' && (
+              <div className="space-y-3 bg-muted/30 rounded-lg p-3">
+                <h3 className="text-sm font-semibold">Scale up and down to meet demand exactly</h3>
+                <div className="space-y-2 text-[11px] text-muted-foreground">
                   <div className="flex gap-2">
-                    <Input
-                      id="custom-domain"
-                      placeholder="myapp.com"
-                      value={customDomain}
-                      onChange={(e) => setCustomDomain(e.target.value)}
-                      className="h-8 text-xs bg-muted/30"
-                      data-testid="input-custom-domain"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-8 text-[11px]"
-                      variant="outline"
-                      onClick={() => {
-                        if (customDomain) {
-                          verifyDomainMutation.mutate(customDomain);
-                        }
-                      }}
-                      disabled={!customDomain || verifyDomainMutation.isPending}
-                      data-testid="button-verify-domain"
-                    >
-                      {verifyDomainMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Shield className="h-3 w-3 mr-1" />
-                          Verify
-                        </>
-                      )}
-                    </Button>
+                    <Zap className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
+                    <p>Automatically scales from zero to any level of demand, making it inexpensive for most apps.</p>
                   </div>
-                  
-                  {dnsVerificationStatus !== 'idle' && (
-                    <div className={cn(
-                      'p-3 rounded-md border text-[12px]',
-                      dnsVerificationStatus === 'verified' && 'bg-green-500/10 border-green-500/20 text-green-600',
-                      dnsVerificationStatus === 'verifying' && 'bg-blue-500/10 border-blue-500/20 text-blue-600',
-                      dnsVerificationStatus === 'failed' && 'bg-red-500/10 border-red-500/20 text-red-600'
-                    )}>
-                      <div className="flex items-center gap-2 mb-2 font-medium">
-                        {dnsVerificationStatus === 'verified' && <CheckCircle2 className="h-4 w-4" />}
-                        {dnsVerificationStatus === 'verifying' && <Loader2 className="h-4 w-4 animate-spin" />}
-                        {dnsVerificationStatus === 'failed' && <XCircle className="h-4 w-4" />}
-                        {dnsVerificationStatus === 'verified' && 'Domain Verified'}
-                        {dnsVerificationStatus === 'verifying' && 'Verifying DNS...'}
-                        {dnsVerificationStatus === 'failed' && 'Verification Failed'}
-                      </div>
-                      
-                      {dnsRecords.length > 0 && (
-                        <div className="space-y-2 mt-2">
-                          <div className="text-[10px] uppercase font-bold text-muted-foreground/70">DNS Configuration</div>
-                          {dnsRecords.map((record, idx) => (
-                            <div key={idx} className="p-2 bg-background/50 rounded text-[10px] font-mono border">
-                              <div className="flex items-center gap-2">
-                                {record.verified ? <CheckCircle className="h-3 w-3 text-green-500" /> : <XCircle className="h-3 w-3 text-red-500" />}
-                                <span className="font-bold">{record.type}</span>
-                                <span className="text-muted-foreground">{record.name}</span>
-                                <span className="text-primary truncate">{record.value}</span>
-                              </div>
-                            </div>
-                          ))}
+                  <div className="flex gap-2">
+                    <BarChart3 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
+                    <p>Usage-based pricing. Billed at $0.0000032 per compute unit, plus a fixed cost of $1 per month.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => setPhase('configure')}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              data-testid="btn-setup-deployment"
+            >
+              Set up your deployment
+            </Button>
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
+  if (phase === 'configure') {
+    return (
+      <div className={cn("h-full flex flex-col bg-background", className)} data-testid="deploy-configure">
+        <div className="flex items-center gap-2 p-3 border-b border-border">
+          <button onClick={() => setPhase('select_type')} className="p-1 rounded hover:bg-muted">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <Globe className="h-4 w-4 text-green-500" />
+          <span className="text-sm font-semibold">Deploy</span>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+              <div>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Type</p>
+                <p className="text-sm font-medium capitalize">{selectedType.replace('-', ' ')}</p>
+              </div>
+              <Badge variant="outline" className="text-[10px]">{selectedType === 'autoscale' ? 'Recommended' : selectedType}</Badge>
+            </div>
+
+            {(selectedType === 'autoscale' || selectedType === 'reserved-vm') && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Machine Configuration</label>
+                  <Select value={configMachine} onValueChange={setConfigMachine}>
+                    <SelectTrigger className="h-9 text-xs" data-testid="select-machine">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MACHINE_CONFIGS.map(mc => (
+                        <SelectItem key={mc.value} value={mc.value} className="text-xs">{mc.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedType === 'autoscale' && (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Max number of machines</label>
+                    <div className="flex items-center gap-3">
+                      <Slider
+                        value={[configMaxMachines]}
+                        onValueChange={([v]) => setConfigMaxMachines(v)}
+                        min={1} max={10} step={1}
+                        className="flex-1"
+                        data-testid="slider-max-machines"
+                      />
+                      <span className="text-xs font-medium w-6 text-right">{configMaxMachines}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{configMaxMachines} machines · {configMaxMachines * 88} compute units/s at max traffic</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Environment</label>
+                <Select value={configEnv} onValueChange={setConfigEnv}>
+                  <SelectTrigger className="h-9 text-xs" data-testid="select-env">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="production" className="text-xs">Production</SelectItem>
+                    <SelectItem value="staging" className="text-xs">Staging</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Region</label>
+                <Select value={configRegion} onValueChange={setConfigRegion}>
+                  <SelectTrigger className="h-9 text-xs" data-testid="select-region">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REGIONS.map(r => (
+                      <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {selectedType === 'static' && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Public directory</label>
+                <Input value={configPublicDir} onChange={e => setConfigPublicDir(e.target.value)} placeholder="/" className="h-9 text-xs" data-testid="input-public-dir" />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Build command <span className="text-muted-foreground/50 normal-case">optional</span></label>
+              <Input value={configBuildCmd} onChange={e => setConfigBuildCmd(e.target.value)} placeholder="npm run build" className="h-9 text-xs" data-testid="input-build-cmd" />
+            </div>
+
+            {selectedType !== 'static' && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Run command</label>
+                <Input value={configRunCmd} onChange={e => setConfigRunCmd(e.target.value)} placeholder="npm start" className="h-9 text-xs" data-testid="input-run-cmd" />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Custom Domain <span className="text-muted-foreground/50 normal-case">(Optional)</span></label>
+              <div className="flex gap-2">
+                <Input value={configDomain} onChange={e => setConfigDomain(e.target.value)} placeholder="yourdomain.com" className="h-9 text-xs flex-1" data-testid="input-custom-domain" />
+                {configDomain && (
+                  <Button variant="outline" size="sm" className="h-9 text-xs" onClick={handleVerifyDomain} disabled={domainVerifying} data-testid="btn-verify-domain">
+                    {domainVerifying ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Verify'}
+                  </Button>
+                )}
+              </div>
+              {domainDnsRecords.length > 0 && (
+                <div className="mt-2 bg-muted/30 rounded-lg p-3 space-y-2">
+                  <p className="text-[11px] font-medium">DNS Records</p>
+                  <p className="text-[10px] text-muted-foreground">Add the following records to your domain's DNS settings</p>
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-3 gap-2 text-[10px] font-medium text-muted-foreground border-b border-border pb-1">
+                      <span>Type</span><span>Hostname</span><span>Record</span>
+                    </div>
+                    {domainDnsRecords.map((rec: any, i: number) => (
+                      <div key={i} className="grid grid-cols-3 gap-2 text-[11px] items-center">
+                        <span className="font-medium">{rec.type}</span>
+                        <div className="flex items-center gap-1">
+                          <span>{rec.hostname}</span>
+                          <button onClick={() => copyToClipboard(rec.hostname)} className="p-0.5 hover:bg-muted rounded"><Copy className="h-2.5 w-2.5" /></button>
                         </div>
-                      )}
-                      
-                      {dnsVerificationStatus === 'verified' && customDomain && (
-                        <Button
-                          size="sm"
-                          className="mt-2 w-full h-8 text-xs"
-                          onClick={() => updateDomainMutation.mutate(customDomain)}
-                          disabled={updateDomainMutation.isPending}
-                        >
-                          {updateDomainMutation.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                          Save Configuration
-                        </Button>
-                      )}
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="truncate">{rec.record}</span>
+                          <button onClick={() => copyToClipboard(rec.record)} className="p-0.5 hover:bg-muted rounded shrink-0"><Copy className="h-2.5 w-2.5" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            <Button
+              onClick={() => publishMutation.mutate()}
+              disabled={publishMutation.isPending}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-10"
+              data-testid="btn-publish"
+            >
+              {publishMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Publishing...</>
+              ) : (
+                <><Rocket className="h-4 w-4 mr-2" /> Publish App</>
+              )}
+            </Button>
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
+  const POST_DEPLOY_TABS: { id: PostDeployTab; label: string; icon: any }[] = [
+    { id: 'overview', label: 'Overview', icon: Globe },
+    { id: 'logs', label: 'Logs', icon: Filter },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'resources', label: 'Resources', icon: Cpu },
+    { id: 'domains', label: 'Domains', icon: Link2 },
+    { id: 'manage', label: 'Manage', icon: Settings },
+  ];
+
+  return (
+    <div className={cn("h-full flex flex-col bg-background", className)} data-testid="deploy-published">
+      <div className="flex items-center gap-2 p-3 border-b border-border">
+        <Globe className="h-4 w-4 text-green-500" />
+        <span className="text-sm font-semibold">Publishing</span>
+      </div>
+
+      <div className="border-b border-border overflow-x-auto">
+        <div className="flex">
+          {POST_DEPLOY_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors",
+                activeTab === tab.id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+              data-testid={`tab-${tab.id}`}
+            >
+              <tab.icon className="h-3 w-3" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        {activeTab === 'overview' && (
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => republishMutation.mutate()}
+                disabled={republishMutation.isPending || isBuilding}
+                size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                data-testid="btn-republish"
+              >
+                {republishMutation.isPending || isBuilding ? (
+                  <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Republishing...</>
+                ) : (
+                  <><Globe className="h-3 w-3 mr-1" /> Republish</>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setPhase('configure')} data-testid="btn-adjust-settings">
+                <Settings className="h-3 w-3 mr-1" /> Adjust settings
+              </Button>
+            </div>
+
+            <div className="bg-muted/20 rounded-lg p-3 border border-border/50 space-y-3">
+              <h3 className="text-xs font-semibold">Production</h3>
+
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Status</p>
+                <div className="flex items-center gap-2">
+                  {isDeployed && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                  {isBuilding && <Loader2 className="h-3 w-3 animate-spin text-amber-500" />}
+                  {isPaused && <Pause className="h-3 w-3 text-amber-500" />}
+                  {isStopped && <XCircle className="h-3 w-3 text-red-500" />}
+                  <span className="text-xs font-medium">
+                    {isDeployed ? 'Live' : isBuilding ? 'Building...' : isPaused ? 'Paused' : isStopped ? 'Stopped' : latestDeploy?.status}
+                  </span>
+                  {latestDeploy?.createdAt && (
+                    <span className="text-[10px] text-muted-foreground">
+                      · {new Date(latestDeploy.createdAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Domain</p>
+                {deployUrl && (
+                  <div className="flex items-center gap-2">
+                    <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate" data-testid="link-deploy-url">
+                      {deployUrl}
+                    </a>
+                    <button onClick={() => copyToClipboard(deployUrl)} className="p-1 hover:bg-muted rounded" data-testid="btn-copy-url">
+                      <Copy className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                    <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-muted rounded">
+                      <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                    </a>
+                  </div>
+                )}
+                {domains?.domains?.filter((d: DomainRecord) => d.verified).map((d: DomainRecord) => (
+                  <div key={d.id} className="flex items-center gap-2">
+                    <a href={`https://${d.domain}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">
+                      https://{d.domain}
+                    </a>
+                    <button onClick={() => copyToClipboard(`https://${d.domain}`)} className="p-1 hover:bg-muted rounded">
+                      <Copy className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Type</p>
+                <p className="text-xs font-medium capitalize">
+                  {latestDeploy?.deploymentType?.replace('-', ' ') || 'Autoscale'}
+                  {latestDeploy?.machineConfig && (
+                    <span className="text-muted-foreground ml-1">({latestDeploy.machineConfig})</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Database</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-medium">Production database connected</p>
+                  <button className="text-xs text-blue-500 hover:underline" onClick={() => setActiveTab('manage')}>Manage</button>
+                </div>
+                <div className="bg-green-500/10 text-green-600 dark:text-green-400 text-[10px] rounded-md p-2 flex items-center gap-2">
+                  <CheckCircle className="h-3 w-3 shrink-0" />
+                  Your production database is ready! Your app can now save and manage live user data securely.
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="h-3 w-3" /> History
+                </h3>
+                <button className="text-[10px] text-blue-500 hover:underline" data-testid="btn-show-all-history">Show All</button>
+              </div>
+              {(deployHistory || []).slice(0, 5).map((d: any) => (
+                <div key={d.id} className="flex items-center gap-3 py-1.5 border-b border-border/30 last:border-0">
+                  <span className="text-[10px] font-mono text-muted-foreground w-16 shrink-0">{d.id?.slice(0, 7)}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px]">
+                      Published {d.createdAt ? new Date(d.createdAt).toLocaleDateString() : ''}
+                    </span>
+                  </div>
+                  <Badge variant={d.status === 'deployed' ? 'default' : 'secondary'} className="text-[9px] h-4">
+                    {d.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'logs' && (
+          <div className="flex flex-col h-full">
+            <div className="flex items-center gap-2 p-3 border-b border-border">
+              <div className="flex-1 relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                <Input
+                  value={logSearch}
+                  onChange={e => setLogSearch(e.target.value)}
+                  placeholder="Search logs..."
+                  className="h-8 text-xs pl-8"
+                  data-testid="input-log-search"
+                />
+              </div>
+            </div>
+            <div className="flex-1 bg-[#0d1117] dark:bg-[#0d1117] text-[#c9d1d9] font-mono text-[11px] p-3 overflow-auto">
+              {(!deployLogs?.logs || deployLogs.logs.length === 0) ? (
+                <div className="text-center text-muted-foreground py-8">
+                  {isBuilding ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Building...</span>
+                    </div>
+                  ) : 'No logs available'}
+                </div>
+              ) : (
+                deployLogs.logs
+                  .filter((log: any) => !logSearch || log.message?.toLowerCase().includes(logSearch.toLowerCase()))
+                  .map((log: any, i: number) => (
+                    <div key={log.id || i} className={cn(
+                      "flex gap-3 py-0.5 hover:bg-white/5",
+                      log.level === 'error' && "bg-red-500/10 text-red-400",
+                      log.level === 'warn' && "bg-yellow-500/10 text-yellow-400",
+                    )}>
+                      <span className="text-[10px] text-muted-foreground shrink-0 w-32">
+                        {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
+                      </span>
+                      <span className="flex-1 break-all">{log.message}</span>
+                    </div>
+                  ))
+              )}
+              <div ref={logsEndRef} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <Select value={analyticsPeriod} onValueChange={setAnalyticsPeriod}>
+                <SelectTrigger className="h-8 w-40 text-xs" data-testid="select-analytics-period">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1h" className="text-xs">Past one hour</SelectItem>
+                  <SelectItem value="6h" className="text-xs">Past six hours</SelectItem>
+                  <SelectItem value="24h" className="text-xs">Past one day</SelectItem>
+                  <SelectItem value="3d" className="text-xs">Past three days</SelectItem>
+                  <SelectItem value="7d" className="text-xs">Past one week</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold">CPU Utilization</h3>
+                <div className="h-32 bg-muted/20 rounded-lg border border-border/50 flex items-center justify-center relative overflow-hidden">
+                  {analyticsData?.cpuData?.length > 0 ? (
+                    <div className="w-full h-full p-2">
+                      <div className="w-full h-full flex items-end gap-px">
+                        {analyticsData.cpuData.slice(-30).map((d: any, i: number) => (
+                          <div key={i} className="flex-1 bg-blue-400/50 rounded-t-sm" style={{ height: `${Math.max(d.value, 1)}%` }} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <Cpu className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
+                      <p className="text-[10px] text-muted-foreground">No CPU data for this period</p>
+                      <p className="text-lg font-semibold">{(analyticsData?.avgCpu || 0).toFixed(1)}%</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <Separator />
-
-              {/* 3) Deployment History at the bottom */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <History className="h-3 w-3" />
-                    History
-                  </Label>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="h-6 text-[10px]"
-                    onClick={() => setShowHistory(!showHistory)}
-                    data-testid="button-toggle-history"
-                  >
-                    {showHistory ? 'Hide' : 'Show All'}
-                  </Button>
-                </div>
-                
-                {showHistory && (
-                  <div className="space-y-2" data-testid="deployment-history">
-                    {isLoadingHistory ? (
-                      <div className="space-y-2">
-                        {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold">Memory Utilization</h3>
+                <div className="h-32 bg-muted/20 rounded-lg border border-border/50 flex items-center justify-center relative overflow-hidden">
+                  {analyticsData?.memoryData?.length > 0 ? (
+                    <div className="w-full h-full p-2">
+                      <div className="w-full h-full flex items-end gap-px">
+                        {analyticsData.memoryData.slice(-30).map((d: any, i: number) => (
+                          <div key={i} className="flex-1 bg-blue-400/50 rounded-t-sm" style={{ height: `${Math.max(d.value, 1)}%` }} />
+                        ))}
                       </div>
-                    ) : deploymentHistory?.deployments && deploymentHistory.deployments.length > 0 ? (
-                      <ScrollArea className="max-h-[150px]">
-                        <div className="space-y-2 pr-3">
-                          {deploymentHistory.deployments.map((dep) => {
-                            const depStatus = getDisplayStatus(dep);
-                            const depId = dep.deploymentId || dep.id;
-                            const isCurrent = depId === deploymentId;
-                            
-                            return (
-                              <div
-                                key={dep.id}
-                                className={cn(
-                                  'p-2 rounded-md border flex items-center justify-between gap-2',
-                                  isCurrent && 'border-primary/40 bg-primary/5 shadow-sm'
-                                )}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    {getStatusIcon(depStatus)}
-                                    <span className="text-[10px] font-mono truncate">{depId?.substring(0, 8)}</span>
-                                    {isCurrent && <Badge variant="secondary" className="text-[8px] h-3.5 px-1 py-0 uppercase">Current</Badge>}
-                                  </div>
-                                  <div className="text-[9px] text-muted-foreground">
-                                    {dep.createdAt ? new Date(dep.createdAt).toLocaleString() : 'Unknown'}
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-1">
-                                  {dep.url && (
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                                      <a href={dep.url} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                      </a>
-                                    </Button>
-                                  )}
-                                  {!isCurrent && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-2 text-[9px]"
-                                      onClick={() => {
-                                        if (confirm(`Rollback to ${depId.substring(0, 8)}?`)) {
-                                          rollbackMutation.mutate({ deploymentId: depId, version: depId });
-                                        }
-                                      }}
-                                    >
-                                      Rollback
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </ScrollArea>
-                    ) : (
-                      <div className="text-center py-2 text-muted-foreground text-[11px]">No previous deployments</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="logs" className="flex-1 flex flex-col overflow-hidden px-4 pt-4 pb-16 m-0 gap-3 data-[state=inactive]:hidden" data-testid="logs-tab-content">
-          <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
-            <div className="flex items-center gap-2">
-              <Select value={logFilter} onValueChange={(v) => setLogFilter(v as typeof logFilter)}>
-                <SelectTrigger className="w-[120px] h-8" data-testid="select-log-filter">
-                  <Filter className="h-3 w-3 mr-1" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Logs</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warn">Warning</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {!wsConnected && (
-                <Badge variant="outline" className="text-[11px] bg-yellow-500/10 text-yellow-500">
-                  <WifiOff className="h-3 w-3 mr-1" />
-                  Offline
-                </Badge>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsAutoScroll(!isAutoScroll)}
-                className={cn(isAutoScroll && 'bg-accent')}
-                data-testid="button-toggle-autoscroll"
-              >
-                {isAutoScroll ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <ArrowDown className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearLogs}
-                data-testid="button-clear-logs"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-              {deploymentId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fetchLogsViaHTTP(deploymentId)}
-                  data-testid="button-refresh-logs"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-2 shrink-0">
-            <Badge variant="outline" className="text-[11px]">
-              <FileText className="h-3 w-3 mr-1" />
-              {filteredLogs.length} Entries
-            </Badge>
-            {isDeploying && (
-              <Badge variant="outline" className="text-[11px] bg-blue-500/10 text-blue-500 animate-pulse border-blue-500/20">
-                Streaming...
-              </Badge>
-            )}
-          </div>
-
-          <ScrollArea 
-            ref={logsContainerRef}
-            className="flex-1 rounded-md border bg-black/95 font-mono text-[11px] text-zinc-300"
-            data-testid="logs-scroll-area"
-          >
-            <div className="p-3 space-y-1 min-h-full">
-              {filteredLogs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-zinc-500 gap-2">
-                  <Terminal className="h-8 w-8 opacity-20" />
-                  <p>No logs to display</p>
-                  {isDeploying && <p className="text-[9px] animate-pulse">Waiting for build output...</p>}
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <HardDrive className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
+                      <p className="text-[10px] text-muted-foreground">No memory data for this period</p>
+                      <p className="text-lg font-semibold">{(analyticsData?.avgMemory || 0).toFixed(0)} MiB</p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                filteredLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className={cn(
-                      'flex items-start gap-2 p-1.5 rounded text-[11px]',
-                      getLogLevelClass(log.level)
-                    )}
-                    data-testid={`log-entry-${log.id}`}
-                  >
-                    <span className="text-muted-foreground shrink-0 w-16">
-                      {new Date(log.timestamp).toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit', 
-                        second: '2-digit' 
-                      })}
-                    </span>
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        'text-[10px] px-1 py-0 shrink-0',
-                        log.type === 'build' ? 'bg-purple-500/10 text-purple-400' : 'bg-cyan-500/10 text-cyan-400'
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'resources' && (
+          <div className="p-4 space-y-4">
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold">Machine Configuration</h3>
+              <div className="bg-muted/20 rounded-lg p-3 border border-border/50 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Type</span>
+                  <span className="font-medium capitalize">{latestDeploy?.deploymentType?.replace('-', ' ') || 'Autoscale'}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Machine</span>
+                  <span className="font-medium">{latestDeploy?.machineConfig || 'Small'}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Max Machines</span>
+                  <span className="font-medium">{latestDeploy?.maxMachines || 1}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Region</span>
+                  <span className="font-medium">{latestDeploy?.deployConfig?.region || 'us-east-1'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold">Database</h3>
+              <div className="bg-muted/20 rounded-lg p-3 border border-border/50 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Status</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <span className="font-medium text-green-500">Connected</span>
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Type</span>
+                  <span className="font-medium">PostgreSQL</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'domains' && (
+          <div className="p-4 space-y-4">
+            {selectedDomain ? (
+              <div className="space-y-4">
+                <button onClick={() => setSelectedDomain(null)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                  <ArrowLeft className="h-3 w-3" /> Back
+                </button>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold">{selectedDomain.domain}</h3>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {selectedDomain.verified ? (
+                          <><div className="w-1.5 h-1.5 rounded-full bg-green-500" /><span className="text-[10px] text-green-500">Verified</span></>
+                        ) : (
+                          <><XCircle className="h-3 w-3 text-red-500" /><span className="text-[10px] text-red-500">Not verified</span></>
+                        )}
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <button onClick={() => setShowDomainMenu(showDomainMenu === selectedDomain.id ? null : selectedDomain.id)} className="p-1.5 hover:bg-muted rounded">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                      {showDomainMenu === selectedDomain.id && (
+                        <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg z-10 py-1 min-w-[180px]">
+                          <button
+                            onClick={() => { handleDeleteDomain(selectedDomain.id); setShowDomainMenu(null); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-500 hover:bg-muted"
+                          >
+                            <Link2 className="h-3 w-3" /> Disconnect this domain
+                          </button>
+                        </div>
                       )}
-                    >
-                      {log.type}
-                    </Badge>
-                    <span className="break-all">{log.message}</span>
-                  </div>
-                ))
-              )}
-              <div ref={logsEndRef} />
-            </div>
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="analytics" className="flex-1 overflow-auto px-4 pt-4 pb-16 space-y-4 m-0 data-[state=inactive]:hidden" data-testid="analytics-tab-content">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="font-medium text-[13px]">Deployment Analytics</h3>
-            <div className="flex items-center gap-2">
-              <Select value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)}>
-                <SelectTrigger className="w-[100px] h-8" data-testid="select-time-period">
-                  <Clock className="h-3 w-3 mr-1" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1h">1 hour</SelectItem>
-                  <SelectItem value="6h">6 hours</SelectItem>
-                  <SelectItem value="24h">24 hours</SelectItem>
-                  <SelectItem value="7d">7 days</SelectItem>
-                  <SelectItem value="30d">30 days</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refetchAnalytics()}
-                data-testid="button-refresh-analytics"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {isLoadingAnalytics ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <Skeleton key={i} className="h-20" />
-                ))}
-              </div>
-              <Skeleton className="h-48" />
-              <Skeleton className="h-48" />
-            </div>
-          ) : analyticsData?.analytics ? (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card data-testid="metric-requests">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <TrendingUp className="h-4 w-4 text-blue-500" />
-                      <span className="text-[11px] text-muted-foreground">Requests</span>
-                    </div>
-                    <p className="text-[15px] font-bold mt-1">
-                      {formatNumber(analyticsData.analytics.summary.totalRequests)}
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <Card data-testid="metric-error-rate">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                      <span className="text-[11px] text-muted-foreground">Error Rate</span>
-                    </div>
-                    <p className="text-[15px] font-bold mt-1">
-                      {analyticsData.analytics.summary.errorRate.toFixed(2)}%
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <Card data-testid="metric-response-time">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <Timer className="h-4 w-4 text-green-500" />
-                      <span className="text-[11px] text-muted-foreground">Avg Response</span>
-                    </div>
-                    <p className="text-[15px] font-bold mt-1">
-                      {Math.round(analyticsData.analytics.summary.avgResponseTime)}ms
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <Card data-testid="metric-uptime">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <Activity className="h-4 w-4 text-purple-500" />
-                      <span className="text-[11px] text-muted-foreground">Uptime</span>
-                    </div>
-                    <p className="text-[15px] font-bold mt-1">
-                      {analyticsData.analytics.summary.uptime.toFixed(2)}%
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card data-testid="chart-latency">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-[13px] font-medium">Latency Percentiles (ms)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={chartConfig} className="h-[180px] w-full">
-                    <BarChart data={latencyChartData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" />
-                      <YAxis dataKey="percentile" type="category" width={40} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar 
-                        dataKey="value" 
-                        radius={[0, 4, 4, 0]}
-                      />
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-
-              <Card data-testid="chart-requests">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-[13px] font-medium">Requests & Errors Over Time</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={chartConfig} className="h-[180px] w-full">
-                    <AreaChart data={timeSeriesData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Area
-                        type="monotone"
-                        dataKey="requests"
-                        stroke="hsl(var(--chart-1))"
-                        fill="hsl(var(--chart-1))"
-                        fillOpacity={0.3}
-                        name="Requests"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="errors"
-                        stroke="hsl(var(--chart-2))"
-                        fill="hsl(var(--chart-2))"
-                        fillOpacity={0.3}
-                        name="Errors"
-                      />
-                    </AreaChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-
-              <Card data-testid="cost-breakdown">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-[13px] font-medium flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Cost Breakdown ({analyticsData.analytics.costs.period})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-[13px]">
-                      <span className="text-muted-foreground">Compute</span>
-                      <span className="font-medium">${analyticsData.analytics.costs.compute.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[13px]">
-                      <span className="text-muted-foreground">Bandwidth</span>
-                      <span className="font-medium">${analyticsData.analytics.costs.bandwidth.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[13px]">
-                      <span className="text-muted-foreground">Storage</span>
-                      <span className="font-medium">${analyticsData.analytics.costs.storage.toFixed(2)}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Total</span>
-                      <span className="font-bold text-[15px]">${analyticsData.analytics.costs.total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px] text-muted-foreground">
-                      <span>Projected Monthly</span>
-                      <span className="font-medium">${analyticsData.analytics.costs.projectedMonthly.toFixed(2)}</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Activity className="h-8 w-8 mb-2 opacity-50" />
-              <p>No analytics data available</p>
-              <p className="text-[11px] mt-1">Analytics will appear after your app receives traffic</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                </div>
 
-      <div className="mt-auto p-4 border-t bg-muted/20 shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Server className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
-              {isActive ? 'System Healthy' : 'System Ready'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {deployment && (
-              <>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-7 text-[10px] gap-1.5 text-red-500 hover:text-red-600 hover:bg-red-500/10 font-bold uppercase"
-                  onClick={() => stopMutation.mutate(deploymentId!)}
-                  disabled={deployment.status === 'stopped' || isInProgress}
-                >
-                  <Square className="h-3 w-3 fill-current" />
-                  Stop App
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 text-[10px] gap-1.5 font-bold uppercase"
-                  onClick={() => restartMutation.mutate(deploymentId!)}
-                  disabled={isInProgress}
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Restart
-                </Button>
-              </>
+                <div className="bg-muted/20 rounded-lg p-3 border border-border/50 space-y-3">
+                  <div>
+                    <h4 className="text-xs font-semibold">DNS Records</h4>
+                    <p className="text-[10px] text-muted-foreground">Add the following records to your domain's DNS settings</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-3 gap-2 text-[10px] font-medium text-muted-foreground border-b border-border pb-1">
+                      <span>Type</span><span>Hostname</span><span>Record</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px] items-center py-1">
+                      <span className="font-medium">A</span>
+                      <div className="flex items-center gap-1">
+                        <span>@</span>
+                        <button onClick={() => copyToClipboard('@')} className="p-0.5 hover:bg-muted rounded"><Copy className="h-2.5 w-2.5" /></button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>76.76.21.21</span>
+                        <button onClick={() => copyToClipboard('76.76.21.21')} className="p-0.5 hover:bg-muted rounded"><Copy className="h-2.5 w-2.5" /></button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px] items-center py-1">
+                      <span className="font-medium">TXT</span>
+                      <div className="flex items-center gap-1">
+                        <span>@</span>
+                        <button onClick={() => copyToClipboard('@')} className="p-0.5 hover:bg-muted rounded"><Copy className="h-2.5 w-2.5" /></button>
+                      </div>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="truncate">ecode-verify={selectedDomain.id.slice(0, 12)}</span>
+                        <button onClick={() => copyToClipboard(`ecode-verify=${selectedDomain.id.slice(0, 12)}`)} className="p-0.5 hover:bg-muted rounded shrink-0"><Copy className="h-2.5 w-2.5" /></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold">Domains</h3>
+                  <div className="ml-auto flex gap-2">
+                    <Button variant="outline" size="sm" className="text-[11px] h-7" data-testid="btn-connect-domain"
+                      onClick={() => {
+                        const newDomain = prompt('Enter your domain (e.g., example.com):');
+                        if (newDomain) { setDomainInput(newDomain); handleVerifyDomain(); }
+                      }}>
+                      Connect your own domain
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-muted/20 rounded-lg border border-border/50">
+                  <div className="px-3 py-2 border-b border-border/50">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Name</span>
+                  </div>
+                  {replitAppDomain && (
+                    <div className="flex items-center justify-between px-3 py-3 border-b border-border/30">
+                      <span className="text-xs">{replitAppDomain}</span>
+                      <Button variant="outline" size="sm" className="text-[10px] h-6" onClick={() => setSelectedDomain({ id: 'replit-app', domain: replitAppDomain, target: '', verified: true })}>
+                        <Settings className="h-2.5 w-2.5 mr-1" /> Manage
+                      </Button>
+                    </div>
+                  )}
+                  {(domains?.domains || []).map((d: DomainRecord) => (
+                    <div key={d.id} className="flex items-center justify-between px-3 py-3 border-b border-border/30 last:border-0">
+                      <div>
+                        <span className="text-xs">{d.domain}</span>
+                        {d.verified && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                            <span className="text-[10px] text-green-500">Verified</span>
+                          </div>
+                        )}
+                      </div>
+                      <Button variant="outline" size="sm" className="text-[10px] h-6" onClick={() => setSelectedDomain(d)}>
+                        <Settings className="h-2.5 w-2.5 mr-1" /> Manage
+                      </Button>
+                    </div>
+                  ))}
+                  {(!domains?.domains || domains.domains.length === 0) && !replitAppDomain && (
+                    <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                      No domains connected yet
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
-            {deployment?.url && (
-              <Button
-                variant="link"
-                size="xs"
-                className="h-auto p-0 text-[10px] font-mono ml-2"
-                onClick={() => copyToClipboard(deployment.url!)}
-              >
-                {deployment.url.replace(/^https?:\/\//, '').substring(0, 20)}...
-                <Copy className="h-2.5 w-2.5 ml-1" />
-              </Button>
-            )}
           </div>
+        )}
+
+        {activeTab === 'manage' && (
+          <div className="p-4 space-y-4">
+            <h3 className="text-sm font-semibold">Manage published app</h3>
+
+            <Button
+              variant="outline"
+              className="w-full justify-center h-10 text-xs"
+              onClick={() => actionMutation.mutate({ action: isPaused ? 'resume' : 'pause' })}
+              disabled={actionMutation.isPending}
+              data-testid="btn-pause"
+            >
+              {isPaused ? <><Play className="h-3.5 w-3.5 mr-2" /> Resume</> : <><Pause className="h-3.5 w-3.5 mr-2" /> Pause</>}
+            </Button>
+            <p className="text-[10px] text-muted-foreground">
+              {isPaused ? 'Resume your app to make it accessible again.' : 'Your billing will continue, but all users will lose access to your app'}
+            </p>
+
+            <Button
+              variant="outline"
+              className="w-full justify-center h-10 text-xs"
+              onClick={() => setPhase('configure')}
+              data-testid="btn-change-type"
+            >
+              <Settings className="h-3.5 w-3.5 mr-2" /> Change deployment type
+            </Button>
+            <p className="text-[10px] text-muted-foreground">
+              To change your deployment type, you will need to unpublish and publish again.
+            </p>
+
+            <Button
+              variant="destructive"
+              className="w-full justify-center h-10 text-xs"
+              onClick={() => {
+                if (confirm('Are you sure? Your published app billing will be canceled, and it will cease to exist.')) {
+                  actionMutation.mutate({ action: 'shutdown' });
+                }
+              }}
+              disabled={actionMutation.isPending}
+              data-testid="btn-shutdown"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" /> Shut down
+            </Button>
+            <p className="text-[10px] text-muted-foreground">
+              Your published app billing will be canceled, and it will cease to exist
+            </p>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Display settings</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium">"Made with E-Code" badge</p>
+                  <p className="text-[10px] text-muted-foreground">Display a referral badge on your published app</p>
+                </div>
+                <Switch
+                  checked={latestDeploy?.showBadge ?? false}
+                  onCheckedChange={async (checked) => {
+                    try {
+                      await fetch(`/api/deployments/${latestDeploy.id}/settings`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include', body: JSON.stringify({ showBadge: checked }),
+                      });
+                      refetchLatest();
+                    } catch {}
+                  }}
+                  data-testid="switch-badge"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </ScrollArea>
+
+      {(isBuilding || publishMutation.isPending || republishMutation.isPending) && (
+        <div className="border-t border-border bg-amber-500/10 px-3 py-2 flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
+          <span className="text-[11px] text-amber-600 dark:text-amber-400">Publishing started — Your app is being deployed...</span>
+          <button className="ml-auto p-0.5 hover:bg-muted rounded">
+            <X className="h-3 w-3 text-muted-foreground" />
+          </button>
         </div>
+      )}
+
+      <div className="border-t border-border px-3 py-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+        <Shield className="h-3 w-3" />
+        <span>SYSTEM READY</span>
       </div>
-    </Card>
+    </div>
   );
 }
 
