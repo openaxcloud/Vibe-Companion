@@ -34,6 +34,7 @@ import {
   Send,
   Sparkles,
   Plus,
+  ListPlus,
   Loader2,
   Settings,
   Brain,
@@ -93,6 +94,8 @@ import { AIModelIndicator, AIModelBadge, type DelegationInfo } from '@/component
 import { OrchestratorProgress, MiniProgressIndicator, type SessionProgressData } from '@/components/agent/OrchestratorProgress';
 import { ProviderHealthBadge } from '@/components/agent/ProviderHealthIndicator';
 import { MessageQueue, type QueuedMessage } from '@/components/agent/MessageQueue';
+import { AgentMessageQueueDrawer, type QueueItem } from './AgentMessageQueueDrawer';
+import { AgentWorkingStatusBar } from './AgentWorkingStatusBar';
 import { History, X, MousePointer2, Coins, Database, Volume2, VolumeX, DollarSign, RotateCcw } from 'lucide-react';
 import { SiFigma } from 'react-icons/si';
 import { LazyMotionDiv, LazyMotionSpan, LazyAnimatePresence } from '@/lib/motion';
@@ -499,7 +502,12 @@ export function ReplitAgentPanelV3({
   const abortControllerRef = useRef<AbortController | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [isPendingResponse, setIsPendingResponse] = useState(false); // True when waiting for first AI response chunk
+  const [isPendingResponse, setIsPendingResponse] = useState(false);
+  const [messageQueue, setMessageQueue] = useState<QueueItem[]>([]);
+  const [isQueueOpen, setIsQueueOpen] = useState(true);
+  const messageQueueRef = useRef<QueueItem[]>([]);
+  const isProcessingQueueRef = useRef(false);
+  const isPausedRef = useRef(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [activeThinking, setActiveThinking] = useState<ThinkingStep[]>([]);
   const [capabilities, setCapabilities] = useState<AgentCapability[]>([
@@ -550,7 +558,16 @@ export function ReplitAgentPanelV3({
   const handleSendRef = useRef<(() => void) | null>(null);
 
   const handleExternalSubmit = useCallback((value: string) => {
-    if (!value.trim() || isWorking) return;
+    if (!value.trim()) return;
+    if (isWorking && !isProcessingQueueRef.current) {
+      const newItem: QueueItem = {
+        id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        content: value.trim(),
+      };
+      setMessageQueue(prev => [...prev, newItem]);
+      setIsQueueOpen(true);
+      return;
+    }
     pendingExternalSubmitRef.current = value;
     flushSync(() => {
       setInput(value);
@@ -1817,8 +1834,15 @@ export function ReplitAgentPanelV3({
 
   const handleSend = async () => {
     console.log('[handleSend] Called', { input: input.substring(0, 50), isWorking, effectiveConversationId, conversationId });
-    if (!input.trim() || isWorking) {
-      console.log('[handleSend] BLOCKED', { emptyInput: !input.trim(), isWorking });
+    if (!input.trim()) {
+      console.log('[handleSend] BLOCKED: empty input');
+      return;
+    }
+
+    if (isWorking && !isProcessingQueueRef.current) {
+      console.log('[handleSend] Agent is working — adding to queue');
+      addToQueue(input.trim());
+      setInput('');
       return;
     }
 
@@ -2299,11 +2323,29 @@ export function ReplitAgentPanelV3({
       });
       setActiveThinking([]);
     } finally {
-      setIsWorking(false);
       setIsPendingResponse(false);
       abortControllerRef.current = null;
       if (agentMode === 'build' && onBuildComplete) {
         onBuildComplete();
+      }
+
+      const pendingQueue = messageQueueRef.current;
+      if (pendingQueue.length > 0 && !isPausedRef.current) {
+        const nextItem = pendingQueue[0];
+        const remaining = pendingQueue.slice(1);
+        setMessageQueue(remaining);
+        messageQueueRef.current = remaining;
+
+        console.log('[Queue] Auto-processing next:', nextItem.content.substring(0, 50));
+        isProcessingQueueRef.current = true;
+        setInput(nextItem.content);
+
+        setTimeout(() => {
+          handleSendRef.current?.();
+          isProcessingQueueRef.current = false;
+        }, 300);
+      } else {
+        setIsWorking(false);
       }
     }
   };
@@ -2396,12 +2438,63 @@ export function ReplitAgentPanelV3({
   };
 
   const handlePauseResume = () => {
-    setIsPaused(!isPaused);
+    const wasP = isPaused;
+    setIsPaused(!wasP);
+    isPausedRef.current = !wasP;
     toast({
-      title: isPaused ? 'Resumed' : 'Paused',
-      description: isPaused ? 'Agent is working again' : 'Agent work has been paused',
+      title: wasP ? 'Resumed' : 'Paused',
+      description: wasP ? 'Agent is working again' : 'Agent work has been paused',
     });
+
+    if (wasP && !isWorking && messageQueueRef.current.length > 0) {
+      const nextItem = messageQueueRef.current[0];
+      const remaining = messageQueueRef.current.slice(1);
+      setMessageQueue(remaining);
+      messageQueueRef.current = remaining;
+      setIsWorking(true);
+      isProcessingQueueRef.current = true;
+      setInput(nextItem.content);
+      setTimeout(() => {
+        handleSendRef.current?.();
+        isProcessingQueueRef.current = false;
+      }, 300);
+    }
   };
+
+  useEffect(() => {
+    messageQueueRef.current = messageQueue;
+  }, [messageQueue]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  const addToQueue = useCallback((content: string) => {
+    const newItem: QueueItem = {
+      id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      content,
+    };
+    setMessageQueue(prev => [...prev, newItem]);
+    setIsQueueOpen(true);
+  }, []);
+
+  const handleQueueReorder = useCallback((newItems: QueueItem[]) => {
+    setMessageQueue(newItems);
+  }, []);
+
+  const handleQueueEdit = useCallback((id: string, newContent: string) => {
+    setMessageQueue(prev => prev.map(item =>
+      item.id === id ? { ...item, content: newContent } : item
+    ));
+  }, []);
+
+  const handleQueueDelete = useCallback((id: string) => {
+    setMessageQueue(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleQueueClearAll = useCallback(() => {
+    setMessageQueue([]);
+  }, []);
 
   const handleCopyMessage = (content: string) => {
     navigator.clipboard.writeText(content);
@@ -3008,6 +3101,26 @@ export function ReplitAgentPanelV3({
             </div>
           )}
           
+          {/* Working Status Bar + Message Queue - Replit Agent Message Queue */}
+          {!hideInput && isWorking && (
+            <div className="space-y-2 mb-2">
+              <AgentWorkingStatusBar
+                isWorking={isWorking}
+                isPaused={isPaused}
+                onPauseResume={handlePauseResume}
+              />
+              <AgentMessageQueueDrawer
+                items={messageQueue}
+                onReorder={handleQueueReorder}
+                onEdit={handleQueueEdit}
+                onDelete={handleQueueDelete}
+                onClearAll={handleQueueClearAll}
+                isOpen={isQueueOpen}
+                onOpenChange={setIsQueueOpen}
+              />
+            </div>
+          )}
+
           {/* Hidden file input for attachment button - ALWAYS rendered (required for mobile) */}
           <input
             type="file"
@@ -3125,7 +3238,6 @@ export function ReplitAgentPanelV3({
                 "transition-all duration-200 shadow-sm focus:shadow-md",
                 "placeholder:text-muted-foreground/70"
               )}
-              disabled={isWorking}
               data-testid="input-message"
             />
             {/* Replit-style action buttons - attachment, voice, send */}
@@ -3220,28 +3332,42 @@ export function ReplitAgentPanelV3({
                 </Tooltip>
               </TooltipProvider>
               
+              {isWorking && (
+                <LazyMotionDiv whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    size="icon"
+                    onClick={handleStopStream}
+                    className="h-7 w-7 rounded-lg bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-all duration-200"
+                    data-testid="button-stop"
+                    title="Stop generation"
+                  >
+                    <Square className="h-3 w-3 fill-current" />
+                  </Button>
+                </LazyMotionDiv>
+              )}
+
               <LazyMotionDiv 
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
                 <Button
                   size="icon"
-                  onClick={isWorking ? handleStopStream : handleSend}
-                  disabled={!isWorking && !input.trim()}
+                  onClick={handleSend}
+                  disabled={!input.trim()}
                   className={cn(
                     "h-7 w-7 rounded-lg",
                     "transition-all duration-200",
-                    isWorking
-                      ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    isWorking && input.trim()
+                      ? "bg-purple-600 hover:bg-purple-700 text-white"
                       : input.trim()
                         ? "bg-primary hover:bg-primary/90 text-primary-foreground" 
                         : "bg-muted text-muted-foreground"
                   )}
-                  data-testid={isWorking ? "button-stop" : "button-send"}
-                  title={isWorking ? "Stop generation" : "Send message"}
+                  data-testid={isWorking ? "button-add-to-queue" : "button-send"}
+                  title={isWorking ? "Add to queue" : "Send message"}
                 >
                   {isWorking ? (
-                    <Square className="h-3 w-3 fill-current" />
+                    <ListPlus className="h-3.5 w-3.5" />
                   ) : (
                     <Send className="h-3.5 w-3.5" />
                   )}
