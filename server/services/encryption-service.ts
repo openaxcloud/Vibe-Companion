@@ -11,9 +11,11 @@ export class EncryptionService {
   private masterKey: Buffer;
 
   constructor() {
-    // In production, this should come from environment variable or secure key management
-    const masterPassword = process.env.ENCRYPTION_MASTER_KEY || 'default-master-key-change-in-production';
-    const salt = process.env.ENCRYPTION_SALT || 'default-salt-change-in-production';
+    const masterPassword = process.env.ENCRYPTION_MASTER_KEY || crypto.randomBytes(32).toString('hex');
+    const salt = process.env.ENCRYPTION_SALT || crypto.randomBytes(16).toString('hex');
+    if (!process.env.ENCRYPTION_MASTER_KEY || !process.env.ENCRYPTION_SALT) {
+      console.warn('[EncryptionService] WARNING: ENCRYPTION_MASTER_KEY and ENCRYPTION_SALT not set — using ephemeral keys (encrypted data will NOT survive restart)');
+    }
     
     // Derive master key from password
     this.masterKey = crypto.pbkdf2Sync(

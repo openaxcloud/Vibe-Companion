@@ -326,8 +326,16 @@ export class Real2FAService {
     return { verified: true };
   }
 
+  private get2FAEncryptionKey(): string {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) {
+      throw new Error('ENCRYPTION_KEY environment variable is required for 2FA');
+    }
+    return key;
+  }
+
   private encryptSecret(secret: string): string {
-    const key = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-in-production';
+    const key = this.get2FAEncryptionKey();
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(
       'aes-256-cbc',
@@ -342,7 +350,7 @@ export class Real2FAService {
   }
 
   private decryptSecret(encryptedSecret: string): string {
-    const key = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-in-production';
+    const key = this.get2FAEncryptionKey();
     const [ivHex, encrypted] = encryptedSecret.split(':');
     const iv = Buffer.from(ivHex, 'hex');
     
