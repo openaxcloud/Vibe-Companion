@@ -380,7 +380,10 @@ export const BatteryIndicator: React.FC = () => {
     const getBattery = async () => {
       if ('getBattery' in navigator) {
         try {
-          const batteryManager = await (navigator as any).getBattery();
+          interface NavigatorWithBattery extends Navigator {
+            getBattery(): Promise<{ level: number; charging: boolean; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void }>;
+          }
+          const batteryManager = await (navigator as NavigatorWithBattery).getBattery();
 
           const updateBattery = () => {
             setBattery({
