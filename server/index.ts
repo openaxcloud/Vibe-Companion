@@ -628,6 +628,7 @@ app.post("/api/agent/chat/stream", async (req: Request, res: Response) => {
     provider: requestedProvider = "anthropic",
     modelId,
     agentMode = "build",
+    fastMode = false,
     context = [],
     capabilities = {},
     attachments = [],
@@ -635,7 +636,7 @@ app.post("/api/agent/chat/stream", async (req: Request, res: Response) => {
 
   const isPlanMode = agentMode === "plan";
   const isEditMode = agentMode === "edit";
-  const isFastMode = agentMode === "fast";
+  const isFastMode = agentMode === "fast" || fastMode === true;
 
   const imageGenerationEnabled = capabilities?.imageGeneration !== false;
 
@@ -818,7 +819,7 @@ ${ecodeContext}`;
   }
 
   async function streamWithOpenAI(apiKey: string, model: string, usedProvider: string, baseURL?: string) {
-    const effectiveModel = highPowerEnabled && !baseURL ? "gpt-4o" : model;
+    const effectiveModel = isFastMode ? model : (highPowerEnabled && !baseURL ? "gpt-4o" : model);
     const openai = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     const openaiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: systemPrompt },
@@ -828,8 +829,8 @@ ${ecodeContext}`;
     const stream = await openai.chat.completions.create({
       model: effectiveModel,
       messages: openaiMessages,
-      temperature: extThinkingEnabled ? 0.3 : 0.7,
-      max_tokens: extThinkingEnabled ? maxTokensBase * 2 : maxTokensBase,
+      temperature: isFastMode ? 0.5 : (extThinkingEnabled ? 0.3 : 0.7),
+      max_tokens: isFastMode ? 2048 : (extThinkingEnabled ? maxTokensBase * 2 : maxTokensBase),
       stream: true,
     });
 
@@ -900,10 +901,11 @@ ${ecodeContext}`;
 
   async function streamWithAnthropic(apiKey: string) {
     const anthropic = new Anthropic({ apiKey });
-    const defaultModel = highPowerEnabled ? "claude-sonnet-4-20250514" : (modelId || "claude-sonnet-4-20250514");
-    const model = modelId || defaultModel;
+    const model = isFastMode
+      ? "claude-3-5-haiku-20241022"
+      : (modelId || (highPowerEnabled ? "claude-sonnet-4-20250514" : "claude-sonnet-4-20250514"));
 
-    const effectiveMaxTokens = extThinkingEnabled ? 16000 : maxTokensBase;
+    const effectiveMaxTokens = isFastMode ? 2048 : (extThinkingEnabled ? 16000 : maxTokensBase);
 
     const streamParams: any = {
       model,
@@ -911,10 +913,10 @@ ${ecodeContext}`;
       system: systemPrompt,
       max_tokens: effectiveMaxTokens,
     };
-    if (extThinkingEnabled) {
+    if (extThinkingEnabled && !isFastMode) {
       streamParams.thinking = { type: "enabled", budget_tokens: maxAutonomyEnabled ? 20000 : 10000 };
     } else {
-      streamParams.temperature = 0.7;
+      streamParams.temperature = isFastMode ? 0.5 : 0.7;
     }
 
     const stream = anthropic.messages.stream(streamParams);
@@ -1013,7 +1015,22 @@ ${ecodeContext}`;
 
   const providers: Array<{ name: string; fn: () => Promise<void> }> = [];
 
-  const modelfarmModel = modelId || (highPowerEnabled ? "gpt-4o" : "gpt-4.1-mini");
+  const getFastModel = (prov: string): string => {
+    switch (prov) {
+      case 'anthropic': return 'claude-3-5-haiku-20241022';
+      case 'openai': return 'gpt-4.1-nano';
+      case 'gemini': return 'gemini-2.5-flash';
+      case 'xai': return 'grok-3-mini';
+      default: return 'gpt-4.1-nano';
+    }
+  };
+
+  if (isFastMode) {
+    console.log(`[AI Stream] Fast Mode activated — provider: ${requestedProvider}`);
+    res.write(`event: mode\ndata: ${JSON.stringify({ mode: "fast", message: "Fast Mode — using lightweight model for quick edits" })}\n\n`);
+  }
+
+  const modelfarmModel = isFastMode ? "gpt-4.1-nano" : (modelId || (highPowerEnabled ? "gpt-4o" : "gpt-4.1-mini"));
 
   if (requestedProvider === "anthropic" && anthropicKey) {
     providers.push({ name: "Anthropic", fn: () => streamWithAnthropic(anthropicKey) });
@@ -1022,7 +1039,7 @@ ${ecodeContext}`;
     providers.push({ name: "Modelfarm", fn: () => streamWithOpenAI(modelfarmKey, modelfarmModel, "modelfarm", modelfarmBaseUrl) });
   }
   if (openaiKey) {
-    const m = modelId?.startsWith("gpt") || modelId?.startsWith("o") ? modelId : "gpt-4o";
+    const m = isFastMode ? getFastModel("openai") : (modelId?.startsWith("gpt") || modelId?.startsWith("o") ? modelId : "gpt-4o");
     providers.push({ name: "OpenAI", fn: () => streamWithOpenAI(openaiKey, m, "openai") });
   }
   if (requestedProvider !== "anthropic" && anthropicKey) {
@@ -1031,7 +1048,7 @@ ${ecodeContext}`;
 
   if (projectId && (app as any).locals.broadcastProjectLog) {
     (app as any).locals.broadcastProjectLog(String(projectId), {
-      type: "stdout", message: `[AI] Starting ${requestedProvider} stream (model: ${modelId || "default"})`,
+      type: "stdout", message: `[AI] Starting ${requestedProvider} stream (model: ${modelId || "default"}${isFastMode ? " — FAST MODE" : ""})`,
       timestamp: Date.now(), level: "info", service: "ai"
     });
   }
