@@ -2221,7 +2221,14 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
             files.push({ status: l.substring(0, 2).trim(), path: filePath, staged: x !== " " && x !== "?" });
           });
         }
-        res.json({ branch, clean: files.length === 0, files, staged, unstaged, untracked, ahead: 0, behind: 0 });
+        let ahead = 0, behind = 0;
+        try {
+          const ab = git(`rev-list --left-right --count ${branch}...origin/${branch}`, cwd);
+          const parts = ab.split(/\s+/);
+          ahead = parseInt(parts[0]) || 0;
+          behind = parseInt(parts[1]) || 0;
+        } catch {}
+        res.json({ branch, clean: files.length === 0, files, staged, unstaged, untracked, ahead, behind });
       } catch (err: any) { console.error("[catch]", err?.message || err); res.json({ branch: "main", clean: true, files: [], staged: [], unstaged: [], untracked: [], ahead: 0, behind: 0 }); }
     });
 

@@ -804,24 +804,26 @@ export function ReplitGitPanel({ projectId, className, mode = 'desktop' }: Repli
 
             <div className="flex items-center justify-between text-[13px]">
               <div className="flex items-center gap-1 text-muted-foreground">
-                <span className="font-medium text-foreground">origin/{status?.branch}</span>
-                <span>•</span>
-                <span>upstream</span>
+                <GitBranch className="w-3 h-3" />
+                <span className="font-medium text-foreground">{status?.branch || 'main'}</span>
+                {originRemote && (
+                  <>
+                    <span>&#8594;</span>
+                    <span className="text-foreground">origin/{status?.branch || 'main'}</span>
+                  </>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">last fetched 1h ago</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fetchMutation.mutate(undefined)}
-                  disabled={fetchMutation.isPending}
-                  className="h-6 px-2 text-[13px] text-muted-foreground rounded-lg"
-                  data-testid="button-fetch"
-                >
-                  <RefreshCw className="w-3 h-3 mr-1" />
-                  Fetch
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fetchMutation.mutate(undefined)}
+                disabled={fetchMutation.isPending}
+                className="h-6 px-2 text-[13px] text-muted-foreground rounded-lg"
+                data-testid="button-fetch"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Fetch
+              </Button>
             </div>
 
             {(status?.ahead || 0) > 0 && (
