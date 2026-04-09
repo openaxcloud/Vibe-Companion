@@ -72,6 +72,7 @@ export const ReplitMobileInputBar = memo(function ReplitMobileInputBar({
     extendedThinking: false,
     highPowerModels: false,
     webSearch: true,
+    imageGeneration: true,
   };
   const effectiveSettings = agentToolsSettings ?? defaultSettings;
 

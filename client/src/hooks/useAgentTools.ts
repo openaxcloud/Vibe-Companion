@@ -10,6 +10,7 @@ export interface AgentToolsSettings {
   extendedThinking: boolean;
   highPowerModels: boolean;
   webSearch: boolean;
+  imageGeneration: boolean;
 }
 
 export interface AgentPreferences {
@@ -114,6 +115,7 @@ const DEFAULT_SETTINGS: AgentToolsSettings = {
   extendedThinking: false,
   highPowerModels: false,
   webSearch: true,
+  imageGeneration: true,
 };
 
 /**
@@ -198,6 +200,7 @@ export function useAgentTools(projectId?: number) {
       extendedThinking: prefs.extendedThinking || false,
       highPowerModels: prefs.highPowerMode || false,
       webSearch: prefs.autoWebSearch ?? true,
+      imageGeneration: true,
     };
   }, [preferencesQuery.data, localMaxAutonomy, localAppTesting]);
 

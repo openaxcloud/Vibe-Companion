@@ -105,6 +105,107 @@ async function extractAndSaveCodeBlocks(content: string, projectId: string | num
   return savedFiles;
 }
 
+interface ImageGenRequest {
+  prompt: string;
+  size: string;
+  style: string;
+  quality: string;
+  path: string;
+}
+
+function extractImageGenRequests(content: string): ImageGenRequest[] {
+  const regex = /\[GENERATE_IMAGE:\s*([^|]+?)(?:\s*\|\s*size:\s*(\S+))?(?:\s*\|\s*style:\s*(\S+))?(?:\s*\|\s*quality:\s*(\S+))?(?:\s*\|\s*path:\s*(\S+))?\s*\]/gi;
+  const requests: ImageGenRequest[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    requests.push({
+      prompt: match[1].trim(),
+      size: match[2] || "1024x1024",
+      style: match[3] || "vivid",
+      quality: match[4] || "standard",
+      path: match[5] || `assets/images/generated-${Date.now()}.png`,
+    });
+  }
+  return requests;
+}
+
+async function processImageGeneration(
+  requests: ImageGenRequest[],
+  projectId: string | number,
+  res: Response
+): Promise<Array<{ filePath: string; url: string }>> {
+  const results: Array<{ filePath: string; url: string }> = [];
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || requests.length === 0) return results;
+
+  const { generateDalleImage } = await import("./agentServices");
+
+  for (let i = 0; i < requests.length; i++) {
+    const req = requests[i];
+    const actionId = `image-gen-${i}-${Date.now()}`;
+    try {
+      res.write(`event: action_start\ndata: ${JSON.stringify({
+        actionId,
+        action: "generate_image",
+        label: `Generating image: ${req.prompt.substring(0, 50)}...`,
+      })}\n\n`);
+
+      const result = await generateDalleImage(req.prompt, {
+        size: req.size as any,
+        quality: req.quality as any,
+        style: req.style as any,
+        projectId,
+        outputPath: req.path,
+      });
+
+      if (result && result.filePath) {
+        results.push({ filePath: result.filePath, url: result.url });
+        res.write(`event: tool_result\ndata: ${JSON.stringify({
+          tool: "generate_image",
+          status: "success",
+          result: {
+            filePath: result.filePath,
+            url: result.url,
+            revisedPrompt: result.revisedPrompt,
+            size: result.size,
+          },
+        })}\n\n`);
+        res.write(`event: file_diff\ndata: ${JSON.stringify({
+          path: result.filePath,
+          language: "image",
+          isNewFile: true,
+          type: "image",
+        })}\n\n`);
+      } else {
+        res.write(`event: tool_result\ndata: ${JSON.stringify({
+          tool: "generate_image",
+          status: "error",
+          result: { error: "Image generation returned no result" },
+        })}\n\n`);
+      }
+
+      res.write(`event: action_complete\ndata: ${JSON.stringify({
+        actionId,
+        action: "generate_image",
+        success: !!result,
+      })}\n\n`);
+    } catch (err: any) {
+      console.error(`[image-gen] Failed:`, err.message);
+      res.write(`event: tool_result\ndata: ${JSON.stringify({
+        tool: "generate_image",
+        status: "error",
+        result: { error: err.message },
+      })}\n\n`);
+      res.write(`event: action_complete\ndata: ${JSON.stringify({
+        actionId,
+        action: "generate_image",
+        success: false,
+      })}\n\n`);
+    }
+  }
+  return results;
+}
+
 declare module "express-session" {
   interface SessionData {
     userId?: string;
@@ -536,6 +637,8 @@ app.post("/api/agent/chat/stream", async (req: Request, res: Response) => {
   const isEditMode = agentMode === "edit";
   const isFastMode = agentMode === "fast";
 
+  const imageGenerationEnabled = capabilities?.imageGeneration !== false;
+
   let connectorContext = "";
   if (projectId && storage) {
     try {
@@ -584,7 +687,20 @@ When the user asks you to "build" or "create" something, generate ALL the necess
 The system will automatically save these files and show a live preview to the user.
 Be concise in explanations but thorough in code. Focus on working, visually polished, runnable code.
 
-PROGRESSIVE DISCLOSURE: If the user is just chatting or asking questions, respond conversationally. If they want to build something, seamlessly transition into generating code and files. You don't need the user to explicitly say "build" — infer their intent from context.`;
+PROGRESSIVE DISCLOSURE: If the user is just chatting or asking questions, respond conversationally. If they want to build something, seamlessly transition into generating code and files. You don't need the user to explicitly say "build" — infer their intent from context.
+
+${imageGenerationEnabled ? `IMAGE GENERATION:
+You have the ability to generate custom AI images when the user requests visual content.
+When the user asks for images (icons, logos, backgrounds, illustrations, game assets, mockups, etc.):
+1. Use the special image generation marker: [GENERATE_IMAGE: detailed description of the image | size: 1024x1024 | style: vivid | quality: standard | path: assets/images/filename.png]
+2. Be specific in your image descriptions — include style, colors, composition, mood, and dimensions.
+3. Available sizes: 1024x1024, 1792x1024 (landscape), 1024x1792 (portrait)
+4. Available styles: vivid (bold, dramatic) or natural (subtle, realistic)
+5. Available quality: standard or hd (more detail)
+6. Always suggest appropriate filenames and paths for the project structure.
+7. You can generate multiple images in one response — each with its own [GENERATE_IMAGE: ...] marker.
+8. After generating, update the code to reference the generated image files.
+9. For icons, use 1024x1024. For hero images, use 1792x1024. For mobile, use 1024x1792.` : ''}`;
 
   const planSystemPrompt = `You are E-Code AI in PLAN MODE. You are a senior software architect helping the user brainstorm, plan, and design their application.
 
@@ -739,6 +855,16 @@ Always include filename comments in code blocks so files are saved correctly.`;
           })}\n\n`);
         }
         res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
+
+        if (imageGenerationEnabled && projectId) {
+          const imageRequests = extractImageGenRequests(fullContent);
+          if (imageRequests.length > 0) {
+            const generatedImages = await processImageGeneration(imageRequests, projectId, res);
+            if (generatedImages.length > 0) {
+              res.write(`event: token\ndata: ${JSON.stringify({ content: `\n\n✅ Generated ${generatedImages.length} image(s):\n${generatedImages.map(img => `- \`${img.filePath}\``).join('\n')}\n` })}\n\n`);
+            }
+          }
+        }
       }
       res.write(`event: done\ndata: ${JSON.stringify({
         conversationId: conversationId || Date.now(),
@@ -847,6 +973,16 @@ Always include filename comments in code blocks so files are saved correctly.`;
           })}\n\n`);
         }
         res.write(`event: action_complete\ndata: ${JSON.stringify({ actionId: "extract-files-a", action: "extract_code", filesCreated: savedFiles.length, success: true })}\n\n`);
+
+        if (imageGenerationEnabled && projectId) {
+          const imageRequests = extractImageGenRequests(fullContent);
+          if (imageRequests.length > 0) {
+            const generatedImages = await processImageGeneration(imageRequests, projectId, res);
+            if (generatedImages.length > 0) {
+              res.write(`event: token\ndata: ${JSON.stringify({ content: `\n\n✅ Generated ${generatedImages.length} image(s):\n${generatedImages.map(img => `- \`${img.filePath}\``).join('\n')}\n` })}\n\n`);
+            }
+          }
+        }
       }
       res.write(`event: done\ndata: ${JSON.stringify({
         conversationId: conversationId || Date.now(), projectId,
@@ -4353,6 +4489,13 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
       log("Project tasks router mounted");
     } catch (e: any) {
       log(`Project tasks router failed to load: ${e.message}`, "warn");
+    }
+
+    try {
+      const { registerImageRoutes } = await import("./replit_integrations/image/index");
+      registerImageRoutes(app);
+    } catch (e: any) {
+      log(`Image integration routes failed to load: ${e.message}`, "warn");
     }
 
     log("Minimal fallback routes loaded");

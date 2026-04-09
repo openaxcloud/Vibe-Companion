@@ -571,10 +571,11 @@ export function ReplitAgentPanelV3({
   // Use external settings if provided (lifted state pattern), otherwise use internal state
   const defaultSettings: AgentToolsSettings = {
     maxAutonomy: false,
-    appTesting: true, // ON by default per Replit Agent 3
+    appTesting: true,
     extendedThinking: false,
     highPowerModels: false,
-    webSearch: false
+    webSearch: false,
+    imageGeneration: true,
   };
   
   const [internalAgentToolsSettings, setInternalAgentToolsSettings] = useState<AgentToolsSettings>(defaultSettings);
@@ -1475,6 +1476,7 @@ export function ReplitAgentPanelV3({
                   highPowerModels: agentToolsSettings.highPowerModels,
                   maxAutonomy: agentToolsSettings.maxAutonomy,
                   appTesting: agentToolsSettings.appTesting,
+                  imageGeneration: agentToolsSettings.imageGeneration,
                 }
               })
             });
@@ -1927,6 +1929,7 @@ export function ReplitAgentPanelV3({
             highPowerModels: agentToolsSettings.highPowerModels,
             maxAutonomy: agentToolsSettings.maxAutonomy,
             appTesting: agentToolsSettings.appTesting,
+            imageGeneration: agentToolsSettings.imageGeneration,
           },
           attachments: currentAttachments.map(att => ({
             name: att.name,

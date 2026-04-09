@@ -66,6 +66,18 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
 - **Behavior**: Saves files to `projects/<projectId>/` directory. Supports both text content and base64-encoded binary files.
 - **Client**: `handleSend` appends file content/base64 context to the user message and sends attachment metadata alongside the streaming request.
 
+### AI Image Generation (Replit Parity)
+- **Toggle**: "Image generation" in Agent Tools panel (default: ON). Pink icon/badge. Available in desktop, mobile, and tablet views.
+- **Backend**: DALL-E 3 via OpenAI API (`server/agentServices.ts` → `generateDalleImage()`)
+- **Endpoints**:
+  - `POST /api/integrations/image/generate` — generates image with prompt, size, quality, style, outputPath, projectId
+  - `POST /api/integrations/image/edit` — edits existing image (DALL-E 2)
+  - `GET /api/integrations/image/status` — returns availability, model info, supported sizes/qualities/styles
+- **Agent Integration**: System prompt includes `[GENERATE_IMAGE: prompt | size | style | quality | path]` marker instructions when imageGeneration capability is enabled
+- **SSE Flow**: `action_start` → DALL-E 3 API call → image saved to `projects/<id>/assets/images/` → `tool_result` + `file_diff` → `action_complete`
+- **Security**: Path traversal protection (resolve + startsWith check), project-scoped file writes only
+- **Files**: `server/replit_integrations/image/index.ts`, `server/replit_integrations/image/client.ts`, `server/agentServices.ts`
+
 ### General Agent (Replit Parity)
 - **No pre-selection**: Project type selector on home page with "General" as default — users can start chatting without committing to an artifact type
 - **Any output**: Agent generates CSV, JSON, HTML, PDF, SQL, scripts; all code blocks with filenames have a download button

@@ -33,6 +33,7 @@ export interface AgentToolsSettings {
   extendedThinking: boolean;
   highPowerModels: boolean;
   webSearch: boolean;
+  imageGeneration: boolean;
 }
 
 export interface CursorPosition {
@@ -122,7 +123,8 @@ const defaultAgentToolsSettings: AgentToolsSettings = {
   appTesting: true,
   extendedThinking: false,
   highPowerModels: false,
-  webSearch: false
+  webSearch: false,
+  imageGeneration: true
 };
 
 const getStoredAgentToolsSettings = (projectId: string): AgentToolsSettings | null => {

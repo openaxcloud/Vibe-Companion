@@ -52,7 +52,9 @@ export function RichMessageContent({ content, className }: RichMessageContentPro
   const cleanedContent = content
     .replace(/<!--\s*filename:\s*([^\s]+)\s*-->/g, '**`$1`**')
     .replace(/\/\/\s*filename:\s*([^\n]+)/g, '**`$1`**')
-    .replace(/\/\*\s*filename:\s*([^\s*]+)\s*\*\//g, '**`$1`**');
+    .replace(/\/\*\s*filename:\s*([^\s*]+)\s*\*\//g, '**`$1`**')
+    .replace(/\[GENERATE_IMAGE:\s*([^|]+?)(?:\s*\|\s*size:\s*\S+)?(?:\s*\|\s*style:\s*\S+)?(?:\s*\|\s*quality:\s*\S+)?(?:\s*\|\s*path:\s*(\S+))?\s*\]/gi,
+      '🎨 **Generating image:** _$1_ → `$2`');
 
   return (
     <div className={cn("prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden min-w-0 w-full", className)} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>

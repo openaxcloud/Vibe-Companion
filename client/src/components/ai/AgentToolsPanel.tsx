@@ -25,6 +25,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAgentTools, type AgentToolsSettings } from '@/hooks/useAgentTools';
@@ -75,6 +76,7 @@ export function AgentToolsPanel({
     extendedThinking: externalSettings?.extendedThinking ?? false,
     highPowerModels: externalSettings?.highPowerModels ?? false,
     webSearch: externalSettings?.webSearch ?? true,
+    imageGeneration: externalSettings?.imageGeneration ?? true,
   };
   
   // Persist collapsed state to localStorage
@@ -127,8 +129,9 @@ export function AgentToolsPanel({
   const extendedThinkingOn = effectiveSettings.extendedThinking;
   const highPowerModelsOn = effectiveSettings.highPowerModels;
   const webSearchOn = effectiveSettings.webSearch;
+  const imageGenerationOn = effectiveSettings.imageGeneration;
 
-  const activeCount = [maxAutonomyOn, appTestingOn, extendedThinkingOn, highPowerModelsOn, webSearchOn].filter(Boolean).length;
+  const activeCount = [maxAutonomyOn, appTestingOn, extendedThinkingOn, highPowerModelsOn, webSearchOn, imageGenerationOn].filter(Boolean).length;
 
   if (isLoadingPreferences) {
     return (
@@ -138,7 +141,7 @@ export function AgentToolsPanel({
           <Skeleton className="h-4 w-24" />
         </div>
         <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map(i => (
+          {[1, 2, 3, 4, 5, 6].map(i => (
             <div key={i} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Skeleton className="w-8 h-8 rounded-full" />
@@ -389,6 +392,44 @@ export function AgentToolsPanel({
                 data-testid="toggle-web-search"
                 disabled={isUpdating}
                 className="data-[state=checked]:bg-green-500"
+              />
+            </div>
+
+            <Separator />
+
+            {/* Image Generation Toggle */}
+            <div className="flex items-start justify-between gap-3 py-2 min-h-[44px]">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-pink-100 dark:bg-pink-900/50 flex items-center justify-center shrink-0">
+                  <ImageIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />
+                </div>
+                <div className="space-y-0.5">
+                  <Label 
+                    htmlFor="image-generation" 
+                    className="font-medium text-[13px] cursor-pointer"
+                  >
+                    Image generation
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Generate custom images, icons, and graphics with AI
+                  </p>
+                  {imageGenerationOn && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <ImageIcon className="w-3 h-3 text-pink-500" />
+                      <span className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
+                        Image generation active
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Switch
+                id="image-generation"
+                checked={imageGenerationOn}
+                onCheckedChange={(checked) => handleToggle('imageGeneration', checked)}
+                data-testid="toggle-image-generation"
+                disabled={isUpdating}
+                className="data-[state=checked]:bg-pink-500"
               />
             </div>
 

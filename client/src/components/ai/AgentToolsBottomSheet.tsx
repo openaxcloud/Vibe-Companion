@@ -6,7 +6,8 @@ import {
   Brain, 
   Sparkles, 
   Globe, 
-  TestTube2
+  TestTube2,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AgentToolsSettings } from '@/hooks/useAgentTools';
@@ -45,6 +46,10 @@ export const AgentToolsBottomSheet = memo(function AgentToolsBottomSheet({
 
   const handleAppTestingToggle = useCallback((checked: boolean) => {
     onSettingsChange({ ...settings, appTesting: checked });
+  }, [settings, onSettingsChange]);
+
+  const handleImageGenerationToggle = useCallback((checked: boolean) => {
+    onSettingsChange({ ...settings, imageGeneration: checked });
   }, [settings, onSettingsChange]);
 
   return (
@@ -141,6 +146,22 @@ export const AgentToolsBottomSheet = memo(function AgentToolsBottomSheet({
                 onCheckedChange={handleAppTestingToggle}
                 className="data-[state=checked]:bg-orange-500"
                 data-testid="toggle-app-testing"
+              />
+            </div>
+
+            <div className="flex items-center justify-between py-3 px-1">
+              <div className="flex items-center gap-3">
+                <ImageIcon className="w-5 h-5 text-pink-500" />
+                <div>
+                  <div className="font-medium text-[13px] text-foreground">Image Generation</div>
+                  <div className="text-[11px] text-muted-foreground">Generate custom images and graphics with AI</div>
+                </div>
+              </div>
+              <Switch
+                checked={settings.imageGeneration}
+                onCheckedChange={handleImageGenerationToggle}
+                className="data-[state=checked]:bg-pink-500"
+                data-testid="toggle-image-generation"
               />
             </div>
           </div>
