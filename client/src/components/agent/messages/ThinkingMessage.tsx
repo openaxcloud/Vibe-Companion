@@ -99,8 +99,8 @@ export function ThinkingMessage({ steps, isStreaming, totalTokens, thinkingTime 
               </div>
 
               {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className={cn("text-[11px] font-medium", config.color)}>
                     {config.label}
                   </span>
@@ -110,11 +110,11 @@ export function ThinkingMessage({ steps, isStreaming, totalTokens, thinkingTime 
                     </span>
                   )}
                 </div>
-                <div className="text-[13px] font-medium text-[var(--ecode-text)] mb-1">
+                <div className="text-[13px] font-medium text-[var(--ecode-text)] mb-1 break-words" style={{ overflowWrap: 'anywhere' }}>
                   {step.title}
                 </div>
                 {step.content && (
-                  <div className="text-[11px] text-[var(--ecode-text-secondary)] leading-relaxed">
+                  <div className="text-[11px] text-[var(--ecode-text-secondary)] leading-relaxed break-words" style={{ overflowWrap: 'anywhere' }}>
                     {step.content}
                   </div>
                 )}

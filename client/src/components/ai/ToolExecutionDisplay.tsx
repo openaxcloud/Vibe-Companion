@@ -473,43 +473,43 @@ export function ToolExecutionDisplay({
       <CardContent className="p-3 sm:p-4 pt-0">
         <div className="space-y-2">
           {(tool === 'create_file' || tool === 'edit_file') && (
-            <div className="text-[12px]">
+            <div className="text-[12px] min-w-0">
               <span className="text-muted-foreground">Path: </span>
-              <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{parameters.path}</code>
+              <code className="bg-muted px-1.5 py-0.5 rounded font-mono break-all">{parameters.path}</code>
               {parameters.description && (
-                <p className="text-muted-foreground mt-1">{parameters.description}</p>
+                <p className="text-muted-foreground mt-1 break-words" style={{ overflowWrap: 'anywhere' }}>{parameters.description}</p>
               )}
             </div>
           )}
 
           {(tool === 'run_command' || tool === 'install_package') && (
-            <div className="text-[12px]">
+            <div className="text-[12px] min-w-0">
               <span className="text-muted-foreground">Command: </span>
-              <code className="bg-muted px-2 py-1.5 rounded text-[11px] block mt-1 overflow-x-auto font-mono">
+              <code className="bg-muted px-2 py-1.5 rounded text-[11px] block mt-1 overflow-x-auto font-mono break-all max-w-full">
                 {parameters.command || `npm install ${parameters.package_name}${parameters.dev ? ' --save-dev' : ''}`}
               </code>
               {parameters.description && (
-                <p className="text-muted-foreground mt-1">{parameters.description}</p>
+                <p className="text-muted-foreground mt-1 break-words" style={{ overflowWrap: 'anywhere' }}>{parameters.description}</p>
               )}
             </div>
           )}
 
           {(tool === 'web_search' || tool === 'search_code') && (
-            <div className="text-[12px]">
+            <div className="text-[12px] min-w-0">
               <span className="text-muted-foreground">Query: </span>
-              <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{parameters.query || parameters.pattern}</code>
+              <code className="bg-muted px-1.5 py-0.5 rounded font-mono break-all">{parameters.query || parameters.pattern}</code>
             </div>
           )}
 
           {status === 'complete' && result && (
-            <div className="mt-2 pt-2 border-t text-[12px]">
+            <div className="mt-2 pt-2 border-t text-[12px] min-w-0 overflow-hidden">
               {metadata?.filesChanged && metadata.filesChanged.length > 0 && (
                 <div>
                   <span className="text-muted-foreground">Files changed:</span>
                   <ul className="mt-1 space-y-1">
                     {metadata.filesChanged.map((file, i) => (
                       <li key={i} className="ml-2">
-                        <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono">{file}</code>
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono break-all">{file}</code>
                       </li>
                     ))}
                   </ul>
@@ -519,7 +519,7 @@ export function ToolExecutionDisplay({
               {result.stdout && (
                 <div className="mt-2">
                   <span className="text-muted-foreground">Output:</span>
-                  <pre className="bg-muted p-2.5 rounded-md text-[11px] mt-1 overflow-x-auto max-h-36 overflow-y-auto font-mono">
+                  <pre className="bg-muted p-2.5 rounded-md text-[11px] mt-1 overflow-x-auto max-h-36 overflow-y-auto font-mono max-w-full">
                     {result.stdout}
                   </pre>
                 </div>

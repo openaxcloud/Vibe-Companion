@@ -218,14 +218,14 @@ export function MessageRenderer({ message, onApproveAction, onRejectAction }: Me
 
         {/* Error Display */}
         {message.error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-800">
+          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-800 overflow-hidden">
             <div className="flex items-start gap-2">
-              <div className="font-medium text-[13px] text-red-800 dark:text-red-200">
+              <div className="font-medium text-[13px] text-red-800 dark:text-red-200 break-words min-w-0" style={{ overflowWrap: 'anywhere' }}>
                 Error: {message.error.message}
               </div>
             </div>
             {message.error.stack && (
-              <pre className="mt-2 text-[11px] font-mono text-red-700 dark:text-red-300 overflow-x-auto">
+              <pre className="mt-2 text-[11px] font-mono text-red-700 dark:text-red-300 overflow-x-auto max-w-full whitespace-pre-wrap break-all">
                 {message.error.stack}
               </pre>
             )}

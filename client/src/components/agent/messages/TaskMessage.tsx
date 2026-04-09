@@ -192,7 +192,7 @@ export function TaskMessage({ tasks, className }: TaskMessageProps) {
                           </div>
                           <div className="pl-5 space-y-1">
                             {task.artifacts.filesCreated.map((file, idx) => (
-                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)]">
+                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)] break-all">
                                 {file}
                               </div>
                             ))}
@@ -203,14 +203,14 @@ export function TaskMessage({ tasks, className }: TaskMessageProps) {
                       {task.artifacts?.filesModified && task.artifacts.filesModified.length > 0 && (
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <FileText className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                            <FileText className="h-3 w-3 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                             <span className="text-[11px] font-medium text-[var(--ecode-text)]">
                               Files Modified ({task.artifacts.filesModified.length})
                             </span>
                           </div>
                           <div className="pl-5 space-y-1">
                             {task.artifacts.filesModified.map((file, idx) => (
-                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)]">
+                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)] break-all">
                                 {file}
                               </div>
                             ))}
@@ -221,14 +221,14 @@ export function TaskMessage({ tasks, className }: TaskMessageProps) {
                       {task.artifacts?.packagesInstalled && task.artifacts.packagesInstalled.length > 0 && (
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <Package className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                            <Package className="h-3 w-3 text-purple-600 dark:text-purple-400 flex-shrink-0" />
                             <span className="text-[11px] font-medium text-[var(--ecode-text)]">
                               Packages Installed ({task.artifacts.packagesInstalled.length})
                             </span>
                           </div>
                           <div className="pl-5 space-y-1">
                             {task.artifacts.packagesInstalled.map((pkg, idx) => (
-                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)]">
+                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)] break-all">
                                 {pkg}
                               </div>
                             ))}
@@ -239,14 +239,14 @@ export function TaskMessage({ tasks, className }: TaskMessageProps) {
                       {task.artifacts?.commands && task.artifacts.commands.length > 0 && (
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <Terminal className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                            <Terminal className="h-3 w-3 text-orange-600 dark:text-orange-400 flex-shrink-0" />
                             <span className="text-[11px] font-medium text-[var(--ecode-text)]">
                               Commands Executed ({task.artifacts.commands.length})
                             </span>
                           </div>
                           <div className="pl-5 space-y-1">
                             {task.artifacts.commands.map((cmd, idx) => (
-                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)]">
+                              <div key={idx} className="text-[11px] font-mono text-[var(--ecode-text-secondary)] break-all">
                                 $ {cmd}
                               </div>
                             ))}

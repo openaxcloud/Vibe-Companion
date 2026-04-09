@@ -82,24 +82,24 @@ export function ActionMessage({ actions, onApprove, onReject, className }: Actio
             )}
             data-testid={`action-${action.type}-${action.id}`}
           >
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-2">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div className={cn(
-                  "p-1.5 rounded-md",
+                  "p-1.5 rounded-md flex-shrink-0",
                   isPending && "bg-amber-100 dark:bg-amber-900/20",
                   isExecuted && "bg-green-100 dark:bg-green-900/20",
                   isRejected && "bg-red-100 dark:bg-red-900/20"
                 )}>
                   <Icon className={cn("h-4 w-4", config.color)} />
                 </div>
-                <div>
-                  <div className="font-medium text-[13px] text-[var(--ecode-text)]">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-[13px] text-[var(--ecode-text)] break-words" style={{ overflowWrap: 'anywhere' }}>
                     {config.verb}{' '}
-                    {action.path && <span className="font-mono">{action.path}</span>}
-                    {action.command && <span className="font-mono">{action.command}</span>}
-                    {action.package && <span className="font-mono">{action.package}</span>}
+                    {action.path && <span className="font-mono break-all">{action.path}</span>}
+                    {action.command && <span className="font-mono break-all">{action.command}</span>}
+                    {action.package && <span className="font-mono break-all">{action.package}</span>}
                   </div>
-                  <div className="text-[11px] text-[var(--ecode-text-secondary)]">
+                  <div className="text-[11px] text-[var(--ecode-text-secondary)] break-words" style={{ overflowWrap: 'anywhere' }}>
                     {action.description}
                   </div>
                 </div>
@@ -143,9 +143,9 @@ export function ActionMessage({ actions, onApprove, onReject, className }: Actio
 
             {/* Code Preview (for create_file or when no diff available) */}
             {action.content && action.type !== 'delete_file' && !action.oldContent && (
-              <div className="mt-2 p-2 rounded-md bg-[#0e1525] border border-[#2a3040]">
-                <pre className="text-[11px] font-mono text-gray-300 overflow-x-auto max-h-40">
-                  <code>{action.content.substring(0, 300)}{action.content.length > 300 ? '...' : ''}</code>
+              <div className="mt-2 p-2 rounded-md bg-[#0e1525] border border-[#2a3040] overflow-hidden">
+                <pre className="text-[11px] font-mono text-gray-300 overflow-x-auto max-h-40 max-w-full">
+                  <code className="break-all">{action.content.substring(0, 300)}{action.content.length > 300 ? '...' : ''}</code>
                 </pre>
               </div>
             )}
@@ -153,14 +153,14 @@ export function ActionMessage({ actions, onApprove, onReject, className }: Actio
             {/* Result (if executed) */}
             {action.result && (
               <div className={cn(
-                "mt-2 p-2 rounded-md text-[11px]",
+                "mt-2 p-2 rounded-md text-[11px] break-words overflow-hidden",
                 action.result.success 
                   ? "bg-green-100 dark:bg-green-950/20 text-green-800 dark:text-green-200"
                   : "bg-red-100 dark:bg-red-950/20 text-red-800 dark:text-red-200"
-              )}>
+              )} style={{ overflowWrap: 'anywhere' }}>
                 {action.result.message || (action.result.success ? 'Executed successfully' : 'Execution failed')}
                 {action.result.error && (
-                  <div className="mt-1 font-mono text-[11px]">{action.result.error}</div>
+                  <div className="mt-1 font-mono text-[11px] break-all">{action.result.error}</div>
                 )}
               </div>
             )}
