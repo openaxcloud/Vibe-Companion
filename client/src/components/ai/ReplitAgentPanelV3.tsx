@@ -695,9 +695,9 @@ export function ReplitAgentPanelV3({
         setBootstrapTimedOut(false);
         setBootstrapWarning(false);
         
-        // ✅ FIX (Dec 25, 2025): Enable active build session for WebSocket streaming
-        // This keeps the WebSocket connected for real-time progress updates
-        setIsActiveBuildSession(true);
+        if (bootstrapToken) {
+          setIsActiveBuildSession(true);
+        }
       } catch (error: unknown) {
         if (!isMounted) return;
         
@@ -779,7 +779,9 @@ export function ReplitAgentPanelV3({
   // when localStorage had rehydrated stale data
   const { data: backendMessages, isLoading: isLoadingMessages } = useQuery({
     queryKey: [`/api/agent/conversation/${conversationId}/messages`],
-    enabled: !!conversationId,
+    enabled: !!conversationId && !hasConversation(conversationId),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Fetch decomposed tasks for autonomy session
@@ -808,37 +810,28 @@ export function ReplitAgentPanelV3({
   });
 
   useEffect(() => {
-    if (backendMessages?.messages && conversationId) {
-      if (initialSyncDoneRef.current === conversationId) {
-        return;
-      }
-      
-      const fetchedMessages = backendMessages.messages as Message[];
-      const existingMessages = getMessages(conversationId);
-      const hasExistingUserMessages = existingMessages.some(m => m.role === 'user');
-      
-      if (hasExistingUserMessages && fetchedMessages.length > 0) {
-        const localLatestId = existingMessages[existingMessages.length - 1]?.id;
-        const backendLatestId = fetchedMessages[fetchedMessages.length - 1]?.id;
-        if (localLatestId === backendLatestId || existingMessages.length >= fetchedMessages.length) {
-          initialSyncDoneRef.current = conversationId;
-          if (backendMessages.hasMore !== undefined) setHasMoreMessages(backendMessages.hasMore);
-          if (backendMessages.totalCount !== undefined) setTotalMessageCount(backendMessages.totalCount);
-          return;
-        }
-      }
-      
+    if (!conversationId) return;
+    if (initialSyncDoneRef.current === conversationId) return;
+
+    const fetchedMessages = (backendMessages?.messages as Message[] | undefined) || [];
+    const existingMessages = getMessages(conversationId);
+    const localHasContent = existingMessages.length > 1 || existingMessages.some(m => m.role === 'user');
+
+    if (localHasContent && fetchedMessages.length <= existingMessages.length) {
+      initialSyncDoneRef.current = conversationId;
+      if (backendMessages?.hasMore !== undefined) setHasMoreMessages(backendMessages.hasMore);
+      if (backendMessages?.totalCount !== undefined) setTotalMessageCount(backendMessages.totalCount);
+      return;
+    }
+
+    if (fetchedMessages.length > existingMessages.length) {
       setStoreMessages(conversationId, fetchedMessages);
       setLastSyncedAt(conversationId, Date.now());
-      initialSyncDoneRef.current = conversationId;
-      
-      if (backendMessages.hasMore !== undefined) {
-        setHasMoreMessages(backendMessages.hasMore);
-      }
-      if (backendMessages.totalCount !== undefined) {
-        setTotalMessageCount(backendMessages.totalCount);
-      }
     }
+
+    initialSyncDoneRef.current = conversationId;
+    if (backendMessages?.hasMore !== undefined) setHasMoreMessages(backendMessages.hasMore);
+    if (backendMessages?.totalCount !== undefined) setTotalMessageCount(backendMessages.totalCount);
   }, [backendMessages, conversationId, setStoreMessages, setLastSyncedAt, getMessages]);
   
   // Handler for "Show Previous Messages" button (Replit-style incremental loading)
