@@ -1,6 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -38,6 +36,24 @@ export function AgentToolsPanel({
   compact = false,
   actualModelName,
 }: AgentToolsPanelProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState(400);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPanelWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    setPanelWidth(el.offsetWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  const showLabels = panelWidth >= 280;
+
   const effectiveSettings: AgentToolsSettings = {
     maxAutonomy: externalSettings?.maxAutonomy ?? false,
     appTesting: externalSettings?.appTesting ?? true,
@@ -80,7 +96,6 @@ export function AgentToolsPanel({
       tooltip: 'Agent supervises itself — runs up to 200 min',
       active: effectiveSettings.maxAutonomy,
       activeColor: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
-      dotColor: 'bg-amber-500',
     },
     {
       key: 'appTesting' as const,
@@ -90,7 +105,6 @@ export function AgentToolsPanel({
       tooltip: 'Agent tests using a real browser',
       active: effectiveSettings.appTesting,
       activeColor: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-      dotColor: 'bg-emerald-500',
     },
     {
       key: 'webSearch' as const,
@@ -100,7 +114,6 @@ export function AgentToolsPanel({
       tooltip: 'Search the internet for information',
       active: effectiveSettings.webSearch,
       activeColor: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30',
-      dotColor: 'bg-green-500',
     },
     {
       key: 'imageGeneration' as const,
@@ -110,13 +123,12 @@ export function AgentToolsPanel({
       tooltip: 'Generate images, icons, and graphics with AI',
       active: effectiveSettings.imageGeneration,
       activeColor: 'bg-pink-500/15 text-pink-600 dark:text-pink-400 border-pink-500/30',
-      dotColor: 'bg-pink-500',
     },
   ];
 
   if (isLoadingPreferences) {
     return (
-      <div className={cn("flex items-center gap-1.5 px-1 py-1", className)}>
+      <div ref={containerRef} className={cn("flex items-center gap-1.5 px-1 py-1", className)}>
         <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
       </div>
     );
@@ -124,10 +136,13 @@ export function AgentToolsPanel({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className={cn(
-        "flex items-center gap-1 px-1 py-1 flex-wrap",
-        className
-      )}>
+      <div
+        ref={containerRef}
+        className={cn(
+          "flex items-center gap-1 px-1 py-1",
+          className
+        )}
+      >
         {tools.map((tool) => {
           const Icon = tool.icon;
           return (
@@ -138,15 +153,16 @@ export function AgentToolsPanel({
                   disabled={isUpdating}
                   data-testid={`toggle-${tool.key.replace(/([A-Z])/g, '-$1').toLowerCase()}`}
                   className={cn(
-                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all duration-150 cursor-pointer",
+                    "inline-flex items-center gap-1 rounded-full font-medium border transition-all duration-150 cursor-pointer",
                     "hover:opacity-80 active:scale-95 disabled:opacity-50",
+                    showLabels ? "px-2 py-0.5 text-[11px]" : "p-1.5",
                     tool.active
                       ? tool.activeColor
                       : "bg-transparent text-muted-foreground border-transparent hover:border-border/50"
                   )}
                 >
-                  <Icon className="w-3 h-3" />
-                  <span>{tool.shortLabel}</span>
+                  <Icon className={cn(showLabels ? "w-3 h-3" : "w-3.5 h-3.5")} />
+                  {showLabels && <span>{tool.shortLabel}</span>}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs max-w-[200px]">
