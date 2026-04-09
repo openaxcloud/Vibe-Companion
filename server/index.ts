@@ -11,6 +11,7 @@ import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { startAutoMetricsCollector, startResourceSnapshotCollector, stopAutoMetricsCollector } from "./metricsCollector";
 import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from "./deploymentEngine";
+import { shutdownAllLocalWorkspaces } from "./localWorkspaceManager";
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
 import fs from "fs";
@@ -425,8 +426,8 @@ async function initTaskTables() {
     if (sslRenewalInterval) clearInterval(sslRenewalInterval);
     stopAutoMetricsCollector();
 
-    // Shutdown managed processes
-    await shutdownAllProcesses();
+    // Shutdown managed processes (deployments + local dev servers)
+    await Promise.allSettled([shutdownAllProcesses(), shutdownAllLocalWorkspaces()]);
 
     // Close HTTP server (stop accepting new connections)
     httpServer.close(() => {

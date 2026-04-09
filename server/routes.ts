@@ -1073,6 +1073,10 @@ export async function registerRoutes(
     setProcessBroadcastFn(broadcastToProject);
   }).catch(() => {});
 
+  import("./localWorkspaceManager").then(({ setLocalWorkspaceBroadcastFn }) => {
+    setLocalWorkspaceBroadcastFn(broadcastToProject);
+  }).catch(() => {});
+
   app.use(compression());
 
   const PgStore = connectPgSimple(session);
@@ -12834,6 +12838,235 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
   registerImageRoutes(app, requireAuth, aiLimiter);
 
+  // ─── Local Workspace Preview Routes ─────────────────────────────────────────
+  // These routes implement an integrated dev server manager as a replacement for
+  // the external runner service (runner.e-code.ai). Active when RUNNER_MODE=local
+  // or when the external runner is unreachable.
+  {
+    const localWS = await import("./localWorkspaceManager");
+
+    // Helper: determine if we should use local mode
+    function isLocalMode(): boolean {
+      const mode = process.env.RUNNER_MODE || "local";
+      return mode === "local";
+    }
+
+    // Helper: reverse-proxy an HTTP request to the local dev server
+    async function proxyToLocalDevServer(
+      projectId: string,
+      req: Request,
+      res: Response,
+      subpath: string
+    ): Promise<void> {
+      const port = localWS.getLocalWorkspacePort(projectId);
+      if (!port) {
+        res.status(503).json({ message: "Dev server not running. Start it first." });
+        return;
+      }
+      localWS.touchLocalWorkspace(projectId);
+
+      const http = await import("http");
+      const url = new URL(subpath || "/", `http://localhost:${port}`);
+      // Forward query string
+      const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+      if (qs) {
+        // Merge query params from original request but avoid duplicating subpath params
+        const origParams = new URLSearchParams(qs);
+        origParams.forEach((v, k) => url.searchParams.set(k, v));
+      }
+
+      const proxyHeaders: Record<string, string | string[] | undefined> = { ...req.headers };
+      delete proxyHeaders["host"];
+      proxyHeaders["host"] = `localhost:${port}`;
+
+      const proxyReq = http.request(
+        {
+          hostname: "localhost",
+          port,
+          path: url.pathname + (url.search || ""),
+          method: req.method,
+          headers: proxyHeaders as any,
+        },
+        (proxyRes) => {
+          // Forward status + headers
+          const filteredHeaders: Record<string, string | string[]> = {};
+          for (const [k, v] of Object.entries(proxyRes.headers)) {
+            if (!["transfer-encoding", "connection"].includes(k.toLowerCase()) && v !== undefined) {
+              filteredHeaders[k] = v as string | string[];
+            }
+          }
+          res.writeHead(proxyRes.statusCode || 200, filteredHeaders);
+          proxyRes.pipe(res);
+        }
+      );
+
+      proxyReq.on("error", (err) => {
+        if (!res.headersSent) {
+          res.status(502).json({ message: `Dev server unreachable: ${err.message}` });
+        }
+      });
+
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        req.pipe(proxyReq);
+      } else {
+        proxyReq.end();
+      }
+    }
+
+    /**
+     * GET /api/preview/url?projectId=X
+     * Returns the preview status and URL for the PreviewPanel component.
+     */
+    app.get("/api/preview/url", requireAuth, async (req: Request, res: Response) => {
+      const projectId = qstr(req.query.projectId);
+      if (!projectId) return res.status(400).json({ message: "projectId required" });
+
+      const project = await storage.getProject(projectId);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      if (!isLocalMode()) {
+        // External runner mode — proxy to the existing workspace preview-url logic
+        const workspace = await storage.getWorkspaceByProject(project.id);
+        if (!workspace) {
+          return res.json({ previewUrl: null, status: "stopped", message: "No workspace" });
+        }
+        const port = 3000;
+        const url = runnerClient.previewUrl(workspace.id, port);
+        return res.json({ previewUrl: url, status: workspace.statusCache || "stopped", port });
+      }
+
+      // Local mode
+      const wsStatus = localWS.getLocalWorkspaceStatus(projectId);
+      const port = localWS.getLocalWorkspacePort(projectId);
+
+      if (wsStatus === "none") {
+        // Check if the project has runnable files to give the right status
+        const wsDir = localWS.getWorkspaceDir(projectId);
+        const runnable = localWS.hasRunnableFiles(wsDir);
+        return res.json({
+          previewUrl: null,
+          status: runnable ? "stopped" : "no_runnable_files",
+          message: runnable ? "Dev server not started" : "No runnable files detected",
+        });
+      }
+
+      const previewUrl = port ? `/api/preview/${projectId}/` : null;
+      return res.json({ previewUrl, status: wsStatus, port });
+    });
+
+    /**
+     * POST /api/preview/projects/:projectId/preview/start
+     * Start (or get the status of) the local dev server.
+     */
+    app.post("/api/preview/projects/:projectId/preview/start", requireAuth, async (req: Request, res: Response) => {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      if (!isLocalMode()) {
+        // Fall through to external runner start
+        const workspace = await storage.getWorkspaceByProject(project.id);
+        if (!workspace) return res.status(404).json({ message: "Workspace not found" });
+        try {
+          await runnerClient.startWorkspace(workspace.id);
+          await storage.updateWorkspaceStatus(workspace.id, "running");
+          return res.json({ status: "starting" });
+        } catch (err: any) {
+          return res.status(502).json({ message: err.message });
+        }
+      }
+
+      const existing = localWS.getLocalWorkspace(project.id);
+      if (existing && (existing.status === "running" || existing.status === "starting" || existing.status === "installing")) {
+        return res.json({ status: existing.status, port: existing.port });
+      }
+
+      // Get project env vars
+      const projectEnvVarsList = await storage.getProjectEnvVars(project.id).catch(() => []);
+      const envVarsMap: Record<string, string> = {};
+      for (const ev of projectEnvVarsList) {
+        try { envVarsMap[ev.key] = decrypt(ev.encryptedValue); } catch {}
+      }
+
+      const ws = await localWS.startLocalWorkspace(
+        project.id,
+        () => storage.getFiles(project.id),
+        {
+          language: project.language || undefined,
+          envVars: envVarsMap,
+        }
+      );
+
+      return res.json({ status: ws.status, port: ws.port });
+    });
+
+    /**
+     * POST /api/preview/projects/:projectId/preview/stop
+     * Stop the local dev server.
+     */
+    app.post("/api/preview/projects/:projectId/preview/stop", requireAuth, async (req: Request, res: Response) => {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      if (!isLocalMode()) {
+        const workspace = await storage.getWorkspaceByProject(project.id);
+        if (!workspace) return res.status(404).json({ message: "Workspace not found" });
+        try {
+          await runnerClient.stopWorkspace(workspace.id);
+          await storage.updateWorkspaceStatus(workspace.id, "stopped");
+          return res.json({ status: "stopped" });
+        } catch (err: any) {
+          return res.status(502).json({ message: err.message });
+        }
+      }
+
+      await localWS.stopLocalWorkspace(project.id);
+      return res.json({ status: "stopped" });
+    });
+
+    /**
+     * GET /api/preview/projects/:projectId/preview/logs
+     * Return the dev server log buffer.
+     */
+    app.get("/api/preview/projects/:projectId/preview/logs", requireAuth, async (req: Request, res: Response) => {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      return res.json({ logs: localWS.getLocalWorkspaceLogs(project.id) });
+    });
+
+    /**
+     * GET /api/preview/:projectId/
+     * GET /api/preview/:projectId/*path
+     * Reverse proxy to the local dev server.
+     */
+    app.get("/api/preview/:projectId", requireAuth, async (req: Request, res: Response) => {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      await proxyToLocalDevServer(project.id, req, res, "/");
+    });
+
+    app.all("/api/preview/:projectId/{*path}", requireAuth, async (req: Request, res: Response) => {
+      const project = await storage.getProject(req.params.projectId);
+      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      const subpath = "/" + (req.params.path || "");
+      await proxyToLocalDevServer(project.id, req, res, subpath);
+    });
+
+    // Store localWS reference for use in the WebSocket upgrade handler (below)
+    (app as any)._localWS = localWS;
+  }
+
   // --- WebSocket ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api")) {
@@ -12883,6 +13116,56 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
   httpServer.on("upgrade", (req: any, socket, head) => {
     const pathname = new URL(req.url || "/", `http://${req.headers.host}`).pathname;
+
+    // ── Preview proxy WebSocket (HMR, hot reload, etc.) ──────────────────────
+    if (pathname.startsWith("/api/preview/")) {
+      const previewMatch = pathname.match(/^\/api\/preview\/([^/]+)(\/.*)?$/);
+      if (previewMatch) {
+        const projectId = previewMatch[1];
+        sessionMiddleware(req, {} as any, () => {
+          if (!req.session?.userId) {
+            socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          storage.getProject(projectId).then(async (project) => {
+            if (!project || !(await canAccessProject(req.session.userId, project))) {
+              socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+              socket.destroy();
+              return;
+            }
+            const lws = (app as any)._localWS;
+            const port = lws?.getLocalWorkspacePort(projectId);
+            if (!port) {
+              socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+              socket.destroy();
+              return;
+            }
+            lws.touchLocalWorkspace(projectId);
+            // Forward the WebSocket upgrade to the local dev server
+            import("net").then((net) => {
+              const targetSocket = net.createConnection({ port, host: "127.0.0.1" }, () => {
+                const reqLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
+                const headers = Object.entries(req.headers)
+                  .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+                  .join("\r\n");
+                targetSocket.write(reqLine + headers + "\r\n\r\n");
+                if (head && head.length > 0) targetSocket.write(head);
+                socket.pipe(targetSocket);
+                targetSocket.pipe(socket);
+              });
+              targetSocket.on("error", () => { try { socket.destroy(); } catch {} });
+              socket.on("error", () => { try { targetSocket.destroy(); } catch {} });
+            });
+          }).catch(() => {
+            socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+            socket.destroy();
+          });
+        });
+        return;
+      }
+    }
+
     if (pathname === "/ws") {
       sessionMiddleware(req, {} as any, () => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
