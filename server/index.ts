@@ -4209,6 +4209,14 @@ app.get("/api/mcp/servers", (_req: Request, res: Response) => {
     app.get("/api/community/categories", (_req, res) => { res.json({ categories: [] }); });
     app.get("/api/community/collections", (_req, res) => { res.json({ collections: [] }); });
 
+    try {
+      const projectTasksRouter = (await import("./routes/project-tasks.router")).default;
+      app.use("/api/projects", projectTasksRouter);
+      log("Project tasks router mounted");
+    } catch (e: any) {
+      log(`Project tasks router failed to load: ${e.message}`, "warn");
+    }
+
     log("Minimal fallback routes loaded");
 
     try {

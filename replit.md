@@ -39,6 +39,13 @@ This project is an advanced web-based IDE designed to replicate Replit.com's int
 - WebSocket support for real-time features
 - Authentication system with session management
 
+### Task System (Replit-style)
+- **Database**: `project_tasks` table with task numbering, status (draft/active/ready/done), plan content, priority, complexity, files modified tracking, review status
+- **API Router**: `server/routes/project-tasks.router.ts` mounted at `/api/projects/:projectId/tasks` with project ownership verification middleware
+- **Frontend**: `TaskSummariesPanel` (`client/src/components/TaskSummariesPanel.tsx`) — unified task management with list view, Kanban board view, and inline task detail view
+- **Access**: Activity bar "Tasks" icon (ClipboardList) → opens TaskSummariesPanel; also `TaskBoardPanel` and `TaskDetailPanel` in `client/src/components/ide/`
+- **Features**: Create/edit/delete tasks, status transitions (draft→active→ready→done), priority/complexity badges, file change tracking, review approval flow ("Apply changes to main version"), progress bar, search/filter
+
 ### Key Components Created
 - **ReplitLayout**: Main layout system matching Replit's exact structure
 - **ReplitHeader**: Navigation header with search, menus, user profile
