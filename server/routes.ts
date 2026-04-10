@@ -5432,6 +5432,26 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
     }
+
+    // Auto-start local workspace in background if project has files and workspace not running
+    import("./localWorkspaceManager").then(async (localWS) => {
+      try {
+        const status = localWS.getLocalWorkspaceStatus(project.id);
+        if (status === "none" || status === "stopped" || status === "error") {
+          const files = await storage.getFiles(project.id);
+          if (files.length > 0) {
+            localWS.startLocalWorkspace(
+              project.id,
+              () => Promise.resolve(files.map(f => ({ filename: f.filename, content: f.content as string | null }))),
+              { language: project.language || "javascript" }
+            ).then(() => {
+              broadcastToProject(project.id, { type: "workspace_status", status: localWS.getLocalWorkspaceStatus(project.id) });
+            }).catch(() => {});
+          }
+        }
+      } catch {}
+    }).catch(() => {});
+
     return res.json(project);
   });
 
