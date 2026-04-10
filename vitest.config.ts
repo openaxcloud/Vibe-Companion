@@ -5,8 +5,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "server/**/*.test.ts"],
     testTimeout: 10000,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      include: ["server/**/*.ts"],
+      exclude: ["server/routes.ts"],
+    },
   },
   resolve: {
     alias: {
