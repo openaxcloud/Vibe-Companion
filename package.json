@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "lint": "eslint server/ client/src/ --max-warnings 50",
     "db:push": "drizzle-kit push",
     "postinstall": "patch-package"
   },

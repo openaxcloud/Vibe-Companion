@@ -14,6 +14,7 @@ import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from
 import { shutdownAllLocalWorkspaces } from "./localWorkspaceManager";
 import { renewExpiringCertificates } from "./domainManager";
 import { startSSHServer } from "./sshServer";
+import { initMonitoring } from "./monitoring";
 import fs from "fs";
 import path from "path";
 
@@ -61,6 +62,7 @@ function validateEnvironment() {
 }
 
 validateEnvironment();
+initMonitoring();
 
 const app = express();
 app.set("trust proxy", 1);
