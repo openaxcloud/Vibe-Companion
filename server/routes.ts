@@ -930,13 +930,20 @@ function generateCsrfToken(): string {
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
-    return res.status(401).json({ message: "Authentication required" });
+  if (req.session.userId) {
+    return next();
   }
-  next();
+  if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && (req.user as any)?.id) {
+    req.session.userId = (req.user as any).id;
+    return next();
+  }
+  return res.status(401).json({ message: "Authentication required" });
 }
 
 const CSRF_EXEMPT_PATHS = [
+  "/api/login",
+  "/api/register",
+  "/api/logout",
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/logout",
@@ -1112,6 +1119,11 @@ export async function registerRoutes(
     },
   });
   app.use(sessionMiddleware);
+
+  // Initialize Passport for session-based authentication
+  const passport = await import("passport");
+  const { setupPassportAuth } = await import("./middleware/passport-setup");
+  setupPassportAuth(app);
 
   app.use((req, res, next) => {
     incrementRequests();

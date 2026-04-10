@@ -66,6 +66,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 - **AI Helper Utilities**: Shared AI functions (validateAIMessages, sanitizeAIFilename, resolveTopAgentMode, etc.) live in `server/routes/ai-helpers.ts` and are imported by legacy route files.
 - **Known non-blocking warnings**: SSH server (`ssh2.Server` constructor), Stripe webhooks (need `STRIPE_WEBHOOK_SECRET`), fuzzy search SQL syntax.
 - **GitHub remote**: `origin` = `https://github.com/openaxcloud/Vibe-Companion`.
+- **Auth flow**: Frontend uses `/api/login`, `/api/register`, `/api/logout`, `/api/me`. Auth router mounted at `/api` with Passport local strategy. Session regeneration on login sets both `req.user` (Passport) and `req.session.userId` (legacy). CSRF exempt for login/register endpoints.
 - **Auth credentials (dev)**: Login `avi@snatchbot.me` / `password123`. Must send `X-Forwarded-Proto: https` for session cookie.
 
 ## Database Schema

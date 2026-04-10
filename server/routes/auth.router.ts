@@ -211,46 +211,26 @@ export class AuthRouter {
           req.session.regenerate((regenErr: any) => {
             if (regenErr) {
               logger.warn('Session regeneration failed after registration', { message: regenErr.message });
-              return res.json({ 
-                success: true,
-                emailSent,
-                message: successMessage + " Please login manually.",
-                user: this.sanitizeUser(user)
-              });
+              return res.json(this.sanitizeUser(user));
             }
             
             req.login(user, (err: any) => {
               if (err) {
                 logger.error('Login after registration failed', { message: err.message });
-                return res.json({ 
-                  success: true,
-                  emailSent,
-                  message: successMessage + " Login manually to continue.",
-                  user: this.sanitizeUser(user)
-                });
+                return res.json(this.sanitizeUser(user));
               }
               
+              req.session.userId = user.id;
               req.session.save((saveErr: any) => {
                 if (saveErr) {
                   logger.warn('Session save warning after registration', { message: saveErr.message });
                 }
-                
-                res.json({ 
-                  success: true,
-                  emailSent,
-                  message: successMessage,
-                  user: this.sanitizeUser(user)
-                });
+                res.json(this.sanitizeUser(user));
               });
             });
           });
         } else {
-          res.json({ 
-            success: true,
-            emailSent,
-            message: successMessage,
-            user: this.sanitizeUser(user)
-          });
+          res.json(this.sanitizeUser(user));
         }
       } catch (error: any) {
         logger.error('Registration error', { message: error.message });
@@ -329,17 +309,14 @@ export class AuthRouter {
               });
             }
             
-            // Save session to persist user data
+            req.session.userId = user.id;
             req.session.save((saveErr: any) => {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
               }
               
               logger.info(`User ${user.id} logged in successfully`);
-              res.json({ 
-                message: "Login successful",
-                user: this.sanitizeUser(user)
-              });
+              res.json(this.sanitizeUser(user));
             });
           });
         });
@@ -420,16 +397,14 @@ export class AuthRouter {
               });
             }
             
+            req.session.userId = user.id;
             req.session.save((saveErr: any) => {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
               }
               
               logger.info(`User ${user.id} completed 2FA login`);
-              res.json({ 
-                message: "Login successful",
-                user: this.sanitizeUser(user)
-              });
+              res.json(this.sanitizeUser(user));
             });
           });
         });
@@ -557,46 +532,26 @@ export class AuthRouter {
           req.session.regenerate((regenErr: any) => {
             if (regenErr) {
               logger.warn('Session regeneration failed after registration', { message: regenErr.message });
-              return res.json({ 
-                success: true,
-                emailSent,
-                message: successMessage + " Please login manually.",
-                user: this.sanitizeUser(user)
-              });
+              return res.json(this.sanitizeUser(user));
             }
             
             req.login(user, (err: any) => {
               if (err) {
                 logger.error('Login after registration failed', { message: err.message });
-                return res.json({ 
-                  success: true,
-                  emailSent,
-                  message: successMessage + " Login manually to continue.",
-                  user: this.sanitizeUser(user)
-                });
+                return res.json(this.sanitizeUser(user));
               }
               
+              req.session.userId = user.id;
               req.session.save((saveErr: any) => {
                 if (saveErr) {
                   logger.warn('Session save warning after registration', { message: saveErr.message });
                 }
-                
-                res.json({ 
-                  success: true,
-                  emailSent,
-                  message: successMessage,
-                  user: this.sanitizeUser(user)
-                });
+                res.json(this.sanitizeUser(user));
               });
             });
           });
         } else {
-          res.json({ 
-            success: true,
-            emailSent,
-            message: successMessage,
-            user: this.sanitizeUser(user)
-          });
+          res.json(this.sanitizeUser(user));
         }
       } catch (error: any) {
         logger.error('Registration error', { message: error.message });

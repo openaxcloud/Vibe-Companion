@@ -18,6 +18,12 @@ const EXCLUDED_PATHS = [
   '/api/webhooks/stripe',
   '/api/webhooks/github',
   '/api/logs/ingest',
+  '/api/login',
+  '/api/register',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
 ];
 
 // Base allowed origins for login/register endpoints

@@ -17,7 +17,7 @@ import {
 import { Link } from 'wouter';
 import { getProjectUrl } from '@/lib/utils';
 import { ECodeLogo } from '@/components/ECodeLogo';
-import { apiRequest, queryClient, resetCSRFToken } from '@/lib/queryClient';
+import { apiRequest, queryClient, resetCSRFToken, fetchCsrfToken } from '@/lib/queryClient';
 import { TwoFactorVerify } from '@/components/security/TwoFactorVerify';
 
 // Import stock images
@@ -130,10 +130,11 @@ export default function Login() {
       }
       
       resetCSRFToken();
+      await fetchCsrfToken();
       queryClient.setQueryData(['/api/me'], response.user || response);
       await queryClient.invalidateQueries();
       
-      const displayName = response.user?.displayName || response.user?.username || 'User';
+      const displayName = response.user?.displayName || response.displayName || response.username || 'User';
       toast({
         title: 'Login successful',
         description: `Welcome back, ${displayName}!`
@@ -165,12 +166,13 @@ export default function Login() {
       const response = await apiRequest<any>('POST', '/api/login/2fa-complete', { pendingSessionToken });
       
       resetCSRFToken();
+      await fetchCsrfToken();
       queryClient.setQueryData(['/api/me'], response.user || response);
       await queryClient.invalidateQueries();
       
       setTwoFactorChallenge(null);
       
-      const displayName = response.user?.displayName || response.user?.username || 'User';
+      const displayName = response.user?.displayName || response.displayName || response.username || 'User';
       toast({
         title: 'Login successful',
         description: `Welcome back, ${displayName}!`

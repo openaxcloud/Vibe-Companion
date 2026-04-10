@@ -10,6 +10,10 @@ export function getCsrfToken(): string | null {
   return csrfToken;
 }
 
+export function resetCSRFToken() {
+  csrfToken = null;
+}
+
 export async function fetchCsrfToken(): Promise<string> {
   const res = await fetch("/api/csrf-token", { credentials: "include" });
   if (res.ok) {
@@ -32,11 +36,11 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-export async function apiRequest(
+export async function apiRequest<T = Response>(
   method: string,
   url: string,
   data?: unknown | undefined,
-): Promise<Response> {
+): Promise<T> {
   const headers: Record<string, string> = {};
   if (data) {
     headers["Content-Type"] = "application/json";
@@ -53,7 +57,11 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
-  return res;
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return (await res.json()) as T;
+  }
+  return res as unknown as T;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
