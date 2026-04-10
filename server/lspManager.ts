@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "child_process";
 import { log } from "./index";
+import { ensureLspInstalled } from "./lspSetup";
 
 export type LSPLanguage = "typescript" | "javascript" | "python" | "go";
 
@@ -99,6 +100,9 @@ export function startLSPServer(
     log(`LSP: Unknown language ${language}`, "lsp");
     return false;
   }
+
+  // Attempt auto-install via lspSetup if the binary isn't found
+  ensureLspInstalled(language);
 
   try {
     const pythonBin = "/home/runner/workspace/.pythonlibs/bin";
