@@ -20,7 +20,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 
 **Deployment Engine**: Supports four deployment types (Autoscale, Static, Reserved VM, Scheduled) with versioned rollbacks, build logs, configurable machine resources, deployment secrets, and custom domain management with Let's Encrypt SSL. A Process Manager (`server/processManager.ts`) handles process lifecycle, health checks, crash detection, and real-time log streaming.
 
-**Authentication**: Session-based authentication using `express-session` and `bcrypt`. Supports OAuth 2.0 providers (GitHub, Google, Apple, X/Twitter) with CSRF validation. Includes user banning and login activity tracking. OAuth callback URLs use `getAppUrl()` which resolves to `https://e-code.ai` in production (filtering out any `replit.app` fallback). Session cookies use `COOKIE_DOMAIN=.e-code.ai` in production for subdomain sharing.
+**Authentication**: Session-based authentication using `express-session` and `bcrypt`. Session cookie name is `connect.sid` (express-session default). Supports OAuth 2.0 providers (GitHub, Google, Apple, X/Twitter) with CSRF validation. Includes user banning and login activity tracking. OAuth callback URLs use `getAppUrl()` which resolves to `https://e-code.ai` in production (filtering out any `replit.app` fallback). Session cookies use `COOKIE_DOMAIN=.e-code.ai` in production for subdomain sharing.
 
 **Production Domain**: `e-code.ai` — configured via `APP_DOMAIN` env var (production). Dev URLs: `{projectId}.dev.e-code.ai`. Email from: `noreply@e-code.ai`. Desktop app connects to `https://e-code.ai`.
 

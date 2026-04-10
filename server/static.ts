@@ -27,7 +27,11 @@ export function serveStatic(app: Express) {
     },
   }));
 
-  app.use("/{*path}", (_req, res) => {
+  app.use("/{*path}", (req, res) => {
+    const reqPath = req.originalUrl || req.path;
+    if (reqPath.startsWith("/assets/") || /\.(js|css|map|woff2?|ttf|eot|svg|png|jpg|ico)$/.test(reqPath)) {
+      return res.status(404).end();
+    }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.resolve(distPath, "index.html"));
   });

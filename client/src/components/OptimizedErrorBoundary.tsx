@@ -23,8 +23,19 @@ export class OptimizedErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ErrorBoundary]', error, JSON.stringify({ componentStack: errorInfo.componentStack }));
+    console.error('[ErrorBoundary] Error caught:', error, JSON.stringify({ componentStack: errorInfo.componentStack }));
     this.props.onError?.(error, errorInfo);
+
+    const msg = error?.message || String(error) || '';
+    const isChunkError = /Loading chunk|Failed to fetch dynamically imported|import.*failed|Loading CSS chunk/i.test(msg);
+    if (isChunkError) {
+      const key = 'ecode_chunk_reload';
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last > 30000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+      }
+    }
   }
 
   handleRetry = () => {
