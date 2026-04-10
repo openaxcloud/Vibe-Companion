@@ -1,93 +1,108 @@
-import { describe, it, expect } from "vitest";
-import { z } from "zod";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Replicate the validation schemas used in auth routes
-const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-});
+interface User {
+  id: string;
+  email: string;
+  role: 'admin' | 'user';
+}
 
-const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  email: z.string().email("Invalid email address").optional(),
-});
+interface Session {
+  userId: string;
+  token: string;
+  expiresAt: number;
+}
 
-describe("auth validation", () => {
-  describe("login schema", () => {
-    it("accepts valid credentials", () => {
-      const result = loginSchema.safeParse({ username: "alice", password: "secret" });
-      expect(result.success).toBe(true);
-    });
+const sessions = new Map<string, Session>();
 
-    it("rejects empty username", () => {
-      const result = loginSchema.safeParse({ username: "", password: "secret" });
-      expect(result.success).toBe(false);
-    });
+function createSession(user: User): Session {
+  const token = `token_${user.id}_${Date.now()}`;
+  const session: Session = {
+    userId: user.id,
+    token,
+    expiresAt: Date.now() + 3600 * 1000,
+  };
+  sessions.set(token, session);
+  return session;
+}
 
-    it("rejects empty password", () => {
-      const result = loginSchema.safeParse({ username: "alice", password: "" });
-      expect(result.success).toBe(false);
-    });
+function validateSession(token: string): Session | null {
+  const session = sessions.get(token);
+  if (!session) return null;
+  if (Date.now() > session.expiresAt) {
+    sessions.delete(token);
+    return null;
+  }
+  return session;
+}
 
-    it("rejects missing fields", () => {
-      const result = loginSchema.safeParse({});
-      expect(result.success).toBe(false);
-    });
+function revokeSession(token: string): void {
+  sessions.delete(token);
+}
+
+function hasPermission(user: User, action: string): boolean {
+  if (user.role === 'admin') return true;
+  const userActions = ['read:own', 'write:own', 'delete:own'];
+  return userActions.includes(action);
+}
+
+describe('Session management', () => {
+  beforeEach(() => {
+    sessions.clear();
   });
 
-  describe("register schema", () => {
-    it("accepts valid registration data", () => {
-      const result = registerSchema.safeParse({
-        username: "newuser",
-        password: "securepassword123",
-        email: "user@example.com",
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it("rejects username shorter than 3 characters", () => {
-      const result = registerSchema.safeParse({ username: "ab", password: "securepassword123" });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects password shorter than 8 characters", () => {
-      const result = registerSchema.safeParse({ username: "alice", password: "short" });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects invalid email format", () => {
-      const result = registerSchema.safeParse({
-        username: "alice",
-        password: "securepassword",
-        email: "not-an-email",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("allows registration without email", () => {
-      const result = registerSchema.safeParse({ username: "alice", password: "securepassword" });
-      expect(result.success).toBe(true);
-    });
+  it('creates a valid session', () => {
+    const user: User = { id: 'u1', email: 'test@test.com', role: 'user' };
+    const session = createSession(user);
+    expect(session.userId).toBe('u1');
+    expect(session.token).toBeTruthy();
+    expect(session.expiresAt).toBeGreaterThan(Date.now());
   });
 
-  describe("password strength", () => {
-    it("rejects common short passwords", () => {
-      const weakPasswords = ["12345678", "password", "qwertyu1"];
-      for (const pwd of weakPasswords) {
-        // These pass min-length but would fail a strength check
-        const result = registerSchema.safeParse({ username: "alice", password: pwd });
-        // They pass schema validation (length >= 8), strength is a separate concern
-        expect(result.success).toBe(true);
-      }
-    });
+  it('validates an active session', () => {
+    const user: User = { id: 'u2', email: 'a@b.com', role: 'user' };
+    const session = createSession(user);
+    const validated = validateSession(session.token);
+    expect(validated).not.toBeNull();
+    expect(validated?.userId).toBe('u2');
+  });
 
-    it("accepts strong passwords", () => {
-      const result = registerSchema.safeParse({
-        username: "alice",
-        password: "C0mpl3xP@ssw0rd!",
-      });
-      expect(result.success).toBe(true);
-    });
+  it('rejects unknown token', () => {
+    expect(validateSession('bogus_token')).toBeNull();
+  });
+
+  it('invalidates after revocation', () => {
+    const user: User = { id: 'u3', email: 'c@d.com', role: 'user' };
+    const session = createSession(user);
+    revokeSession(session.token);
+    expect(validateSession(session.token)).toBeNull();
+  });
+
+  it('rejects expired sessions', () => {
+    const user: User = { id: 'u4', email: 'e@f.com', role: 'user' };
+    const session = createSession(user);
+    // Manually expire
+    sessions.set(session.token, { ...session, expiresAt: Date.now() - 1 });
+    expect(validateSession(session.token)).toBeNull();
+  });
+});
+
+describe('Authorization / permissions', () => {
+  const admin: User = { id: 'a1', email: 'admin@test.com', role: 'admin' };
+  const regular: User = { id: 'u1', email: 'user@test.com', role: 'user' };
+
+  it('admin can perform any action', () => {
+    expect(hasPermission(admin, 'read:any')).toBe(true);
+    expect(hasPermission(admin, 'delete:any')).toBe(true);
+  });
+
+  it('user can read/write/delete own resources', () => {
+    expect(hasPermission(regular, 'read:own')).toBe(true);
+    expect(hasPermission(regular, 'write:own')).toBe(true);
+    expect(hasPermission(regular, 'delete:own')).toBe(true);
+  });
+
+  it('user cannot access others resources', () => {
+    expect(hasPermission(regular, 'read:any')).toBe(false);
+    expect(hasPermission(regular, 'delete:any')).toBe(false);
   });
 });

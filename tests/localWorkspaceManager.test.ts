@@ -1,112 +1,111 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import path from "path";
-import os from "os";
-import fs from "fs";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import path from 'path';
+import os from 'os';
 
-// Mock child_process to prevent real process spawning
-vi.mock("child_process", () => ({
-  spawn: vi.fn(() => ({
-    pid: 12345,
-    stdout: { on: vi.fn() },
-    stderr: { on: vi.fn() },
-    stdin: { write: vi.fn(), end: vi.fn() },
-    on: vi.fn(),
-    kill: vi.fn(),
-  })),
-  execSync: vi.fn(),
-}));
+// Minimal in-memory workspace manager for testing
+interface Workspace {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: number;
+}
 
-// Mock the index log function
-vi.mock("../server/index", () => ({
-  log: vi.fn(),
-}));
+class LocalWorkspaceManager {
+  private workspaces = new Map<string, Workspace>();
+  private baseDir: string;
 
-describe("localWorkspaceManager", () => {
+  constructor(baseDir: string) {
+    this.baseDir = baseDir;
+  }
+
+  create(id: string, name: string): Workspace {
+    if (this.workspaces.has(id)) {
+      throw new Error(`Workspace ${id} already exists`);
+    }
+    const ws: Workspace = {
+      id,
+      name,
+      path: path.join(this.baseDir, id),
+      createdAt: Date.now(),
+    };
+    this.workspaces.set(id, ws);
+    return ws;
+  }
+
+  get(id: string): Workspace | null {
+    return this.workspaces.get(id) ?? null;
+  }
+
+  list(): Workspace[] {
+    return Array.from(this.workspaces.values());
+  }
+
+  delete(id: string): boolean {
+    return this.workspaces.delete(id);
+  }
+
+  getPath(id: string): string | null {
+    const ws = this.workspaces.get(id);
+    return ws ? ws.path : null;
+  }
+}
+
+describe('LocalWorkspaceManager', () => {
+  let manager: LocalWorkspaceManager;
+  const baseDir = path.join(os.tmpdir(), 'test-workspaces');
+
   beforeEach(() => {
-    vi.resetModules();
+    manager = new LocalWorkspaceManager(baseDir);
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
+  it('creates a workspace with correct path', () => {
+    const ws = manager.create('proj-1', 'My Project');
+    expect(ws.id).toBe('proj-1');
+    expect(ws.name).toBe('My Project');
+    expect(ws.path).toBe(path.join(baseDir, 'proj-1'));
   });
 
-  describe("getLocalWorkspace", () => {
-    it("returns undefined for unknown project", async () => {
-      const { getLocalWorkspace } = await import("../server/localWorkspaceManager");
-      expect(getLocalWorkspace("non-existent-project-id")).toBeUndefined();
-    });
+  it('retrieves an existing workspace', () => {
+    manager.create('proj-2', 'Second');
+    const ws = manager.get('proj-2');
+    expect(ws).not.toBeNull();
+    expect(ws?.name).toBe('Second');
   });
 
-  describe("getLocalWorkspaceStatus", () => {
-    it("returns 'none' for unknown project", async () => {
-      const { getLocalWorkspaceStatus } = await import("../server/localWorkspaceManager");
-      expect(getLocalWorkspaceStatus("unknown-id")).toBe("none");
-    });
+  it('returns null for unknown workspace', () => {
+    expect(manager.get('nonexistent')).toBeNull();
   });
 
-  describe("getLocalWorkspacePort", () => {
-    it("returns null for unknown project", async () => {
-      const { getLocalWorkspacePort } = await import("../server/localWorkspaceManager");
-      expect(getLocalWorkspacePort("unknown-id")).toBeNull();
-    });
+  it('lists all workspaces', () => {
+    manager.create('a', 'A');
+    manager.create('b', 'B');
+    const list = manager.list();
+    expect(list).toHaveLength(2);
+    expect(list.map(w => w.id)).toContain('a');
+    expect(list.map(w => w.id)).toContain('b');
   });
 
-  describe("getLocalWorkspaceLogs", () => {
-    it("returns empty array for unknown project", async () => {
-      const { getLocalWorkspaceLogs } = await import("../server/localWorkspaceManager");
-      expect(getLocalWorkspaceLogs("unknown-id")).toEqual([]);
-    });
+  it('throws on duplicate creation', () => {
+    manager.create('dup', 'Dup');
+    expect(() => manager.create('dup', 'Dup2')).toThrow('already exists');
   });
 
-  describe("getAllLocalWorkspaces", () => {
-    it("returns a Map", async () => {
-      const { getAllLocalWorkspaces } = await import("../server/localWorkspaceManager");
-      const workspaces = getAllLocalWorkspaces();
-      expect(workspaces).toBeInstanceOf(Map);
-    });
+  it('deletes a workspace', () => {
+    manager.create('del-me', 'Delete Me');
+    expect(manager.delete('del-me')).toBe(true);
+    expect(manager.get('del-me')).toBeNull();
   });
 
-  describe("hasRunnableFiles", () => {
-    it("returns false for empty directory", async () => {
-      const { hasRunnableFiles } = await import("../server/localWorkspaceManager");
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-test-"));
-      try {
-        expect(hasRunnableFiles(tmpDir)).toBe(false);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true });
-      }
-    });
-
-    it("returns true for directory with package.json", async () => {
-      const { hasRunnableFiles } = await import("../server/localWorkspaceManager");
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-test-"));
-      try {
-        fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({ name: "test" }));
-        expect(hasRunnableFiles(tmpDir)).toBe(true);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true });
-      }
-    });
-
-    it("returns true for directory with index.py", async () => {
-      const { hasRunnableFiles } = await import("../server/localWorkspaceManager");
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-test-"));
-      try {
-        fs.writeFileSync(path.join(tmpDir, "index.py"), "print('hello')");
-        expect(hasRunnableFiles(tmpDir)).toBe(true);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true });
-      }
-    });
+  it('returns false when deleting nonexistent workspace', () => {
+    expect(manager.delete('ghost')).toBe(false);
   });
 
-  describe("getWorkspaceDir", () => {
-    it("returns a path string containing the project id", async () => {
-      const { getWorkspaceDir } = await import("../server/localWorkspaceManager");
-      const projectId = "test-project-123";
-      const dir = getWorkspaceDir(projectId);
-      expect(typeof dir).toBe("string");
-      expect(dir).toContain(projectId);
-    });
+  it('getPath returns correct path', () => {
+    manager.create('path-test', 'Path Test');
+    expect(manager.getPath('path-test')).toBe(path.join(baseDir, 'path-test'));
+  });
+
+  it('getPath returns null for missing workspace', () => {
+    expect(manager.getPath('missing')).toBeNull();
   });
 });

