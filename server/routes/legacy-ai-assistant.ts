@@ -50,6 +50,7 @@ import { handleLSPConnection } from "../lspBridge";
 import { getTemplateById, getAllTemplates } from "../templates";
 import { generateEcodeContent, getEcodeFilename, buildProjectStructureTree, detectDependencies, detectDependenciesFromPackageJson, parseUserPreferences, parseProjectContext, updateEcodeStructureSection, buildEcodePromptContext, shouldAutoUpdate } from "../ecodeTemplates";
 import { addCollaborator, removeCollaborator, getCollaborators, updateActiveFile, broadcastToCollaborators, broadcastPresence, getOrCreateFileDoc, initializeFileDoc, getFileDocContent, broadcastBinaryToCollaborators, setFilePersister, type CollabMessage, Y } from "../collaboration";
+import { validateAIMessages, sanitizeAIFilename, sanitizeAIFileContent, resolveTopAgentMode, MAX_AGENT_ITERATIONS, MAX_PROMPT_LENGTH, MAX_GENERATED_FILES, MAX_MESSAGE_CONTENT_LENGTH, MAX_MESSAGES_COUNT, MAX_AI_FILENAME_LENGTH, FORBIDDEN_FILENAME_PATTERNS } from "./ai-helpers";
 
 
 
@@ -281,7 +282,7 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
 
       const validOutputTypes = ["web", "mobile", "slides", "animation", "design", "data-visualization", "automation", "3d-game", "document", "spreadsheet"];
       const outputType = validOutputTypes.includes(reqOutputType) ? reqOutputType : "web";
-      emitProgress("creating_project", { message: "Setting up project..." });
+      emit("progress", { step: "creating_project", message: "Setting up project..." });
 
       const outputTypeInstructions: Record<string, string> = {
         "web": "Generate a beautiful, modern web app. Use Tailwind CSS via CDN (<script src=\"https://cdn.tailwindcss.com\"></script>) for styling. Design should look professional with dark mode, gradients, shadows, rounded corners, hover effects, animations, responsive layout. Include Lucide icons via CDN. Use modern HTML5 and ES6+ JavaScript. The app should look like a polished SaaS product.",
@@ -337,7 +338,7 @@ DESIGN QUALITY REQUIREMENTS (CRITICAL):
 OUTPUT FORMAT: ${outputType}
 ${formatInstruction}`;
 
-      emitProgress("generating_code", { message: "Generating code with AI..." });
+      emit("progress", { step: "generating_code", message: "Generating code with AI..." });
       let text = "";
 
       if (requestedModel === "gemini") {
@@ -484,7 +485,7 @@ ${formatInstruction}`;
       const validLangs = ["javascript", "typescript", "python"];
       if (!validLangs.includes(spec.language)) spec.language = "javascript";
 
-      emitProgress("saving_files", { message: "Saving project files..." });
+      emit("progress", { step: "saving_files", message: "Saving project files..." });
       const detectedProjectType = "web-app";
 
       emit("progress", { step: "creating_project", message: "Creating project..." });

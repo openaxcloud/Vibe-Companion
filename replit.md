@@ -63,6 +63,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 - **Build**: `npx vite build` to rebuild frontend. Server: `PORT=5000 NODE_ENV=development node --import tsx/esm server/index.ts`.
 - **Schema**: `shared/schema.ts` (~3700 lines) contains all Drizzle table definitions and Zod schemas. ~100+ tables.
 - **Storage exports**: `server/storage.ts` exports `storage`, `getStorage()`, and `sessionStore`.
+- **AI Helper Utilities**: Shared AI functions (validateAIMessages, sanitizeAIFilename, resolveTopAgentMode, etc.) live in `server/routes/ai-helpers.ts` and are imported by legacy route files.
 - **Known non-blocking warnings**: SSH server (`ssh2.Server` constructor), Stripe webhooks (need `STRIPE_WEBHOOK_SECRET`), fuzzy search SQL syntax.
 - **GitHub remote**: `origin` = `https://github.com/openaxcloud/Vibe-Companion`.
 - **Auth credentials (dev)**: Login `avi@snatchbot.me` / `password123`. Must send `X-Forwarded-Proto: https` for session cookie.
