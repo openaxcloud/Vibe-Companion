@@ -35,20 +35,34 @@ export default function SharedProject() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+
   const { data, isLoading, error } = useQuery<SharedData>({
     queryKey: ["/api/shared", projectId],
     queryFn: async ({ signal }) => {
-      const res = await fetch(`/api/shared/${projectId}`, {
-        signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : signal,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Project not found or not published");
+      const timeoutSignal = AbortSignal.timeout ? AbortSignal.timeout(30000) : signal;
+      try {
+        const res = await fetch(`/api/shared/${projectId}`, { signal: timeoutSignal });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || "Project not found or not published");
+        }
+        return res.json();
+      } catch (err) {
+        if ((err as Error).name === "AbortError" || (err as Error).name === "TimeoutError") {
+          throw new Error("Request timed out. The server may be starting up — please try again.");
+        }
+        throw err;
       }
-      return res.json();
     },
     retry: false,
   });
+
+  useEffect(() => {
+    if (!isLoading) { setLoadingTimedOut(false); return; }
+    const id = setTimeout(() => setLoadingTimedOut(true), 25000);
+    return () => clearTimeout(id);
+  }, [isLoading]);
 
   const hasHtmlPreview = data?.files?.some(f => f.filename === "index.html" || f.filename.endsWith(".html"));
 
@@ -148,6 +162,14 @@ export default function SharedProject() {
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-[#0079F2]" />
           <span className="text-sm text-[var(--ide-text-secondary)]">Loading project...</span>
+          {loadingTimedOut && (
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 px-4 py-2 text-sm bg-[#0079F2] hover:bg-[#0066CC] text-white rounded-lg transition-colors"
+            >
+              Taking too long? Reload
+            </button>
+          )}
         </div>
       </div>
     );
