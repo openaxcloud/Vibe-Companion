@@ -1,3 +1,6 @@
+// DEPRECATED: This monolithic file is being migrated to server/routes/ modules.
+// New routes should be added to the appropriate file under server/routes/ instead.
+// See server/routes/index.ts for the MainRouter that aggregates modular route files.
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -194,6 +197,7 @@ import {
   type CollabMessage,
   Y,
 } from "./collaboration";
+import { MainRouter } from "./routes/index";
 
 function validateExternalUrl(urlStr: string, allowedDomainSuffixes?: string[]): { valid: boolean; url?: URL; error?: string } {
   let url: URL;
@@ -21677,5 +21681,14 @@ export default function App() {
     }
   });
 
+
+  // Register modular routes from server/routes/ directory
+  try {
+    const mainRouter = new MainRouter(storage);
+    await mainRouter.registerRoutes(app);
+    console.log("[routes] Modular routes registered via MainRouter");
+  } catch (err: any) {
+    console.error("[routes] MainRouter registration failed:", err?.message || err);
+  }
   return httpServer;
 }
