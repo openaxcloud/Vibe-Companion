@@ -1022,6 +1022,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createFile(projectId: string, data: InsertFile): Promise<File> {
+    const existing = await db.select().from(files).where(
+      and(eq(files.projectId, projectId), eq(files.filename, data.filename))
+    ).limit(1);
+    if (existing.length > 0) {
+      const [updated] = await db.update(files).set({ content: data.content, updatedAt: new Date() }).where(eq(files.id, existing[0].id)).returning();
+      return updated;
+    }
     const [file] = await db.insert(files).values({ ...data, projectId }).returning();
     return file;
   }

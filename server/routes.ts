@@ -17186,6 +17186,12 @@ print(json.dumps({"results":tests,"duration":dur}))`;
   app.get("/api/workflows", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.session.userId!;
+      const projectId = qstr(req.query.projectId);
+      if (projectId) {
+        if (!await verifyProjectAccess(projectId, userId)) return res.status(403).json({ message: "Access denied" });
+        const wfs = await storage.getWorkflows(projectId);
+        return res.json(wfs);
+      }
       const projects = await storage.getProjects(userId);
       const allWorkflows: any[] = [];
       for (const p of projects.slice(0, 20)) {
