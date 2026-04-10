@@ -314,7 +314,7 @@ export class AIProviderManager {
       yield* this.generateChatStreamWithRetry(modelId, optimizedMessages, options);
       return;
     } catch (primaryError: any) {
-      logger.info(`Primary model ${modelId} failed, trying fallback chain...`);
+      logger.error(`Primary model ${modelId} failed — status=${primaryError.status ?? 'N/A'} code=${primaryError.code ?? 'N/A'} msg="${primaryError.message}" — trying fallback chain...`);
       
       // Get primary provider for degraded mode notification
       const primaryModel = this.getModel(modelId);
@@ -375,7 +375,7 @@ export class AIProviderManager {
           logger.info(`Fallback successful: ${fallbackModelId}`);
           return;
         } catch (fallbackError: any) {
-          logger.warn(`Fallback ${fallbackModelId} failed:`, fallbackError.message);
+          logger.error(`Fallback ${fallbackModelId} failed — status=${fallbackError.status ?? 'N/A'} code=${fallbackError.code ?? 'N/A'} msg="${fallbackError.message}"`);
           continue;
         }
       }
@@ -387,7 +387,9 @@ export class AIProviderManager {
         message: `All AI providers are currently unavailable. Please try again later.`
       });
       
-      throw new Error(`All AI providers failed. Last error: ${primaryError.message}`);
+      const configuredProviders = [...this.providers.keys()];
+      logger.error(`All AI providers exhausted. Configured: [${configuredProviders.join(', ') || 'none'}]. Primary error: ${primaryError.message}`);
+      throw new Error(`All AI providers failed (configured: ${configuredProviders.join(', ') || 'none'}). Check server logs and verify API keys in Replit Secrets. Last error: ${primaryError.message}`);
     }
   }
   
