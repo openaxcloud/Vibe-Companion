@@ -4748,3 +4748,9 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+export function getStorage(): DatabaseStorage {
+  return storage;
+}
+
+export const sessionStore = storage;

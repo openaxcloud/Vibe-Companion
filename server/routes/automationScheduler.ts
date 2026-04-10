@@ -1,8 +1,8 @@
 import type { Express } from "express";
 
-export function initAutomationScheduler(app?: Express): void {}
+export async function initAutomationScheduler(app?: Express): Promise<void> {}
 
-export function startAutomationScheduler(app?: Express): void {}
+export async function startAutomationScheduler(app?: Express): Promise<void> {}
 
 export function scheduleAutomation(automationId: string, cron: string): void {}
 

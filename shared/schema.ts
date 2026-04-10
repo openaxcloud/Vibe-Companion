@@ -2560,3 +2560,1154 @@ export const supportTickets = pgTable("support_tickets", {
 }, (table) => [
   index("support_tickets_user_idx").on(table.userId),
 ]);
+
+export const revokedTokens = pgTable("revoked_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull(),
+  userId: varchar("user_id").notNull(),
+  revokedAt: timestamp("revoked_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
+export const rateLimitViolations = pgTable("rate_limit_violations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  ip: text("ip"),
+  endpoint: text("endpoint").notNull(),
+  violationType: text("violation_type").notNull().default("rate_limit"),
+  count: integer("count").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiStripeUsageQueue = pgTable("ai_stripe_usage_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  credits: integer("credits").notNull(),
+  provider: text("provider"),
+  model: text("model"),
+  processed: boolean("processed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const agentMessages = pgTable("agent_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const agentSessions = pgTable("agent_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  mode: text("mode").notNull().default("chat"),
+  status: text("status").notNull().default("active"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const agentAuditTrail = pgTable("agent_audit_trail", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  action: text("action").notNull(),
+  details: json("details"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const agentStepCache = pgTable("agent_step_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  stepHash: text("step_hash").notNull(),
+  result: json("result"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiUsageMetering = pgTable("ai_usage_metering", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  cost: real("cost").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const autoCheckpointFiles = pgTable("auto_checkpoint_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  checkpointId: varchar("checkpoint_id").notNull(),
+  filename: text("filename").notNull(),
+  content: text("content"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const browserTestExecutions = pgTable("browser_test_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  testName: text("test_name").notNull(),
+  status: text("status").notNull().default("pending"),
+  result: json("result"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const buildLogs = pgTable("build_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  deploymentId: varchar("deployment_id"),
+  level: text("level").notNull().default("info"),
+  message: text("message").notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const challengeLeaderboard = pgTable("challenge_leaderboard", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  challengeId: varchar("challenge_id").notNull(),
+  score: integer("score").notNull().default(0),
+  rank: integer("rank"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const checkpointDatabase = pgTable("checkpoint_database", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  checkpointId: varchar("checkpoint_id").notNull(),
+  dbSnapshot: json("db_snapshot"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const environmentVariables = pgTable("environment_variables", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  key: text("key").notNull(),
+  value: text("value").notNull(),
+  isSecret: boolean("is_secret").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertLspDiagnosticSchema = z.object({
+  projectId: z.string(),
+  fileId: z.string().optional(),
+  filename: z.string(),
+  diagnostics: z.any(),
+});
+
+export const mobileBuildRequestSchema = z.object({
+  projectId: z.string(),
+  platform: z.enum(["ios", "android"]).default("android"),
+  buildType: z.enum(["debug", "release"]).default("debug"),
+});
+
+export const networkingDomains = pgTable("networking_domains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  domain: text("domain").notNull(),
+  status: text("status").notNull().default("pending"),
+  sslStatus: text("ssl_status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const payAsYouGoQueue = pgTable("pay_as_you_go_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  amount: integer("amount").notNull(),
+  description: text("description"),
+  processed: boolean("processed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectExtensions = pgTable("project_extensions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  name: text("name").notNull(),
+  version: text("version"),
+  enabled: boolean("enabled").notNull().default(true),
+  config: json("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectSettings = pgTable("project_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  key: text("key").notNull(),
+  value: json("value"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const projectWorkflows = pgTable("project_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  name: text("name").notNull(),
+  triggerEvent: text("trigger_event"),
+  config: json("config"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectTasks = pgTable("project_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("medium"),
+  assigneeId: varchar("assignee_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const runnerWorkspaces = pgTable("runner_workspaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  status: text("status").notNull().default("idle"),
+  port: integer("port"),
+  pid: integer("pid"),
+  lastActivity: timestamp("last_activity"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const teamInvitations = pgTable("team_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("member"),
+  status: text("status").notNull().default("pending"),
+  invitedBy: varchar("invited_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
+export const videoProjects = pgTable("video_projects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  title: text("title").notNull(),
+  config: json("config"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const voiceVideoParticipants = pgTable("voice_video_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roomId: varchar("room_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  role: text("role").notNull().default("participant"),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  leftAt: timestamp("left_at"),
+});
+
+export const AI_MODELS = {
+  "gpt-4o": { provider: "openai", name: "GPT-4o", maxTokens: 4096 },
+  "gpt-4o-mini": { provider: "openai", name: "GPT-4o Mini", maxTokens: 4096 },
+  "claude-sonnet-4-20250514": { provider: "anthropic", name: "Claude Sonnet 4", maxTokens: 8192 },
+  "claude-3-5-haiku-20241022": { provider: "anthropic", name: "Claude 3.5 Haiku", maxTokens: 8192 },
+  "gemini-2.5-flash": { provider: "gemini", name: "Gemini 2.5 Flash", maxTokens: 8192 },
+  "gemini-2.5-pro": { provider: "gemini", name: "Gemini 2.5 Pro", maxTokens: 8192 },
+} as const;
+
+export const autoCheckpoints = pgTable("auto_checkpoints", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  label: text("label"),
+  status: text("status").notNull().default("created"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const autonomousActions = pgTable("autonomous_actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  action: text("action").notNull(),
+  status: text("status").notNull().default("pending"),
+  result: json("result"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const challengeSubmissions = pgTable("challenge_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  challengeId: varchar("challenge_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  code: text("code"),
+  status: text("status").notNull().default("submitted"),
+  score: integer("score"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const checkpointFiles = pgTable("checkpoint_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  checkpointId: varchar("checkpoint_id").notNull(),
+  projectId: varchar("project_id").notNull(),
+  filename: text("filename").notNull(),
+  content: text("content"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const deploymentMetrics = pgTable("deployment_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  deploymentId: varchar("deployment_id"),
+  metric: text("metric").notNull(),
+  value: real("value").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const deviceTokens = pgTable("device_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  token: text("token").notNull(),
+  platform: text("platform").notNull().default("web"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const fileOperations = pgTable("file_operations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  userId: varchar("user_id"),
+  operation: text("operation").notNull(),
+  filename: text("filename").notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertResourceMetricSchema = z.object({
+  projectId: z.string(),
+  cpu: z.number().optional(),
+  memory: z.number().optional(),
+  disk: z.number().optional(),
+  network: z.number().optional(),
+});
+
+export const mobileBuilds = pgTable("mobile_builds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  platform: text("platform").notNull().default("android"),
+  buildType: text("build_type").notNull().default("debug"),
+  status: text("status").notNull().default("pending"),
+  artifactUrl: text("artifact_url"),
+  logs: text("logs"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const networkingPorts = pgTable("networking_ports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  port: integer("port").notNull(),
+  protocol: text("protocol").notNull().default("tcp"),
+  label: text("label"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectDatabaseBackups = pgTable("project_database_backups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  filename: text("filename").notNull(),
+  size: integer("size"),
+  status: text("status").notNull().default("created"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const securityLogs = pgTable("security_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  event: text("event").notNull(),
+  ip: text("ip"),
+  details: json("details"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const storageMetricsHistory = pgTable("storage_metrics_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id"),
+  metricType: text("metric_type").notNull(),
+  value: real("value").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const teamWorkspaces = pgTable("team_workspaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull(),
+  name: text("name").notNull(),
+  config: json("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const templateCategories = pgTable("template_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description"),
+  icon: text("icon"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const testArtifacts = pgTable("test_artifacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  executionId: varchar("execution_id").notNull(),
+  type: text("type").notNull(),
+  path: text("path"),
+  content: text("content"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const testingSessionRecordings = pgTable("testing_session_recordings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  recording: json("recording"),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const usageAlerts = pgTable("usage_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  alertType: text("alert_type").notNull(),
+  threshold: real("threshold"),
+  currentValue: real("current_value"),
+  acknowledged: boolean("acknowledged").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const usageEvents = pgTable("usage_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const voiceVideoSessions = pgTable("voice_video_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id"),
+  hostId: varchar("host_id").notNull(),
+  status: text("status").notNull().default("active"),
+  config: json("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export const workflowTasks = pgTable("workflow_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: varchar("workflow_id").notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("pending"),
+  config: json("config"),
+  result: json("result"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const challenges = pgTable("challenges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  difficulty: text("difficulty").notNull().default("medium"),
+  category: text("category"),
+  starterCode: text("starter_code"),
+  testCases: json("test_cases"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const checkpointRestores = pgTable("checkpoint_restores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  checkpointId: varchar("checkpoint_id").notNull(),
+  projectId: varchar("project_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const commandExecutions = pgTable("command_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  command: text("command").notNull(),
+  exitCode: integer("exit_code"),
+  stdout: text("stdout"),
+  stderr: text("stderr"),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const elementSelectors = pgTable("element_selectors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  selector: text("selector").notNull(),
+  label: text("label"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertVulnerabilitySchema = z.object({
+  projectId: z.string(),
+  severity: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  title: z.string(),
+  description: z.string().optional(),
+  filePath: z.string().optional(),
+  lineNumber: z.number().optional(),
+});
+
+export const maxAutonomySessions = pgTable("max_autonomy_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  status: text("status").notNull().default("active"),
+  config: json("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export const mobileDevices = pgTable("mobile_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  deviceId: text("device_id").notNull(),
+  platform: text("platform").notNull(),
+  model: text("model"),
+  osVersion: text("os_version"),
+  appVersion: text("app_version"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const performanceMetrics = pgTable("performance_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  metric: text("metric").notNull(),
+  value: real("value").notNull(),
+  tags: json("tags"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectDatabases = pgTable("project_databases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  name: text("name").notNull(),
+  engine: text("engine").notNull().default("postgresql"),
+  connectionString: text("connection_string"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const templateRatings = pgTable("template_ratings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  rating: integer("rating").notNull(),
+  review: text("review"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const usageLedger = pgTable("usage_ledger", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  entryType: text("entry_type").notNull(),
+  amount: real("amount").notNull(),
+  balance: real("balance"),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const webSearchHistory = pgTable("web_search_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  query: text("query").notNull(),
+  results: json("results"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const collaborationSessions = pgTable("collaboration_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  hostId: varchar("host_id").notNull(),
+  status: text("status").notNull().default("active"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityCategories = pgTable("community_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const deploymentSnapshots = pgTable("deployment_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  deploymentId: varchar("deployment_id"),
+  snapshot: json("snapshot"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertBountyReviewSchema = z.object({
+  bountyId: z.string(),
+  reviewerId: z.string(),
+  status: z.enum(["approved", "rejected", "needs_revision"]).default("approved"),
+  feedback: z.string().optional(),
+});
+
+export const maxAutonomyTasks = pgTable("max_autonomy_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  projectId: varchar("project_id").notNull(),
+  task: text("task").notNull(),
+  status: text("status").notNull().default("pending"),
+  result: json("result"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const pushNotifications = pgTable("push_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  data: json("data"),
+  sent: boolean("sent").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const sessionRecordings = pgTable("session_recordings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  events: json("events"),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const templateTags = pgTable("template_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull(),
+  tag: text("tag").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const toolExecutions = pgTable("tool_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  tool: text("tool").notNull(),
+  input: json("input"),
+  output: json("output"),
+  status: text("status").notNull().default("success"),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userRegistrationSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  username: z.string().min(3).optional(),
+  name: z.string().optional(),
+});
+
+export const autonomyMessageQueue = pgTable("autonomy_message_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  processed: boolean("processed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityComments = pgTable("community_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  parentId: varchar("parent_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertBountySchema = z.object({
+  title: z.string(),
+  description: z.string().optional(),
+  amount: z.number(),
+  currency: z.string().default("USD"),
+  projectId: z.string().optional(),
+  deadline: z.string().optional(),
+});
+
+export const sessionParticipants = pgTable("session_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  role: text("role").notNull().default("participant"),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  leftAt: timestamp("left_at"),
+});
+
+export const templates = pgTable("templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  categoryId: varchar("category_id"),
+  framework: text("framework"),
+  language: text("language"),
+  config: json("config"),
+  thumbnail: text("thumbnail"),
+  featured: boolean("featured").notNull().default(false),
+  uses: integer("uses").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const toolRegistry = pgTable("tool_registry", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  schema: json("schema"),
+  handler: text("handler"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const agentWorkflows = pgTable("agent_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  name: text("name").notNull(),
+  steps: json("steps"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const collaborationMessages = pgTable("collaboration_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  type: text("type").notNull().default("text"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityPostBookmarks = pgTable("community_post_bookmarks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertBountySubmissionSchema = z.object({
+  bountyId: z.string(),
+  userId: z.string(),
+  description: z.string().optional(),
+  repositoryUrl: z.string().optional(),
+  demoUrl: z.string().optional(),
+});
+
+export const agentPlans = pgTable("agent_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  plan: json("plan"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityPostLikes = pgTable("community_post_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiTokenUsage = pgTable("ai_token_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  projectId: varchar("project_id"),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  cost: real("cost"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiTaskClassifications = pgTable("ai_task_classifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskType: text("task_type").notNull(),
+  classification: text("classification").notNull(),
+  confidence: real("confidence").notNull().default(0),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type AiTaskClassification = typeof aiTaskClassifications.$inferSelect;
+export type InsertAiTaskClassification = typeof aiTaskClassifications.$inferInsert;
+
+export const agentTasks = pgTable("agent_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("pending"),
+  result: json("result"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiProviderHealth = pgTable("ai_provider_health", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  provider: text("provider").notNull(),
+  status: text("status").notNull().default("healthy"),
+  latency: real("latency"),
+  errorRate: real("error_rate"),
+  lastCheck: timestamp("last_check").notNull().defaultNow(),
+});
+
+export const aiRequestQueue = pgTable("ai_request_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  prompt: text("prompt"),
+  status: text("status").notNull().default("queued"),
+  priority: integer("priority").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const alertHistory = pgTable("alert_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  alertType: text("alert_type").notNull(),
+  message: text("message").notNull(),
+  severity: text("severity").notNull().default("info"),
+  acknowledged: boolean("acknowledged").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const alerts = pgTable("alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  condition: text("condition").notNull(),
+  threshold: real("threshold"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull(),
+  prefix: text("prefix"),
+  scopes: json("scopes"),
+  lastUsed: timestamp("last_used"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const apiUsage = pgTable("api_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  apiKeyId: varchar("api_key_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  method: text("method").notNull(),
+  statusCode: integer("status_code"),
+  latency: integer("latency"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const assignments = pgTable("assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id"),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("assigned"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  action: text("action").notNull(),
+  resource: text("resource"),
+  resourceId: varchar("resource_id"),
+  details: json("details"),
+  ip: text("ip"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const authAttempts = pgTable("auth_attempts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email"),
+  ip: text("ip"),
+  success: boolean("success").notNull(),
+  method: text("method").notNull().default("password"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const blogPosts = pgTable("blog_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  content: text("content"),
+  authorId: varchar("author_id"),
+  published: boolean("published").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const codeReviews = pgTable("code_reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  userId: varchar("user_id"),
+  filename: text("filename"),
+  diff: text("diff"),
+  feedback: text("feedback"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const conversations = pgTable("conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id"),
+  userId: varchar("user_id").notNull(),
+  title: text("title"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type DbMcpServer = {
+  id: string;
+  projectId: string;
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled: boolean;
+};
+
+export const deploymentEnvironments = pgTable("deployment_environments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  name: text("name").notNull(),
+  config: json("config"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const deploymentStrategies = pgTable("deployment_strategies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  strategy: text("strategy").notNull().default("rolling"),
+  config: json("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ElementSelector = typeof elementSelectors.$inferSelect;
+export type InsertElementSelector = typeof elementSelectors.$inferInsert;
+export type SessionRecording = typeof sessionRecordings.$inferSelect;
+export type InsertSessionRecording = typeof sessionRecordings.$inferInsert;
+
+export const errorLogs = pgTable("error_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id"),
+  level: text("level").notNull().default("error"),
+  message: text("message").notNull(),
+  stack: text("stack"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMobileSessionSchema = z.object({
+  deviceId: z.string(),
+  platform: z.string().default("android"),
+  appVersion: z.string().optional(),
+});
+export type MobileSession = { id: string; deviceId: string; platform: string; appVersion?: string; createdAt: Date };
+
+export const mentorProfiles = pgTable("mentor_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  expertise: json("expertise"),
+  bio: text("bio"),
+  available: boolean("available").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const mentorshipSessions = pgTable("mentorship_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mentorId: varchar("mentor_id").notNull(),
+  menteeId: varchar("mentee_id").notNull(),
+  status: text("status").notNull().default("scheduled"),
+  scheduledAt: timestamp("scheduled_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const monitoringEvents = pgTable("monitoring_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id"),
+  eventType: text("event_type").notNull(),
+  severity: text("severity").notNull().default("info"),
+  message: text("message"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const permissions = pgTable("permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  resource: text("resource"),
+  action: text("action"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const projectSlidesCollection = pgTable("project_slides_collection", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  title: text("title").notNull(),
+  slides: json("slides"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const reviewApprovals = pgTable("review_approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewId: varchar("review_id").notNull(),
+  approverId: varchar("approver_id").notNull(),
+  status: text("status").notNull().default("approved"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const reviewComments = pgTable("review_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewId: varchar("review_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  line: integer("line"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const reviewIssues = pgTable("review_issues", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewId: varchar("review_id").notNull(),
+  severity: text("severity").notNull().default("warning"),
+  title: text("title").notNull(),
+  description: text("description"),
+  resolved: boolean("resolved").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const roles = pgTable("roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  permissions: json("permissions"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const scalingPolicies = pgTable("scaling_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  metric: text("metric").notNull(),
+  minInstances: integer("min_instances").notNull().default(1),
+  maxInstances: integer("max_instances").notNull().default(5),
+  targetValue: real("target_value"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const securityEvents = pgTable("security_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  eventType: text("event_type").notNull(),
+  severity: text("severity").notNull().default("info"),
+  details: json("details"),
+  ip: text("ip"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const submissions = pgTable("submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  projectId: varchar("project_id"),
+  bountyId: varchar("bounty_id"),
+  description: text("description"),
+  status: text("status").notNull().default("submitted"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull(),
+  value: json("value"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const terminalLogs = pgTable("terminal_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull(),
+  sessionId: varchar("session_id"),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const usageTracking = pgTable("usage_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  feature: text("feature").notNull(),
+  count: integer("count").notNull().default(1),
+  period: text("period"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userRoles = pgTable("user_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  roleId: varchar("role_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userSessions = pgTable("user_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  token: text("token").notNull(),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const visitorFeedback = pgTable("visitor_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email"),
+  message: text("message").notNull(),
+  rating: integer("rating"),
+  page: text("page"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const voiceCommandSettings = pgTable("voice_command_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  language: text("language").notNull().default("en"),
+  config: json("config"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const agentSkills = pgTable("agent_skills", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  handler: text("handler"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

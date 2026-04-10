@@ -14,7 +14,11 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 ## System Architecture
 **Frontend**: Built with React, Vite, and TailwindCSS v4, featuring a responsive design for desktop, tablet, and mobile. The UI adheres to a pixel-perfect design language inspired by VS Code, including a customizable theme system with 6 global color channels and 19 syntax token colors dynamically applied via CSS variables. Key UI elements include an activity bar, file explorer, multi-file tabs, a resizable bottom panel with console and shell, a split preview panel, and a command palette.
 
-**Backend**: Powered by Express.js, PostgreSQL (with Drizzle ORM), and WebSockets. Session management is PostgreSQL-backed.
+**Backend**: Powered by Express.js (v5), PostgreSQL (with Drizzle ORM), and WebSockets. Session management is PostgreSQL-backed. 107 modular routers loaded via `MainRouter` in `server/routes/index.ts` with safe-import wrappers.
+
+**Route Architecture**: Routes are split into two systems:
+1. **Legacy routes** (`server/routes/legacy-*.ts`): ~74 routes from original codebase
+2. **Modular routers** (`server/routes/*.router.ts`): 107 routers loaded via `MainRouter` with `safeImport` pattern
 
 **Code Execution**: Features a multi-layered sandbox for secure code execution, including AST-based analysis, runtime policy wrappers, OS-level isolation (ulimit, nice, unshare), and resource limits (e.g., 10s timeout, 64MB memory). A worker pool manages concurrent executions with per-user rate limiting.
 
@@ -48,23 +52,26 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.
 - **Nodemailer**: For sending emails (password resets, verification, invites).
-- **Stripe**: For billing, subscriptions, and payment processing.
-- **Anthropic Claude Sonnet, OpenAI GPT-4o, Google Gemini Flash**: AI model providers for chat, agent, and project generation.
-- **Tavily API**: Primary web search for AI agent.
-- **Brave Search API**: For web image search.
-- **ElevenLabs**: For Text-to-Speech functionality.
-- **DALL-E 3**: For AI image generation.
-- **NanoBanana (Stable Diffusion XL)**: Fallback AI image generation.
-- **GitHub API**: For Git integration (import, export, sync).
-- **Figma API**: For AI-powered React component generation from design contexts.
-- **Vercel, Bolt, Lovable**: Integrated import sources for projects.
-- **Slack (via @slack/bolt)**: For automation triggers.
-- **Telegram (via telegraf)**: For automation triggers.
-- **node-cron**: For cron job scheduling in automations.
-- **node-pty**: For real terminal emulation.
-- **ws**: WebSocket library for real-time communication.
-- **Yjs**: CRDT library for collaborative editing.
-- **Helmet.js**: For enhancing security headers.
-- **Acorn, Acorn-Walk**: For JavaScript AST analysis.
-- **esbuild**: For TypeScript transpilation.
-- **pdfkit, docx, exceljs, pptxgenjs**: For generating various document formats.
+- **Stripe**: Payment processing and subscription management via managed webhooks.
+- **OAuth Providers**: GitHub, Google, Apple, X/Twitter for social auth.
+- **AI Providers**: OpenAI (via Replit ModelFarm), Anthropic, Google Gemini, Moonshot AI.
+- **SendGrid**: Email service (production).
+- **Redis**: Caching layer (optional, falls back to in-memory).
+
+## Important Technical Notes
+- **Express 5**: Wildcard routes use `/{*path}` not `*`. `req.path` is always `/` in wildcard routes — use `req.originalUrl`.
+- **Build**: `npx vite build` to rebuild frontend. Server: `PORT=5000 NODE_ENV=development node --import tsx/esm server/index.ts`.
+- **Schema**: `shared/schema.ts` (~3700 lines) contains all Drizzle table definitions and Zod schemas. ~100+ tables.
+- **Storage exports**: `server/storage.ts` exports `storage`, `getStorage()`, and `sessionStore`.
+- **Known non-blocking warnings**: SSH server (`ssh2.Server` constructor), Stripe webhooks (need `STRIPE_WEBHOOK_SECRET`), fuzzy search SQL syntax.
+- **GitHub remote**: `origin` = `https://github.com/openaxcloud/Vibe-Companion`.
+- **Auth credentials (dev)**: Login `avi@snatchbot.me` / `password123`. Must send `X-Forwarded-Proto: https` for session cookie.
+
+## Database Schema
+Over 100 PostgreSQL tables managed via Drizzle ORM in `shared/schema.ts`. Key table groups:
+- **Core**: users, projects, files, deployments, checkpoints
+- **AI**: agent_messages, agent_sessions, agent_plans, ai_token_usage, ai_usage_metering, tool_executions
+- **Collaboration**: collaboration_sessions, session_participants, collaboration_messages
+- **Community**: community_posts, community_comments, community_categories, challenges
+- **Billing**: stripe_customers, subscriptions, pay_as_you_go_queue, usage_ledger, usage_events
+- **Infrastructure**: runner_workspaces, deployment_metrics, scaling_policies, monitoring_events
