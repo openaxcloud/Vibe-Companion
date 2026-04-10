@@ -1,7 +1,6 @@
 import Stripe from "stripe";
-import { StripeSync } from "stripe-replit-sync";
 
-let stripeSyncInstance: StripeSync | null = null;
+let stripeSyncInstance: any | null = null;
 
 async function getStripeCredentials(): Promise<{ secretKey: string; webhookSecret?: string } | null> {
   try {
@@ -47,7 +46,13 @@ export async function getUncachableStripeClient(): Promise<Stripe> {
   return new Stripe(creds.secretKey);
 }
 
-export async function getStripeSync(): Promise<StripeSync> {
+export function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY not configured");
+  return new Stripe(key);
+}
+
+export async function getStripeSync(): Promise<any> {
   if (stripeSyncInstance) return stripeSyncInstance;
 
   const databaseUrl = process.env.DATABASE_URL;
@@ -60,16 +65,20 @@ export async function getStripeSync(): Promise<StripeSync> {
     throw new Error("Stripe credentials not available");
   }
 
-  stripeSyncInstance = new StripeSync({
-    poolConfig: {
-      connectionString: databaseUrl,
-      max: 5,
-    },
-    stripeSecretKey: creds.secretKey,
-    stripeWebhookSecret: creds.webhookSecret,
-  });
-
-  return stripeSyncInstance;
+  try {
+    const { StripeSync } = await import("stripe-replit-sync");
+    stripeSyncInstance = new StripeSync({
+      poolConfig: {
+        connectionString: databaseUrl,
+        max: 5,
+      },
+      stripeSecretKey: creds.secretKey,
+      stripeWebhookSecret: creds.webhookSecret,
+    });
+    return stripeSyncInstance;
+  } catch {
+    throw new Error("stripe-replit-sync package not available");
+  }
 }
 
 export async function isStripeConfigured(): Promise<boolean> {

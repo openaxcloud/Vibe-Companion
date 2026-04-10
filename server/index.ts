@@ -6,7 +6,6 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { storage } from "./storage";
 import { createServer } from "http";
-import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { startAutoMetricsCollector, startResourceSnapshotCollector, stopAutoMetricsCollector } from "./metricsCollector";
@@ -241,8 +240,13 @@ async function initStripe() {
 
   try {
     log("Initializing Stripe schema...", "stripe");
-    await runMigrations({ databaseUrl });
-    log("Stripe schema ready", "stripe");
+    try {
+      const { runMigrations } = await import("stripe-replit-sync");
+      await runMigrations({ databaseUrl });
+      log("Stripe schema ready", "stripe");
+    } catch (e: any) {
+      log(`stripe-replit-sync not available, skipping Stripe migrations: ${e.message}`, "warn");
+    }
 
     const stripeSync = await getStripeSync();
 

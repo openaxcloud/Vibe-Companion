@@ -9,7 +9,7 @@ function qstr(val: unknown): string {
   return '';
 }
 
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -60,7 +60,8 @@ import { generateImageBuffer, editImages } from "./replit_integrations/image/cli
 import { registerImageRoutes } from "./replit_integrations/image";
 import { searchBraveImages, BRAVE_CREDIT_COST, generateSpeech, AVAILABLE_VOICES, TTS_CREDIT_COST, generateNanoBananaImage, NANOBANANA_CREDIT_COST, generateDalleImage, DALLE_CREDIT_COST, searchTavily, TAVILY_CREDIT_COST } from "./agentServices";
 import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "./fileGeneration";
-import PDFDocument from "pdfkit";
+let PDFDocument: any = null;
+try { PDFDocument = require("pdfkit"); } catch { /* optional dependency */ }
 import * as fs from "fs";
 import { importFromGitHub, importFromZip, importFromFigma, importFromVercel, importFromBolt, importFromLovable, validateImportSource, startAsyncImport, startAsyncZipImport, getImportJob, validateZipBuffer, fetchFigmaDesignContext } from "./importService";
 import { handleLSPConnection } from "./lspBridge";

@@ -1,4 +1,5 @@
-import * as pty from "node-pty";
+let pty: any = null;
+try { pty = require("node-pty"); } catch { /* node-pty not available, using child_process fallback */ }
 import * as fs from "fs";
 import * as path from "path";
 import { log } from "./index";
