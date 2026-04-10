@@ -800,6 +800,7 @@ function validateRunnerPath(p: string): boolean {
 
 const MAX_AGENT_ITERATIONS = 10;
 const MAX_PROMPT_LENGTH = 50000;
+const MAX_GENERATED_FILES = parseInt(process.env.MAX_GENERATED_FILES || "30", 10);
 const MAX_MESSAGE_CONTENT_LENGTH = 100000;
 const MAX_MESSAGES_COUNT = 50;
 const MAX_AI_FILENAME_LENGTH = 255;
@@ -5432,6 +5433,20 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
     }
+    // Auto-start workspace in background if project has files but no running workspace
+    import("./localWorkspaceManager").then(async (localWS) => {
+      try {
+        const existing = localWS.getLocalWorkspace(project.id);
+        if (!existing || existing.status === "stopped" || existing.status === "error") {
+          const files = await storage.getFiles(project.id);
+          const hasPackageJson = files.some(f => f.filename === "package.json");
+          const hasPyMain = files.some(f => f.filename === "main.py" || f.filename === "app.py");
+          if (files.length > 0 && (hasPackageJson || hasPyMain)) {
+            localWS.startLocalWorkspace(project.id, () => storage.getFiles(project.id)).catch(() => {});
+          }
+        }
+      } catch {}
+    }).catch(() => {});
     return res.json(project);
   });
 
@@ -8488,23 +8503,36 @@ export async function registerRoutes(
   }
 
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
+    // Set up SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    const emit = (event: string, data: Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify({ event, ...data })}\n\n`);
+    };
     try {
       const { prompt, model: requestedModel, outputType: reqOutputType } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
-        return res.status(400).json({ message: "Please provide a project description (at least 3 characters)" });
+        emit("error", { message: "Please provide a project description (at least 3 characters)" });
+        return res.end();
       }
       if (prompt.length > MAX_PROMPT_LENGTH) {
-        return res.status(400).json({ message: `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)` });
+        emit("error", { message: `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)` });
+        return res.end();
       }
       const genKeyError = validateExternalAIKey(requestedModel);
       if (genKeyError) {
-        return res.status(400).json({ message: genKeyError });
+        emit("error", { message: genKeyError });
+        return res.end();
       }
 
       const genProjectLimit = await storage.checkProjectLimit(req.session.userId!);
       if (!genProjectLimit.allowed) {
-        return res.status(403).json({ message: `Project limit reached (${genProjectLimit.current}/${genProjectLimit.limit}). Upgrade to Pro for more.` });
+        emit("error", { message: `Project limit reached (${genProjectLimit.current}/${genProjectLimit.limit}). Upgrade to Pro for more.` });
+        return res.end();
       }
+
+      emit("progress", { step: "generating_code", message: "Generating project with AI..." });
 
       const validOutputTypes = ["web", "mobile", "slides", "animation", "design", "data-visualization", "automation", "3d-game", "document", "spreadsheet"];
       const outputType = validOutputTypes.includes(reqOutputType) ? reqOutputType : "web";
@@ -8540,7 +8568,7 @@ Rules:
 - name: short kebab-case slug (max 30 chars)
 - language: one of javascript, typescript, python
 - projectType: "web-app" for most output types, "mobile-app" for mobile output type
-- files: generate 2-5 complete, polished files with BEAUTIFUL design
+- files: generate 2-30 complete, polished files with BEAUTIFUL design
 - Do NOT add any text before or after the JSON object
 
 DESIGN QUALITY REQUIREMENTS (CRITICAL):
@@ -8696,12 +8724,14 @@ ${formatInstruction}`;
           log(`JSON recovery succeeded via repair`, "ai");
         } else {
           log(`Recovery failed. Raw text (first 500): ${text.slice(0, 500)}`, "ai");
-          return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
+          emit("error", { message: "AI generated invalid project structure. Please try again." });
+          return res.end();
         }
       }
 
       if (!spec.name || !spec.language || !spec.files?.length) {
-        return res.status(500).json({ message: "AI generated incomplete project. Please try again." });
+        emit("error", { message: "AI generated incomplete project. Please try again." });
+        return res.end();
       }
 
       const validLangs = ["javascript", "typescript", "python"];
@@ -8709,6 +8739,7 @@ ${formatInstruction}`;
 
       const detectedProjectType = "web-app";
 
+      emit("progress", { step: "creating_project", message: "Creating project..." });
       const project = await storage.createProject(req.session.userId!, {
         name: spec.name.slice(0, 50),
         language: spec.language,
@@ -8731,7 +8762,8 @@ ${formatInstruction}`;
         settings: {},
       });
 
-      for (const file of spec.files.slice(0, 10)) {
+      emit("progress", { step: "saving_files", message: `Saving ${Math.min(spec.files.length, MAX_GENERATED_FILES)} files...` });
+      for (const file of spec.files.slice(0, MAX_GENERATED_FILES)) {
         const safeFilename = sanitizeAIFilename(file.filename);
         if (!safeFilename || safeFilename === "ecode.md") continue;
         const safeContent = sanitizeAIFileContent(file.content || "");
@@ -8764,10 +8796,25 @@ ${formatInstruction}`;
       });
 
       createCheckpoint(project.id, req.session.userId!, "feature_complete", `AI generated project: ${spec.name}`).catch(() => {});
-      return res.json({ project, files });
+
+      // Auto-start workspace in background
+      emit("progress", { step: "starting_workspace", message: "Starting dev server..." });
+      import("./localWorkspaceManager").then(async (localWS) => {
+        try {
+          const hasPackageJson = files.some(f => f.filename === "package.json");
+          const hasPyMain = files.some(f => f.filename === "main.py" || f.filename === "app.py");
+          if (hasPackageJson || hasPyMain) {
+            await localWS.startLocalWorkspace(project.id, () => storage.getFiles(project.id));
+          }
+        } catch {}
+      }).catch(() => {});
+
+      emit("done", { project, files });
+      return res.end();
     } catch (error: any) {
       log(`AI project generation error: ${error.message}`, "ai");
-      return res.status(500).json({ message: "Failed to generate project. Please try again." });
+      emit("error", { message: "Failed to generate project. Please try again." });
+      return res.end();
     }
   });
 
@@ -10400,6 +10447,41 @@ Rules:
         res.write(`data: ${JSON.stringify({ type: "text", content: "\n\n> Updated video data\n" })}\n\n`);
         return "";
       }
+      if (toolName === "execute_command") {
+        const command = (toolInput.command || "").trim();
+        if (!command) return "Error: command is required";
+        // Block dangerous commands
+        const dangerous = [
+          /rm\s+-rf\s+\//, /mkfs/, /dd\s+if=/, /:(){ :|:& };:/, />\s*\/dev\/(sd|hd|vd)/,
+          /chmod\s+-R\s+777\s+\//, /chown\s+-R.*\//, /shutdown/, /reboot/, /halt/,
+        ];
+        for (const pattern of dangerous) {
+          if (pattern.test(command)) {
+            return "Error: command blocked for safety";
+          }
+        }
+        const workspaceDir = getProjectWorkspaceDir(projectId);
+        // Ensure workspace directory exists
+        if (!fs.existsSync(workspaceDir)) {
+          try { fs.mkdirSync(workspaceDir, { recursive: true }); } catch {}
+        }
+        res.write(`data: ${JSON.stringify({ type: "tool_use", name: "execute_command", input: { command, label: "Running command" } })}\n\n`);
+        try {
+          const { exec } = await import("child_process");
+          const output = await new Promise<string>((resolve) => {
+            const timeout = 30000;
+            const proc = exec(command, { cwd: workspaceDir, timeout, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+              const out = [stdout, stderr].filter(Boolean).join("\n").trim();
+              if (err && !out) resolve(`Error (exit ${err.code || 1}): ${err.message}`);
+              else resolve(out || "(no output)");
+            });
+            setTimeout(() => { proc.kill(); resolve("Error: command timed out after 30s"); }, timeout + 500);
+          });
+          return output;
+        } catch (err: any) {
+          return `Error: ${err.message}`;
+        }
+      }
       if (toolName === "create_file" || toolName === "edit_file") {
         agentFileOpsCount.value++;
         const safeName = sanitizeAIFilename(toolInput.filename);
@@ -10931,6 +11013,17 @@ Always cite your sources in your response when using information from web search
                 required: ["query"],
               },
             },
+            {
+              name: "execute_command",
+              description: "Execute a shell command in the project workspace directory (e.g. npm install, npm run build, python -m pip install). Use to install dependencies or run build commands.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  command: { type: Type.STRING, description: "The shell command to execute (e.g. 'npm install', 'npm run dev')" },
+                },
+                required: ["command"],
+              },
+            },
         ];
         if (webSearchEnabled) {
           geminiToolDeclarations.push(
@@ -11267,6 +11360,14 @@ Always cite your sources in your response when using information from web search
               parameters: { type: "object", properties: { query: { type: "string", description: "The search query" }, depth: { type: "string", description: "Search depth: basic (fast) or advanced (thorough)" } }, required: ["query"] },
             },
           },
+          {
+            type: "function",
+            function: {
+              name: "execute_command",
+              description: "Execute a shell command in the project workspace directory (e.g. npm install, npm run build, python -m pip install). Use to install dependencies or run build commands.",
+              parameters: { type: "object", properties: { command: { type: "string", description: "The shell command to execute" } }, required: ["command"] },
+            },
+          },
           ...mcpToolDefinitions.map(t => ({
             type: "function" as const,
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
@@ -11436,6 +11537,7 @@ Always cite your sources in your response when using information from web search
           { type: "function", function: { name: "text_to_speech", description: "Generate text-to-speech audio using ElevenLabs", parameters: { type: "object", properties: { text: { type: "string" }, voice_id: { type: "string" } }, required: ["text"] } } },
           { type: "function", function: { name: "generate_ai_image", description: "Generate an AI image using DALL-E 3. Supports size (square/landscape/portrait), quality (standard/hd), style (vivid/natural).", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, size: { type: "string" }, quality: { type: "string" }, style: { type: "string" } }, required: ["prompt"] } } },
           { type: "function", function: { name: "tavily_search", description: "AI-powered web search with answer synthesis and source attribution", parameters: { type: "object", properties: { query: { type: "string" }, depth: { type: "string" } }, required: ["query"] } } },
+          { type: "function", function: { name: "execute_command", description: "Execute a shell command in the project workspace directory (e.g. npm install, npm run build). Use to install dependencies or run build commands.", parameters: { type: "object", properties: { command: { type: "string", description: "The shell command to execute" } }, required: ["command"] } } },
           ...mcpToolDefinitions.map(t => ({
             type: "function" as const,
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
@@ -11522,6 +11624,7 @@ Always cite your sources in your response when using information from web search
           { type: "function", function: { name: "create_skill", description: "Create a reusable skill", parameters: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, content: { type: "string" } }, required: ["name", "content"] } } },
           { type: "function", function: { name: "generate_image", description: "Generate an AI image and save it as a project file", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, size: { type: "string", enum: ["1024x1024", "1024x1536", "1536x1024", "auto"] } }, required: ["prompt", "filename"] } } },
           { type: "function", function: { name: "generate_file", description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV)", parameters: { type: "object", properties: { format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv", "pptx"] }, filename: { type: "string" }, title: { type: "string" }, sections: { type: "array", items: { type: "object" } } }, required: ["format", "filename", "sections"] } } },
+          { type: "function", function: { name: "execute_command", description: "Execute a shell command in the project workspace directory (e.g. npm install, npm run build)", parameters: { type: "object", properties: { command: { type: "string", description: "The shell command to execute" } }, required: ["command"] } } },
           ...mcpToolDefinitions.map(t => ({ type: "function" as const, function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
         ];
         if (webSearchEnabled) {
@@ -11800,6 +11903,17 @@ Always cite your sources in your response when using information from web search
                 depth: { type: "string", description: "Search depth: basic (fast) or advanced (thorough)" },
               },
               required: ["query"],
+            },
+          },
+          {
+            name: "execute_command",
+            description: "Execute a shell command in the project workspace directory (e.g. npm install, npm run build, python -m pip install). Use to install dependencies or run build commands.",
+            input_schema: {
+              type: "object" as const,
+              properties: {
+                command: { type: "string", description: "The shell command to execute (e.g. 'npm install', 'npm run build')" },
+              },
+              required: ["command"],
             },
           },
           ...mcpToolDefinitions.map(t => ({
