@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-const RUNNER_BASE_URL = process.env.RUNNER_BASE_URL || "https://runner.e-code.ai";
+const RUNNER_BASE_URL = process.env.RUNNER_BASE_URL || "";
 const RUNNER_JWT_SECRET = process.env.RUNNER_JWT_SECRET || "";
 const TOKEN_TTL_MIN = parseInt(process.env.WORKSPACE_TOKEN_TTL_MIN || "15", 10);
 

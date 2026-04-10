@@ -354,8 +354,8 @@ function _projectPage() {
   const [runnerOnline, setRunnerOnline] = useState<boolean | null>(null);
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
   const [expoGoUrl, setExpoGoUrl] = useState<string | null>(null);
-  const devUrl = projectId ? `${projectId}.dev.e-code.ai` : null;
-  const fullDevUrl = devUrl ? `${window.location.protocol}//${devUrl}` : null;
+  const devUrl: string | null = null;
+  const fullDevUrl: string | null = null;
   const [selectedPreviewPort, setSelectedPreviewPort] = useState<number | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
