@@ -490,12 +490,31 @@ export default function Dashboard() {
     mutationFn: async ({ prompt, model, outputType }: { prompt: string; model: string; outputType?: string }) => {
       setGenerationError(null);
       setGenerationStep(0);
-      const res = await apiRequest("POST", "/api/projects/generate", { prompt, model, outputType: outputType || selectedCategory }) as unknown as Response;
+
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const csrfToken = (await import("@/lib/queryClient")).getCsrfToken();
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+      const res = await fetch("/api/projects/generate", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ prompt, model, outputType: outputType || selectedCategory }),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let msg = "Generation failed";
+        try { const j = JSON.parse(errText); msg = j.message || j.error || msg; } catch { msg = errText || msg; }
+        throw new Error(msg);
+      }
+
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream");
+      if (!reader) throw new Error("No response stream available");
       const decoder = new TextDecoder();
       let result: any = null;
       let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -528,7 +547,7 @@ export default function Dashboard() {
           }
         }
       }
-      if (!result?.project) throw new Error("Project generation did not complete");
+      if (!result?.project) throw new Error("Project generation did not complete. Please try again.");
       return result;
     },
     onSuccess: (data: { project: Project }) => {
