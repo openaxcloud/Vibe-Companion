@@ -1,66 +1,58 @@
-import { spawn, ChildProcess } from 'child_process';
-import * as path from 'path';
+import { spawn, execSync } from 'child_process';
 
-interface LspServer {
-  process: ChildProcess;
-  language: string;
-  projectPath: string;
-}
+const LSP_SERVERS: Record<string, { npm: string; bin: string; args: string[] }> = {
+  typescript: { npm: 'typescript-language-server', bin: 'typescript-language-server', args: ['--stdio'] },
+  javascript: { npm: 'typescript-language-server', bin: 'typescript-language-server', args: ['--stdio'] },
+  python: { npm: 'pyright', bin: 'pyright-langserver', args: ['--stdio'] },
+  json: { npm: 'vscode-json-languageserver', bin: 'vscode-json-languageserver', args: ['--stdio'] },
+  html: { npm: 'vscode-html-languageserver-bin', bin: 'html-languageserver', args: ['--stdio'] },
+  css: { npm: 'vscode-css-languageserver-bin', bin: 'css-languageserver', args: ['--stdio'] },
+};
 
-const activeServers = new Map<string, LspServer>();
-
-export function startLspServer(language: string, projectPath: string): ChildProcess | null {
-  const key = `${language}:${projectPath}`;
-  if (activeServers.has(key)) {
-    return activeServers.get(key)!.process;
-  }
-
-  const command = getLspCommand(language);
-  if (!command) return null;
-
-  const proc = spawn(command.bin, command.args, {
-    cwd: projectPath,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
-
-  activeServers.set(key, { process: proc, language, projectPath });
-
-  proc.on('exit', () => {
-    activeServers.delete(key);
-  });
-
-  return proc;
-}
-
-export function stopLspServer(language: string, projectPath: string): void {
-  const key = `${language}:${projectPath}`;
-  const server = activeServers.get(key);
-  if (server) {
-    server.process.kill();
-    activeServers.delete(key);
-  }
-}
-
-export function stopAllLspServers(projectPath: string): void {
-  for (const [key, server] of activeServers.entries()) {
-    if (server.projectPath === projectPath) {
-      server.process.kill();
-      activeServers.delete(key);
+export function ensureLspInstalled(language: string): boolean {
+  const config = LSP_SERVERS[language];
+  if (!config) return false;
+  try {
+    execSync(`which ${config.bin}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    try {
+      console.log(`[lsp] Installing ${config.npm}...`);
+      execSync(`npm install -g ${config.npm}`, { stdio: 'ignore', timeout: 60000 });
+      return true;
+    } catch (e) {
+      console.error(`[lsp] Failed to install ${config.npm}:`, e);
+      return false;
     }
   }
 }
 
-function getLspCommand(language: string): { bin: string; args: string[] } | null {
-  const commands: Record<string, { bin: string; args: string[] }> = {
-    typescript: { bin: 'typescript-language-server', args: ['--stdio'] },
-    javascript: { bin: 'typescript-language-server', args: ['--stdio'] },
-    python: { bin: 'pylsp', args: [] },
-    rust: { bin: 'rust-analyzer', args: [] },
-    go: { bin: 'gopls', args: [] },
-  };
-  return commands[language] ?? null;
+export function startLspServer(language: string, workspacePath: string) {
+  const config = LSP_SERVERS[language];
+  if (!config) return null;
+  ensureLspInstalled(language);
+  try {
+    const proc = spawn(config.bin, config.args, {
+      cwd: workspacePath,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, NODE_PATH: workspacePath + '/node_modules' }
+    });
+    proc.on('error', (err) => console.error(`[lsp] ${language} server error:`, err));
+    proc.on('exit', (code) => console.log(`[lsp] ${language} server exited with code ${code}`));
+    return proc;
+  } catch (e) {
+    console.error(`[lsp] Failed to start ${language} server:`, e);
+    return null;
+  }
 }
 
-export function getActiveLspServers(): string[] {
-  return Array.from(activeServers.keys());
+export function getLspLanguage(filename: string): string | null {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    py: 'python', json: 'json', html: 'html', css: 'css', scss: 'css'
+  };
+  return map[ext || ''] || null;
 }
+
+export { LSP_SERVERS };
