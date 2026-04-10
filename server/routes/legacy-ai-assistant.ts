@@ -4470,36 +4470,6 @@ DESIGN QUALITY (for web projects):
     return false;
   }
 
-  function validateExternalUrl(urlStr: string): { valid: boolean; error?: string } {
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(urlStr);
-    } catch {
-      return { valid: false, error: "Invalid URL" };
-    }
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      return { valid: false, error: "Only HTTP/HTTPS URLs are supported" };
-    }
-    const hostname = parsedUrl.hostname.toLowerCase();
-    const blockedHostPatterns = [
-      /^localhost$/i,
-      /^127\.\d+\.\d+\.\d+$/,
-      /^10\.\d+\.\d+\.\d+$/,
-      /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
-      /^192\.168\.\d+\.\d+$/,
-      /^0\.0\.0\.0$/,
-      /^169\.254\.\d+\.\d+$/,
-      /^\[?::1?\]?$/,
-      /\.internal$/,
-      /\.local$/,
-      /^metadata\.google\.internal$/,
-    ];
-    if (blockedHostPatterns.some(p => p.test(hostname))) {
-      return { valid: false, error: "Access to internal/private URLs is not allowed" };
-    }
-    return { valid: true };
-  }
-
   async function resolveAndValidateHost(hostname: string): Promise<{ valid: boolean; error?: string }> {
     const dns = await import("dns");
     return new Promise((resolve) => {

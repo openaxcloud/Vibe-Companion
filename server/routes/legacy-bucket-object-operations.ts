@@ -62,6 +62,7 @@ export async function registerBucketObjectOperationsRoutes(app: Express, ctx: an
   } = ctx;
   const path = path_;
 
+  const storageMultiUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
   // --- BUCKET OBJECT OPERATIONS ---
   app.get("/api/projects/:id/storage/buckets/:bucketId/objects", requireAuth, async (req: Request, res: Response) => {

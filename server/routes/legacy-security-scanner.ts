@@ -64,26 +64,6 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
 
 
   // --- SECURITY SCANNER ---
-  async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
-    const project = await storage.getProject(projectId);
-    if (!project) return false;
-    if (project.userId === userId) return true;
-    if (project.visibility === "public" || project.isPublic) return true;
-    if (project.teamId) {
-      const teams = await storage.getUserTeams(userId);
-      if (teams.some(t => t.id === project.teamId)) return true;
-    }
-    const isGuest = await storage.isProjectGuest(projectId, userId);
-    if (isGuest) return true;
-    const usr = await storage.getUser(userId);
-    if (usr) {
-      const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
-      if (invite) return true;
-    }
-    const collaborators = await storage.getProjectCollaborators(projectId);
-    if (collaborators.some(c => c.userId === userId)) return true;
-    return false;
-  }
 
   async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
     const project = await storage.getProject(projectId);

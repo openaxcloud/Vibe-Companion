@@ -27,7 +27,7 @@ export function serveStatic(app: Express) {
     },
   }));
 
-  app.get('*', (req, res) => {
+  app.get('/{*path}', (req, res) => {
     const reqPath = req.originalUrl || req.path;
     if (reqPath.startsWith("/assets/") || /\.(js|css|map|woff2?|ttf|eot|svg|png|jpg|ico)$/.test(reqPath)) {
       return res.status(404).end();

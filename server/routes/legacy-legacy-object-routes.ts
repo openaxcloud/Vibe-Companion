@@ -62,6 +62,8 @@ export async function registerLegacyObjectRoutesRoutes(app: Express, ctx: any): 
   } = ctx;
   const path = path_;
 
+  const storageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
 
   // --- LEGACY OBJECT ROUTES (backwards compat) ---
   app.get("/api/projects/:id/storage/objects", requireAuth, async (req: Request, res: Response) => {

@@ -1283,7 +1283,29 @@ export async function registerRoutes(
 
   app.use("/api", csrfProtection);
 
+  async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
+    const project = await storage.getProject(projectId);
+    if (!project) return false;
+    if (project.userId === userId) return true;
+    if (project.visibility === "public" || project.isPublic) return true;
+    if (project.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      if (teams.some((t: any) => t.id === project.teamId)) return true;
+    }
+    const isGuest = await storage.isProjectGuest(projectId, userId);
+    if (isGuest) return true;
+    const usr = await storage.getUser(userId);
+    if (usr) {
+      const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
+      if (invite) return true;
+    }
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    if (collaborators.some((c: any) => c.userId === userId)) return true;
+    return false;
+  }
+
   // EXTRACTED: auth -> legacy-auth.ts
+  try {
   await (await import("./routes/legacy-auth")).registerAuthRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1291,7 +1313,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-auth.ts: ${err.message}`);
+  }
   // EXTRACTED: usage-quotas -> legacy-usage-quotas.ts
+  try {
   await (await import("./routes/legacy-usage-quotas")).registerUsageQuotasRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1299,7 +1325,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-usage-quotas.ts: ${err.message}`);
+  }
   // EXTRACTED: github-oauth -> legacy-github-oauth.ts
+  try {
   await (await import("./routes/legacy-github-oauth")).registerGithubOauthRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1307,7 +1337,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-github-oauth.ts: ${err.message}`);
+  }
   // EXTRACTED: replit-oauth -> legacy-replit-oauth.ts
+  try {
   await (await import("./routes/legacy-replit-oauth")).registerReplitOauthRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1315,7 +1349,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-replit-oauth.ts: ${err.message}`);
+  }
   // EXTRACTED: password-reset -> legacy-password-reset.ts
+  try {
   await (await import("./routes/legacy-password-reset")).registerPasswordResetRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1323,7 +1361,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-password-reset.ts: ${err.message}`);
+  }
   // EXTRACTED: email-verification -> legacy-email-verification.ts
+  try {
   await (await import("./routes/legacy-email-verification")).registerEmailVerificationRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1331,7 +1373,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-email-verification.ts: ${err.message}`);
+  }
   // EXTRACTED: profile-account -> legacy-profile-account.ts
+  try {
   await (await import("./routes/legacy-profile-account")).registerProfileAccountRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1339,7 +1385,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-profile-account.ts: ${err.message}`);
+  }
   // EXTRACTED: keyboard-shortcuts -> legacy-keyboard-shortcuts.ts
+  try {
   await (await import("./routes/legacy-keyboard-shortcuts")).registerKeyboardShortcutsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1347,7 +1397,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-keyboard-shortcuts.ts: ${err.message}`);
+  }
   // EXTRACTED: teams -> legacy-teams.ts
+  try {
   await (await import("./routes/legacy-teams")).registerTeamsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1355,7 +1409,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-teams.ts: ${err.message}`);
+  }
   // EXTRACTED: admin -> legacy-admin.ts
+  try {
   await (await import("./routes/legacy-admin")).registerAdminRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1363,6 +1421,9 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-admin.ts: ${err.message}`);
+  }
   // --- ANALYTICS TRACKING ---
   const analyticsLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -1384,6 +1445,7 @@ export async function registerRoutes(
   });
 
   // EXTRACTED: package-management -> legacy-package-management.ts
+  try {
   await (await import("./routes/legacy-package-management")).registerPackageManagementRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1391,7 +1453,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-package-management.ts: ${err.message}`);
+  }
   // EXTRACTED: package-registry-search -> legacy-package-registry-search.ts
+  try {
   await (await import("./routes/legacy-package-registry-search")).registerPackageRegistrySearchRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1399,7 +1465,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-package-registry-search.ts: ${err.message}`);
+  }
   // EXTRACTED: package-version-lookup -> legacy-package-version-lookup.ts
+  try {
   await (await import("./routes/legacy-package-version-lookup")).registerPackageVersionLookupRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1407,7 +1477,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-package-version-lookup.ts: ${err.message}`);
+  }
   // EXTRACTED: import-guessing -> legacy-import-guessing.ts
+  try {
   await (await import("./routes/legacy-import-guessing")).registerImportGuessingRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1415,7 +1489,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-import-guessing.ts: ${err.message}`);
+  }
   // EXTRACTED: system-modules -> legacy-system-modules.ts
+  try {
   await (await import("./routes/legacy-system-modules")).registerSystemModulesRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1423,7 +1501,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-system-modules.ts: ${err.message}`);
+  }
   // EXTRACTED: system-dependencies -> legacy-system-dependencies.ts
+  try {
   await (await import("./routes/legacy-system-dependencies")).registerSystemDependenciesRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1431,7 +1513,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-system-dependencies.ts: ${err.message}`);
+  }
   // EXTRACTED: nix-package-search -> legacy-nix-package-search.ts
+  try {
   await (await import("./routes/legacy-nix-package-search")).registerNixPackageSearchRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1439,7 +1525,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-nix-package-search.ts: ${err.message}`);
+  }
   // EXTRACTED: fork-project -> legacy-fork-project.ts
+  try {
   await (await import("./routes/legacy-fork-project")).registerForkProjectRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1447,7 +1537,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-fork-project.ts: ${err.message}`);
+  }
   // EXTRACTED: visibility -> legacy-visibility.ts
+  try {
   await (await import("./routes/legacy-visibility")).registerVisibilityRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1455,7 +1549,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-visibility.ts: ${err.message}`);
+  }
   // EXTRACTED: project-guests -> legacy-project-guests.ts
+  try {
   await (await import("./routes/legacy-project-guests")).registerProjectGuestsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1463,7 +1561,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-project-guests.ts: ${err.message}`);
+  }
   // EXTRACTED: deployments -> legacy-deployments.ts
+  try {
   await (await import("./routes/legacy-deployments")).registerDeploymentsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1471,7 +1573,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-deployments.ts: ${err.message}`);
+  }
   // EXTRACTED: custom-domains -> legacy-custom-domains.ts
+  try {
   await (await import("./routes/legacy-custom-domains")).registerCustomDomainsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1479,7 +1585,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-custom-domains.ts: ${err.message}`);
+  }
   // EXTRACTED: execution-pool-status -> legacy-execution-pool-status.ts
+  try {
   await (await import("./routes/legacy-execution-pool-status")).registerExecutionPoolStatusRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1487,7 +1597,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-execution-pool-status.ts: ${err.message}`);
+  }
   // EXTRACTED: version-history -> legacy-version-history.ts
+  try {
   await (await import("./routes/legacy-version-history")).registerVersionHistoryRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1495,7 +1609,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-version-history.ts: ${err.message}`);
+  }
   // EXTRACTED: metrics -> legacy-metrics.ts
+  try {
   await (await import("./routes/legacy-metrics")).registerMetricsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1503,7 +1621,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-metrics.ts: ${err.message}`);
+  }
   // EXTRACTED: projects -> legacy-projects.ts
+  try {
   await (await import("./routes/legacy-projects")).registerProjectsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1511,7 +1633,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-projects.ts: ${err.message}`);
+  }
   // EXTRACTED: files -> legacy-files.ts
+  try {
   await (await import("./routes/legacy-files")).registerFilesRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1519,7 +1645,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-files.ts: ${err.message}`);
+  }
   // EXTRACTED: notifications -> legacy-notifications.ts
+  try {
   await (await import("./routes/legacy-notifications")).registerNotificationsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1527,7 +1657,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-notifications.ts: ${err.message}`);
+  }
   // EXTRACTED: env-vars -> legacy-env-vars.ts
+  try {
   await (await import("./routes/legacy-env-vars")).registerEnvVarsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1535,7 +1669,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-env-vars.ts: ${err.message}`);
+  }
   // EXTRACTED: account-env-vars -> legacy-account-env-vars.ts
+  try {
   await (await import("./routes/legacy-account-env-vars")).registerAccountEnvVarsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1543,7 +1681,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-account-env-vars.ts: ${err.message}`);
+  }
   // EXTRACTED: runs -> legacy-runs.ts
+  try {
   await (await import("./routes/legacy-runs")).registerRunsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1551,7 +1693,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-runs.ts: ${err.message}`);
+  }
   // EXTRACTED: demo -> legacy-demo.ts
+  try {
   await (await import("./routes/legacy-demo")).registerDemoRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1559,7 +1705,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-demo.ts: ${err.message}`);
+  }
   // EXTRACTED: publish-share -> legacy-publish-share.ts
+  try {
   await (await import("./routes/legacy-publish-share")).registerPublishShareRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1567,7 +1717,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-publish-share.ts: ${err.message}`);
+  }
   // EXTRACTED: developer-frameworks -> legacy-developer-frameworks.ts
+  try {
   await (await import("./routes/legacy-developer-frameworks")).registerDeveloperFrameworksRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1575,7 +1729,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-developer-frameworks.ts: ${err.message}`);
+  }
   // EXTRACTED: git-version-control -> legacy-git-version-control.ts
+  try {
   await (await import("./routes/legacy-git-version-control")).registerGitVersionControlRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1583,7 +1741,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-git-version-control.ts: ${err.message}`);
+  }
   // EXTRACTED: github-sync -> legacy-github-sync.ts
+  try {
   await (await import("./routes/legacy-github-sync")).registerGithubSyncRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1591,7 +1753,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-github-sync.ts: ${err.message}`);
+  }
   // EXTRACTED: git-backup-recovery -> legacy-git-backup-recovery.ts
+  try {
   await (await import("./routes/legacy-git-backup-recovery")).registerGitBackupRecoveryRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1599,7 +1765,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-git-backup-recovery.ts: ${err.message}`);
+  }
   // EXTRACTED: workspace-runner -> legacy-workspace-runner.ts
+  try {
   await (await import("./routes/legacy-workspace-runner")).registerWorkspaceRunnerRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1607,6 +1777,9 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-workspace-runner.ts: ${err.message}`);
+  }
   // --- AI Models API (for AIModelSelector) ---
   function getAvailableAIModels() {
     const models: Array<{id: string; name: string; provider: string; description: string; maxTokens: number; supportsStreaming: boolean; costPer1kTokens: number; available: boolean}> = [];
@@ -1666,6 +1839,7 @@ export async function registerRoutes(
   });
 
   // EXTRACTED: ai-assistant -> legacy-ai-assistant.ts
+  try {
   await (await import("./routes/legacy-ai-assistant")).registerAiAssistantRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1674,7 +1848,11 @@ export async function registerRoutes(
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
     app,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-ai-assistant.ts: ${err.message}`);
+  }
   // EXTRACTED: websocket -> legacy-websocket.ts
+  try {
   await (await import("./routes/legacy-websocket")).registerWebsocketRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1682,7 +1860,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-websocket.ts: ${err.message}`);
+  }
   // EXTRACTED: database-viewer -> legacy-database-viewer.ts
+  try {
   await (await import("./routes/legacy-database-viewer")).registerDatabaseViewerRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1690,7 +1872,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-database-viewer.ts: ${err.message}`);
+  }
   // EXTRACTED: test-runner -> legacy-test-runner.ts
+  try {
   await (await import("./routes/legacy-test-runner")).registerTestRunnerRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1698,7 +1884,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-test-runner.ts: ${err.message}`);
+  }
   // EXTRACTED: ai-commit-message -> legacy-ai-commit-message.ts
+  try {
   await (await import("./routes/legacy-ai-commit-message")).registerAiCommitMessageRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1706,7 +1896,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-ai-commit-message.ts: ${err.message}`);
+  }
   // EXTRACTED: security-scanner -> legacy-security-scanner.ts
+  try {
   await (await import("./routes/legacy-security-scanner")).registerSecurityScannerRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1714,7 +1908,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-security-scanner.ts: ${err.message}`);
+  }
   // EXTRACTED: app-storage-kv -> legacy-app-storage-kv.ts
+  try {
   await (await import("./routes/legacy-app-storage-kv")).registerAppStorageKvRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1722,7 +1920,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-app-storage-kv.ts: ${err.message}`);
+  }
   // EXTRACTED: app-storage-objects -> legacy-app-storage-objects.ts
+  try {
   await (await import("./routes/legacy-app-storage-objects")).registerAppStorageObjectsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1730,7 +1932,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-app-storage-objects.ts: ${err.message}`);
+  }
   // EXTRACTED: bucket-management -> legacy-bucket-management.ts
+  try {
   await (await import("./routes/legacy-bucket-management")).registerBucketManagementRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1738,7 +1944,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-bucket-management.ts: ${err.message}`);
+  }
   // EXTRACTED: bucket-object-operations -> legacy-bucket-object-operations.ts
+  try {
   await (await import("./routes/legacy-bucket-object-operations")).registerBucketObjectOperationsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1746,7 +1956,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-bucket-object-operations.ts: ${err.message}`);
+  }
   // EXTRACTED: folder-operations -> legacy-folder-operations.ts
+  try {
   await (await import("./routes/legacy-folder-operations")).registerFolderOperationsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1754,7 +1968,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-folder-operations.ts: ${err.message}`);
+  }
   // EXTRACTED: legacy-object-routes -> legacy-legacy-object-routes.ts
+  try {
   await (await import("./routes/legacy-legacy-object-routes")).registerLegacyObjectRoutesRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1762,7 +1980,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-legacy-object-routes.ts: ${err.message}`);
+  }
   // EXTRACTED: generated-file-download -> legacy-generated-file-download.ts
+  try {
   await (await import("./routes/legacy-generated-file-download")).registerGeneratedFileDownloadRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1770,7 +1992,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-generated-file-download.ts: ${err.message}`);
+  }
   // EXTRACTED: project-auth -> legacy-project-auth.ts
+  try {
   await (await import("./routes/legacy-project-auth")).registerProjectAuthRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1778,7 +2004,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-project-auth.ts: ${err.message}`);
+  }
   // EXTRACTED: integrations -> legacy-integrations.ts
+  try {
   await (await import("./routes/legacy-integrations")).registerIntegrationsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1786,7 +2016,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-integrations.ts: ${err.message}`);
+  }
   // EXTRACTED: connector-proxy -> legacy-connector-proxy.ts
+  try {
   await (await import("./routes/legacy-connector-proxy")).registerConnectorProxyRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1794,7 +2028,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-connector-proxy.ts: ${err.message}`);
+  }
   // EXTRACTED: automations -> legacy-automations.ts
+  try {
   await (await import("./routes/legacy-automations")).registerAutomationsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1802,7 +2040,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-automations.ts: ${err.message}`);
+  }
   // EXTRACTED: workflows -> legacy-workflows.ts
+  try {
   await (await import("./routes/legacy-workflows")).registerWorkflowsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1810,7 +2052,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-workflows.ts: ${err.message}`);
+  }
   // EXTRACTED: monitoring -> legacy-monitoring.ts
+  try {
   await (await import("./routes/legacy-monitoring")).registerMonitoringRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1818,7 +2064,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-monitoring.ts: ${err.message}`);
+  }
   // EXTRACTED: publishing-analytics -> legacy-publishing-analytics.ts
+  try {
   await (await import("./routes/legacy-publishing-analytics")).registerPublishingAnalyticsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1826,7 +2076,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-publishing-analytics.ts: ${err.message}`);
+  }
   // EXTRACTED: threads -> legacy-threads.ts
+  try {
   await (await import("./routes/legacy-threads")).registerThreadsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1834,7 +2088,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-threads.ts: ${err.message}`);
+  }
   // EXTRACTED: skills -> legacy-skills.ts
+  try {
   await (await import("./routes/legacy-skills")).registerSkillsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1842,7 +2100,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-skills.ts: ${err.message}`);
+  }
   // EXTRACTED: networking -> legacy-networking.ts
+  try {
   await (await import("./routes/legacy-networking")).registerNetworkingRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1850,7 +2112,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-networking.ts: ${err.message}`);
+  }
   // EXTRACTED: reverse-proxy -> legacy-reverse-proxy.ts
+  try {
   await (await import("./routes/legacy-reverse-proxy")).registerReverseProxyRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1858,7 +2124,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-reverse-proxy.ts: ${err.message}`);
+  }
   // EXTRACTED: task-system -> legacy-task-system.ts
+  try {
   await (await import("./routes/legacy-task-system")).registerTaskSystemRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1866,7 +2136,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-task-system.ts: ${err.message}`);
+  }
   // EXTRACTED: mcp-servers -> legacy-mcp-servers.ts
+  try {
   await (await import("./routes/legacy-mcp-servers")).registerMcpServersRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1874,7 +2148,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-mcp-servers.ts: ${err.message}`);
+  }
   // EXTRACTED: figma-mcp -> legacy-figma-mcp.ts
+  try {
   await (await import("./routes/legacy-figma-mcp")).registerFigmaMcpRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1882,7 +2160,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-figma-mcp.ts: ${err.message}`);
+  }
   // EXTRACTED: slides-video -> legacy-slides-video.ts
+  try {
   await (await import("./routes/legacy-slides-video")).registerSlidesVideoRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1890,7 +2172,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-slides-video.ts: ${err.message}`);
+  }
   // EXTRACTED: trash-soft-delete -> legacy-trash-soft-delete.ts
+  try {
   await (await import("./routes/legacy-trash-soft-delete")).registerTrashSoftDeleteRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1898,7 +2184,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-trash-soft-delete.ts: ${err.message}`);
+  }
   // EXTRACTED: account-warnings -> legacy-account-warnings.ts
+  try {
   await (await import("./routes/legacy-account-warnings")).registerAccountWarningsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1906,7 +2196,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-account-warnings.ts: ${err.message}`);
+  }
   // EXTRACTED: username -> legacy-username.ts
+  try {
   await (await import("./routes/legacy-username")).registerUsernameRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1914,7 +2208,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-username.ts: ${err.message}`);
+  }
   // EXTRACTED: global-search -> legacy-global-search.ts
+  try {
   await (await import("./routes/legacy-global-search")).registerGlobalSearchRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1922,7 +2220,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-global-search.ts: ${err.message}`);
+  }
   // EXTRACTED: canvas -> legacy-canvas.ts
+  try {
   await (await import("./routes/legacy-canvas")).registerCanvasRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1930,7 +2232,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-canvas.ts: ${err.message}`);
+  }
   // EXTRACTED: deployment-feedback -> legacy-deployment-feedback.ts
+  try {
   await (await import("./routes/legacy-deployment-feedback")).registerDeploymentFeedbackRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1938,7 +2244,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-deployment-feedback.ts: ${err.message}`);
+  }
   // EXTRACTED: ai-credential-configs -> legacy-ai-credential-configs.ts
+  try {
   await (await import("./routes/legacy-ai-credential-configs")).registerAiCredentialConfigsRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1946,7 +2256,11 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-ai-credential-configs.ts: ${err.message}`);
+  }
   // EXTRACTED: ai-usage-tracking -> legacy-ai-usage-tracking.ts
+  try {
   await (await import("./routes/legacy-ai-usage-tracking")).registerAiUsageTrackingRoutes(app, {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
     runLimiter, checkoutLimiter, errorBuffer, MAX_ERROR_BUFFER, serverStartTime,
@@ -1954,6 +2268,9 @@ export async function registerRoutes(
     verifyProjectAccess, verifyRecaptcha, qstr, safeError, sanitizeAIFileContent,
     validateExternalUrl, getAppUrl, generateCsrfToken, sessionMiddleware, httpServer,
   });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load legacy-ai-usage-tracking.ts: ${err.message}`);
+  }
 
 
   // Register modular routes from server/routes/ directory
