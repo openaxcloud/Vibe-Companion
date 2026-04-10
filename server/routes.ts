@@ -8508,26 +8508,47 @@ export async function registerRoutes(
   }
 
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
+    // Determine if client wants SSE streaming progress
+    const wantsSSE = req.headers.accept?.includes("text/event-stream");
+    function emitProgress(event: string, data: Record<string, unknown>) {
+      if (wantsSSE) {
+        res.write(`data: ${JSON.stringify({ event, ...data })}\n\n`);
+      }
+    }
+    function sendError(status: number, message: string) {
+      if (wantsSSE) {
+        res.write(`data: ${JSON.stringify({ event: "error", message })}\n\n`);
+        res.end();
+      } else {
+        res.status(status).json({ message });
+      }
+    }
+    if (wantsSSE) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+    }
     try {
       const { prompt, model: requestedModel, outputType: reqOutputType } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
-        return res.status(400).json({ message: "Please provide a project description (at least 3 characters)" });
+        return sendError(400, "Please provide a project description (at least 3 characters)");
       }
       if (prompt.length > MAX_PROMPT_LENGTH) {
-        return res.status(400).json({ message: `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)` });
+        return sendError(400, `Prompt too long (max ${MAX_PROMPT_LENGTH} characters)`);
       }
       const genKeyError = validateExternalAIKey(requestedModel);
       if (genKeyError) {
-        return res.status(400).json({ message: genKeyError });
+        return sendError(400, genKeyError);
       }
 
       const genProjectLimit = await storage.checkProjectLimit(req.session.userId!);
       if (!genProjectLimit.allowed) {
-        return res.status(403).json({ message: `Project limit reached (${genProjectLimit.current}/${genProjectLimit.limit}). Upgrade to Pro for more.` });
+        return sendError(403, `Project limit reached (${genProjectLimit.current}/${genProjectLimit.limit}). Upgrade to Pro for more.`);
       }
 
       const validOutputTypes = ["web", "mobile", "slides", "animation", "design", "data-visualization", "automation", "3d-game", "document", "spreadsheet"];
       const outputType = validOutputTypes.includes(reqOutputType) ? reqOutputType : "web";
+      emitProgress("creating_project", { message: "Setting up project..." });
 
       const outputTypeInstructions: Record<string, string> = {
         "web": "Generate a beautiful, modern web app. Use Tailwind CSS via CDN (<script src=\"https://cdn.tailwindcss.com\"></script>) for styling. Design should look professional with dark mode, gradients, shadows, rounded corners, hover effects, animations, responsive layout. Include Lucide icons via CDN. Use modern HTML5 and ES6+ JavaScript. The app should look like a polished SaaS product.",
@@ -8583,6 +8604,7 @@ DESIGN QUALITY REQUIREMENTS (CRITICAL):
 OUTPUT FORMAT: ${outputType}
 ${formatInstruction}`;
 
+      emitProgress("generating_code", { message: "Generating code with AI..." });
       let text = "";
 
       if (requestedModel === "gemini") {
@@ -8716,17 +8738,20 @@ ${formatInstruction}`;
           log(`JSON recovery succeeded via repair`, "ai");
         } else {
           log(`Recovery failed. Raw text (first 500): ${text.slice(0, 500)}`, "ai");
-          return res.status(500).json({ message: "AI generated invalid project structure. Please try again." });
+          sendError(500, "AI generated invalid project structure. Please try again.");
+          return;
         }
       }
 
       if (!spec.name || !spec.language || !spec.files?.length) {
-        return res.status(500).json({ message: "AI generated incomplete project. Please try again." });
+        sendError(500, "AI generated incomplete project. Please try again.");
+        return;
       }
 
       const validLangs = ["javascript", "typescript", "python"];
       if (!validLangs.includes(spec.language)) spec.language = "javascript";
 
+      emitProgress("saving_files", { message: "Saving project files..." });
       const detectedProjectType = "web-app";
 
       const project = await storage.createProject(req.session.userId!, {
@@ -8751,7 +8776,8 @@ ${formatInstruction}`;
         settings: {},
       });
 
-      for (const file of spec.files.slice(0, 10)) {
+      const maxGeneratedFiles = parseInt(process.env.MAX_GENERATED_FILES || "30", 10);
+      for (const file of spec.files.slice(0, maxGeneratedFiles)) {
         const safeFilename = sanitizeAIFilename(file.filename);
         if (!safeFilename || safeFilename === "ecode.md") continue;
         const safeContent = sanitizeAIFileContent(file.content || "");
@@ -8784,10 +8810,28 @@ ${formatInstruction}`;
       });
 
       createCheckpoint(project.id, req.session.userId!, "feature_complete", `AI generated project: ${spec.name}`).catch(() => {});
-      return res.json({ project, files });
+
+      // Auto-start workspace in background
+      emitProgress("starting_workspace", { message: "Starting development server..." });
+      import("./localWorkspaceManager").then(async (localWS) => {
+        try {
+          await localWS.startLocalWorkspace(
+            project.id,
+            () => Promise.resolve(files.map(f => ({ filename: f.filename, content: f.content as string | null }))),
+            { language: spec.language }
+          );
+        } catch {}
+      }).catch(() => {});
+
+      if (wantsSSE) {
+        emitProgress("done", { project, files });
+        res.end();
+      } else {
+        return res.json({ project, files });
+      }
     } catch (error: any) {
       log(`AI project generation error: ${error.message}`, "ai");
-      return res.status(500).json({ message: "Failed to generate project. Please try again." });
+      sendError(500, "Failed to generate project. Please try again.");
     }
   });
 
