@@ -1,0 +1,89 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.replit.com/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Autoscale Deployments
+
+> Learn how Autoscale Deployments automatically adjust capacity based on your app's traffic.
+
+Autoscale Deployments run on cloud computing resources that scale up and down to efficiently handle the
+network traffic and workload of your Replit App. When your app is busy, autoscaling adds servers to
+manage the load. When your app is idle, it reduces the number to as low as zero to save you money.
+
+Autoscale Deployments are ideal for the following use cases:
+
+* Web applications that handle variable workloads and traffic such as ecommerce sites
+* APIs and services
+
+<Frame>
+  <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/autoscale/autoscale-deployments.jpg?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=249758926937644572b1db350a170d92" alt="Autoscale Deployment" width="1920" height="1080" data-path="images/deployments/autoscale/autoscale-deployments.jpg" />
+</Frame>
+
+## Features
+
+Autoscale Deployment include the following features:
+
+* **Automatic resource scaling**: Automatically adjusts resources based on traffic patterns to optimize costs.
+* **Custom domains**: Configure a custom domain or use a `<app-name>.replit.app` URL to access your app.
+* **Configurable limits**: Set the maximum number of instances your published app can scale to.
+* **Flexible machine power**: Choose the CPU and RAM configuration that meets your app's needs.
+* **Monitoring**: View logs and monitor your published app's status.
+
+## Usage
+
+You can access Autoscale Deployment in the Publishing workspace tool.
+
+<Accordion title="How to access Autoscale Deployment">
+  From the left **Tool dock**:
+
+  1. Select <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-all-tools-button.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=579643854fb13c402de516695e52c554" alt="All tools icon" width="16" height="16" data-path="images/icons/workspace-all-tools-button.svg" /> **All tools** to see a list of workspace tools.
+  2. Select <img class="icon-svg" src="https://mintcdn.com/replit/rJldsgYVucXB_6kW/images/icons/deploy-icon.svg?fit=max&auto=format&n=rJldsgYVucXB_6kW&q=85&s=853c5ef39a8a7ac3648b3a2ce182fcb8" alt="Publishing icon" width="16" height="16" data-path="images/icons/deploy-icon.svg" /> **Publishing**.
+  3. Select the **Autoscale** option and then select **Set up your published app**.
+
+  From the **Search bar**:
+
+  1. Select the <img class="icon-svg" src="https://mintcdn.com/replit/X_IP1EeHGm0cA2VA/images/icons/workspace-search-icon.svg?fit=max&auto=format&n=X_IP1EeHGm0cA2VA&q=85&s=d3feed840da2d19e1ee4873d137114dc" alt="magnifying glass icon" width="16" height="16" data-path="images/icons/workspace-search-icon.svg" /> magnifying glass at the top to open the search tool
+  2. Type "Publishing" to locate the tool and select it from the results.
+  3. Select the **Autoscale** option and then select **Set up your published app**.
+</Accordion>
+
+<Frame caption="Autoscale configuration screen in the Publishing tool">
+  <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/autoscale/autoscale-deployment-options.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=6cf45ec28a15a8591949adc31ed71d27" alt="Autoscale publishing options" width="3280" height="1780" data-path="images/deployments/autoscale/autoscale-deployment-options.png" />
+</Frame>
+
+## Machine power
+
+Select **Edit** to view and set the machine power options. Use the sliders to select the CPU and RAM configuration
+for each published app server instance.
+
+View the **compute unit** cost for the configuration in the **Total per machine** row.
+A compute unit is a measurement of cloud computing resources based on the memory and CPU configuration of the machine.
+
+To learn more about calculating the cost based on Compute Units, see [Compute Units](/billing/about-usage-based-billing#2-compute-units).
+
+<Frame>
+  <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/autoscale/machine-power.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=ae68f9b2aa42924d95fa8104a09710a1" alt="screenshot of the machine power configuration" width="1257" height="729" data-path="images/deployments/autoscale/machine-power.png" />
+</Frame>
+
+## Max number of machines
+
+Use the slider to adjust the maximum number of machines. This number is the upper limit of server
+instances the autoscaling feature can assign when it determines your app is busy.
+
+The bottom row shows the equivalent compute units, calculated by the following formula:
+
+`Number of machines * compute units per machine`
+
+<Frame>
+  <img src="https://mintcdn.com/replit/jSmYU1wBTvl8UMyc/images/deployments/autoscale/max-machines.png?fit=max&auto=format&n=jSmYU1wBTvl8UMyc&q=85&s=f8b5b3439abc9855130e6f63671946f5" alt="screenshot of the max number of machines configuration" width="1254" height="329" data-path="images/deployments/autoscale/max-machines.png" />
+</Frame>
+
+## Next steps
+
+* [Published App Monitoring](/cloud-services/deployments/monitoring-a-deployment/): Learn how to view logs and monitor your published app.
+* [Publishing costs](/billing/deployment-pricing): View the costs associated with publishing.
+* [Pricing](https://replit.com/pricing/): View the pricing and allowances for each plan type.
+* [Usage Allowances](/billing/about-usage-based-billing/): Learn about scheduled deployment usage limits and billing units.
+
+
+Built with [Mintlify](https://mintlify.com).

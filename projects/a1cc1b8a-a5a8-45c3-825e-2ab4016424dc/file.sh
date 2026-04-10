@@ -1,0 +1,1 @@
+npm install passport passport-local passport-google-oauth20 passport-github

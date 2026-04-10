@@ -1,0 +1,105 @@
+{
+  "common": {
+    "getStarted": "Loslegen",
+    "learnMore": "Mehr erfahren",
+    "contactUs": "Kontakt",
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "startBuilding": "Jetzt bauen",
+    "viewDemo": "Demo ansehen",
+    "submit": "Absenden",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg"
+  },
+  "landing": {
+    "hero": {
+      "title": "Software mit KI entwickeln",
+      "subtitle": "E-Code ist eine KI-gestützte Entwicklungsplattform, die Ihre Ideen in Minuten in produktionsreife Anwendungen verwandelt.",
+      "cta": "Kostenlos starten",
+      "secondaryCta": "Demo ansehen"
+    },
+    "features": {
+      "title": "Alles was Sie brauchen, um schneller zu entwickeln",
+      "subtitle": "Eine vollständige Plattform für moderne Softwareentwicklung",
+      "aiAssistant": {
+        "title": "KI-Assistent",
+        "description": "Erhalten Sie intelligente Code-Vorschläge und automatisieren Sie wiederkehrende Aufgaben mit unserer fortschrittlichen KI."
+      },
+      "collaboration": {
+        "title": "Echtzeit-Zusammenarbeit",
+        "description": "Arbeiten Sie in Echtzeit mit Ihrem Team zusammen mit gemeinsamen Arbeitsbereichen."
+      },
+      "deployment": {
+        "title": "Sofortiges Deployment",
+        "description": "Deployen Sie Ihre Anwendungen mit einem Klick in die Produktion. Kein DevOps erforderlich."
+      },
+      "security": {
+        "title": "Enterprise-Sicherheit",
+        "description": "Bankniveau-Sicherheit mit SOC2-Konformität, SSO und Audit-Protokollierung."
+      }
+    },
+    "stats": {
+      "developers": "Entwickler",
+      "projectsBuilt": "Erstellte Projekte",
+      "uptime": "Verfügbarkeit",
+      "satisfaction": "Zufriedenheit"
+    },
+    "cta": {
+      "title": "Bereit, Ihren Entwicklungsworkflow zu transformieren?",
+      "subtitle": "Schließen Sie sich Tausenden von Entwicklern an, die mit E-Code die Zukunft bauen.",
+      "button": "Kostenlos starten"
+    }
+  },
+  "pricing": {
+    "title": "Einfache, transparente Preise",
+    "subtitle": "Wählen Sie den Plan, der am besten zu Ihnen und Ihrem Team passt",
+    "monthly": "Monatlich",
+    "yearly": "Jährlich",
+    "save": "20% sparen",
+    "popular": "Am beliebtesten",
+    "perMonth": "/Monat",
+    "perYear": "/Jahr",
+    "free": {
+      "name": "Kostenlos",
+      "description": "Perfekt zum Lernen und für persönliche Projekte",
+      "cta": "Loslegen"
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Für professionelle Entwickler und kleine Teams",
+      "cta": "Kostenlos testen"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "description": "Für große Organisationen mit individuellen Anforderungen",
+      "cta": "Vertrieb kontaktieren",
+      "price": "Individuell"
+    }
+  },
+  "contact": {
+    "title": "Kontaktieren Sie uns",
+    "subtitle": "Haben Sie eine Frage oder möchten Sie mehr über E-Code erfahren? Wir würden gerne von Ihnen hören.",
+    "form": {
+      "name": "Ihr Name",
+      "email": "E-Mail-Adresse",
+      "company": "Unternehmen (optional)",
+      "subject": "Betreff",
+      "message": "Ihre Nachricht",
+      "submit": "Nachricht senden"
+    },
+    "success": {
+      "title": "Nachricht gesendet!",
+      "description": "Wir melden uns innerhalb von 24 Stunden bei Ihnen."
+    }
+  },
+  "footer": {
+    "product": "Produkt",
+    "company": "Unternehmen",
+    "resources": "Ressourcen",
+    "legal": "Rechtliches",
+    "copyright": "Alle Rechte vorbehalten."
+  }
+}

@@ -1,0 +1,6 @@
+/messaging-app
+  ├── /public
+  │   ├── index.html
+  │   ├── styles.css
+  │   └── index.js
+  └── server.js

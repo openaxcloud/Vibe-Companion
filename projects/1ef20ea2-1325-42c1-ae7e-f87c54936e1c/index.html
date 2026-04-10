@@ -1,0 +1,35 @@
+<!-- filename: index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Messaging Platform</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Main app container -->
+        <div class="sidebar">
+            <h2>Channels</h2>
+            <ul id="channel-list">
+                <!-- Dynamic channel list -->
+            </ul>
+        </div>
+        <div class="main-content">
+            <div class="header">
+                <h1 id="current-channel">Welcome</h1>
+            </div>
+            <div id="message-container" class="message-container">
+                <!-- Dynamic message list -->
+            </div>
+            <div class="message-input">
+                <input type="text" id="message-input" placeholder="Type a message...">
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="index.js"></script>
+</body>
+</html>

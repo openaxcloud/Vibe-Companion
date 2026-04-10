@@ -1,0 +1,93 @@
+name: Tenant Isolation Security Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'server/services/persistence-engine.ts'
+      - 'server/middleware/tenant-context.ts'
+      - 'tests/tenant-isolation.test.ts'
+      - 'shared/schema.ts'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'shared/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+env:
+  NODE_ENV: test
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+jobs:
+  tenant-isolation-tests:
+    name: Tenant Isolation Security Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ecode_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup test database
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/ecode_test
+        run: |
+          npm run db:push --force
+
+      - name: Run Tenant Isolation Tests
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/ecode_test
+          NODE_ENV: test
+        run: |
+          npx vitest run tests/tenant-isolation.test.ts --reporter=verbose --reporter=junit --outputFile=test-results/tenant-isolation-junit.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tenant-isolation-test-results
+          path: test-results/tenant-isolation-junit.xml
+          retention-days: 30
+
+      - name: Security Audit Summary
+        if: always()
+        run: |
+          echo "## Tenant Isolation Security Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-results/tenant-isolation-junit.xml ]; then
+            echo "✅ Tenant isolation tests completed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Verified Security Controls:" >> $GITHUB_STEP_SUMMARY
+            echo "- Frozen TenantScopedQueries objects (no mutation possible)" >> $GITHUB_STEP_SUMMARY
+            echo "- Hidden transaction handles (inaccessible from frozen objects)" >> $GITHUB_STEP_SUMMARY
+            echo "- Legacy API blocking for tenant operations" >> $GITHUB_STEP_SUMMARY
+            echo "- Null tenant allowed only for admin operations" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Test results not found" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -1,0 +1,120 @@
+{
+  "common": {
+    "getStarted": "Commencer",
+    "learnMore": "En savoir plus",
+    "contactUs": "Nous contacter",
+    "signIn": "Se connecter",
+    "signUp": "S'inscrire",
+    "startBuilding": "Commencer à créer",
+    "viewDemo": "Voir la démo",
+    "submit": "Envoyer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès"
+  },
+  "landing": {
+    "hero": {
+      "title": "Créez des logiciels avec l'IA",
+      "subtitle": "E-Code est une plateforme de développement alimentée par l'IA qui transforme vos idées en applications prêtes pour la production en quelques minutes.",
+      "cta": "Commencer gratuitement",
+      "secondaryCta": "Voir la démo"
+    },
+    "features": {
+      "title": "Tout ce dont vous avez besoin pour construire plus vite",
+      "subtitle": "Une plateforme complète pour le développement logiciel moderne",
+      "aiAssistant": {
+        "title": "Assistant IA",
+        "description": "Obtenez des suggestions de code intelligentes et automatisez les tâches répétitives avec notre IA avancée."
+      },
+      "collaboration": {
+        "title": "Collaboration en temps réel",
+        "description": "Travaillez ensemble avec votre équipe en temps réel avec des espaces de travail partagés."
+      },
+      "deployment": {
+        "title": "Déploiement instantané",
+        "description": "Déployez vos applications en production en un seul clic. Pas de DevOps requis."
+      },
+      "security": {
+        "title": "Sécurité entreprise",
+        "description": "Sécurité de niveau bancaire avec conformité SOC2, SSO et journalisation d'audit."
+      }
+    },
+    "stats": {
+      "developers": "Développeurs",
+      "projectsBuilt": "Projets créés",
+      "uptime": "Disponibilité",
+      "satisfaction": "Satisfaction"
+    },
+    "testimonials": {
+      "title": "Adoré par les développeurs du monde entier"
+    },
+    "cta": {
+      "title": "Prêt à transformer votre flux de développement ?",
+      "subtitle": "Rejoignez des milliers de développeurs qui construisent l'avenir avec E-Code.",
+      "button": "Commencer gratuitement"
+    }
+  },
+  "pricing": {
+    "title": "Tarification simple et transparente",
+    "subtitle": "Choisissez le plan qui vous convient le mieux",
+    "monthly": "Mensuel",
+    "yearly": "Annuel",
+    "save": "Économisez 20%",
+    "popular": "Le plus populaire",
+    "perMonth": "/mois",
+    "perYear": "/an",
+    "free": {
+      "name": "Gratuit",
+      "description": "Parfait pour l'apprentissage et les projets personnels",
+      "cta": "Commencer"
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Pour les développeurs professionnels et les petites équipes",
+      "cta": "Essai gratuit"
+    },
+    "team": {
+      "name": "Équipe",
+      "description": "Pour les équipes en croissance qui ont besoin de plus de puissance",
+      "cta": "Essai gratuit"
+    },
+    "enterprise": {
+      "name": "Entreprise",
+      "description": "Pour les grandes organisations avec des besoins personnalisés",
+      "cta": "Contacter les ventes",
+      "price": "Sur mesure"
+    }
+  },
+  "contact": {
+    "title": "Contactez-nous",
+    "subtitle": "Vous avez une question ou souhaitez en savoir plus sur E-Code ? Nous serions ravis de vous entendre.",
+    "form": {
+      "name": "Votre nom",
+      "email": "Adresse e-mail",
+      "company": "Entreprise (optionnel)",
+      "subject": "Sujet",
+      "message": "Votre message",
+      "submit": "Envoyer le message"
+    },
+    "reasons": {
+      "general": "Question générale",
+      "sales": "Ventes et tarification",
+      "support": "Support technique",
+      "partnership": "Partenariat",
+      "press": "Presse et médias"
+    },
+    "success": {
+      "title": "Message envoyé !",
+      "description": "Nous vous répondrons dans les 24 heures."
+    }
+  },
+  "footer": {
+    "product": "Produit",
+    "company": "Entreprise",
+    "resources": "Ressources",
+    "legal": "Mentions légales",
+    "copyright": "Tous droits réservés."
+  }
+}

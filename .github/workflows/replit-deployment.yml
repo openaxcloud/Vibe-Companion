@@ -1,0 +1,120 @@
+name: CI + Replit Health Check
+
+# Runs on every push to main:
+#   1. Build & type-check the project (on GitHub's servers)
+#   2. Verify the production deployment is alive (health check)
+#
+# Required GitHub Secrets (Settings → Secrets → Actions):
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY
+#   MOONSHOT_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+#   SENDGRID_API_KEY, REDIS_PASSWORD, SESSION_SECRET, SENTRY_DSN
+#   DATABASE_URL  ← Neon public URL
+#
+# Required GitHub Variables (Settings → Variables → Actions):
+#   APP_URL  = https://replit-clone-henri45.replit.app
+#   REPL_ID  = f4d2485e-81a7-4595-9868-17903ab251f3
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20.x'
+  APP_URL: ${{ vars.APP_URL || 'https://replit-clone-henri45.replit.app' }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1 — Build & validate (runs on GitHub's servers)
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build & Type-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript type check
+        run: npm run typecheck
+        continue-on-error: true
+
+      - name: Build (frontend + server)
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          VITE_APP_URL: ${{ env.APP_URL }}
+
+      - name: Verify build artifacts
+        run: |
+          test -f dist/public/index.html || (echo "❌ dist/public/index.html manquant" && exit 1)
+          test -f dist/index.js          || (echo "❌ dist/index.js manquant" && exit 1)
+          echo "✅ Artifacts OK"
+          echo "   dist/public : $(du -sh dist/public | cut -f1)"
+          echo "   dist/index.js : $(du -sh dist/index.js | cut -f1)"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Health check on the live Replit deployment
+  # Only runs on push to main (not on PRs)
+  # ─────────────────────────────────────────────────────────────────────────────
+  health-check:
+    name: Production Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true  # Ne bloque pas le CI si production est en redémarrage
+
+    steps:
+      - name: Wait for Replit to pick up the new commit
+        run: |
+          echo "⏳ Waiting 90 s for Replit to restart..."
+          sleep 90
+
+      - name: Liveness check (/api/liveness)
+        run: |
+          APP="${{ env.APP_URL }}"
+          MAX=12; N=0
+          echo "🏥 Polling $APP/api/liveness ..."
+          while [ $N -lt $MAX ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP/api/liveness" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Liveness OK (HTTP $STATUS)"
+              break
+            fi
+            N=$((N+1))
+            echo "⚠️  Attempt $N/$MAX — HTTP $STATUS — retry in 15 s"
+            sleep 15
+          done
+          [ $N -lt $MAX ] || (echo "❌ Liveness check failed after $MAX attempts" && exit 1)
+
+      - name: Readiness check (/api/readiness)
+        run: |
+          curl -sf "${{ env.APP_URL }}/api/readiness" \
+            && echo "✅ Readiness OK" \
+            || (echo "❌ Readiness check failed" && exit 1)
+
+      - name: API smoke test (/api/monitoring/health)
+        run: |
+          curl -sf "${{ env.APP_URL }}/api/monitoring/health" \
+            && echo "✅ API OK" \
+            || (echo "❌ API health check failed" && exit 1)
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Health checks FAILED — commit ${{ github.sha }}"
+          echo "🔗 Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

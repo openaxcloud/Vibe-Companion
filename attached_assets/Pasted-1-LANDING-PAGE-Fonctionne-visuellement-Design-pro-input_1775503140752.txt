@@ -1,0 +1,12 @@
+1. LANDING PAGE — Fonctionne visuellement. Design pro, input “Describe your app idea”, bouton “Build Now”, nav menu complet (Product, Solutions, Resources, Company, Pricing, Teams). Le contenu sous le fold est vide (page blanche après la section hero).
+2. LOGIN PAGE — Le formulaire fonctionne, auto-fill Chrome OK. Le login API retourne 200. MAIS le cookie de session ne persiste pas entre les pages — c’est le BUG CRITIQUE #1.
+3. SESSION / AUTH — BUG CRITIQUE #1
+Le fichier server/auth/session-manager.ts ligne 157 override sameSite de "none" vers "strict" après chaque login. Avec SameSite=Strict, le cookie n’est PAS envoyé lors des redirections. Résultat: login → 200, puis la page suivante → 401 “Not authenticated”. Il y a aussi 2 configurations session conflictuelles (index.ts et routes.ts) avec des valeurs différentes pour secure, sameSite et maxAge.
+Fix: Dans session-manager.ts, changer ligne 157 de session.cookie.sameSite = 'strict' → session.cookie.sameSite = 'lax'.
+4. IDE — PANEL AGENT — Fonctionne. Welcome message, 4 quick actions (Build Dashboard, Add Payments, Add Auth, Debug & Optimize), input chat, model selector (Claude Sonnet 4). Le WebSocket “Reconnecting (1/10)” indique une instabilité de connexion.
+5. IDE — PANEL FILES — Fonctionne nativement. 7 fichiers affichés (file.sh, file1.sh, file5.sh, index.html, script2.js, script3.js, script4.js). Le Search files est présent.
+6. IDE — PREVIEW — Bloqué sur “Building your app… Planning project structure…” sans jamais résoudre. Avec les runtime fixes (JS injection), le preview fonctionne et affiche l’app générée. Sans injection, il ne fonctionne pas.
+7. IDE — CODE EDITOR — Bloqué indéfiniment sur “Loading editor…” — BUG CRITIQUE #2. L’éditeur de code ne charge jamais.
+8. IDE — CONSOLE — “Runtime Connecting…” avec “Waiting for output…” — jamais résolu.
+9. IDE — SHELL — BUG CRITIQUE #3: “Disconnected”, 6x “Connection error: server error”. Le WebSocket terminal est cassé, aucune commande shell possible.
+10. IDE — DEPLOY — L’UI est présente et propre: Status “Idle”, bouton “Publish App”, config Autoscale, onglets Configuration/Logs/Analytics. Mais sans Shell et Editor fonctionnels, le deploy est inutilisable.

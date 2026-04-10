@@ -1,0 +1,117 @@
+# === DIRECTORIES ===
+.local/
+.git/
+.cache/
+.config/
+.upm/
+.ai-memory/
+.checkpoints/
+.ecode/
+.executions/
+.exports/
+.github/
+.pythonlibs/
+.replitdb/
+.well-known/
+node_modules/
+client/
+server/
+shared/
+runner/
+# Compile outputs (WE NEED THESE IN DEPLOYMENT)
+# dist/ is intentionally NOT ignored here so it deploys.
+scripts/
+attached_assets/
+backups/
+cli/
+containers/
+deploy/
+github-copilot-extension/
+kubernetes/
+logs/
+migrations/
+previews/
+projects/
+project-storage/
+public/
+sdk/
+services/
+src/
+storage/
+test/
+types/
+vscode-extension/
+cookie_store/
+
+# === DOCUMENTATION ===
+*.md
+*.txt
+SECURITY_AUDIT_SUMMARY.txt
+
+# === CONFIG FILES ===
+app.json
+Dockerfile
+docker-entrypoint.sh
+docker-compose*.yml
+ecosystem.config.js
+nginx.conf
+capacitor.config.ts
+tsconfig*.json
+vite.config.ts
+drizzle.config.ts
+tailwind.config.ts
+postcss.config.js
+components.json
+theme.json
+eslint.config.mjs
+introspect.config.ts
+jest.config.*
+playwright.config.ts
+vitest.config.ts
+generated-icon.png
+
+# === SCRIPTS (root-level only, no wildcards that could hit node_modules) ===
+build-prod.js
+deploy.js
+start.js
+test-shell-socket.mjs
+test-socket-direct.js
+test-socket-direct.mjs
+build.sh
+deploy.sh
+deploy-build.sh
+deploy-production.sh
+deploy-start.sh
+start.sh
+start-dev.sh
+start-workspace.sh
+monitor-dashboard.sh
+run-production-checks.sh
+setup-api-keys.sh
+test-sendgrid-webhook.sh
+eslint.config.mjs
+
+# === ENV FILES ===
+.env
+.env.*
+.gitignore
+.dockerignore
+.npmrc
+.replitignore
+.deployignore
+
+# === LARGE FILES NOT NEEDED ===
+package-lock.json
+sedVkyNvv
+
+# === TEMP/JUNK ===
+sedE52NgH
+sedomaJgw
+cookies*.txt
+cookie_store
+
+# === PRIVATE ===
+Prive pour moi (a ne pas consulter)
+
+# === SPECIAL FILENAMES ===
+✅_.env.production.example
