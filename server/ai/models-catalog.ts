@@ -188,40 +188,31 @@ export const AI_MODELS: AIModel[] = [
     costPer1kTokens: 0.0000375
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
+    id: 'gemini-3.1-pro-preview',
+    name: 'Gemini 3.1 Pro Preview',
     provider: 'gemini',
-    description: 'Next-gen speed and multimodal features at low cost',
+    description: 'Latest Gemini flagship — cutting-edge reasoning and multi-step problem solving',
+    maxTokens: 1000000,
+    supportsStreaming: true,
+    costPer1kTokens: 0.00125
+  },
+  {
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3 Flash Preview',
+    provider: 'gemini',
+    description: 'Next-gen fast multimodal model with enhanced capabilities',
     maxTokens: 1000000,
     supportsStreaming: true,
     costPer1kTokens: 0.0000375
   },
   {
-    id: 'gemini-2.0-flash-lite',
-    name: 'Gemini 2.0 Flash Lite',
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite',
     provider: 'gemini',
-    description: 'Lightest Gemini model — fastest and most cost-efficient',
+    description: 'Lightest and fastest Gemini model — most cost-efficient option',
     maxTokens: 1000000,
     supportsStreaming: true,
     costPer1kTokens: 0.000019
-  },
-  {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    provider: 'gemini',
-    description: 'Complex reasoning with industry-leading 2M token context',
-    maxTokens: 2000000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.00125
-  },
-  {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    provider: 'gemini',
-    description: 'Fast versatile multimodal model for diverse tasks',
-    maxTokens: 1000000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.000075
   },
   {
     id: 'grok-3',

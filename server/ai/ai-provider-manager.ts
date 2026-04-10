@@ -25,7 +25,8 @@ const PROVIDER_FALLBACK_CHAIN = [
   'claude-sonnet-4-20250514',  // Anthropic Claude 4 Sonnet
   'gemini-2.5-flash',          // Google Gemini 2.5 Flash
   'grok-3',                    // xAI Grok 3
-  'moonshot-v1-32k'            // Moonshot Kimi 32K
+  'kimi-k2',                   // Moonshot Kimi K2
+  'moonshot-v1-32k'            // Moonshot Kimi 32K (legacy)
 ];
 
 export class AIProviderManager {
@@ -146,8 +147,8 @@ export class AIProviderManager {
       logger.warn('Gemini API key not found in environment');
     }
     
-    // xAI (Grok) — check both direct and integration keys
-    const xaiApiKey = process.env.XAI_API_KEY || process.env.AI_INTEGRATIONS_XAI_API_KEY;
+    // xAI (Grok) — check both direct and integration keys (support both XAI_API_KEY and xAI_API_KEY)
+    const xaiApiKey = process.env.XAI_API_KEY || process.env.xAI_API_KEY || process.env.AI_INTEGRATIONS_XAI_API_KEY;
     if (xaiApiKey) {
       try {
         this.providers.set('xai', AIProviderFactory.create('xai', xaiApiKey));

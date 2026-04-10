@@ -241,6 +241,12 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
           if (provider === "mistral") {
             return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.mistral.ai/v1" }), geminiClient: gemini, credMode: "byok" };
           }
+          if (provider === "moonshot") {
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" }), geminiClient: gemini, credMode: "byok" };
+          }
+          if (provider === "xai") {
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.x.ai/v1" }), geminiClient: gemini, credMode: "byok" };
+          }
         }
         return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "byok", byokNoKey: true };
       }
@@ -1500,7 +1506,7 @@ Rules:
 - Include all imports, all functions, and all necessary code for the file to work standalone.
 - When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${ecodeContext}${skillsContext}`;
 
-      const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", perplexity: "perplexity", mistral: "mistral" };
+      const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", grok: "xai", moonshot: "moonshot", perplexity: "perplexity", mistral: "mistral" };
       const chatProvider = chatProviderMap[selectedModel] || selectedModel;
       const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode, byokNoKey: chatByokNoKey } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!);
 
@@ -1519,7 +1525,11 @@ Rules:
 
       let chatInputTokens = 0;
       let chatOutputTokens = 0;
+      let usedFallback = false;
+      let actualProvider = chatProvider;
+      let actualModelId = modelId;
 
+      try {
       if (selectedModel === "gemini") {
         const geminiContents = [
           { role: "user" as const, parts: [{ text: systemPrompt }] },
@@ -1636,6 +1646,50 @@ Rules:
           }
         }
         chatInputTokens = Math.ceil(JSON.stringify(mistralMessages).length / 4);
+      } else if (selectedModel === "moonshot") {
+        const moonshotMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        const moonshotClient = new OpenAI({ apiKey: process.env.MOONSHOT_API_KEY || "", baseURL: "https://api.moonshot.ai/v1" });
+        const stream = await moonshotClient.chat.completions.create({
+          model: modelId,
+          messages: moonshotMessages,
+          stream: true,
+          max_tokens: turboMaxTokens,
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            chatOutputTokens += Math.ceil(content.length / 4);
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+        chatInputTokens = Math.ceil(JSON.stringify(moonshotMessages).length / 4);
+      } else if (selectedModel === "grok") {
+        const grokMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: systemPrompt },
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+
+        const xaiClient = new OpenAI({ apiKey: process.env.XAI_API_KEY || process.env.xAI_API_KEY || "", baseURL: "https://api.x.ai/v1" });
+        const stream = await xaiClient.chat.completions.create({
+          model: modelId,
+          messages: grokMessages,
+          stream: true,
+          max_tokens: turboMaxTokens,
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            chatOutputTokens += Math.ceil(content.length / 4);
+            res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          }
+        }
+        chatInputTokens = Math.ceil(JSON.stringify(grokMessages).length / 4);
       } else {
         const stream = chatAnthropicClient.messages.stream({
           model: modelId,
@@ -1652,11 +1706,45 @@ Rules:
         chatInputTokens = finalMsg.usage?.input_tokens || 0;
         chatOutputTokens = finalMsg.usage?.output_tokens || 0;
       }
+      } catch (providerError: any) {
+        log(`Provider ${chatProvider}/${modelId} failed: ${providerError.message} — falling back to ModelFarm GPT-4.1-mini`, "ai");
+        usedFallback = true;
+        actualProvider = "openai";
+        actualModelId = "gpt-4.1-mini";
+        try {
+          const fallbackClient = chatOpenaiClient;
+          const fallbackMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            { role: "system", content: systemPrompt },
+            ...messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+          ];
+          const fallbackStream = await fallbackClient.chat.completions.create({
+            model: "gpt-4.1-mini",
+            messages: fallbackMessages,
+            stream: true,
+            stream_options: { include_usage: true },
+            max_completion_tokens: turboMaxTokens,
+          });
+          for await (const chunk of fallbackStream) {
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+              chatOutputTokens += Math.ceil(content.length / 4);
+              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            }
+            if (chunk.usage) {
+              chatInputTokens = chunk.usage.prompt_tokens || 0;
+              chatOutputTokens = chunk.usage.completion_tokens || 0;
+            }
+          }
+        } catch (fallbackError: any) {
+          log(`ModelFarm fallback also failed: ${fallbackError.message}`, "ai");
+          throw fallbackError;
+        }
+      }
 
-      const chatPricing = getProviderPricing(chatProvider);
+      const chatPricing = getProviderPricing(actualProvider);
       const chatEstimatedCost = Math.round((chatInputTokens * chatPricing.input / 1000 + chatOutputTokens * chatPricing.output / 1000) * 100);
       const effectiveChatCredMode = chatByokNoKey ? "managed" : chatCredMode;
-      const chatLoggedModel = selectedModel === "openrouter" ? "openai/gpt-4o" : modelId;
+      const chatLoggedModel = usedFallback ? actualModelId : (selectedModel === "openrouter" ? "openai/gpt-4o" : modelId);
       if (effectiveChatCredMode === "managed") {
         const chatTokenCredits = Math.max(1, chatEstimatedCost);
         storage.deductMonthlyCreditsFromRoute(req.session.userId!, chatTokenCredits, "ai-chat", chatLoggedModel).catch(() => {});
@@ -1673,8 +1761,9 @@ Rules:
         endpoint: "/api/ai/chat",
       }).catch(() => {});
 
-      const donePayload: { done: boolean; byokNoKey?: boolean } = { done: true };
+      const donePayload: { done: boolean; byokNoKey?: boolean; fallback?: boolean; fallbackModel?: string } = { done: true };
       if (chatByokNoKey) donePayload.byokNoKey = true;
+      if (usedFallback) { donePayload.fallback = true; donePayload.fallbackModel = actualModelId; }
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error: any) {

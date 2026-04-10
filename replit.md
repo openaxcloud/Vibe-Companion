@@ -54,7 +54,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 - **Nodemailer**: For sending emails (password resets, verification, invites).
 - **Stripe**: Payment processing and subscription management via managed webhooks.
 - **OAuth Providers**: GitHub, Google, Apple, X/Twitter for social auth.
-- **AI Providers**: OpenAI (via Replit ModelFarm), Anthropic, Google Gemini, Moonshot AI.
+- **AI Providers**: OpenAI (via Replit ModelFarm), Anthropic Claude, Google Gemini, xAI Grok, Moonshot AI — with automatic ModelFarm fallback on provider failure.
 - **SendGrid**: Email service (production).
 - **Redis**: Caching layer (optional, falls back to in-memory).
 
