@@ -37,14 +37,17 @@ export default function SharedProject() {
 
   const { data, isLoading, error } = useQuery<SharedData>({
     queryKey: ["/api/shared", projectId],
-    queryFn: async () => {
-      const res = await fetch(`/api/shared/${projectId}`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/shared/${projectId}`, {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : signal,
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message || "Project not found or not published");
       }
       return res.json();
     },
+    retry: false,
   });
 
   const hasHtmlPreview = data?.files?.some(f => f.filename === "index.html" || f.filename.endsWith(".html"));

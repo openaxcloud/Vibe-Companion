@@ -82,8 +82,7 @@ export default function Home() {
     queryKey: ['/api/projects'],
     queryFn: async () => {
       const res = await apiRequest('GET', '/api/projects');
-      // res is expected to be { projects: [...], pagination: {...} }
-      return res;
+      return res.json();
     },
     retry: 2,
   });

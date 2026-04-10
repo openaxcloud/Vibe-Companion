@@ -191,7 +191,8 @@ export function useIDEWorkspace(projectId: string) {
   const projectQuery = useQuery<ProjectType>({
     queryKey: ['/api/projects', projectId],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}`, { credentials: 'include' });
+      const signal = AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined;
+      const res = await fetch(`/api/projects/${projectId}`, { credentials: 'include', signal });
       if (!res.ok) throw new Error('Project not found');
       return res.json();
     },
@@ -201,7 +202,8 @@ export function useIDEWorkspace(projectId: string) {
   const filesQuery = useQuery<File[]>({
     queryKey: ['/api/projects', projectId, 'files'],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/files`, { credentials: 'include' });
+      const signal = AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined;
+      const res = await fetch(`/api/projects/${projectId}/files`, { credentials: 'include', signal });
       if (!res.ok) throw new Error('Failed to load files');
       return res.json();
     },
