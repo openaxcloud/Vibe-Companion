@@ -490,8 +490,46 @@ export default function Dashboard() {
     mutationFn: async ({ prompt, model, outputType }: { prompt: string; model: string; outputType?: string }) => {
       setGenerationError(null);
       setGenerationStep(0);
-      const res = await apiRequest("POST", "/api/projects/generate", { prompt, model, outputType: outputType || selectedCategory });
-      return res.json();
+      const res = await apiRequest("POST", "/api/projects/generate", { prompt, model, outputType: outputType || selectedCategory }) as unknown as Response;
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+      const decoder = new TextDecoder();
+      let result: any = null;
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            if (parsed.event === "error") {
+              throw new Error(parsed.message || "Generation failed");
+            }
+            if (parsed.event === "progress") {
+              const stepMap: Record<string, number> = {
+                generating_code: 2,
+                creating_project: 3,
+                saving_files: 3,
+                starting_workspace: 4,
+              };
+              if (parsed.step && stepMap[parsed.step] !== undefined) {
+                setGenerationStep(stepMap[parsed.step]);
+              }
+            }
+            if (parsed.event === "done") {
+              result = parsed;
+            }
+          } catch (e: any) {
+            if (e.message && !e.message.includes("JSON")) throw e;
+          }
+        }
+      }
+      if (!result?.project) throw new Error("Project generation did not complete");
+      return result;
     },
     onSuccess: (data: { project: Project }) => {
       setGenerationStep(0);

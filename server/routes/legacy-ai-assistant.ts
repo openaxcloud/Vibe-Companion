@@ -133,6 +133,10 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
     },
   });
 
+  const geminiDirect = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
+  });
+
   const openrouter = new OpenAI({
     apiKey: process.env.OPENROUTER_API_KEY || process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || "",
     baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
@@ -201,11 +205,13 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
     mistral: "MISTRAL_API_KEY",
   };
 
+  const geminiDefault = process.env.GEMINI_API_KEY ? geminiDirect : gemini;
+
   async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string; byokNoKey?: boolean }> {
     if (projectId && userId) {
       const project = await storage.getProject(projectId);
       if (!project || project.userId !== userId) {
-        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "managed" };
+        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
       }
     }
     if (projectId) {
@@ -226,32 +232,32 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
         }
         if (apiKey) {
           if (provider === "anthropic") {
-            return { anthropicClient: new Anthropic({ apiKey }), openaiClient: openai, geminiClient: gemini, credMode: "byok" };
+            return { anthropicClient: new Anthropic({ apiKey }), openaiClient: openai, geminiClient: geminiDefault, credMode: "byok" };
           }
           if (provider === "openai" || provider === "openrouter") {
             const baseURL = provider === "openrouter" ? "https://openrouter.ai/api/v1" : undefined;
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }), geminiClient: gemini, credMode: "byok" };
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }), geminiClient: geminiDefault, credMode: "byok" };
           }
           if (provider === "google") {
             return { anthropicClient: anthropic, openaiClient: openai, geminiClient: new GoogleGenAI({ apiKey }), credMode: "byok" };
           }
           if (provider === "perplexity") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.perplexity.ai" }), geminiClient: gemini, credMode: "byok" };
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.perplexity.ai" }), geminiClient: geminiDefault, credMode: "byok" };
           }
           if (provider === "mistral") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.mistral.ai/v1" }), geminiClient: gemini, credMode: "byok" };
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.mistral.ai/v1" }), geminiClient: geminiDefault, credMode: "byok" };
           }
           if (provider === "moonshot") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" }), geminiClient: gemini, credMode: "byok" };
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" }), geminiClient: geminiDefault, credMode: "byok" };
           }
           if (provider === "xai") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.x.ai/v1" }), geminiClient: gemini, credMode: "byok" };
+            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.x.ai/v1" }), geminiClient: geminiDefault, credMode: "byok" };
           }
         }
-        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "byok", byokNoKey: true };
+        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "byok", byokNoKey: true };
       }
     }
-    return { anthropicClient: anthropic, openaiClient: openai, geminiClient: gemini, credMode: "managed" };
+    return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
   }
 
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
@@ -348,7 +354,7 @@ ${formatInstruction}`;
       let text = "";
 
       if (requestedModel === "gemini") {
-        const geminiResponse = await gemini.models.generateContent({
+        const geminiResponse = await geminiDefault.models.generateContent({
           model: "gemini-2.5-flash",
           contents: [
             { role: "user", parts: [{ text: systemPrompt + "\n\nUser request: " + prompt.trim() }] },
@@ -1023,7 +1029,7 @@ Any closing remarks...`;
           })),
         ];
 
-        const stream = await gemini.models.generateContentStream({
+        const stream = await geminiDefault.models.generateContentStream({
           model: "gemini-2.5-flash",
           contents: geminiContents,
           config: { maxOutputTokens: 16384 },
@@ -4711,7 +4717,7 @@ ${sourcesContext}
 Based on the search results above, provide a comprehensive answer to the user's query. Cite specific sources with their URLs when referencing information. Format your response with clear sections and include a "Sources" section at the end listing the relevant URLs used.`;
 
       if (requestedModel === "gemini") {
-        const stream = await gemini.models.generateContentStream({
+        const stream = await geminiDefault.models.generateContentStream({
           model: "gemini-2.5-flash",
           contents: [{ role: "user", parts: [{ text: searchPrompt }] }],
           config: { maxOutputTokens: 4096 },
