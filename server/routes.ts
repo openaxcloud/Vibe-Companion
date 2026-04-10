@@ -10036,6 +10036,9 @@ Rules:
     sections?: FileSection[];
   }
 
+  // Per-project terminal output store (last 8000 chars per project)
+  const terminalOutputStore = new Map<string, string>();
+
   const executeToolCall = async (
     toolName: string,
     toolInput: { filename: string; content: string; name?: string; description?: string; prompt?: string; size?: string; modification_prompt?: string; query?: string; url?: string; format?: string; title?: string; sections?: FileSection[]; [key: string]: any },
@@ -10480,20 +10483,34 @@ Rules:
           await import("fs/promises").then(fsp => fsp.mkdir(workspaceDir, { recursive: true }));
           const output = execSync(command, {
             cwd: workspaceDir,
-            timeout: 30000,
+            timeout: 60000,
             encoding: "utf8",
             stdio: ["pipe", "pipe", "pipe"],
           });
           const trimmed = output.slice(0, 8000);
+          terminalOutputStore.set(projectId, trimmed);
           res.write(`data: ${JSON.stringify({ type: "text", content: `\n\`\`\`\n$ ${command}\n${trimmed}\n\`\`\`` })}\n\n`);
           return trimmed || "(no output)";
         } catch (err: any) {
           const stderr = (err.stderr || "").toString().slice(0, 4000);
           const stdout = (err.stdout || "").toString().slice(0, 4000);
           const combined = (stdout + (stderr ? "\n" + stderr : "")).trim() || err.message;
+          terminalOutputStore.set(projectId, combined);
+          const errorPatterns = /Error|ENOENT|SyntaxError|TypeError|Cannot find module|EACCES|EPERM|command not found|No such file|Module not found|ECONNREFUSED|ETIMEDOUT/i;
+          const isError = errorPatterns.test(combined) || err.status !== 0;
           res.write(`data: ${JSON.stringify({ type: "text", content: `\n\`\`\`\n$ ${command}\n${combined}\n\`\`\`` })}\n\n`);
+          if (isError) {
+            return `COMMAND_FAILED: The command "${command}" failed with the following error. Please analyze the error, fix the code, and retry (you may retry up to 3 times):\n${combined.slice(0, 8000)}`;
+          }
           return combined.slice(0, 8000);
         }
+      }
+      if (toolName === "read_terminal_output") {
+        const lines = parseInt((toolInput as any).lines || "50", 10);
+        const stored = terminalOutputStore.get(projectId) || "(no terminal output yet)";
+        const output = stored.split("\n").slice(-Math.min(lines, 200)).join("\n");
+        res.write(`data: ${JSON.stringify({ type: "text", content: `\n\`\`\`\n[Terminal Output]\n${output}\n\`\`\`` })}\n\n`);
+        return output;
       }
       if (toolName === "create_file" || toolName === "edit_file") {
         agentFileOpsCount.value++;
@@ -10732,6 +10749,14 @@ When the user asks to generate an AI image (illustrations, art, hero images, con
 When the user asks you to research a topic, find information, or answer questions requiring up-to-date knowledge, use the tavily_search tool. It provides AI-powered web search with answer synthesis and source attribution.
 
 Always write complete, working code. Never use placeholders or TODOs.
+
+## Command Execution & Error Recovery
+You have access to execute_command to run shell commands in the project workspace.
+- After creating project files, ALWAYS run 'npm install' (or 'pip install -r requirements.txt' for Python) to install dependencies.
+- After installing dependencies, run 'npm run dev' (or the appropriate start command) to start the dev server so the preview updates.
+- If a command fails, read the error output carefully. Use read_terminal_output to inspect the last command's output if needed.
+- Fix the underlying issue (wrong package name, missing file, syntax error, etc.) and retry. You may retry up to 3 times before asking the user for help.
+- After starting the dev server, the preview panel will automatically update.
 
 DESIGN QUALITY (CRITICAL — follow these for ALL web projects):
 - Use Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>) for ALL styling in HTML files
@@ -11035,6 +11060,17 @@ Always cite your sources in your response when using information from web search
                   command: { type: Type.STRING, description: "The shell command to execute (e.g. 'npm install', 'ls -la', 'node script.js', 'python main.py')" },
                 },
                 required: ["command"],
+              },
+            },
+            {
+              name: "read_terminal_output",
+              description: "Read the last N lines of terminal output for the current project workspace. Use this to check the result of previous commands or diagnose errors.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  lines: { type: Type.NUMBER, description: "Number of lines to read (default 50, max 200)" },
+                },
+                required: [],
               },
             },
         ];
@@ -11381,6 +11417,14 @@ Always cite your sources in your response when using information from web search
               parameters: { type: "object", properties: { command: { type: "string", description: "The shell command to execute" } }, required: ["command"] },
             },
           },
+          {
+            type: "function",
+            function: {
+              name: "read_terminal_output",
+              description: "Read the last N lines of terminal output for the current project workspace. Use to check command results or diagnose errors.",
+              parameters: { type: "object", properties: { lines: { type: "number", description: "Number of lines to read (default 50, max 200)" } }, required: [] },
+            },
+          },
           ...mcpToolDefinitions.map(t => ({
             type: "function" as const,
             function: { name: t.name, description: t.description, parameters: t.inputSchema },
@@ -11637,6 +11681,7 @@ Always cite your sources in your response when using information from web search
           { type: "function", function: { name: "generate_image", description: "Generate an AI image and save it as a project file", parameters: { type: "object", properties: { prompt: { type: "string" }, filename: { type: "string" }, size: { type: "string", enum: ["1024x1024", "1024x1536", "1536x1024", "auto"] } }, required: ["prompt", "filename"] } } },
           { type: "function", function: { name: "generate_file", description: "Generate a downloadable file (PDF, DOCX, XLSX, PPTX, or CSV)", parameters: { type: "object", properties: { format: { type: "string", enum: ["pdf", "docx", "xlsx", "csv", "pptx"] }, filename: { type: "string" }, title: { type: "string" }, sections: { type: "array", items: { type: "object" } } }, required: ["format", "filename", "sections"] } } },
           { type: "function", function: { name: "execute_command", description: "Execute a shell command in the project workspace directory. Use for running scripts, installing packages, checking file listings, running tests, compiling code, etc.", parameters: { type: "object", properties: { command: { type: "string", description: "The shell command to execute" } }, required: ["command"] } } },
+          { type: "function", function: { name: "read_terminal_output", description: "Read the last N lines of terminal output for the current project workspace. Use to check command results or diagnose errors.", parameters: { type: "object", properties: { lines: { type: "number", description: "Number of lines to read (default 50)" } }, required: [] } } },
           ...mcpToolDefinitions.map(t => ({ type: "function" as const, function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
         ];
         if (webSearchEnabled) {
@@ -12507,6 +12552,7 @@ DESIGN QUALITY (for web projects):
           { name: "create_file", description: "Create a new file", input_schema: { type: "object" as const, properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } },
           { name: "edit_file", description: "Replace file content", input_schema: { type: "object" as const, properties: { filename: { type: "string" }, content: { type: "string" } }, required: ["filename", "content"] } },
           { name: "execute_command", description: "Execute a shell command in the project workspace directory", input_schema: { type: "object" as const, properties: { command: { type: "string", description: "The shell command to execute" } }, required: ["command"] } },
+          { name: "read_terminal_output", description: "Read the last N lines of terminal output for the current project workspace. Use to diagnose errors from previous commands.", input_schema: { type: "object" as const, properties: { lines: { type: "number", description: "Number of lines to read (default 50, max 200)" } }, required: [] } },
         ];
 
         let currentMessages = messages.map((m: any) => ({
