@@ -1104,8 +1104,10 @@ export async function registerRoutes(
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
+      // On Replit, the preview runs in an iframe over HTTPS, requiring secure+sameSite=none
+      // regardless of NODE_ENV so session cookies are sent cross-origin
+      secure: !!(process.env.NODE_ENV === "production" || process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG),
+      sameSite: !!(process.env.NODE_ENV === "production" || process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG) ? "none" as const : "lax" as const,
       domain: process.env.COOKIE_DOMAIN || undefined,
     },
   });
