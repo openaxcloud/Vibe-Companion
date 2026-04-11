@@ -207,8 +207,7 @@ export default function Landing() {
         }
       };
       
-      const response = await apiRequest('POST', '/api/workspace/bootstrap', requestPayload);
-      const result = await response.json();
+      const result = await apiRequest('POST', '/api/workspace/bootstrap', requestPayload) as any;
 
       if (result.success) {
         sessionStorage.setItem(`agent-prompt-${result.projectId}`, pendingBuildPrompt);

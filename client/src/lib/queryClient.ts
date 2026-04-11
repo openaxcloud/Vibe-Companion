@@ -59,7 +59,10 @@ export async function apiRequest<T = Response>(
   await throwIfResNotOk(res);
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
-    return (await res.json()) as T;
+    const parsed = await res.json();
+    parsed.json = () => Promise.resolve(parsed);
+    parsed.text = () => Promise.resolve(JSON.stringify(parsed));
+    return parsed as T;
   }
   return res as unknown as T;
 }
