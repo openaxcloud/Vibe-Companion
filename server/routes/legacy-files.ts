@@ -2,6 +2,14 @@
 // Original section: files
 // Extracted by scripts/batch-extract-routes.cjs
 
+function sanitizeProjectName(name: string): string | null {
+  if (!name || typeof name !== "string") return null;
+  const trimmed = name.trim().slice(0, 200);
+  const sanitized = trimmed.replace(/[<>"'`;{}]/g, "");
+  if (!sanitized || sanitized.length === 0) return null;
+  return sanitized;
+}
+
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";

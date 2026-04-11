@@ -31,3 +31,7 @@ channel = "stable-25_05"
 
 [userenv.shared]
 RUNNER_MODE = "local"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
