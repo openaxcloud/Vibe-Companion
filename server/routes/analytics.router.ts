@@ -51,7 +51,8 @@ interface ChartDataPoint {
  */
 function isAdmin(req: Request): boolean {
   const user = req.user as any;
-  return user?.role === 'admin' || user?.email === 'admin@e-code.ai';
+  // P2 SECURITY FIX: Removed email-based admin fallback; use DB role or isAdmin flag only
+  return user?.role === 'admin' || user?.isAdmin === true;
 }
 
 /**

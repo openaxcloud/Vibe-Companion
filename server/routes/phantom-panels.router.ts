@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { agentSkills, visitorFeedback, projectSlidesCollection } from '@shared/schema';
+import { agentSkills, visitorFeedback, projectSlidesCollection, projects } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { ensureAuthenticated } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
@@ -69,6 +69,23 @@ router.put('/skills/:id', ensureAuthenticated, async (req: Request, res: Respons
 router.delete('/skills/:id', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
+
+    // P1 SECURITY FIX: Verify skill belongs to a project owned by this user
+    const [skill] = await db.select().from(agentSkills).where(eq(agentSkills.id, id));
+    if (!skill) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+    const skillProjectId = (skill as any).projectId;
+    if (skillProjectId) {
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, String(skillProjectId))
+      });
+      if (!project || project.userId !== (req.user as any)?.id) {
+        logger.warn('Unauthorized skill delete attempt', { userId: (req.user as any)?.id, skillId: id });
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     await db.delete(agentSkills).where(eq(agentSkills.id, id));
     res.json({ success: true });
   } catch (error: any) {
@@ -126,15 +143,25 @@ router.patch('/projects/:projectId/feedback/:id', ensureAuthenticated, async (re
   try {
     const id = parseInt(req.params.id);
     const { status } = req.body;
-    
+
+    // P1 SECURITY FIX: Verify project ownership before mutating feedback
+    const projectId = req.params.projectId;
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId)
+    });
+    if (!project || project.userId !== (req.user as any)?.id) {
+      logger.warn('Unauthorized feedback patch attempt', { userId: (req.user as any)?.id, projectId });
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const [updated] = await db.update(visitorFeedback)
-      .set({ 
-        status, 
-        resolvedAt: status === 'resolved' ? new Date() : null 
+      .set({
+        status,
+        resolvedAt: status === 'resolved' ? new Date() : null
       })
       .where(eq(visitorFeedback.id, id))
       .returning();
-      
+
     res.json(updated);
   } catch (error: any) {
     logger.error('Failed to patch feedback', error);
@@ -145,6 +172,17 @@ router.patch('/projects/:projectId/feedback/:id', ensureAuthenticated, async (re
 router.delete('/projects/:projectId/feedback/:id', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
+
+    // P1 SECURITY FIX: Verify project ownership before deleting feedback
+    const projectId = req.params.projectId;
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId)
+    });
+    if (!project || project.userId !== (req.user as any)?.id) {
+      logger.warn('Unauthorized feedback delete attempt', { userId: (req.user as any)?.id, projectId });
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     await db.delete(visitorFeedback).where(eq(visitorFeedback.id, id));
     res.json({ success: true });
   } catch (error: any) {

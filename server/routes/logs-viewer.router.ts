@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { createLogger } from '../utils/logger';
 import { db } from '../db';
-import { deployments, buildLogs, terminalLogs } from '@shared/schema';
+import { deployments, buildLogs, terminalLogs, projects } from '@shared/schema';
 import { eq, desc, and, gte, lte, sql, like, inArray, or, ilike } from 'drizzle-orm';
 import { ensureAuthenticated } from '../middleware/auth';
 import { filterStream, transformStream, collectStream } from '../utils/db-streaming';
@@ -122,6 +122,20 @@ router.get('/', async (req, res) => {
       }
     }
 
+    // P0 SECURITY FIX: Verify project ownership before returning logs
+    if (projectId) {
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, projectId)
+      });
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+      if (project.userId !== (req.user as any)?.id) {
+        logger.warn('Unauthorized logs access attempt', { userId: (req.user as any)?.id, projectId });
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     // SQL-level filtering for memory efficiency (Replit pattern)
     if (buildId || projectId) {
       const whereConditions = buildLogsWhereConditions({
@@ -180,6 +194,17 @@ router.get('/', async (req, res) => {
       const deployment = await db.query.deployments.findFirst({
         where: eq(deployments.deploymentId, deploymentId)
       });
+
+      // P0 SECURITY FIX: Verify deployment ownership
+      if (deployment) {
+        const project = await db.query.projects.findFirst({
+          where: eq(projects.id, String(deployment.projectId))
+        });
+        if (!project || project.userId !== (req.user as any)?.id) {
+          logger.warn('Unauthorized deployment logs access', { userId: (req.user as any)?.id, deploymentId });
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
 
       if (deployment?.deploymentLogs) {
         logs = parseDeploymentLogs(deployment.deploymentLogs, deploymentId, String(deployment.projectId));

@@ -1688,13 +1688,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         signal: abortRef.current.signal,
       });
 
-      if (!res.ok) throw new Error("AI plan request failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || `AI plan request failed (${res.status})`);
+      }
 
       await processPlanSSEStream(res, assistantId);
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
+        const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
         setPlanMessages((prev) =>
-          prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m)
+          prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m)
         );
       }
     } finally {
@@ -1906,7 +1910,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         signal: abortRef.current.signal,
       });
 
-      if (!res.ok) throw new Error("AI request failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || `AI request failed (${res.status})`);
+      }
 
       await processSSEStream(res, assistantId, isAgent, setMessages, model);
 
@@ -1934,8 +1941,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
         setLastFailedInput(userMsg.content);
+        const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
         setMessages((prev) =>
-          prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m)
+          prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m)
         );
       }
       return false;
@@ -2204,7 +2212,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         .catch((err: unknown) => {
           if (err instanceof Error && err.name !== "AbortError") {
             setLastFailedInput(retryInput);
-            setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m));
+            const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
+            setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m));
           }
         })
         .finally(() => { setIsStreaming(false); abortRef.current = null; onAgentComplete?.(); });
@@ -3103,10 +3112,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
+        const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
         setMessages((prev) => {
           const last = prev[prev.length - 1];
           if (last?.role === "assistant" && !last.content) {
-            return prev.map((m) => m.id === last.id ? { ...m, content: "⚠️ Connection error — the AI service is temporarily unavailable." } : m);
+            return prev.map((m) => m.id === last.id ? { ...m, content: `⚠️ Connection error — ${detail}` } : m);
           }
           return prev;
         });
