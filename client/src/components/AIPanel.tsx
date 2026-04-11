@@ -1853,11 +1853,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       agentContext = `\n\n[APPROVED PLAN TASKS]\n${taskList}\n[END PLAN TASKS]`;
     }
 
-    let allMessages: ChatMessage[] = [];
-    setMessages((prev) => {
-      allMessages = [...prev, userMsg];
-      return allMessages;
-    });
+    const allMessages: ChatMessage[] = [...messages, userMsg];
+    setMessages(allMessages);
     setIsStreaming(true);
 
     persistMessage("user", userMsg.content);
@@ -1872,13 +1869,19 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
 
+      const outbound = allMessages.map((m) => ({
+        role: m.role,
+        content: m.role === "user" && m === userMsg && agentContext
+          ? m.content + agentContext
+          : m.content
+      })).filter((m) => m.role === "user" || m.role === "assistant");
+      if (outbound.length === 0) {
+        console.error("[AIPanel] Bug: outbound messages array is empty, aborting send");
+        throw new Error("No messages to send. Please try again.");
+      }
+
       const body: Record<string, unknown> = {
-        messages: allMessages.map((m) => ({
-          role: m.role,
-          content: m.role === "user" && m === userMsg && agentContext
-            ? m.content + agentContext
-            : m.content
-        })),
+        messages: outbound,
         model,
         agentMode,
         topAgentMode,
@@ -2193,7 +2196,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
-      const body: any = { messages: [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })), model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo, ...(model === "openrouter" ? { openrouterModel } : {}) };
+      const outboundRetry = [...cleaned, userMsg].map((m) => ({ role: m.role, content: m.content })).filter((m) => m.role === "user" || m.role === "assistant");
+      if (outboundRetry.length === 0) {
+        console.error("[AIPanel] Retry bug: outbound messages empty");
+        setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ No messages to retry. Please type a new message." } : m));
+        return updatedMessages;
+      }
+      const body: any = { messages: outboundRetry, model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo, ...(model === "openrouter" ? { openrouterModel } : {}) };
       if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
