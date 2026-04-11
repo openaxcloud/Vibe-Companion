@@ -108,12 +108,11 @@ export class CircuitBreaker {
     const currentState = this.getState();
     
     if (currentState === 'OPEN') {
-      this.log('Circuit is OPEN, request rejected');
+      logger.warn(`[CircuitBreaker] ${this.name} is OPEN — request rejected (next attempt: ${new Date(this.nextAttemptTime).toISOString()})`);
       if (fallback) {
-        this.log('Executing fallback');
         return fallback();
       }
-      throw new Error(`Circuit breaker ${this.name} is OPEN`);
+      throw new Error(`Circuit breaker ${this.name} is OPEN — provider temporarily blocked after repeated failures`);
     }
 
     try {
@@ -121,7 +120,7 @@ export class CircuitBreaker {
       this.onSuccess();
       return result;
     } catch (error) {
-      this.onFailure();
+      this.onFailure(error);
       throw error;
     }
   }
@@ -136,13 +135,12 @@ export class CircuitBreaker {
     const currentState = this.getState();
     
     if (currentState === 'OPEN') {
-      this.log('Circuit is OPEN, stream request rejected');
+      logger.warn(`[CircuitBreaker] ${this.name} is OPEN — stream request rejected (next attempt: ${new Date(this.nextAttemptTime).toISOString()})`);
       if (fallback) {
-        this.log('Executing fallback stream');
         yield* fallback();
         return;
       }
-      throw new Error(`Circuit breaker ${this.name} is OPEN`);
+      throw new Error(`Circuit breaker ${this.name} is OPEN — provider temporarily blocked after repeated failures`);
     }
 
     try {
@@ -153,7 +151,7 @@ export class CircuitBreaker {
         }
       } catch (error) {
         hasError = true;
-        this.onFailure();
+        this.onFailure(error);
         throw error;
       }
       
@@ -202,20 +200,20 @@ export class CircuitBreaker {
   /**
    * Handle failed operation
    */
-  private onFailure(): void {
+  private onFailure(error?: any): void {
     const now = Date.now();
     this.failures.push(now);
     this.clearOldFailures();
-    
+
     if (this.state === 'HALF_OPEN') {
-      this.log('Failure in HALF_OPEN state, reopening circuit');
+      logger.warn(`[CircuitBreaker] ${this.name} failure in HALF_OPEN state — reopening circuit`);
       this.open();
     } else if (this.state === 'CLOSED') {
       const recentFailures = this.failures.length;
-      this.log(`Failure recorded (${recentFailures}/${this.config.failureThreshold})`);
-      
+      const errDetail = error ? ` [${error.status || error.code || error.message || 'unknown'}]` : '';
+      logger.warn(`[CircuitBreaker] ${this.name} failure recorded (${recentFailures}/${this.config.failureThreshold})${errDetail}`);
+
       if (recentFailures >= this.config.failureThreshold) {
-        this.log('Failure threshold reached, opening circuit');
         this.open();
       }
     }
@@ -228,7 +226,8 @@ export class CircuitBreaker {
     this.state = 'OPEN';
     this.nextAttemptTime = Date.now() + this.config.resetTimeout;
     this.successCount = 0;
-    this.log(`Circuit OPEN until ${new Date(this.nextAttemptTime).toISOString()}`);
+    // Always log at error level so failures are visible in production
+    logger.error(`[CircuitBreaker] ${this.name} OPENED — ${this.failures.length} failures in window, next attempt at ${new Date(this.nextAttemptTime).toISOString()}`);
   }
 
   /**
@@ -238,7 +237,7 @@ export class CircuitBreaker {
     this.state = 'CLOSED';
     this.failures = [];
     this.successCount = 0;
-    this.log('Circuit CLOSED - normal operation resumed');
+    logger.info(`[CircuitBreaker] ${this.name} CLOSED — normal operation resumed`);
   }
 
   /**

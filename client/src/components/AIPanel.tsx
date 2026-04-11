@@ -1696,6 +1696,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       await processPlanSSEStream(res, assistantId);
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
+        console.error("[AIPanel] Plan request error:", err.message);
         const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
         setPlanMessages((prev) =>
           prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m)
@@ -1940,6 +1941,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       return true;
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
+        console.error("[AIPanel] AI request error:", err.message);
         setLastFailedInput(userMsg.content);
         const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
         setMessages((prev) =>
@@ -2199,7 +2201,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       persistMessage("user", retryInput);
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
-          if (!res.ok) throw new Error("AI request failed");
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => null);
+            const detail = errBody?.message || errBody?.error || `HTTP ${res.status}`;
+            throw new Error(`AI request failed: ${detail}`);
+          }
           await processSSEStream(res, assistantId, isAgent, setMessages, model);
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
@@ -2211,6 +2217,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         })
         .catch((err: unknown) => {
           if (err instanceof Error && err.name !== "AbortError") {
+            console.error("[AIPanel] Retry request error:", err.message);
             setLastFailedInput(retryInput);
             const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
             setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m));
@@ -3095,7 +3102,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           signal: abortRef.current.signal,
         });
 
-        if (!agentRes.ok) throw new Error("Agent request failed");
+        if (!agentRes.ok) {
+          const errBody = await agentRes.json().catch(() => null);
+          const detail = errBody?.message || errBody?.error || `HTTP ${agentRes.status}`;
+          throw new Error(`Agent request failed: ${detail}`);
+        }
 
         await processSSEStream(agentRes, assistantId, true, setMessages, model);
 
@@ -3112,6 +3123,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
+        console.error("[AIPanel] Agent request error:", err.message);
         const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
         setMessages((prev) => {
           const last = prev[prev.length - 1];
