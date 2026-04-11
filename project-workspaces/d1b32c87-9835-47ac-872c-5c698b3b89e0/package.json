@@ -1,0 +1,17 @@
+{
+  "name": "d1b32c87-9835-47ac-872c-5c698b3b89e0",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2",
+    "ws": "^8.20.0"
+  }
+}
