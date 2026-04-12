@@ -344,10 +344,17 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     if (!files || files.length === 0) return res.status(400).json({ message: "No files in project" });
 
     const inspectPort = getInspectPort(project.id);
-    const entryFile = files.find((f: any) => f.filename === "index.js" || f.filename === "main.js" || f.filename === "app.js" || f.filename === "server.js")
-      || files.find((f: any) => f.filename?.endsWith(".js"));
+    const fn = (f: any) => f.filename || f.name || '';
+    const entryFile = files.find((f: any) => ["index.js","main.js","app.js","server.js","index.ts","main.ts","app.ts","server.ts","index.mjs","index.cjs"].includes(fn(f)))
+      || files.find((f: any) => fn(f).endsWith(".ts") && !fn(f).endsWith(".d.ts") && !f.isDirectory)
+      || files.find((f: any) => fn(f).endsWith(".js") && !f.isDirectory)
+      || files.find((f: any) => fn(f).endsWith(".py") && !f.isDirectory);
 
-    if (!entryFile) return res.status(400).json({ message: "No JavaScript file found to debug" });
+    if (!entryFile) return res.status(400).json({ message: "No debuggable file found (JS, TS, or Python)" });
+
+    const entryFilename = fn(entryFile);
+    const isTS = entryFilename.endsWith(".ts") || entryFilename.endsWith(".tsx");
+    const isPython = entryFilename.endsWith(".py");
 
     const sandboxDir = `/tmp/sandbox/${project.id}`;
     try {
@@ -355,7 +362,8 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
       await mkdirP(sandboxDir, { recursive: true });
       for (const f of files) {
         if (f.content !== null && f.content !== undefined) {
-          const filePath = `${sandboxDir}/${f.filename}`;
+          const fName = fn(f);
+          const filePath = `${sandboxDir}/${fName}`;
           const dir = filePath.substring(0, filePath.lastIndexOf("/"));
           if (dir !== sandboxDir) await mkdirP(dir, { recursive: true });
           await writeF(filePath, f.content);
@@ -368,17 +376,32 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     killInteractiveProcess(project.id);
 
     const { spawn } = await import("child_process");
-    const proc = spawn("node", [`--inspect=0.0.0.0:${inspectPort}`, entryFile.filename], {
-      cwd: sandboxDir,
-      env: { ...process.env, NODE_ENV: "development" },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    let proc;
+    if (isPython) {
+      proc = spawn("python3", ["-u", entryFilename], {
+        cwd: sandboxDir,
+        env: { ...process.env },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } else if (isTS) {
+      proc = spawn("node", [`--inspect=0.0.0.0:${inspectPort}`, "--import", "tsx/esm", entryFilename], {
+        cwd: sandboxDir,
+        env: { ...process.env, NODE_ENV: "development" },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } else {
+      proc = spawn("node", [`--inspect=0.0.0.0:${inspectPort}`, entryFilename], {
+        cwd: sandboxDir,
+        env: { ...process.env, NODE_ENV: "development" },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    }
 
     proc.on("close", () => {
       log(`Debug process exited for project ${project.id}`, "debugger");
     });
 
-    res.json({ status: "started", inspectPort, entryFile: entryFile.filename });
+    res.json({ status: "started", inspectPort, entryFile: entryFilename });
   });
 
   app.get("/api/projects/:projectId/runs", requireAuth, async (req: Request, res: Response) => {
