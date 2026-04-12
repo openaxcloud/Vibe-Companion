@@ -294,12 +294,10 @@ router.get('/url', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Project ID is required' });
     }
     
-    // Validate projectId is a positive integer
-    const projectIdNum = parseInt(projectIdParam as string, 10);
-    if (isNaN(projectIdNum) || projectIdNum <= 0) {
+    const projectId = String(projectIdParam).trim();
+    if (!projectId || projectId.length > 100) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
-    const projectId = String(projectIdNum);
     
     // Check project access
     const userId = req.user?.id;
