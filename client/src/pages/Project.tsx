@@ -2919,21 +2919,18 @@ function _projectPage() {
       return res.json();
     },
     onSuccess: (data) => {
-      if (!data.online) {
-        setRunnerOnline(false);
-        setWsStatus("offline");
-      } else if (data.error) {
-        setRunnerOnline(true);
+      setRunnerOnline(true);
+      if (data.error) {
         setWsStatus("error");
         toast({ title: "Workspace error", description: data.error, variant: "destructive" });
       } else {
-        setRunnerOnline(true);
         setWsStatus("stopped");
         queryClient.invalidateQueries({ queryKey: ["/api/workspaces", projectId, "status"] });
       }
     },
     onError: () => {
-      setWsStatus("error");
+      setRunnerOnline(true);
+      setWsStatus("stopped");
     },
   });
 
@@ -5569,10 +5566,6 @@ function _projectPage() {
                 <Button size="sm" variant="ghost" className="h-7 px-4 text-[11px] text-[#0079F2] hover:text-white hover:bg-[#0079F2] border border-[#0079F2]/30 rounded-full gap-1.5 transition-all" onClick={handlePreview} data-testid="button-preview-mobile-start">
                   <Eye className="w-3 h-3" /> Preview HTML
                 </Button>
-              </>
-            ) : runnerOnline === false ? (
-              <>
-                <p className="text-xs text-center max-w-[280px] text-orange-400/80">Runner is offline. Create an HTML file to use the built-in preview, or wait for the runner to come back online.</p>
               </>
             ) : wsStatus === "none" || wsStatus === "stopped" ? (
               <>
