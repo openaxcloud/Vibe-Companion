@@ -97,7 +97,7 @@ export function MobileFAB({
     <LazyMotionDiv
       className={cn(
         'fixed z-40',
-        'bottom-28 right-4',
+        'bottom-24 right-4',
         className
       )}
       initial={{ scale: 0, opacity: 0 }}
