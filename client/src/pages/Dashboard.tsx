@@ -583,6 +583,16 @@ export default function Dashboard() {
     }
 
     if (!promptText) {
+      const landingPrompt = sessionStorage.getItem("pendingAppDescription");
+      if (landingPrompt) {
+        promptText = landingPrompt;
+        fromLoginRedirect = true;
+        sessionStorage.removeItem("pendingAppDescription");
+        sessionStorage.removeItem("triggerBuildOnLanding");
+      }
+    }
+
+    if (!promptText) {
       window.history.replaceState({}, "", "/dashboard");
       return;
     }
